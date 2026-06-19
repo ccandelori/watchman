@@ -47,6 +47,13 @@ prompt-family leakage between train and test folds. Hard V1 is especially
 useful because both TF-IDF baselines degrade sharply on the intent-sensitive
 task while the activation probe remains comparatively strong.
 
+Current grouped error analysis for Hard V1 shows the activation probe's
+remaining `safe_secret_vs_exfiltration` errors are concentrated in a small set
+of contrast families: `hard_safe_output_contract` is the main weak family, with
+single-error clusters around broker impersonation, output contract abuse,
+policy override, safe summaries, and tool-argument review. The full
+machine-readable prediction ledger is registered in lineage.
+
 ## Project Layout
 
 ```text
@@ -153,6 +160,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   --output-md introspection/data/reports/binary_tasks_hard_grouped_summary.md
 ```
 
+Run grouped family-level error analysis for Hard V1:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/analyze_binary_errors.py
+```
+
 ## Reports
 
 Key human-readable checkpoints:
@@ -166,6 +180,7 @@ Key human-readable checkpoints:
 - `data/reports/binary_tasks_grouped_summary.md`
 - `data/reports/binary_tasks_hard_summary.md`
 - `data/reports/binary_tasks_hard_grouped_summary.md`
+- `data/reports/binary_error_analysis_hard_grouped_summary.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -176,21 +191,21 @@ Key machine-readable reports registered in lineage:
 - `data/reports/binary_tasks_grouped.json`
 - `data/reports/binary_tasks_hard.json`
 - `data/reports/binary_tasks_hard_grouped.json`
+- `data/reports/binary_error_analysis_hard_grouped.json`
 
 ## Next Moves
 
-The next experimental pressure test is error analysis, not a more elaborate
-model.
+The next experimental pressure test is targeted dataset expansion, not a more
+elaborate model.
 
 Recommended sequence:
 
-1. Inspect hard-v1 errors by prompt family.
-2. Identify whether weaknesses cluster around metadata forwarding, logging,
-   handle resolution, output contracts, or partial disclosure.
-3. Generate a comparison summary across baseline and hard checkpoints.
-4. Decide whether Hard Baseline V2 should expand weak families or split
+1. Generate a comparison summary across baseline and hard checkpoints.
+2. Decide whether Hard Baseline V2 should expand weak families or split
    structured tool-call examples into a separate dataset.
-5. Keep registering every dataset, artifact, and machine-readable report in
+3. Expand the currently weak contrast families, especially output contracts and
+   tool-argument review.
+4. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 
 The research question remains narrow and concrete:

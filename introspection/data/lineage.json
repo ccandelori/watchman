@@ -109,6 +109,14 @@
       "dataset_id": "hard_prompts_v1",
       "artifact_id": "qwen3_0_6b_hard_all_layers_v1",
       "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_binary_grouped_error_analysis_v1",
+      "path": "introspection/data/reports/binary_error_analysis_hard_grouped.json",
+      "sha256": "759f366f7e0d349b62ac026dcc259d216945227115f9e7d4a1fb1d3d0aeb1312",
+      "dataset_id": "hard_prompts_v1",
+      "artifact_id": "qwen3_0_6b_hard_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
     }
   ]
 }

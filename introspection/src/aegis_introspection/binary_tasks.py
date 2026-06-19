@@ -287,7 +287,7 @@ def _std(values: tuple[float, ...]) -> float:
     return float(np.std(np.asarray(values, dtype=np.float64)))
 
 
-def _build_activation_classifier(config: BinaryTaskConfig) -> Pipeline:
+def build_activation_classifier(config: BinaryTaskConfig) -> Pipeline:
     return make_pipeline(
         StandardScaler(),
         LogisticRegression(
@@ -299,7 +299,7 @@ def _build_activation_classifier(config: BinaryTaskConfig) -> Pipeline:
     )
 
 
-def _build_text_classifier(method_name: BinaryMethodName, config: BinaryTaskConfig) -> Pipeline:
+def build_text_classifier(method_name: BinaryMethodName, config: BinaryTaskConfig) -> Pipeline:
     if method_name == "word_tfidf":
         vectorizer = TfidfVectorizer(
             analyzer="word",
@@ -396,7 +396,7 @@ def evaluate_activation_method(
     fold_predictions: list[tuple[int, IntVector, IntVector]] = []
 
     for split in splits:
-        classifier = _build_activation_classifier(config)
+        classifier = build_activation_classifier(config)
         classifier.fit(matrix[split.train_indices], encoded_labels[split.train_indices])
         predictions = classifier.predict(matrix[split.test_indices]).astype(np.int64, copy=False)
         fold_predictions.append((split.fold_index, encoded_labels[split.test_indices], predictions))
@@ -427,7 +427,7 @@ def evaluate_grouped_activation_method(
     fold_predictions: list[tuple[int, IntVector, IntVector]] = []
 
     for split in splits:
-        classifier = _build_activation_classifier(config)
+        classifier = build_activation_classifier(config)
         classifier.fit(matrix[split.train_indices], encoded_labels[split.train_indices])
         predictions = classifier.predict(matrix[split.test_indices]).astype(np.int64, copy=False)
         fold_predictions.append((split.fold_index, encoded_labels[split.test_indices], predictions))
@@ -456,7 +456,7 @@ def evaluate_text_method(
     fold_predictions: list[tuple[int, IntVector, IntVector]] = []
 
     for split in splits:
-        classifier = _build_text_classifier(method_name, config)
+        classifier = build_text_classifier(method_name, config)
         classifier.fit(text_array[split.train_indices].tolist(), encoded_labels[split.train_indices])
         predictions = classifier.predict(text_array[split.test_indices].tolist()).astype(np.int64, copy=False)
         fold_predictions.append((split.fold_index, encoded_labels[split.test_indices], predictions))
@@ -489,7 +489,7 @@ def evaluate_grouped_text_method(
     fold_predictions: list[tuple[int, IntVector, IntVector]] = []
 
     for split in splits:
-        classifier = _build_text_classifier(method_name, config)
+        classifier = build_text_classifier(method_name, config)
         classifier.fit(text_array[split.train_indices].tolist(), encoded_labels[split.train_indices])
         predictions = classifier.predict(text_array[split.test_indices].tolist()).astype(np.int64, copy=False)
         fold_predictions.append((split.fold_index, encoded_labels[split.test_indices], predictions))
