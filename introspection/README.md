@@ -374,6 +374,26 @@ by mixed and sometimes opposing mean-pool late-layer signals. This points
 toward source calibration and late mean-pool weighting as the next debugging
 surface, not simply a global decision-threshold problem.
 
+A targeted source-ablation checkpoint tested that hypothesis directly across
+Hard V2 and Hard V3. The full dual-readout meta-head remains the best variant.
+Dropping `mean_pool_layer_28` leaves Hard V2 unchanged at 7 candidate errors
+and 5 introduced errors, while Hard V3 keeps the same candidate error count but
+trades one extra fixed error for one extra introduced error. Dropping the last
+two mean-pool sources, the last final-token source, or the full last dual
+readout layer all worsens the aggregate result.
+
+| Variant | Candidate Errors | Fixed | Persistent | Introduced | Net Error Delta |
+|---|---:|---:|---:|---:|---:|
+| Full dual readout | 12 | 3 | 6 | 6 | 3 |
+| Drop last mean pool | 12 | 4 | 5 | 7 | 3 |
+| Drop last two mean pool | 15 | 2 | 7 | 8 | 6 |
+| Drop last final token | 14 | 3 | 6 | 8 | 5 |
+| Drop last dual readout layer | 15 | 2 | 7 | 8 | 6 |
+
+The source-level error is therefore not isolated to one removable source. The
+next CIFT refinement should look at how source scores are calibrated and
+combined, rather than pruning `mean_pool_layer_28` outright.
+
 ## Project Layout
 
 ```text
@@ -629,6 +649,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/diagnose_cift_meta_scores.py
 ```
 
+Run targeted CIFT meta-head source ablations:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_meta_source_ablation.py
+```
+
 Build the Hard V3 combined-regression adjudication worksheet:
 
 ```bash
@@ -696,6 +723,7 @@ Key human-readable checkpoints:
 - `data/reports/cift_meta_ablation_v1_summary.md`
 - `data/reports/cift_meta_ablation_progress_2026-06-19.md`
 - `data/reports/cift_meta_score_diagnostics_hard_v2_v1_summary.md`
+- `data/reports/cift_meta_source_ablation_v1_summary.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -735,6 +763,7 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_meta_head_residual_suite_v1.json`
 - `data/reports/cift_meta_ablation_v1.json`
 - `data/reports/cift_meta_score_diagnostics_hard_v2_v1.json`
+- `data/reports/cift_meta_source_ablation_v1.json`
 
 ## Next Moves
 
@@ -753,9 +782,9 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. For CIFT-like work, use the Hard V2 score diagnostics to test targeted
-   source ablations, late mean-pool weighting, or calibration constraints while
-   preserving the Hard V3 fixed cases.
+5. For CIFT-like work, use the score diagnostics and source-ablation result to
+   test calibration or combination constraints while preserving the Hard V3
+   fixed cases.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 
