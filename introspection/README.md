@@ -452,6 +452,26 @@ operating threshold on a constrained combiner. The more promising next
 experiment is a signed logistic regularization sweep or source-score
 calibration that preserves the useful cross-source correction.
 
+A signed-logistic meta-head regularization sweep tested that next branch while
+holding the source-head regularization fixed at `C=1.0`. Stronger meta-head
+regularization values underfit the Hard V2/Hard V3 tradeoff, while weaker
+regularization of the signed meta-head improves both aggregate errors and the
+Hard V3 result. `C=5.0` and `C=10.0` tie as the best tested settings:
+
+| Meta C | Candidate Errors | Fixed | Persistent | Introduced | Net Error Delta | Mean Accuracy |
+|---:|---:|---:|---:|---:|---:|---:|
+| 0.5 | 15 | 2 | 7 | 8 | 6 | 0.8750 |
+| 1.0 | 12 | 3 | 6 | 6 | 3 | 0.9000 |
+| 5.0 | 9 | 5 | 4 | 5 | 0 | 0.9250 |
+| 10.0 | 9 | 5 | 4 | 5 | 0 | 0.9250 |
+
+The useful finding is that preserving signed supervised correction remains the
+best current CIFT-like direction. The risk is that the apparent improvement may
+be checkpoint-specific: Hard V2 still has five introduced errors against the
+combined static reference, and this sweep only covered Hard V2/Hard V3. The
+next checkpoint should cross-check `meta_c_5` across all registered datasets
+and produce residual diagnostics for its remaining Hard V2 misses.
+
 ## Project Layout
 
 ```text
@@ -721,6 +741,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_meta_combiner_ablation.py
 ```
 
+Run the signed CIFT meta-head regularization sweep:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_meta_regularization_sweep.py
+```
+
 Build the Hard V3 combined-regression adjudication worksheet:
 
 ```bash
@@ -792,6 +819,7 @@ Key human-readable checkpoints:
 - `data/reports/cift_meta_combiner_ablation_v1_summary.md`
 - `data/reports/cift_meta_combiner_ablation_v2_summary.md`
 - `data/reports/cift_meta_combiner_ablation_v3_summary.md`
+- `data/reports/cift_meta_regularization_sweep_v1_summary.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -835,6 +863,7 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_meta_combiner_ablation_v1.json`
 - `data/reports/cift_meta_combiner_ablation_v2.json`
 - `data/reports/cift_meta_combiner_ablation_v3.json`
+- `data/reports/cift_meta_regularization_sweep_v1.json`
 
 ## Next Moves
 
@@ -853,9 +882,8 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. For CIFT-like work, preserve supervised correction and test regularized
-   signed weights or explicit source-score calibration while keeping the Hard
-   V3 fixed cases.
+5. For CIFT-like work, cross-check `meta_c_5` across all registered datasets,
+   then inspect its remaining Hard V2 residuals before any promotion decision.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 
