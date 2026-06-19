@@ -394,6 +394,28 @@ The source-level error is therefore not isolated to one removable source. The
 next CIFT refinement should look at how source scores are calibrated and
 combined, rather than pruning `mean_pool_layer_28` outright.
 
+A constrained-combiner ablation tested simple monotone alternatives on the same
+full dual-readout source set. These rules are more interpretable than the
+logistic meta-head because higher source risk cannot reduce final risk, but
+they are much weaker on the current source scores. Mean score, majority vote,
+max score, and top-two mean all introduce substantially more errors than the
+logistic meta-head.
+
+| Combiner | Candidate Errors | Fixed | Persistent | Introduced | Net Error Delta |
+|---|---:|---:|---:|---:|---:|
+| Logistic meta-head | 12 | 3 | 6 | 6 | 3 |
+| Mean score | 26 | 2 | 7 | 19 | 17 |
+| Majority vote | 27 | 2 | 7 | 20 | 18 |
+| Top-two mean | 41 | 1 | 8 | 33 | 32 |
+| Max score | 42 | 1 | 8 | 34 | 33 |
+
+This means the per-source risk scores are not calibrated enough to combine
+directly with raw averaging or voting. The logistic meta-head is doing useful
+cross-source correction, even though it still has the Hard V2 regression. The
+next constrained direction should be supervised but regularized: e.g.,
+non-negative logistic weights, simplex weights, or calibrated source scores
+before aggregation.
+
 ## Project Layout
 
 ```text
@@ -656,6 +678,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_meta_source_ablation.py
 ```
 
+Run constrained CIFT meta-head combiner ablations:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_meta_combiner_ablation.py
+```
+
 Build the Hard V3 combined-regression adjudication worksheet:
 
 ```bash
@@ -724,6 +753,7 @@ Key human-readable checkpoints:
 - `data/reports/cift_meta_ablation_progress_2026-06-19.md`
 - `data/reports/cift_meta_score_diagnostics_hard_v2_v1_summary.md`
 - `data/reports/cift_meta_source_ablation_v1_summary.md`
+- `data/reports/cift_meta_combiner_ablation_v1_summary.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -764,6 +794,7 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_meta_ablation_v1.json`
 - `data/reports/cift_meta_score_diagnostics_hard_v2_v1.json`
 - `data/reports/cift_meta_source_ablation_v1.json`
+- `data/reports/cift_meta_combiner_ablation_v1.json`
 
 ## Next Moves
 
@@ -782,9 +813,9 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. For CIFT-like work, use the score diagnostics and source-ablation result to
-   test calibration or combination constraints while preserving the Hard V3
-   fixed cases.
+5. For CIFT-like work, move beyond raw monotone combiners and test supervised
+   but constrained combination: non-negative logistic weights, simplex weights,
+   or calibrated source scores while preserving the Hard V3 fixed cases.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 
