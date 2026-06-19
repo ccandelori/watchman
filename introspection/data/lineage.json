@@ -185,6 +185,30 @@
       "dataset_id": "hard_prompts_v2",
       "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
       "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_candidate_error_analysis_v1",
+      "path": "introspection/data/reports/binary_error_analysis_hard_v2_candidate_final_token_layer_11_grouped.json",
+      "sha256": "f9f68059c7e6abb623feb44d10c51516a995f0737cfc3e87903edb4bb605ca41",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_candidate_residual_error_comparison_v1",
+      "path": "introspection/data/reports/hard_v2_candidate_residual_error_comparison.json",
+      "sha256": "ce5854a2cb37b4dcf591852e99517c18c5260e49773a72b36b6cecbe36f23e8e",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_candidate_error_adjudication_v1",
+      "path": "introspection/data/reports/hard_v2_candidate_error_adjudication.json",
+      "sha256": "178c5add27075f381067d316363efe4bcc30941aff5fbc028b64b61d413c1808",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
     }
   ]
 }

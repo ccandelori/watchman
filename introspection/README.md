@@ -75,6 +75,13 @@ Treat `mean_pool_layer_18` as the fixed regression checkpoint and
 `final_token_layer_11` as a candidate hard-case checkpoint until the candidate
 is tested against new prompt families.
 
+Residual analysis on Hard V2 strengthens that candidate reading. On
+`safe_secret_vs_exfiltration`, `final_token_layer_11` reduces activation-probe
+errors from 16 to 2, fixing 14 prior misses with 0 introduced target-task
+errors. Both persistent misses are in `hard_v2_safe_summary_customer_note`.
+However, the candidate introduces 1 error on `benign_vs_secret_related`, so this
+is still a candidate checkpoint rather than a universal replacement.
+
 ## Project Layout
 
 ```text
@@ -222,6 +229,24 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_candidate_feature.py
 ```
 
+Run candidate Hard V2 error analysis:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/analyze_binary_errors.py \
+  --artifact introspection/data/activations/qwen3_0_6b_hard_v2_all_layers.pt \
+  --activation-feature final_token_layer_11 \
+  --output-json introspection/data/reports/binary_error_analysis_hard_v2_candidate_final_token_layer_11_grouped.json \
+  --output-md introspection/data/reports/binary_error_analysis_hard_v2_candidate_final_token_layer_11_grouped_summary.md
+```
+
+Compare candidate and reference residual errors:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_error_residuals.py
+```
+
 ## Reports
 
 Key human-readable checkpoints:
@@ -247,6 +272,10 @@ Key human-readable checkpoints:
 - `data/reports/hard_v2_layer_sweep_progress_2026-06-19.md`
 - `data/reports/candidate_feature_crosscheck_summary.md`
 - `data/reports/candidate_feature_crosscheck_progress_2026-06-19.md`
+- `data/reports/binary_error_analysis_hard_v2_candidate_final_token_layer_11_grouped_summary.md`
+- `data/reports/hard_v2_candidate_residual_error_comparison_summary.md`
+- `data/reports/hard_v2_candidate_error_adjudication_summary.md`
+- `data/reports/hard_v2_candidate_residual_progress_2026-06-19.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -264,17 +293,20 @@ Key machine-readable reports registered in lineage:
 - `data/reports/hard_v2_error_adjudication.json`
 - `data/reports/binary_layer_sweep_hard_v2_grouped.json`
 - `data/reports/candidate_feature_crosscheck.json`
+- `data/reports/binary_error_analysis_hard_v2_candidate_final_token_layer_11_grouped.json`
+- `data/reports/hard_v2_candidate_residual_error_comparison.json`
+- `data/reports/hard_v2_candidate_error_adjudication.json`
 
 ## Next Moves
 
-The next experimental step is residual-error analysis for the candidate feature,
-not a more elaborate model.
+The next experimental step is new held-out coverage for the candidate feature,
+not more tuning on Hard V2.
 
 Recommended sequence:
 
-1. Generate Hard V2 error analysis for `final_token_layer_11`.
-2. Compare the candidate's residual misses against the fixed
-   `mean_pool_layer_18` misses.
+1. Human-review the two remaining `hard_v2_safe_summary_customer_note` misses.
+2. Add held-out summary/replacement prompt families that test the same boundary
+   without reusing the Hard V2 wording.
 3. Keep `mean_pool_layer_18` as the fixed regression checkpoint while the
    candidate remains post-hoc.
 4. Only promote `final_token_layer_11` after it holds up on new prompt families,
