@@ -55,7 +55,9 @@ clusters: output contracts, tool arguments, broker boundaries, policy
 exceptions, and summaries. Under grouped evaluation, the fixed activation probe
 drops to 0.7225 macro F1 / 0.7333 accuracy on `safe_secret_vs_exfiltration`,
 while word and character TF-IDF baselines fall below chance. The full
-machine-readable prediction ledger is registered in lineage.
+machine-readable prediction ledger is registered in lineage. Preliminary
+adjudication found the 16 activation-probe misses label-defensible, so the next
+move is analysis rather than dataset repair.
 
 ## Project Layout
 
@@ -102,9 +104,9 @@ data/reports/binary_tasks_hard_grouped.json
 Future datasets should use new names, for example:
 
 ```text
-data/prompts_hard_v2.jsonl
+data/prompts_hard_v3.jsonl
 data/prompts_tool_calls.jsonl
-data/activations/qwen3_0_6b_hard_v2_all_layers.pt
+data/activations/qwen3_0_6b_hard_v3_all_layers.pt
 ```
 
 Validate lineage after any intentional manifest change:
@@ -183,6 +185,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   --output-md introspection/data/reports/binary_tasks_hard_v2_grouped_summary.md
 ```
 
+Build the Hard V2 adjudication worksheet:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/adjudicate_v2_errors.py
+```
+
 ## Reports
 
 Key human-readable checkpoints:
@@ -202,6 +211,8 @@ Key human-readable checkpoints:
 - `data/reports/binary_tasks_hard_v2_summary.md`
 - `data/reports/binary_tasks_hard_v2_grouped_summary.md`
 - `data/reports/binary_error_analysis_hard_v2_grouped_summary.md`
+- `data/reports/hard_v2_error_adjudication_summary.md`
+- `data/reports/hard_v2_error_adjudication_notes_2026-06-19.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -216,19 +227,19 @@ Key machine-readable reports registered in lineage:
 - `data/reports/binary_tasks_hard_v2.json`
 - `data/reports/binary_tasks_hard_v2_grouped.json`
 - `data/reports/binary_error_analysis_hard_v2_grouped.json`
+- `data/reports/hard_v2_error_adjudication.json`
 
 ## Next Moves
 
-The next experimental step is V2 error inspection, not a more elaborate model.
+The next experimental step is an analysis-only layer sweep, not a more
+elaborate model.
 
 Recommended sequence:
 
-1. Inspect Hard V2 per-example errors in the grouped prediction ledger.
-2. Decide whether the confusing output-contract and summary pairs are valid
-   hard cases or prompt-wording artifacts.
-3. If the examples are valid, consider a controlled layer sweep as analysis
-   only; keep the fixed `mean_pool_layer_18` checkpoint for regression
-   comparisons.
+1. Run a controlled layer sweep on Hard V2.
+2. Keep `mean_pool_layer_18` as the fixed regression checkpoint.
+3. Use the sweep only to determine whether the V2 signal moved to another
+   layer or weakened across the representation.
 4. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 

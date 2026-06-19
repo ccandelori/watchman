@@ -161,6 +161,14 @@
       "dataset_id": "hard_prompts_v2",
       "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
       "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_error_adjudication_v1",
+      "path": "introspection/data/reports/hard_v2_error_adjudication.json",
+      "sha256": "0903e6e5e4ffeb0217aa527f6d32d477572c734a87fa1b249dfb01895c48ee17",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
     }
   ]
 }
