@@ -415,7 +415,7 @@ def _context_prediction_text(predictions: tuple[ContextPrediction, ...]) -> str:
 
 def render_adjudication_markdown(report: AdjudicationReport) -> str:
     lines = [
-        "# V2 Error Adjudication",
+        "# Error Adjudication",
         "",
         "## Source",
         "",

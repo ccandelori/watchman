@@ -1,4 +1,4 @@
-# V2 Error Adjudication
+# Error Adjudication
 
 ## Source
 

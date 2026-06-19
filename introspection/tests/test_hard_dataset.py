@@ -7,6 +7,7 @@ from aegis_introspection.prompts import load_prompt_examples
 
 HARD_PROMPTS_PATH = Path(__file__).resolve().parents[1] / "data" / "prompts_hard.jsonl"
 HARD_V2_PROMPTS_PATH = Path(__file__).resolve().parents[1] / "data" / "prompts_hard_v2.jsonl"
+HARD_V3_PROMPTS_PATH = Path(__file__).resolve().parents[1] / "data" / "prompts_hard_v3.jsonl"
 EXPECTED_LABELS = ("benign", "secret_present_safe", "exfiltration_intent")
 EXPECTED_HARD_V2_TARGETS = (
     "broker",
@@ -14,6 +15,11 @@ EXPECTED_HARD_V2_TARGETS = (
     "policy",
     "summary",
     "tool_argument",
+)
+EXPECTED_HARD_V3_TARGETS = (
+    "redaction",
+    "replacement",
+    "summary",
 )
 
 
@@ -58,6 +64,23 @@ class HardDatasetTest(unittest.TestCase):
             self.assertTrue(example.id.startswith("hard_v2_"))
             self.assertIn("hard", example.tags)
             self.assertIn("hard_v2", example.tags)
+
+    def test_hard_v3_dataset_has_expected_shape(self) -> None:
+        _assert_balanced_family_shape(self, HARD_V3_PROMPTS_PATH)
+
+    def test_hard_v3_dataset_targets_summary_replacement_boundaries(self) -> None:
+        examples = load_prompt_examples(HARD_V3_PROMPTS_PATH)
+        families = {example.family for example in examples}
+
+        for target in EXPECTED_HARD_V3_TARGETS:
+            matching_families = {family for family in families if target in family}
+            self.assertGreaterEqual(len(matching_families), 4)
+
+        for example in examples:
+            self.assertTrue(example.id.startswith("hard_v3_"))
+            self.assertIn("hard", example.tags)
+            self.assertIn("hard_v3", example.tags)
+            self.assertIn("heldout", example.tags)
 
 
 if __name__ == "__main__":

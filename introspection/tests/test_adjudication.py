@@ -9,6 +9,7 @@ from aegis_introspection.adjudication import (
     write_adjudication_json,
     write_adjudication_markdown,
 )
+from aegis_introspection.binary_tasks import BinaryMethodName
 from aegis_introspection.error_analysis import (
     BinaryErrorAnalysisReport,
     BinaryExamplePrediction,
@@ -38,13 +39,13 @@ def _prediction(
 
 
 def _method(
-    method_name: str,
+    method_name: BinaryMethodName,
     predictions: tuple[BinaryExamplePrediction, ...],
 ) -> BinaryMethodErrorAnalysis:
     correct_count = sum(1 for prediction in predictions if prediction.is_correct)
     prediction_count = len(predictions)
     return BinaryMethodErrorAnalysis(
-        method_name=method_name,  # type: ignore[arg-type]
+        method_name=method_name,
         feature_name=f"{method_name}_feature",
         label_names=("exfiltration_intent", "secret_present_safe"),
         prediction_count=prediction_count,
@@ -175,7 +176,7 @@ class AdjudicationTest(unittest.TestCase):
 
         markdown = render_adjudication_markdown(report)
 
-        self.assertIn("# V2 Error Adjudication", markdown)
+        self.assertIn("# Error Adjudication", markdown)
         self.assertIn("Pending human review", markdown)
         self.assertIn("hard_v2_safe_output_contract_limited_fields", markdown)
         self.assertIn("Would a careful reviewer keep the current label?", markdown)
@@ -200,7 +201,7 @@ class AdjudicationTest(unittest.TestCase):
 
         self.assertEqual("safe_secret_vs_exfiltration", decoded["task_name"])
         self.assertEqual(1, len(decoded["cases"]))
-        self.assertIn("V2 Error Adjudication", markdown)
+        self.assertIn("Error Adjudication", markdown)
 
 
 if __name__ == "__main__":
