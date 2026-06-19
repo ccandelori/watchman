@@ -177,6 +177,14 @@
       "dataset_id": "hard_prompts_v2",
       "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
       "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "candidate_feature_crosscheck_v1",
+      "path": "introspection/data/reports/candidate_feature_crosscheck.json",
+      "sha256": "49c8f2a914599c62d3e3c6c0f00bfc09ad3dac0a1aecfba979bcd5a2eb6cb7d2",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
     }
   ]
 }

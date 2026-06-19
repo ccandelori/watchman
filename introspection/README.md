@@ -17,7 +17,7 @@ Three datasets are currently registered in `data/lineage.json`:
 | `hard_prompts_v1` | Harder contrastive successor to the baseline. | 90 |
 | `hard_prompts_v2` | Targeted successor focused on V1 error clusters. | 90 |
 
-Both datasets use the same label shape:
+All three datasets use the same label shape:
 
 | Label | Count | Meaning |
 |---|---:|---|
@@ -28,7 +28,7 @@ Both datasets use the same label shape:
 Each prompt has a `family` field. Grouped evaluation uses those families to
 hold related prompt patterns out together.
 
-The strongest current activation feature is:
+The fixed historical activation checkpoint is:
 
 ```text
 mean_pool_layer_18
@@ -57,11 +57,23 @@ drops to 0.7225 macro F1 / 0.7333 accuracy on `safe_secret_vs_exfiltration`,
 while word and character TF-IDF baselines fall below chance. The full
 machine-readable prediction ledger is registered in lineage. Preliminary
 adjudication found the 16 activation-probe misses label-defensible, so the next
-move is analysis rather than dataset repair. A grouped Hard V2 layer sweep found
-the best feature was `final_token_layer_11` at 0.9657 macro F1 / 0.9667
-accuracy, while the fixed `mean_pool_layer_18` checkpoint ranked 39th. Treat
-that as a candidate feature, not a replacement, until it is confirmed across
-baseline and Hard V1.
+move is analysis rather than dataset repair.
+
+A grouped Hard V2 layer sweep found the best feature was `final_token_layer_11`
+at 0.9657 macro F1 / 0.9667 accuracy, while the fixed
+`mean_pool_layer_18` checkpoint ranked 39th. A cross-dataset check now confirms
+that `final_token_layer_11` also improves Hard V1, but loses slightly on the
+original baseline:
+
+| Dataset | Reference | Candidate | Delta Macro F1 | Winner |
+|---|---:|---:|---:|---|
+| Baseline | 0.8620 | 0.8445 | -0.0175 | `mean_pool_layer_18` |
+| Hard V1 | 0.8788 | 0.8993 | +0.0205 | `final_token_layer_11` |
+| Hard V2 | 0.7225 | 0.9657 | +0.2432 | `final_token_layer_11` |
+
+Treat `mean_pool_layer_18` as the fixed regression checkpoint and
+`final_token_layer_11` as a candidate hard-case checkpoint until the candidate
+is tested against new prompt families.
 
 ## Project Layout
 
@@ -203,6 +215,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/sweep_binary_layers.py
 ```
 
+Run the cross-dataset candidate feature check:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_candidate_feature.py
+```
+
 ## Reports
 
 Key human-readable checkpoints:
@@ -226,6 +245,8 @@ Key human-readable checkpoints:
 - `data/reports/hard_v2_error_adjudication_notes_2026-06-19.md`
 - `data/reports/binary_layer_sweep_hard_v2_grouped_summary.md`
 - `data/reports/hard_v2_layer_sweep_progress_2026-06-19.md`
+- `data/reports/candidate_feature_crosscheck_summary.md`
+- `data/reports/candidate_feature_crosscheck_progress_2026-06-19.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -242,21 +263,23 @@ Key machine-readable reports registered in lineage:
 - `data/reports/binary_error_analysis_hard_v2_grouped.json`
 - `data/reports/hard_v2_error_adjudication.json`
 - `data/reports/binary_layer_sweep_hard_v2_grouped.json`
+- `data/reports/candidate_feature_crosscheck.json`
 
 ## Next Moves
 
-The next experimental step is cross-dataset confirmation of the candidate
-feature, not a more elaborate model.
+The next experimental step is residual-error analysis for the candidate feature,
+not a more elaborate model.
 
 Recommended sequence:
 
-1. Compare `final_token_layer_11` and `mean_pool_layer_18` on baseline, Hard V1,
-   and Hard V2.
-2. Keep `mean_pool_layer_18` as the fixed regression checkpoint while this
-   confirmation is still post-hoc.
-3. Only promote `final_token_layer_11` if it performs consistently across
-   checkpoints, not just because it won the Hard V2 sweep.
-4. Keep registering every dataset, artifact, and machine-readable report in
+1. Generate Hard V2 error analysis for `final_token_layer_11`.
+2. Compare the candidate's residual misses against the fixed
+   `mean_pool_layer_18` misses.
+3. Keep `mean_pool_layer_18` as the fixed regression checkpoint while the
+   candidate remains post-hoc.
+4. Only promote `final_token_layer_11` after it holds up on new prompt families,
+   not just because it won a sweep over the current datasets.
+5. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 
 The research question remains narrow and concrete:
