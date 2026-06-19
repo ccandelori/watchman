@@ -237,6 +237,28 @@ CIFT-focused work should isolate whether the weakness comes from the readout
 position, the score compression, missing layer weighting, or the calibration
 set.
 
+A V2 CIFT-like ablation now separates some of those causes. It compares eight
+last-quarter variants across final-token versus mean-pool readout proxies,
+diagonal-distance versus standardized-residual representations, and
+safe-secret-only versus benign-plus-safe calibration. The combined static
+feature still wins every checkpoint, but residual-concat variants are much
+stronger than diagonal-distance variants:
+
+| Dataset | Combined Macro F1 | Best CIFT-like Macro F1 | Delta Macro F1 |
+|---|---:|---:|---:|
+| Baseline | 0.8804 | 0.8623 | -0.0181 |
+| Hard V1 | 0.9331 | 0.8132 | -0.1199 |
+| Hard V2 | 0.9657 | 0.7808 | -0.1849 |
+| Hard V3 | 0.8811 | 0.7461 | -0.1350 |
+
+The aggregate result points at score compression as a major weakness in the
+first CIFT-like attempt. The best final-token residual variants average 0.7924
+macro F1, while the best final-token diagonal variant averages 0.5783. The
+calibration-set axis does not affect residual-concat results because the
+downstream activation classifier standardizes those features again; the next
+CIFT refinement should preserve calibrated residual magnitudes when testing
+calibration choices.
+
 ## Project Layout
 
 ```text
@@ -450,6 +472,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_probe.py
 ```
 
+Run the CIFT-like V2 ablation:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_ablation.py
+```
+
 Build the Hard V3 combined-regression adjudication worksheet:
 
 ```bash
@@ -504,6 +533,8 @@ Key human-readable checkpoints:
 - `data/reports/project_aligned_workflow_2026-06-19.md`
 - `data/reports/cift_like_probe_comparison_summary.md`
 - `data/reports/cift_like_probe_progress_2026-06-19.md`
+- `data/reports/cift_like_ablation_v2_summary.md`
+- `data/reports/cift_like_ablation_v2_progress_2026-06-19.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -536,6 +567,7 @@ Key machine-readable reports registered in lineage:
 - `data/reports/combined_feature_residual_suite.json`
 - `data/reports/hard_v3_combined_regression_adjudication.json`
 - `data/reports/cift_like_probe_comparison.json`
+- `data/reports/cift_like_ablation_v2.json`
 
 ## Next Moves
 
@@ -554,8 +586,8 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. For CIFT-like work, ablate readout position, per-layer score construction,
-   layer weighting, and calibration-set choice before judging the approach.
+5. For CIFT-like work, preserve calibrated residual magnitudes before testing
+   calibration-set choices, then ablate readout position and layer weighting.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 
