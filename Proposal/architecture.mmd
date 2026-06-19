@@ -1,0 +1,65 @@
+```mermaid
+flowchart TB
+    subgraph Agent["LLM Agent Runtime"]
+        direction TB
+        AgentCore["Agent Core\n(Reasoning + Planning)"]
+        ToolCalls["Tool Calls\n(including arguments)"]
+        Context["Context Assembly"]
+    end
+
+    subgraph Aegis["Aegis Security Gateway (Sidecar)"]
+        direction TB
+
+        subgraph Layer1["Layer 1: CIFT-ML (Pre-Output)"]
+            CIFT["Activation + Behavioral Probe\n(Classical ML)"]
+        end
+
+        subgraph Layer2["Layer 2: DP-Honey+"]
+            Honey["Canary Service\n(DP + Conformal)"]
+            Secrets["Secret Manager\n(Vault / AWS SM)"]
+        end
+
+        subgraph Layer3["Layer 3: Nimbus+"]
+            Nimbus["Cumulative Leakage Ledger"]
+            ArgScan["Tool-Call Argument Scanner"]
+        end
+
+        Policy["Policy Engine\n(Allow / Warn / Block / Escalate)"]
+    end
+
+    subgraph External["External Surfaces"]
+        Tools["Tools / APIs\n(send_email, query_db, ...)"]
+        Audit["Audit Logs + Dashboard"]
+        Human["Human Review UI\n(High-risk actions)"]
+    end
+
+    %% Flow
+    Context --> Aegis
+    ToolCalls --> Aegis
+    AgentCore --> Aegis
+
+    Aegis --> CIFT
+    Aegis --> Honey
+    Honey --> Secrets
+    Aegis --> Nimbus
+    Nimbus --> ArgScan
+
+    CIFT --> Policy
+    Honey --> Policy
+    Nimbus --> Policy
+    ArgScan --> Policy
+
+    Policy -->|ALLOW / REWRITE| Tools
+    Policy -->|BLOCK / WARN| AgentCore
+    Policy -->|ESCALATE| Human
+
+    Tools -->|Results + Errors| AgentCore
+    Policy --> Audit
+    Human --> Policy
+
+    style Aegis fill:#e6f2ff,stroke:#0066cc
+    style Policy fill:#ffe6e6,stroke:#cc0000
+    style CIFT fill:#e6ffe6,stroke:#009933
+    style Honey fill:#fff5e6,stroke:#cc7a00
+    style Nimbus fill:#f5e6ff,stroke:#6600cc
+```

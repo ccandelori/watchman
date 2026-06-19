@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "created_on": "2026-06-18",
+  "datasets": [
+    {
+      "id": "baseline_prompts_v1",
+      "path": "introspection/data/prompts.jsonl",
+      "sha256": "dfebd7d7254c99fa09f38622da76f0c9f4fac402bab1e8b14a0b3c3632afedbd",
+      "purpose": "Baseline hand-authored prompt dataset for early Aegis model-introspection checkpoints.",
+      "label_counts": {
+        "benign": 30,
+        "secret_present_safe": 30,
+        "exfiltration_intent": 30
+      },
+      "family_count": 30
+    },
+    {
+      "id": "hard_prompts_v1",
+      "path": "introspection/data/prompts_hard.jsonl",
+      "sha256": "0e01383a82e7fb9747226dc282b5968530ad7984afcdbeafe4dd1c4078ddafc3",
+      "purpose": "Hard Baseline V1 prompt dataset with contrastive safe-secret and exfiltration examples.",
+      "label_counts": {
+        "benign": 30,
+        "secret_present_safe": 30,
+        "exfiltration_intent": 30
+      },
+      "family_count": 30
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "qwen3_0_6b_baseline_sampled_layers_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_features.pt",
+      "sha256": "30ec6e4e6f9c3aa65165cd43bdba710111a23c036bc73d910dd277fd15455f89",
+      "dataset_id": "baseline_prompts_v1",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 10
+    },
+    {
+      "id": "qwen3_0_6b_baseline_all_layers_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_all_layers.pt",
+      "sha256": "2843c190e6829e13754472ff4da923f0ae4dfd94e81d1c34df228306a7e19db0",
+      "dataset_id": "baseline_prompts_v1",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 58
+    },
+    {
+      "id": "qwen3_0_6b_hard_all_layers_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_hard_all_layers.pt",
+      "sha256": "3ffa8aaf42e113487a5b31a2158d3c14532154e5f37fcfb348cc90b78dd84b1d",
+      "dataset_id": "hard_prompts_v1",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 58
+    }
+  ],
+  "reports": [
+    {
+      "id": "baseline_probe_sampled_layers_v1",
+      "path": "introspection/data/reports/probe_baseline.json",
+      "sha256": "0e63d50aa43abca46f6c4a724e5de51cf906661fe4df4d65c6f418db4acf60e0",
+      "dataset_id": "baseline_prompts_v1",
+      "artifact_id": "qwen3_0_6b_baseline_sampled_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "baseline_text_word_tfidf_v1",
+      "path": "introspection/data/reports/text_baseline.json",
+      "sha256": "5e06a5e404c95dea1af43ca810b08f944549007884f6df113122d498902b3eeb",
+      "dataset_id": "baseline_prompts_v1",
+      "artifact_id": "qwen3_0_6b_baseline_sampled_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "baseline_probe_all_layers_v1",
+      "path": "introspection/data/reports/probe_all_layers.json",
+      "sha256": "feb4a722700da8fb27aa1d15e6b9ac5c8d69a7bc14159271b485353713778237",
+      "dataset_id": "baseline_prompts_v1",
+      "artifact_id": "qwen3_0_6b_baseline_all_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "baseline_binary_random_v1",
+      "path": "introspection/data/reports/binary_tasks.json",
+      "sha256": "d683674ac5f62bb2a32839b627b9de0d0855e6e7626f53c07bc5e03be6d213d5",
+      "dataset_id": "baseline_prompts_v1",
+      "artifact_id": "qwen3_0_6b_baseline_all_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "baseline_binary_grouped_v1",
+      "path": "introspection/data/reports/binary_tasks_grouped.json",
+      "sha256": "4b55f7f032a1862612f23efde5318265b74dedb6a77ecc8ec783355183763f0c",
+      "dataset_id": "baseline_prompts_v1",
+      "artifact_id": "qwen3_0_6b_baseline_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_binary_random_v1",
+      "path": "introspection/data/reports/binary_tasks_hard.json",
+      "sha256": "904c84b6494b47228b0bc7135e173976ddd25168136a597e0b448099eee4db4c",
+      "dataset_id": "hard_prompts_v1",
+      "artifact_id": "qwen3_0_6b_hard_all_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "hard_binary_grouped_v1",
+      "path": "introspection/data/reports/binary_tasks_hard_grouped.json",
+      "sha256": "a1d02c7abfcc4918c7c7118fa5c216201635e36f5acfd68807c55edbcbab34c9",
+      "dataset_id": "hard_prompts_v1",
+      "artifact_id": "qwen3_0_6b_hard_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    }
+  ]
+}

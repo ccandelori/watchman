@@ -1,0 +1,72 @@
+\documentclass[11pt,letterpaper]{article}
+\usepackage[margin=0.7in]{geometry}
+\usepackage{times}
+\usepackage{titlesec}
+\usepackage{enumitem}
+\usepackage{hyperref}
+\usepackage{setspace}
+\usepackage{fancyhdr}
+\usepackage{titling}
+\usepackage{graphicx}
+
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{0.5em}
+\onehalfspacing
+
+\titleformat{\section}{\large\bfseries}{\thesection}{0.5em}{}
+\titleformat{\subsection}{\normalsize\bfseries}{\thesubsection}{0.5em}{}
+
+\pagestyle{fancy}
+\fancyhf{}
+\rhead{\thepage}
+\lhead{\textit{Aegis — Credential Defense for LLM Agents}}
+
+\begin{document}
+
+\begin{center}
+\Large\textbf{Aegis — A Hybrid ML + LLM Credential Defense Layer for LLM Agents}\\[0.3em]
+\normalsize\textit{Gauntlet AI Capstone Proposal}
+\end{center}
+
+\section*{The Problem}
+
+LLM agents must keep real credentials (API keys, database passwords, OAuth tokens) in the same context window as untrusted content to function. This creates a structural attack surface: indirect prompt injection can cause credential exfiltration. Text-level defenses fail against encodings, slow multi-turn leakage, and — most critically — tool-call arguments. Recent benchmarks show frontier agents achieve only 17\% verified success on related tasks, with up to 40\% of functionally passing patches rejected for cryptographic or semantic violations. The problem is architectural, not incremental.
+
+\section*{Project Direction}
+
+This is a \textbf{Combine ML with LLM applications} project (Direction A). Classical machine learning provides fast, cheap prediction of exfiltration risk from activation features, provenance signals, and behavioral traces. LLM agents handle proposal, repair, and runtime decision-making. Neither paradigm alone solves the problem.
+
+\section*{Technical Approach}
+
+Aegis is a runtime security gateway inspired by Headroom's pipeline model. Messages flow through three stages that treat AI as a first-class primitive:
+
+\textbf{Inspect} — Activation probes, behavioral signals, and tool-argument parsing.  
+\textbf{Score} — Classical ML risk model (CIFT-ML) combining provenance and canary signals.  
+\textbf{Enforce} — Policy engine that decides Allow / Warn / Block / Escalate.
+
+Aegis supports multiple entry points for easy adoption: SDK wrapper, standalone proxy (zero code changes), and framework plugins. The ML components improve over time from agent trajectories, creating a closed feedback loop. Tool-call argument scanning and cumulative leakage accounting are first-class concerns.
+
+\section*{Scope (Two Weeks)}
+
+\textbf{Minimum shippable}: A working sidecar that intercepts context and tool calls, runs the three layers, and demonstrates measurable improvement over text-only baselines on held-out encoded + multi-turn cases.
+
+\textbf{Ambitious version}: Closed-loop retraining of the ML probe from agent outcomes + first quantitative results on tool-call argument exfiltration.
+
+\section*{Why It's Compelling}
+
+This directly attacks a documented, high-stakes gap that no existing product or research system fully closes. It is visibly ambitious (hybrid closed-loop system on a structural problem), measurable, and timely. Team members will own distinct, high-visibility layers with clear ownership and strong demo potential.
+
+\section*{Hard Parts / Risks}
+
+\begin{itemize}[leftmargin=1.2em]
+    \item Tool-call argument scanning has almost no published precedent.
+    \item Pre-output detection requires white-box access or strong black-box proxies.
+    \item False-positive rate must stay low enough for real use; over-blocking kills utility.
+    \item The ML components must demonstrably improve the LLM pipeline, not just add overhead.
+\end{itemize}
+
+\section*{Demo Sketch (10 minutes)}
+
+Live side-by-side comparison: baseline agent vs.\ Aegis-protected agent under three attacks (encoded single-turn, low-rate multi-turn dripping, tool-call argument injection). Real-time visualization of the three layers firing, with quantitative results table (detection rate, false blocks, latency) shown live. End with a short architecture diagram and the closed-loop retraining story.
+
+\end{document}

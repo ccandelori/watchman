@@ -1,0 +1,74 @@
+flowchart TB
+    subgraph Agent["Your Agent"]
+        A["Agent Runtime"]
+    end
+
+    subgraph Aegis["Aegis Gateway"]
+        direction TB
+
+        %% Current MVP (Minimal Proxy)
+        subgraph Current["Phase 1: Minimal Proxy (Now)"]
+            P1["Receive Request"]
+            P2["Log Request"]
+            P3["Forward Request"]
+            P4["Receive Response"]
+            P5["Log Response"]
+            P6["Return Response"]
+        end
+
+        %% Future Full System
+        subgraph Future["Future: Full Aegis System"]
+            direction TB
+
+            N["Request Normalization<br/>(Provenance + Handles)"]
+
+            subgraph Pipeline["Defense Pipeline"]
+                direction TB
+                I["Inspect<br/>(Signals + Tool Args)"]
+                S["Score<br/>(Risk Model)"]
+                E["Enforce<br/>(Policy Decision)"]
+            end
+
+            PE["Policy Engine"]
+            CB["Credential Broker"]
+            Log["Audit + Logging"]
+        end
+    end
+
+    subgraph External["External Services"]
+        LLM["LLM Provider"]
+        Tools["Tools / APIs"]
+        Secrets["Secret Manager"]
+    end
+
+    %% Current flow (solid lines)
+    A --> P1
+    P1 --> P2
+    P2 --> P3
+    P3 --> LLM
+    P3 --> Tools
+    LLM --> P4
+    Tools --> P4
+    P4 --> P5
+    P5 --> P6
+    P6 --> A
+
+    %% Future flow (dashed lines showing where things will go)
+    P1 -.-> N
+    N -.-> I
+    I -.-> S
+    S -.-> E
+    E -.-> PE
+    PE -.-> CB
+    CB -.-> Secrets
+    PE -.-> Log
+    E -.-> LLM
+    E -.-> Tools
+    LLM -.-> P4
+    Tools -.-> P4
+
+    style Aegis fill:#e6f2ff,stroke:#0066cc,color:#003366
+    style Current fill:#f5f5f5,stroke:#999
+    style Future fill:#e6ffe6,stroke:#009933
+    style Pipeline fill:#fff9e6,stroke:#cc9900
+    style PE fill:#ffe6e6,stroke:#cc0000

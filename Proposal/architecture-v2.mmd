@@ -1,0 +1,53 @@
+```mermaid
+flowchart TB
+    subgraph Agent["Your Agent Runtime"]
+        direction TB
+        Core["Agent Core"]
+    end
+
+    subgraph Aegis["Aegis Security Gateway"]
+        direction TB
+
+        subgraph Modes["Entry Points"]
+            SDK["SDK Wrapper"]
+            Proxy["Proxy Mode<br/>(change base URL)"]
+            Plugin["Framework Plugin<br/>(LangGraph, OpenHands, etc.)"]
+        end
+
+        subgraph Pipeline["Inspect → Score → Enforce"]
+            Inspect["INSPECT<br/>Activation probes<br/>Behavioral signals<br/>Tool argument parsing"]
+            Score["SCORE<br/>Classical ML Risk Model<br/>(CIFT-ML + provenance)"]
+            Enforce["ENFORCE<br/>Policy Engine<br/>Allow / Warn / Block / Escalate"]
+        end
+
+        Canary["DP-Honey+ Canaries"]
+        Ledger["Nimbus+ Leakage Ledger"]
+    end
+
+    subgraph External["External Surfaces"]
+        Tools["Tools / APIs"]
+        Secrets["Secret Manager"]
+        Audit["Audit + Dashboard"]
+        Human["Human Review"]
+    end
+
+    Core -->|intercepted| Modes
+    Modes --> Pipeline
+
+    Inspect --> Score
+    Score --> Enforce
+
+    Enforce -->|decision| Tools
+    Enforce -->|escalate| Human
+    Enforce --> Audit
+
+    Tools -->|results| Core
+    Secrets --> Canary
+    Canary --> Score
+
+    style Aegis fill:#e6f2ff,stroke:#0066cc,color:#003366
+    style Pipeline fill:#f0f0f0,stroke:#666
+    style Enforce fill:#ffe6e6,stroke:#cc0000
+    style Inspect fill:#e6ffe6,stroke:#009933
+    style Score fill:#fff5e6,stroke:#cc7a00
+```
