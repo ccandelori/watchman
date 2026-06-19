@@ -212,6 +212,31 @@ introduced cases against `final_token_layer_16`: one exfiltration case the
 combined feature misses as safe, and two safe cases the combined feature marks
 as exfiltration. All three are pending human review.
 
+A first CIFT-like calibrated-deviation comparison now tests a more
+paper-aligned direction without replacing the static-feature thread. It uses
+final-token readout features from the last quarter of the hidden-state stack,
+`final_token_layer_22` through `final_token_layer_28`, calibrates a diagonal
+safe-secret distribution inside each grouped fold, and trains on per-layer
+deviation scores. This is still an approximation: it does not yet implement
+CCI/CFS, learned nonnegative layer weighting, or richer readout positions beyond
+the final prompt token.
+
+Against the current combined static feature, the first CIFT-like score loses on
+all four checkpoints:
+
+| Dataset | Combined Macro F1 | CIFT-like Macro F1 | Delta Macro F1 |
+|---|---:|---:|---:|
+| Baseline | 0.8804 | 0.6981 | -0.1822 |
+| Hard V1 | 0.9331 | 0.5399 | -0.3932 |
+| Hard V2 | 0.9657 | 0.5329 | -0.4328 |
+| Hard V3 | 0.8811 | 0.4076 | -0.4735 |
+
+Treat this as a negative checkpoint, not a failed project direction. It says
+the naive calibrated-distance score is not enough by itself. The next
+CIFT-focused work should isolate whether the weakness comes from the readout
+position, the score compression, missing layer weighting, or the calibration
+set.
+
 ## Project Layout
 
 ```text
@@ -418,6 +443,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_combined_residual_suite.py
 ```
 
+Run the first CIFT-like calibrated-deviation comparison:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_probe.py
+```
+
 Build the Hard V3 combined-regression adjudication worksheet:
 
 ```bash
@@ -470,6 +502,8 @@ Key human-readable checkpoints:
 - `data/reports/combined_feature_residual_progress_2026-06-19.md`
 - `data/reports/hard_v3_combined_regression_adjudication_summary.md`
 - `data/reports/project_aligned_workflow_2026-06-19.md`
+- `data/reports/cift_like_probe_comparison_summary.md`
+- `data/reports/cift_like_probe_progress_2026-06-19.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -501,13 +535,15 @@ Key machine-readable reports registered in lineage:
 - `data/reports/feature_stability_combined_l11_l16.json`
 - `data/reports/combined_feature_residual_suite.json`
 - `data/reports/hard_v3_combined_regression_adjudication.json`
+- `data/reports/cift_like_probe_comparison.json`
 
 ## Next Moves
 
-The next experimental step is completing human review of the three Hard V3
-combined-regression adjudication cases, then an explicit feature-selection rule.
-Do not silently promote the combined feature just because it improves aggregate
-performance.
+The next experimental steps split into two related threads: completing the
+static-feature promotion review, and refining the CIFT-like path into a closer
+implementation of the paper method. Do not silently promote the combined
+feature just because it improves aggregate performance, and do not discard CIFT
+because the first simplified calibrated-distance score underperformed.
 
 Recommended sequence:
 
@@ -518,7 +554,9 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. Keep registering every dataset, artifact, and machine-readable report in
+5. For CIFT-like work, ablate readout position, per-layer score construction,
+   layer weighting, and calibration-set choice before judging the approach.
+6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 
 The research question remains narrow and concrete:
