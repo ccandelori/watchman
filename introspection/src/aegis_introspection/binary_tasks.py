@@ -109,6 +109,79 @@ class CrossValidationSplit:
     test_indices: IntVector
 
 
+def _parse_concat_feature_key(feature_key: str) -> tuple[str, ...] | None:
+    prefix = "concat("
+    suffix = ")"
+    if not feature_key.startswith(prefix):
+        return None
+    if not feature_key.endswith(suffix):
+        raise BinaryTaskError(f"Activation feature expression '{feature_key}' is missing a closing parenthesis.")
+
+    inner_value = feature_key[len(prefix) : -len(suffix)]
+    source_feature_keys = tuple(item.strip() for item in inner_value.split(",") if item.strip() != "")
+    if len(source_feature_keys) < 2:
+        raise BinaryTaskError(
+            f"Activation feature expression '{feature_key}' must concatenate at least two source features."
+        )
+    return source_feature_keys
+
+
+def _source_feature_tensor(
+    artifact: ActivationArtifact,
+    expression_key: str,
+    source_feature_key: str,
+) -> torch.Tensor:
+    feature_tensor = artifact["features"].get(source_feature_key)
+    if feature_tensor is None:
+        raise BinaryTaskError(
+            f"Activation feature expression '{expression_key}' references missing source feature "
+            f"'{source_feature_key}'."
+        )
+    return feature_tensor
+
+
+def _concat_feature_tensor(
+    artifact: ActivationArtifact,
+    expression_key: str,
+    source_feature_keys: tuple[str, ...],
+) -> torch.Tensor:
+    tensors = tuple(
+        _source_feature_tensor(
+            artifact=artifact,
+            expression_key=expression_key,
+            source_feature_key=source_feature_key,
+        )
+        for source_feature_key in source_feature_keys
+    )
+    row_count = tensors[0].shape[0]
+    for source_feature_key, tensor in zip(source_feature_keys, tensors, strict=True):
+        if tensor.shape[0] != row_count:
+            raise BinaryTaskError(
+                f"Activation feature expression '{expression_key}' references source feature "
+                f"'{source_feature_key}' with {tensor.shape[0]} rows, but expected {row_count} rows."
+            )
+    return torch.cat(tensors, dim=1)
+
+
+def _activation_feature_tensor(
+    artifact: ActivationArtifact,
+    feature_key: str,
+) -> torch.Tensor:
+    feature_tensor = artifact["features"].get(feature_key)
+    if feature_tensor is not None:
+        return feature_tensor
+
+    source_feature_keys = _parse_concat_feature_key(feature_key)
+    if source_feature_keys is not None:
+        return _concat_feature_tensor(
+            artifact=artifact,
+            expression_key=feature_key,
+            source_feature_keys=source_feature_keys,
+        )
+
+    raise BinaryTaskError(f"Activation feature '{feature_key}' is not present in the artifact.")
+
+
 def default_binary_task_definitions() -> tuple[BinaryTaskDefinition, ...]:
     return (
         BinaryTaskDefinition(
@@ -384,10 +457,7 @@ def evaluate_activation_method(
     dataset: BinaryTaskDataset,
     config: BinaryTaskConfig,
 ) -> BinaryMethodReport:
-    feature_tensor = artifact["features"].get(config.activation_feature_key)
-    if feature_tensor is None:
-        raise BinaryTaskError(f"Activation feature '{config.activation_feature_key}' is not present in the artifact.")
-
+    feature_tensor = _activation_feature_tensor(artifact, config.activation_feature_key)
     selected_indices = tuple(artifact["example_ids"].index(example_id) for example_id in dataset.example_ids)
     matrix = tensor_to_float_matrix(feature_tensor)[list(selected_indices)]
     label_encoding = encode_labels(dataset.target_labels)
@@ -415,10 +485,7 @@ def evaluate_grouped_activation_method(
     dataset: BinaryTaskDataset,
     config: BinaryTaskConfig,
 ) -> BinaryMethodReport:
-    feature_tensor = artifact["features"].get(config.activation_feature_key)
-    if feature_tensor is None:
-        raise BinaryTaskError(f"Activation feature '{config.activation_feature_key}' is not present in the artifact.")
-
+    feature_tensor = _activation_feature_tensor(artifact, config.activation_feature_key)
     selected_indices = tuple(artifact["example_ids"].index(example_id) for example_id in dataset.example_ids)
     matrix = tensor_to_float_matrix(feature_tensor)[list(selected_indices)]
     label_encoding = encode_labels(dataset.target_labels)

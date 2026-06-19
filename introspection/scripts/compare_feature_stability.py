@@ -57,6 +57,7 @@ def _default_feature_keys() -> tuple[str, ...]:
         "mean_pool_layer_18",
         "final_token_layer_11",
         "final_token_layer_16",
+        "concat(final_token_layer_11,final_token_layer_16)",
     )
 
 
@@ -77,12 +78,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-json",
         required=False,
-        default=str(INTROSPECTION_ROOT / "data" / "reports" / "feature_stability_reference_l11_l16.json"),
+        default=str(INTROSPECTION_ROOT / "data" / "reports" / "feature_stability_combined_l11_l16.json"),
     )
     parser.add_argument(
         "--output-md",
         required=False,
-        default=str(INTROSPECTION_ROOT / "data" / "reports" / "feature_stability_reference_l11_l16_summary.md"),
+        default=str(INTROSPECTION_ROOT / "data" / "reports" / "feature_stability_combined_l11_l16_summary.md"),
     )
     parser.add_argument("--task", required=False, default="safe_secret_vs_exfiltration")
     parser.add_argument("--folds", required=False, type=int, default=5)

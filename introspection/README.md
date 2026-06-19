@@ -104,6 +104,14 @@ minimum macro F1, the smaller range, and wins baseline plus Hard V3. The
 historical reference wins none of the three-feature checkpoint comparisons, but
 still anchors the experiment history.
 
+The combined-feature check adds
+`concat(final_token_layer_11,final_token_layer_16)` as a derived activation
+matrix. It ranks first by mean macro F1 at 0.9151 and wins or ties three of four
+checkpoints. The important caveat is Hard V3: `final_token_layer_16` remains the
+local winner there, while the combined feature falls back to roughly
+`final_token_layer_11` performance. Treat the combined feature as the leading
+candidate for the next residual-analysis pass, not as a replacement checkpoint.
+
 ## Project Layout
 
 ```text
@@ -296,7 +304,7 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   --output-md introspection/data/reports/candidate_feature_crosscheck_with_hard_v3_summary.md
 ```
 
-Run the three-feature stability check:
+Run the combined feature stability check:
 
 ```bash
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
@@ -342,6 +350,8 @@ Key human-readable checkpoints:
 - `data/reports/hard_v3_heldout_validation_progress_2026-06-19.md`
 - `data/reports/feature_stability_reference_l11_l16_summary.md`
 - `data/reports/feature_stability_progress_2026-06-19.md`
+- `data/reports/feature_stability_combined_l11_l16_summary.md`
+- `data/reports/feature_stability_combined_progress_2026-06-19.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -370,18 +380,20 @@ Key machine-readable reports registered in lineage:
 - `data/reports/binary_layer_sweep_hard_v3_grouped.json`
 - `data/reports/hard_v3_candidate_error_adjudication.json`
 - `data/reports/feature_stability_reference_l11_l16.json`
+- `data/reports/feature_stability_combined_l11_l16.json`
 
 ## Next Moves
 
-The next experimental step is defining and testing a feature-selection rule, not
-silently promoting either final-token feature.
+The next experimental step is residual analysis for the combined feature, then
+an explicit feature-selection rule. Do not silently promote the combined feature
+just because it improves average performance.
 
 Recommended sequence:
 
 1. Human-review the Hard V3 candidate errors, especially the introduced safe
    examples classified as exfiltration.
-2. Evaluate a small combined-feature probe using `final_token_layer_11` and
-   `final_token_layer_16` together.
+2. Run residual analysis for `concat(final_token_layer_11,final_token_layer_16)`
+   against the fixed reference and the two single-layer candidates.
 3. Keep `mean_pool_layer_18` as the fixed regression checkpoint while
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case

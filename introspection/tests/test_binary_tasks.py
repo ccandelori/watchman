@@ -12,6 +12,7 @@ from aegis_introspection.binary_tasks import (
     BinaryTaskError,
     build_binary_task_dataset,
     default_binary_task_definitions,
+    evaluate_grouped_activation_method,
     evaluate_binary_tasks,
     evaluate_grouped_binary_tasks,
     render_binary_tasks_markdown,
@@ -97,6 +98,8 @@ def _synthetic_artifact() -> ActivationArtifact:
         "tags": tuple(("synthetic",) for _ in range(12)),
         "features": {
             "mean_pool_layer_18": feature,
+            "final_token_layer_11": feature[:, :1],
+            "final_token_layer_16": feature[:, 1:],
         },
     }
 
@@ -179,6 +182,41 @@ class BinaryTasksTest(unittest.TestCase):
         self.assertEqual(2, len(report.tasks))
         for task in report.tasks:
             self.assertEqual(("activation_probe", "word_tfidf", "char_tfidf"), tuple(method.method_name for method in task.methods))
+
+    def test_evaluate_grouped_activation_method_accepts_concatenated_activation_feature(self) -> None:
+        artifact = _synthetic_artifact()
+        dataset = build_binary_task_dataset(artifact, default_binary_task_definitions()[1])
+        config = BinaryTaskConfig(
+            fold_count=2,
+            random_seed=7,
+            max_iter=1000,
+            regularization_c=1.0,
+            activation_feature_key="concat(final_token_layer_11,final_token_layer_16)",
+            word_ngram_range=(1, 2),
+            char_ngram_range=(3, 5),
+        )
+
+        report = evaluate_grouped_activation_method(artifact, dataset, config)
+
+        self.assertEqual("concat(final_token_layer_11,final_token_layer_16)", report.feature_name)
+        self.assertEqual(8, report.example_count)
+        self.assertGreater(report.macro_f1_mean, 0.9)
+
+    def test_evaluate_grouped_activation_method_rejects_incomplete_concatenated_activation_feature(self) -> None:
+        artifact = _synthetic_artifact()
+        dataset = build_binary_task_dataset(artifact, default_binary_task_definitions()[1])
+        config = BinaryTaskConfig(
+            fold_count=2,
+            random_seed=7,
+            max_iter=1000,
+            regularization_c=1.0,
+            activation_feature_key="concat(final_token_layer_11",
+            word_ngram_range=(1, 2),
+            char_ngram_range=(3, 5),
+        )
+
+        with self.assertRaisesRegex(BinaryTaskError, "missing a closing parenthesis"):
+            evaluate_grouped_activation_method(artifact, dataset, config)
 
     def test_evaluate_binary_tasks_rejects_missing_activation_feature(self) -> None:
         config = BinaryTaskConfig(
