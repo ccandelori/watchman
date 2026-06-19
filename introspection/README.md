@@ -509,6 +509,24 @@ are not the only bottleneck. The next CIFT-like experiment should test richer
 readout/source design, such as separating final-token and mean-pool source
 families or adding decision-position readouts, before more calibration variants.
 
+A readout-family comparison then separated the same `meta_c_10` setup into
+full dual-readout, final-token-only, and mean-pool-only source families. Full
+dual-readout remains the best Hard V2/Hard V3 variant:
+
+| Source Family | Candidate Errors | Fixed | Persistent | Introduced | Net Error Delta | Mean Accuracy |
+|---|---:|---:|---:|---:|---:|---:|
+| Full dual readout | 9 | 5 | 4 | 5 | 0 | 0.9250 |
+| Final token only | 23 | 1 | 8 | 15 | 14 | 0.8083 |
+| Mean pool only | 11 | 8 | 1 | 10 | 2 | 0.9083 |
+
+The result argues against pruning mean-pool sources as a family. Mean-pool-only
+is noisy and introduces more errors, but it is much stronger than final-token
+only and fixes more static-reference errors than the full dual-readout variant.
+The useful next branch is therefore not "remove mean pool"; it is to design
+better readout positions or source-family interaction features so useful
+mean-pool evidence can be retained without the current Hard V2 false positives
+and false negatives.
+
 ## Project Layout
 
 ```text
@@ -799,6 +817,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_meta_score_calibration.py
 ```
 
+Run CIFT meta-head readout-family comparisons:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_meta_readout_family.py
+```
+
 Build the Hard V3 combined-regression adjudication worksheet:
 
 ```bash
@@ -874,6 +899,7 @@ Key human-readable checkpoints:
 - `data/reports/cift_meta_regularization_crosscheck_v1_summary.md`
 - `data/reports/cift_meta_regularization_diagnostics_hard_v2_meta_c_10_v1_summary.md`
 - `data/reports/cift_meta_score_calibration_v1_summary.md`
+- `data/reports/cift_meta_readout_family_v1_summary.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -921,6 +947,7 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_meta_regularization_crosscheck_v1.json`
 - `data/reports/cift_meta_regularization_diagnostics_hard_v2_meta_c_10_v1.json`
 - `data/reports/cift_meta_score_calibration_v1.json`
+- `data/reports/cift_meta_readout_family_v1.json`
 
 ## Next Moves
 
@@ -939,9 +966,10 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. For CIFT-like work, treat `meta_c_10` as the current regularized diagnostic
-   target and test richer readout/source variants against its Hard V2 residuals
-   before any promotion decision.
+5. For CIFT-like work, treat `meta_c_10` full dual-readout as the current
+   regularized diagnostic target, then test source-family interaction features
+   or decision-position readouts against its Hard V2 residuals before any
+   promotion decision.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 
