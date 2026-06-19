@@ -25,6 +25,18 @@
         "exfiltration_intent": 30
       },
       "family_count": 30
+    },
+    {
+      "id": "hard_prompts_v2",
+      "path": "introspection/data/prompts_hard_v2.jsonl",
+      "sha256": "13ffebc4bc32e4ba334e7a8a57c9587ec1b15840fb4b6898c4fc6f75c334588d",
+      "purpose": "Hard Baseline V2 prompt dataset focused on output-contract, tool-argument, broker, policy, and summary contrasts.",
+      "label_counts": {
+        "benign": 30,
+        "secret_present_safe": 30,
+        "exfiltration_intent": 30
+      },
+      "family_count": 30
     }
   ],
   "artifacts": [
@@ -49,6 +61,14 @@
       "path": "introspection/data/activations/qwen3_0_6b_hard_all_layers.pt",
       "sha256": "3ffa8aaf42e113487a5b31a2158d3c14532154e5f37fcfb348cc90b78dd84b1d",
       "dataset_id": "hard_prompts_v1",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 58
+    },
+    {
+      "id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_hard_v2_all_layers.pt",
+      "sha256": "e5df7c3651b459cee755167922524cdebbcb155240848537dadc64e6e0e2ae1b",
+      "dataset_id": "hard_prompts_v2",
       "model_id": "Qwen/Qwen3-0.6B",
       "feature_count": 58
     }
@@ -116,6 +136,30 @@
       "sha256": "759f366f7e0d349b62ac026dcc259d216945227115f9e7d4a1fb1d3d0aeb1312",
       "dataset_id": "hard_prompts_v1",
       "artifact_id": "qwen3_0_6b_hard_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_binary_random_v1",
+      "path": "introspection/data/reports/binary_tasks_hard_v2.json",
+      "sha256": "78e3c72367cd26798ae72620cedd4901f3a83cb6671c0c84f1316cffa59254dd",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "hard_v2_binary_grouped_v1",
+      "path": "introspection/data/reports/binary_tasks_hard_v2_grouped.json",
+      "sha256": "61bb29cbbb5758aa445f0a186a551b6eb4fb21b4af3508b5c029b0d821841827",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_binary_grouped_error_analysis_v1",
+      "path": "introspection/data/reports/binary_error_analysis_hard_v2_grouped.json",
+      "sha256": "ecc6483e76885f5438fb47f105403e2e6a9665ab970f898b1011242098496c53",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
       "evaluation_strategy": "stratified_group_kfold"
     }
   ]

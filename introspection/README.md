@@ -9,12 +9,13 @@ validated production claims.
 
 ## Current State
 
-Two datasets are currently registered in `data/lineage.json`:
+Three datasets are currently registered in `data/lineage.json`:
 
 | Dataset | Purpose | Rows |
 |---|---|---:|
 | `baseline_prompts_v1` | First hand-authored checkpoint dataset. | 90 |
 | `hard_prompts_v1` | Harder contrastive successor to the baseline. | 90 |
+| `hard_prompts_v2` | Targeted successor focused on V1 error clusters. | 90 |
 
 Both datasets use the same label shape:
 
@@ -41,17 +42,19 @@ For the important `safe_secret_vs_exfiltration` task:
 | Baseline | Grouped CV | `activation_probe` | 0.8620 | 0.8667 |
 | Hard V1 | Random stratified CV | `activation_probe` | 0.9163 | 0.9167 |
 | Hard V1 | Grouped CV | `activation_probe` | 0.8788 | 0.8833 |
+| Hard V2 | Random stratified CV | `activation_probe` | 0.7470 | 0.7500 |
+| Hard V2 | Grouped CV | `activation_probe` | 0.7225 | 0.7333 |
 
 The grouped results are the more credible checkpoints because they reduce
 prompt-family leakage between train and test folds. Hard V1 is especially
 useful because both TF-IDF baselines degrade sharply on the intent-sensitive
 task while the activation probe remains comparatively strong.
 
-Current grouped error analysis for Hard V1 shows the activation probe's
-remaining `safe_secret_vs_exfiltration` errors are concentrated in a small set
-of contrast families: `hard_safe_output_contract` is the main weak family, with
-single-error clusters around broker impersonation, output contract abuse,
-policy override, safe summaries, and tool-argument review. The full
+Hard V2 is now the strongest pressure test. It focuses on the Hard V1 error
+clusters: output contracts, tool arguments, broker boundaries, policy
+exceptions, and summaries. Under grouped evaluation, the fixed activation probe
+drops to 0.7225 macro F1 / 0.7333 accuracy on `safe_secret_vs_exfiltration`,
+while word and character TF-IDF baselines fall below chance. The full
 machine-readable prediction ledger is registered in lineage.
 
 ## Project Layout
@@ -64,7 +67,8 @@ introspection/
 │   ├── reports/          # JSON reports and narrative progress notes
 │   ├── lineage.json      # Canonical experiment ledger
 │   ├── prompts.jsonl      # Baseline prompt dataset
-│   └── prompts_hard.jsonl # Hard Baseline V1 dataset
+│   ├── prompts_hard.jsonl # Hard Baseline V1 dataset
+│   └── prompts_hard_v2.jsonl # Hard Baseline V2 dataset
 ├── notebooks/            # Interactive exploration notebooks
 ├── scripts/              # CLI entry points for extraction, training, summaries, validation
 ├── src/aegis_introspection/
@@ -89,7 +93,9 @@ evidence. Current examples:
 
 ```text
 data/prompts_hard.jsonl
+data/prompts_hard_v2.jsonl
 data/activations/qwen3_0_6b_hard_all_layers.pt
+data/activations/qwen3_0_6b_hard_v2_all_layers.pt
 data/reports/binary_tasks_hard_grouped.json
 ```
 
@@ -167,6 +173,16 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/analyze_binary_errors.py
 ```
 
+Run grouped binary tasks for Hard V2:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/train_grouped_binary_tasks.py \
+  --artifact introspection/data/activations/qwen3_0_6b_hard_v2_all_layers.pt \
+  --output-json introspection/data/reports/binary_tasks_hard_v2_grouped.json \
+  --output-md introspection/data/reports/binary_tasks_hard_v2_grouped_summary.md
+```
+
 ## Reports
 
 Key human-readable checkpoints:
@@ -175,12 +191,17 @@ Key human-readable checkpoints:
 - `data/reports/binary_probe_progress_2026-06-18.md`
 - `data/reports/grouped_binary_probe_progress_2026-06-18.md`
 - `data/reports/hard_baseline_probe_progress_2026-06-18.md`
+- `data/reports/baseline_vs_hard_v1_comparison_2026-06-19.md`
+- `data/reports/hard_v2_probe_progress_2026-06-19.md`
 - `data/reports/probe_all_layers_summary.md`
 - `data/reports/binary_tasks_summary.md`
 - `data/reports/binary_tasks_grouped_summary.md`
 - `data/reports/binary_tasks_hard_summary.md`
 - `data/reports/binary_tasks_hard_grouped_summary.md`
 - `data/reports/binary_error_analysis_hard_grouped_summary.md`
+- `data/reports/binary_tasks_hard_v2_summary.md`
+- `data/reports/binary_tasks_hard_v2_grouped_summary.md`
+- `data/reports/binary_error_analysis_hard_v2_grouped_summary.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -192,19 +213,22 @@ Key machine-readable reports registered in lineage:
 - `data/reports/binary_tasks_hard.json`
 - `data/reports/binary_tasks_hard_grouped.json`
 - `data/reports/binary_error_analysis_hard_grouped.json`
+- `data/reports/binary_tasks_hard_v2.json`
+- `data/reports/binary_tasks_hard_v2_grouped.json`
+- `data/reports/binary_error_analysis_hard_v2_grouped.json`
 
 ## Next Moves
 
-The next experimental pressure test is targeted dataset expansion, not a more
-elaborate model.
+The next experimental step is V2 error inspection, not a more elaborate model.
 
 Recommended sequence:
 
-1. Generate a comparison summary across baseline and hard checkpoints.
-2. Decide whether Hard Baseline V2 should expand weak families or split
-   structured tool-call examples into a separate dataset.
-3. Expand the currently weak contrast families, especially output contracts and
-   tool-argument review.
+1. Inspect Hard V2 per-example errors in the grouped prediction ledger.
+2. Decide whether the confusing output-contract and summary pairs are valid
+   hard cases or prompt-wording artifacts.
+3. If the examples are valid, consider a controlled layer sweep as analysis
+   only; keep the fixed `mean_pool_layer_18` checkpoint for regression
+   comparisons.
 4. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 
