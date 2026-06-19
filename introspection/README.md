@@ -360,6 +360,20 @@ The next CIFT step should move from coarse grid ablation to score-level
 diagnosis of the five Hard V2 introduced cases: per-source risk scores,
 meta-head coefficients, and fold thresholds.
 
+A score-level Hard V2 diagnosis now records the exact fold threshold,
+meta-head risk score, risk-oriented logit, standardized per-source scores, and
+per-source logit contributions for those introduced errors. It reproduces the
+residual finding exactly: 2 reference errors, 7 meta-head errors, and 5
+introduced errors. The three exfiltration false negatives land below the
+default 0.5 threshold with meta risk scores 0.2375, 0.4275, and 0.0304. The two
+safe false positives land above threshold at 0.6555 and 0.7307.
+
+The most active source on the introduced cases is `mean_pool_layer_28`
+(+0.8614 mean logit contribution, 2.2667 max absolute contribution), followed
+by mixed and sometimes opposing mean-pool late-layer signals. This points
+toward source calibration and late mean-pool weighting as the next debugging
+surface, not simply a global decision-threshold problem.
+
 ## Project Layout
 
 ```text
@@ -608,6 +622,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_meta_ablation.py
 ```
 
+Diagnose Hard V2 CIFT meta-head introduced errors:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/diagnose_cift_meta_scores.py
+```
+
 Build the Hard V3 combined-regression adjudication worksheet:
 
 ```bash
@@ -674,6 +695,7 @@ Key human-readable checkpoints:
 - `data/reports/cift_meta_head_residual_progress_2026-06-19.md`
 - `data/reports/cift_meta_ablation_v1_summary.md`
 - `data/reports/cift_meta_ablation_progress_2026-06-19.md`
+- `data/reports/cift_meta_score_diagnostics_hard_v2_v1_summary.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -712,6 +734,7 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_meta_head_v1.json`
 - `data/reports/cift_meta_head_residual_suite_v1.json`
 - `data/reports/cift_meta_ablation_v1.json`
+- `data/reports/cift_meta_score_diagnostics_hard_v2_v1.json`
 
 ## Next Moves
 
@@ -730,8 +753,9 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. For CIFT-like work, diagnose the five Hard V2 introduced-error cases using
-   per-source risk scores, meta-head coefficients, and fold thresholds.
+5. For CIFT-like work, use the Hard V2 score diagnostics to test targeted
+   source ablations, late mean-pool weighting, or calibration constraints while
+   preserving the Hard V3 fixed cases.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 

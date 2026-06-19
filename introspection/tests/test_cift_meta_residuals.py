@@ -9,6 +9,7 @@ from aegis_introspection.artifacts import ActivationArtifact
 from aegis_introspection.binary_tasks import BinaryTaskConfig, build_binary_task_dataset, default_binary_task_definitions
 from aegis_introspection.cift_meta_head import (
     CiftMetaHeadVariant,
+    collect_grouped_cift_meta_head_diagnostics,
     collect_grouped_cift_meta_head_predictions,
 )
 from aegis_introspection.cift_meta_residuals import (
@@ -17,6 +18,13 @@ from aegis_introspection.cift_meta_residuals import (
     render_cift_meta_residual_suite_markdown,
     write_cift_meta_residual_suite_json,
     write_cift_meta_residual_suite_markdown,
+)
+from aegis_introspection.cift_meta_score_diagnostics import (
+    CiftMetaScoreDiagnosticDataset,
+    diagnose_cift_meta_introduced_errors,
+    render_cift_meta_score_diagnostics_markdown,
+    write_cift_meta_score_diagnostics_json,
+    write_cift_meta_score_diagnostics_markdown,
 )
 
 
@@ -92,6 +100,7 @@ def _synthetic_artifact() -> ActivationArtifact:
         "tags": tuple(("synthetic",) for _ in range(20)),
         "features": {
             "weak_baseline_feature": torch.zeros((20, 2), dtype=torch.float32),
+            "strong_baseline_feature": informative_source,
             "final_token_layer_06": informative_source,
             "final_token_layer_07": weak_source,
             "mean_pool_layer_06": informative_source * 0.75,
@@ -130,6 +139,22 @@ def _variant() -> CiftMetaHeadVariant:
     )
 
 
+def _weak_variant() -> CiftMetaHeadVariant:
+    return CiftMetaHeadVariant(
+        variant_id="weak_final_token_plus_mean_pool",
+        feature_name="cift_meta_weak_sources",
+        source_feature_keys=(
+            "final_token_layer_07",
+            "mean_pool_layer_07",
+        ),
+        calibration_source_labels=("benign", "secret_present_safe"),
+        ridge=0.001,
+        risk_label="exfiltration_intent",
+        inner_fold_count=2,
+        decision_rule="logistic_default",
+    )
+
+
 def _task_definition_name(name: str):
     matches = tuple(definition for definition in default_binary_task_definitions() if definition.name == name)
     if len(matches) != 1:
@@ -138,6 +163,27 @@ def _task_definition_name(name: str):
 
 
 class CiftMetaResidualsTest(unittest.TestCase):
+    def test_collect_grouped_cift_meta_head_diagnostics_returns_fold_source_evidence(self) -> None:
+        artifact = _synthetic_artifact()
+        dataset = build_binary_task_dataset(artifact, _task_definition_name("safe_secret_vs_exfiltration"))
+
+        diagnostics = collect_grouped_cift_meta_head_diagnostics(
+            artifact=artifact,
+            dataset=dataset,
+            binary_config=_binary_config(),
+            variant=_variant(),
+        )
+
+        self.assertEqual(16, len(diagnostics))
+        self.assertEqual(16, len({diagnostic.example_id for diagnostic in diagnostics}))
+        for diagnostic in diagnostics:
+            self.assertGreaterEqual(diagnostic.meta_risk_score, 0.0)
+            self.assertLessEqual(diagnostic.meta_risk_score, 1.0)
+            self.assertEqual(0.5, diagnostic.decision_threshold)
+            self.assertEqual(4, len(diagnostic.sources))
+            logit_sum = diagnostic.intercept + sum(source.logit_contribution for source in diagnostic.sources)
+            self.assertAlmostEqual(logit_sum, diagnostic.meta_risk_logit, places=5)
+
     def test_collect_grouped_cift_meta_head_predictions_returns_example_predictions(self) -> None:
         artifact = _synthetic_artifact()
         dataset = build_binary_task_dataset(artifact, _task_definition_name("safe_secret_vs_exfiltration"))
@@ -175,6 +221,33 @@ class CiftMetaResidualsTest(unittest.TestCase):
         self.assertGreater(report.fixed_error_count, report.introduced_error_count)
         for comparison in report.comparisons:
             self.assertGreater(comparison.comparison.fixed_error_count, comparison.comparison.introduced_error_count)
+
+    def test_diagnose_cift_meta_introduced_errors_reports_source_contributions(self) -> None:
+        artifact = _synthetic_artifact()
+        report = diagnose_cift_meta_introduced_errors(
+            dataset=CiftMetaScoreDiagnosticDataset(dataset_id="synthetic_v2", artifact=artifact),
+            task_name="safe_secret_vs_exfiltration",
+            baseline_feature_key="strong_baseline_feature",
+            variant=_weak_variant(),
+            binary_config=_binary_config(),
+        )
+
+        markdown = render_cift_meta_score_diagnostics_markdown(report)
+
+        self.assertEqual("synthetic_v2", report.dataset_id)
+        self.assertEqual("strong_baseline_feature", report.reference_feature_key)
+        self.assertEqual("cift_meta_weak_sources", report.candidate_feature_key)
+        self.assertGreater(report.introduced_error_count, 0)
+        self.assertEqual(report.introduced_error_count, len(report.introduced_errors))
+        self.assertGreater(len(report.source_summaries), 0)
+        self.assertGreater(len(report.introduced_errors[0].sources), 0)
+        self.assertIn("# CIFT Meta-Head Score Diagnostics", markdown)
+        self.assertIn("| Example | Family | True Label | Reference Prediction | Candidate Prediction |", markdown)
+        self.assertIn(
+            "| Source Feature | Mean Risk Score | Mean Standardized Score | Mean Coefficient | "
+            "Mean Logit Contribution |",
+            markdown,
+        )
 
     def test_render_cift_meta_residual_suite_markdown_includes_family_table(self) -> None:
         artifact = _synthetic_artifact()
@@ -216,6 +289,29 @@ class CiftMetaResidualsTest(unittest.TestCase):
         self.assertEqual(1, decoded["dataset_count"])
         self.assertEqual("cift_meta_oof_final_token_mean_pool_signed_residual", decoded["candidate_feature_key"])
         self.assertIn("CIFT Meta-Head Residual Suite", markdown)
+
+    def test_write_cift_meta_score_diagnostics_outputs_creates_files(self) -> None:
+        artifact = _synthetic_artifact()
+        report = diagnose_cift_meta_introduced_errors(
+            dataset=CiftMetaScoreDiagnosticDataset(dataset_id="synthetic_v2", artifact=artifact),
+            task_name="safe_secret_vs_exfiltration",
+            baseline_feature_key="strong_baseline_feature",
+            variant=_weak_variant(),
+            binary_config=_binary_config(),
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            json_path = Path(temp_dir) / "score_diagnostics.json"
+            markdown_path = Path(temp_dir) / "score_diagnostics.md"
+            write_cift_meta_score_diagnostics_json(json_path, report)
+            write_cift_meta_score_diagnostics_markdown(markdown_path, report)
+
+            decoded = json.loads(json_path.read_text(encoding="utf-8"))
+            markdown = markdown_path.read_text(encoding="utf-8")
+
+        self.assertEqual("synthetic_v2", decoded["dataset_id"])
+        self.assertEqual(report.introduced_error_count, len(decoded["introduced_errors"]))
+        self.assertIn("CIFT Meta-Head Score Diagnostics", markdown)
 
 
 if __name__ == "__main__":

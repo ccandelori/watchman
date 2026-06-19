@@ -11,6 +11,7 @@ from numpy.typing import NDArray
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, f1_score
 from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import StandardScaler
 
 from aegis_introspection.artifacts import ActivationArtifact
 from aegis_introspection.binary_tasks import (
@@ -77,6 +78,31 @@ class CiftMetaHeadFold:
     coefficients: tuple[float, ...]
     intercept: float
     decision_threshold: float
+
+
+@dataclass(frozen=True)
+class CiftMetaHeadSourceDiagnostic:
+    source_feature_key: str
+    risk_score: float
+    standardized_score: float
+    coefficient: float
+    logit_contribution: float
+
+
+@dataclass(frozen=True)
+class CiftMetaHeadExampleDiagnostic:
+    fold_index: int
+    example_id: str
+    family: str
+    source_label: str
+    true_label: str
+    predicted_label: str
+    is_correct: bool
+    meta_risk_score: float
+    meta_risk_logit: float
+    decision_threshold: float
+    intercept: float
+    sources: tuple[CiftMetaHeadSourceDiagnostic, ...]
 
 
 @dataclass(frozen=True)
@@ -497,6 +523,13 @@ def _meta_risk_scores(
     return classifier.predict_proba(scores)[:, risk_column].astype(np.float64, copy=False)
 
 
+def _standardized_meta_scores(meta_head: _MetaHeadFit, scores: FloatMatrix) -> FloatMatrix:
+    scaler = meta_head.classifier.named_steps.get("standardscaler")
+    if not isinstance(scaler, StandardScaler):
+        raise BinaryTaskError("CIFT meta-head classifier does not contain a standardscaler step.")
+    return scaler.transform(scores).astype(np.float64, copy=False)
+
+
 def _predictions_from_threshold(
     risk_scores: FloatMatrix,
     threshold: float,
@@ -586,6 +619,10 @@ def _std(values: tuple[float, ...]) -> float:
     return float(np.std(np.asarray(values, dtype=np.float64)))
 
 
+def _sigmoid(value: float) -> float:
+    return float(1.0 / (1.0 + np.exp(-value)))
+
+
 def _method_report(
     variant: CiftMetaHeadVariant,
     label_names: tuple[str, ...],
@@ -661,6 +698,55 @@ def _example_predictions_from_encoded_labels(
                 true_label=true_label,
                 predicted_label=predicted_label,
                 is_correct=predicted_label == true_label,
+            )
+        )
+    return tuple(rows)
+
+
+def _example_diagnostics_from_encoded_labels(
+    dataset: BinaryTaskDataset,
+    label_names: tuple[str, ...],
+    fold_index: int,
+    test_indices: IntVector,
+    predictions: IntVector,
+    source_feature_keys: tuple[str, ...],
+    risk_scores: FloatMatrix,
+    standardized_scores: FloatMatrix,
+    coefficients: tuple[float, ...],
+    risk_logits: FloatMatrix,
+    decision_threshold: float,
+    intercept: float,
+) -> tuple[CiftMetaHeadExampleDiagnostic, ...]:
+    rows: list[CiftMetaHeadExampleDiagnostic] = []
+    for row_position, (row_index, predicted_index) in enumerate(
+        zip(test_indices.tolist(), predictions.tolist(), strict=True)
+    ):
+        predicted_label = label_names[int(predicted_index)]
+        true_label = dataset.target_labels[row_index]
+        source_diagnostics = tuple(
+            CiftMetaHeadSourceDiagnostic(
+                source_feature_key=source_feature_key,
+                risk_score=float(risk_scores[row_position, source_index]),
+                standardized_score=float(standardized_scores[row_position, source_index]),
+                coefficient=float(coefficients[source_index]),
+                logit_contribution=float(standardized_scores[row_position, source_index] * coefficients[source_index]),
+            )
+            for source_index, source_feature_key in enumerate(source_feature_keys)
+        )
+        rows.append(
+            CiftMetaHeadExampleDiagnostic(
+                fold_index=fold_index,
+                example_id=dataset.example_ids[row_index],
+                family=dataset.families[row_index],
+                source_label=dataset.source_labels[row_index],
+                true_label=true_label,
+                predicted_label=predicted_label,
+                is_correct=predicted_label == true_label,
+                meta_risk_score=float(_sigmoid(risk_logits[row_position])),
+                meta_risk_logit=float(risk_logits[row_position]),
+                decision_threshold=decision_threshold,
+                intercept=intercept,
+                sources=source_diagnostics,
             )
         )
     return tuple(rows)
@@ -802,6 +888,70 @@ def collect_grouped_cift_meta_head_predictions(
         label_names=label_encoding.label_names,
         predictions=tuple(predictions),
     )
+
+
+def collect_grouped_cift_meta_head_diagnostics(
+    artifact: ActivationArtifact,
+    dataset: BinaryTaskDataset,
+    binary_config: BinaryTaskConfig,
+    variant: CiftMetaHeadVariant,
+) -> tuple[CiftMetaHeadExampleDiagnostic, ...]:
+    _validate_variant(variant)
+    label_encoding = encode_labels(dataset.target_labels)
+    encoded_labels = label_encoding.encoded_labels
+    risk_index = _risk_label_index(label_encoding.label_names, variant)
+    splits = stratified_group_splits(encoded_labels, dataset.families, binary_config)
+    diagnostics: list[CiftMetaHeadExampleDiagnostic] = []
+
+    for split in splits:
+        scores = _outer_fold_scores(
+            artifact=artifact,
+            dataset=dataset,
+            outer_train_indices=split.train_indices,
+            outer_test_indices=split.test_indices,
+            encoded_labels=encoded_labels,
+            binary_config=binary_config,
+            variant=variant,
+            risk_label_index=risk_index,
+        )
+        meta_head = _fit_meta_head(
+            train_scores=scores.train_scores,
+            train_labels=encoded_labels[split.train_indices],
+            binary_config=binary_config,
+            risk_label_index=risk_index,
+        )
+        meta_predictions = _predict_meta_head(
+            meta_head=meta_head,
+            train_scores=scores.train_scores,
+            train_labels=encoded_labels[split.train_indices],
+            test_scores=scores.test_scores,
+            label_count=len(label_encoding.label_names),
+            risk_label_index=risk_index,
+            decision_rule=variant.decision_rule,
+        )
+        standardized_scores = _standardized_meta_scores(meta_head=meta_head, scores=scores.test_scores)
+        coefficients = np.asarray(meta_head.coefficients, dtype=np.float64)
+        risk_logits = meta_head.intercept + standardized_scores @ coefficients
+        diagnostics.extend(
+            _example_diagnostics_from_encoded_labels(
+                dataset=dataset,
+                label_names=label_encoding.label_names,
+                fold_index=split.fold_index,
+                test_indices=split.test_indices,
+                predictions=meta_predictions.predictions,
+                source_feature_keys=variant.source_feature_keys,
+                risk_scores=scores.test_scores,
+                standardized_scores=standardized_scores,
+                coefficients=meta_head.coefficients,
+                risk_logits=risk_logits,
+                decision_threshold=meta_predictions.threshold,
+                intercept=meta_head.intercept,
+            )
+        )
+
+    if len(diagnostics) == 0:
+        raise BinaryTaskError(f"CIFT meta-head variant '{variant.variant_id}' produced no diagnostics.")
+    return tuple(diagnostics)
 
 
 def _best_variant(variants: tuple[CiftMetaHeadVariantReport, ...]) -> CiftMetaHeadVariantReport:
