@@ -341,6 +341,14 @@
       "dataset_id": "hard_prompts_v3",
       "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
       "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_layer_weighted_head_v1",
+      "path": "introspection/data/reports/cift_layer_weighted_head_v1.json",
+      "sha256": "f888e74f9e6920065d8b9904626603be7fb0d0aefe67acdf111f9ad0d95edfdf",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
     }
   ]
 }

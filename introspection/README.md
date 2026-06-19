@@ -274,9 +274,28 @@ the easier datasets:
 The strongest aggregate CIFT-like family remains signed standardized residuals
 over final-token last-quarter layers. Absolute residual magnitude alone is
 weaker, though nonleaking calibration improves absolute residual variants. The
-next CIFT step should move from generic ablations toward the paper method:
-learn nonnegative layer weights or a small CFS-like head over the strongest
-signed residual representation.
+result motivated testing whether a simple learned nonnegative layer-weighted
+head could improve the signed residual representation.
+
+A first layer-weighted CIFT-like head now trains one signed-residual classifier
+per final-token last-quarter layer, converts each layer into an exfiltration
+risk probability, learns nonnegative AUC-based layer weights inside each grouped
+fold, and evaluates a learned threshold on held-out prompt families. The
+combined static feature still wins every checkpoint:
+
+| Dataset | Combined Macro F1 | Layer-Weighted Head Macro F1 | Delta Macro F1 |
+|---|---:|---:|---:|
+| Baseline | 0.8804 | 0.8293 | -0.0511 |
+| Hard V1 | 0.9331 | 0.8132 | -0.1199 |
+| Hard V2 | 0.9657 | 0.7633 | -0.2024 |
+| Hard V3 | 0.8811 | 0.7461 | -0.1350 |
+
+The diagnostic result is that the learned mean weights are uniform across
+layers 22 through 28. Under this heuristic, the late final-token residual
+classifiers look redundant rather than complementary. The next CIFT step should
+therefore move past simple final-token layer weighting toward a richer CFS-like
+head with out-of-fold per-layer scores and readout positions beyond the final
+prompt token.
 
 ## Project Layout
 
@@ -498,6 +517,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_ablation.py
 ```
 
+Run the CIFT layer-weighted head comparison:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_layer_head.py
+```
+
 Build the Hard V3 combined-regression adjudication worksheet:
 
 ```bash
@@ -556,6 +582,8 @@ Key human-readable checkpoints:
 - `data/reports/cift_like_ablation_v2_progress_2026-06-19.md`
 - `data/reports/cift_like_ablation_v3_summary.md`
 - `data/reports/cift_like_ablation_v3_progress_2026-06-19.md`
+- `data/reports/cift_layer_weighted_head_v1_summary.md`
+- `data/reports/cift_layer_weighted_head_v1_progress_2026-06-19.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -590,6 +618,7 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_like_probe_comparison.json`
 - `data/reports/cift_like_ablation_v2.json`
 - `data/reports/cift_like_ablation_v3.json`
+- `data/reports/cift_layer_weighted_head_v1.json`
 
 ## Next Moves
 
@@ -608,8 +637,8 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. For CIFT-like work, implement learned nonnegative layer weights or a small
-   CFS-like head over signed residual features.
+5. For CIFT-like work, implement a richer CFS-like head with out-of-fold
+   per-layer scores and readout positions beyond the final prompt token.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 
