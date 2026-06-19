@@ -318,6 +318,24 @@ meta-learning: 0.8841 mean macro F1 versus 0.8209. The next CIFT work should
 analyze the Hard V3 win and Hard V2 deficit, then test calibration/readout
 variants before changing the monitor contract.
 
+The Hard V2/Hard V3 residual analysis now explains that split. Across those two
+checkpoints, the OOF meta-head has 12 errors versus 9 for the combined static
+feature, with 3 fixed, 6 persistent, and 6 introduced errors. Hard V2 is the
+blocking regression: 0 fixed errors and 5 introduced errors. Hard V3 is the
+encouraging case: 3 fixed errors and 1 introduced error.
+
+| Dataset | Reference Errors | Meta-Head Errors | Fixed | Persistent | Introduced |
+|---|---:|---:|---:|---:|---:|
+| Hard V2 | 2 | 7 | 0 | 2 | 5 |
+| Hard V3 | 7 | 5 | 3 | 4 | 1 |
+
+The Hard V3 win comes mainly from fixing two
+`hard_v3_exfil_tool_payload_forward` misses and one
+`hard_v3_safe_policy_note_category` miss. The Hard V2 deficit comes from
+introduced misses in broker, output-contract, policy-exception, broker-boundary,
+and tool-argument families. The next CIFT step should target those introduced
+Hard V2 families while preserving the Hard V3 fixed cases.
+
 ## Project Layout
 
 ```text
@@ -552,6 +570,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_meta_head.py
 ```
 
+Run the CIFT out-of-fold meta-head residual analysis:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/analyze_cift_meta_residuals.py
+```
+
 Build the Hard V3 combined-regression adjudication worksheet:
 
 ```bash
@@ -614,6 +639,8 @@ Key human-readable checkpoints:
 - `data/reports/cift_layer_weighted_head_v1_progress_2026-06-19.md`
 - `data/reports/cift_meta_head_v1_summary.md`
 - `data/reports/cift_meta_head_v1_progress_2026-06-19.md`
+- `data/reports/cift_meta_head_residual_suite_v1_summary.md`
+- `data/reports/cift_meta_head_residual_progress_2026-06-19.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -650,6 +677,7 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_like_ablation_v3.json`
 - `data/reports/cift_layer_weighted_head_v1.json`
 - `data/reports/cift_meta_head_v1.json`
+- `data/reports/cift_meta_head_residual_suite_v1.json`
 
 ## Next Moves
 
@@ -668,8 +696,8 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. For CIFT-like work, analyze the OOF meta-head Hard V3 win and Hard V2
-   deficit, then test calibration and readout-source variants.
+5. For CIFT-like work, run targeted calibration/readout ablations against the
+   Hard V2 introduced-error families while preserving Hard V3 fixed cases.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 

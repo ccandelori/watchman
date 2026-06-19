@@ -27,6 +27,11 @@ from aegis_introspection.binary_tasks import (
     evaluate_grouped_activation_method,
     stratified_group_splits,
 )
+from aegis_introspection.error_analysis import (
+    BinaryExamplePrediction,
+    BinaryMethodErrorAnalysis,
+    summarize_family_predictions,
+)
 from aegis_introspection.probe import IntVector, JsonValue, encode_labels, tensor_to_float_matrix
 
 
@@ -527,6 +532,53 @@ def _method_report(
     )
 
 
+def _example_predictions_from_encoded_labels(
+    dataset: BinaryTaskDataset,
+    label_names: tuple[str, ...],
+    fold_index: int,
+    test_indices: IntVector,
+    predictions: IntVector,
+) -> tuple[BinaryExamplePrediction, ...]:
+    rows: list[BinaryExamplePrediction] = []
+    for row_index, predicted_index in zip(test_indices.tolist(), predictions.tolist(), strict=True):
+        predicted_label = label_names[int(predicted_index)]
+        true_label = dataset.target_labels[row_index]
+        rows.append(
+            BinaryExamplePrediction(
+                fold_index=fold_index,
+                example_id=dataset.example_ids[row_index],
+                family=dataset.families[row_index],
+                source_label=dataset.source_labels[row_index],
+                true_label=true_label,
+                predicted_label=predicted_label,
+                is_correct=predicted_label == true_label,
+            )
+        )
+    return tuple(rows)
+
+
+def _method_error_analysis(
+    variant: CiftMetaHeadVariant,
+    label_names: tuple[str, ...],
+    predictions: tuple[BinaryExamplePrediction, ...],
+) -> BinaryMethodErrorAnalysis:
+    if len(predictions) == 0:
+        raise BinaryTaskError(f"CIFT meta-head variant '{variant.variant_id}' produced no predictions.")
+    correct_count = sum(1 for prediction in predictions if prediction.is_correct)
+    prediction_count = len(predictions)
+    return BinaryMethodErrorAnalysis(
+        method_name="activation_probe",
+        feature_name=variant.feature_name,
+        label_names=label_names,
+        prediction_count=prediction_count,
+        correct_count=correct_count,
+        error_count=prediction_count - correct_count,
+        accuracy=float(correct_count / prediction_count),
+        family_summaries=summarize_family_predictions(predictions),
+        predictions=predictions,
+    )
+
+
 def evaluate_grouped_cift_meta_head_variant(
     artifact: ActivationArtifact,
     dataset: BinaryTaskDataset,
@@ -575,6 +627,54 @@ def evaluate_grouped_cift_meta_head_variant(
         true_labels=encoded_labels,
         fold_predictions=tuple(fold_predictions),
         meta_folds=tuple(meta_folds),
+    )
+
+
+def collect_grouped_cift_meta_head_predictions(
+    artifact: ActivationArtifact,
+    dataset: BinaryTaskDataset,
+    binary_config: BinaryTaskConfig,
+    variant: CiftMetaHeadVariant,
+) -> BinaryMethodErrorAnalysis:
+    _validate_variant(variant)
+    label_encoding = encode_labels(dataset.target_labels)
+    encoded_labels = label_encoding.encoded_labels
+    risk_index = _risk_label_index(label_encoding.label_names, variant)
+    splits = stratified_group_splits(encoded_labels, dataset.families, binary_config)
+    predictions: list[BinaryExamplePrediction] = []
+
+    for split in splits:
+        scores = _outer_fold_scores(
+            artifact=artifact,
+            dataset=dataset,
+            outer_train_indices=split.train_indices,
+            outer_test_indices=split.test_indices,
+            encoded_labels=encoded_labels,
+            binary_config=binary_config,
+            variant=variant,
+            risk_label_index=risk_index,
+        )
+        meta_head = _fit_meta_head(
+            train_scores=scores.train_scores,
+            train_labels=encoded_labels[split.train_indices],
+            binary_config=binary_config,
+            risk_label_index=risk_index,
+        )
+        predicted_labels = meta_head.classifier.predict(scores.test_scores).astype(np.int64, copy=False)
+        predictions.extend(
+            _example_predictions_from_encoded_labels(
+                dataset=dataset,
+                label_names=label_encoding.label_names,
+                fold_index=split.fold_index,
+                test_indices=split.test_indices,
+                predictions=predicted_labels,
+            )
+        )
+
+    return _method_error_analysis(
+        variant=variant,
+        label_names=label_encoding.label_names,
+        predictions=tuple(predictions),
     )
 
 
