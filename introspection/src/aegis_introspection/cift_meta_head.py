@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Protocol, TypeAlias, cast
+from typing import Literal, Protocol, TypeAlias, cast
 
 import numpy as np
 import torch
@@ -36,6 +36,7 @@ from aegis_introspection.probe import IntVector, JsonValue, encode_labels, tenso
 
 
 FloatMatrix: TypeAlias = NDArray[np.float64]
+CiftMetaDecisionRule: TypeAlias = Literal["logistic_default", "train_f1_threshold"]
 
 
 class _ProbabilisticClassifier(Protocol):
@@ -60,6 +61,7 @@ class CiftMetaHeadVariant:
     ridge: float
     risk_label: str
     inner_fold_count: int
+    decision_rule: CiftMetaDecisionRule
 
 
 @dataclass(frozen=True)
@@ -74,6 +76,7 @@ class CiftMetaHeadFold:
     source_feature_keys: tuple[str, ...]
     coefficients: tuple[float, ...]
     intercept: float
+    decision_threshold: float
 
 
 @dataclass(frozen=True)
@@ -85,6 +88,7 @@ class CiftMetaHeadVariantReport:
     ridge: float
     risk_label: str
     inner_fold_count: int
+    decision_rule: CiftMetaDecisionRule
     method_name: str
     label_names: tuple[str, ...]
     example_count: int
@@ -149,6 +153,12 @@ class _MetaHeadFit:
     intercept: float
 
 
+@dataclass(frozen=True)
+class _MetaHeadPredictions:
+    predictions: IntVector
+    threshold: float
+
+
 def _validate_variant(variant: CiftMetaHeadVariant) -> None:
     if variant.variant_id == "":
         raise BinaryTaskError("CIFT meta-head variant id must not be empty.")
@@ -166,6 +176,11 @@ def _validate_variant(variant: CiftMetaHeadVariant) -> None:
         raise BinaryTaskError(f"CIFT meta-head variant '{variant.variant_id}' risk label must not be empty.")
     if variant.inner_fold_count < 2:
         raise BinaryTaskError(f"CIFT meta-head variant '{variant.variant_id}' inner_fold_count must be at least 2.")
+    if variant.decision_rule not in ("logistic_default", "train_f1_threshold"):
+        raise BinaryTaskError(
+            f"CIFT meta-head variant '{variant.variant_id}' has unsupported decision rule "
+            f"'{variant.decision_rule}'."
+        )
 
 
 def _validate_variants(variants: tuple[CiftMetaHeadVariant, ...]) -> None:
@@ -466,6 +481,99 @@ def _fit_meta_head(
     return _MetaHeadFit(classifier=classifier, coefficients=coefficients, intercept=intercept)
 
 
+def _other_label_index(label_count: int, risk_label_index: int) -> int:
+    if label_count != 2:
+        raise BinaryTaskError("CIFT meta-head requires exactly two encoded labels.")
+    return 1 - risk_label_index
+
+
+def _meta_risk_scores(
+    meta_head: _MetaHeadFit,
+    scores: FloatMatrix,
+    risk_label_index: int,
+) -> FloatMatrix:
+    classifier = cast(_ProbabilisticClassifier, meta_head.classifier)
+    risk_column = _risk_probability_column(classifier, risk_label_index)
+    return classifier.predict_proba(scores)[:, risk_column].astype(np.float64, copy=False)
+
+
+def _predictions_from_threshold(
+    risk_scores: FloatMatrix,
+    threshold: float,
+    risk_label_index: int,
+    other_label_index: int,
+) -> IntVector:
+    return np.asarray(
+        [risk_label_index if score >= threshold else other_label_index for score in risk_scores],
+        dtype=np.int64,
+    )
+
+
+def _candidate_thresholds(risk_scores: FloatMatrix) -> tuple[float, ...]:
+    unique_scores = np.unique(risk_scores)
+    if unique_scores.shape[0] == 0:
+        raise BinaryTaskError("Cannot learn CIFT meta-head threshold from empty scores.")
+    candidates: list[float] = [float(unique_scores[0] - 1e-12), float(unique_scores[-1] + 1e-12), 0.5]
+    for left, right in zip(unique_scores[:-1], unique_scores[1:], strict=True):
+        candidates.append(float((left + right) / 2.0))
+    return tuple(sorted(set(candidates)))
+
+
+def _learn_threshold(
+    risk_scores: FloatMatrix,
+    encoded_labels: IntVector,
+    risk_label_index: int,
+    other_label_index: int,
+) -> float:
+    label_indices = np.arange(2, dtype=np.int64)
+
+    def score_threshold(threshold: float) -> tuple[float, float]:
+        predictions = _predictions_from_threshold(
+            risk_scores=risk_scores,
+            threshold=threshold,
+            risk_label_index=risk_label_index,
+            other_label_index=other_label_index,
+        )
+        return (
+            float(f1_score(encoded_labels, predictions, average="macro", labels=label_indices, zero_division=0)),
+            float(accuracy_score(encoded_labels, predictions)),
+        )
+
+    return max(_candidate_thresholds(risk_scores), key=score_threshold)
+
+
+def _predict_meta_head(
+    meta_head: _MetaHeadFit,
+    train_scores: FloatMatrix,
+    train_labels: IntVector,
+    test_scores: FloatMatrix,
+    label_count: int,
+    risk_label_index: int,
+    decision_rule: CiftMetaDecisionRule,
+) -> _MetaHeadPredictions:
+    other_index = _other_label_index(label_count, risk_label_index)
+    if decision_rule == "logistic_default":
+        predictions = meta_head.classifier.predict(test_scores).astype(np.int64, copy=False)
+        return _MetaHeadPredictions(predictions=predictions, threshold=0.5)
+    if decision_rule == "train_f1_threshold":
+        train_risk_scores = _meta_risk_scores(meta_head, train_scores, risk_label_index)
+        test_risk_scores = _meta_risk_scores(meta_head, test_scores, risk_label_index)
+        threshold = _learn_threshold(
+            risk_scores=train_risk_scores,
+            encoded_labels=train_labels,
+            risk_label_index=risk_label_index,
+            other_label_index=other_index,
+        )
+        predictions = _predictions_from_threshold(
+            risk_scores=test_risk_scores,
+            threshold=threshold,
+            risk_label_index=risk_label_index,
+            other_label_index=other_index,
+        )
+        return _MetaHeadPredictions(predictions=predictions, threshold=threshold)
+    raise BinaryTaskError(f"Unsupported CIFT meta-head decision rule '{decision_rule}'.")
+
+
 def _matrix_to_tuple(matrix: NDArray[np.int64]) -> tuple[tuple[int, ...], ...]:
     return tuple(tuple(int(value) for value in row) for row in matrix)
 
@@ -519,6 +627,7 @@ def _method_report(
         ridge=variant.ridge,
         risk_label=variant.risk_label,
         inner_fold_count=variant.inner_fold_count,
+        decision_rule=variant.decision_rule,
         method_name="activation_probe",
         label_names=label_names,
         example_count=int(true_labels.shape[0]),
@@ -610,14 +719,23 @@ def evaluate_grouped_cift_meta_head_variant(
             binary_config=binary_config,
             risk_label_index=risk_index,
         )
-        predictions = meta_head.classifier.predict(scores.test_scores).astype(np.int64, copy=False)
-        fold_predictions.append((split.fold_index, encoded_labels[split.test_indices], predictions))
+        meta_predictions = _predict_meta_head(
+            meta_head=meta_head,
+            train_scores=scores.train_scores,
+            train_labels=encoded_labels[split.train_indices],
+            test_scores=scores.test_scores,
+            label_count=len(label_encoding.label_names),
+            risk_label_index=risk_index,
+            decision_rule=variant.decision_rule,
+        )
+        fold_predictions.append((split.fold_index, encoded_labels[split.test_indices], meta_predictions.predictions))
         meta_folds.append(
             CiftMetaHeadFold(
                 fold_index=split.fold_index,
                 source_feature_keys=variant.source_feature_keys,
                 coefficients=meta_head.coefficients,
                 intercept=meta_head.intercept,
+                decision_threshold=meta_predictions.threshold,
             )
         )
 
@@ -660,14 +778,22 @@ def collect_grouped_cift_meta_head_predictions(
             binary_config=binary_config,
             risk_label_index=risk_index,
         )
-        predicted_labels = meta_head.classifier.predict(scores.test_scores).astype(np.int64, copy=False)
+        meta_predictions = _predict_meta_head(
+            meta_head=meta_head,
+            train_scores=scores.train_scores,
+            train_labels=encoded_labels[split.train_indices],
+            test_scores=scores.test_scores,
+            label_count=len(label_encoding.label_names),
+            risk_label_index=risk_index,
+            decision_rule=variant.decision_rule,
+        )
         predictions.extend(
             _example_predictions_from_encoded_labels(
                 dataset=dataset,
                 label_names=label_encoding.label_names,
                 fold_index=split.fold_index,
                 test_indices=split.test_indices,
-                predictions=predicted_labels,
+                predictions=meta_predictions.predictions,
             )
         )
 
@@ -796,6 +922,7 @@ def _meta_fold_to_json(fold: CiftMetaHeadFold) -> dict[str, JsonValue]:
         "source_feature_keys": list(fold.source_feature_keys),
         "coefficients": list(fold.coefficients),
         "intercept": fold.intercept,
+        "decision_threshold": fold.decision_threshold,
     }
 
 
@@ -823,6 +950,7 @@ def _variant_to_json(variant: CiftMetaHeadVariantReport) -> dict[str, JsonValue]
         "ridge": variant.ridge,
         "risk_label": variant.risk_label,
         "inner_fold_count": variant.inner_fold_count,
+        "decision_rule": variant.decision_rule,
         "method_name": variant.method_name,
         "label_names": list(variant.label_names),
         "example_count": variant.example_count,

@@ -126,6 +126,7 @@ def _variant() -> CiftMetaHeadVariant:
         ridge=0.001,
         risk_label="exfiltration_intent",
         inner_fold_count=2,
+        decision_rule="logistic_default",
     )
 
 

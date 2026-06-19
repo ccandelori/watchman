@@ -365,6 +365,14 @@
       "dataset_id": "hard_prompts_v3",
       "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
       "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_ablation_v1",
+      "path": "introspection/data/reports/cift_meta_ablation_v1.json",
+      "sha256": "20aa1b18338400d7959212e2f1476b3a9c75970b7725e72fc147d800f6f77c3c",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
     }
   ]
 }

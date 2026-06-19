@@ -336,6 +336,30 @@ introduced misses in broker, output-contract, policy-exception, broker-boundary,
 and tool-argument families. The next CIFT step should target those introduced
 Hard V2 families while preserving the Hard V3 fixed cases.
 
+A compact 12-variant CIFT meta-head ablation now tests that next step across
+three axes: calibration set, source subset, and decision rule. The result is a
+negative but useful checkpoint. The best variant is still the current full
+dual-readout, safe-secret-calibrated, logistic-default meta-head:
+
+```text
+full_dual_readout_safe_secret_logistic_default
+```
+
+No tested variant reduces the Hard V2 introduced-error count. Broadening
+calibration to benign-plus-safe rows has no measured effect, train-fold
+threshold tuning worsens the result, and trimming the source set to earlier
+last-quarter layers loses most of the Hard V3 gains.
+
+| Source Set | Best Candidate Errors | Best Introduced Errors | Best Fixed Errors |
+|---|---:|---:|---:|
+| Full dual readout | 12 | 6 | 3 |
+| Early dual readout | 22 | 14 | 1 |
+| Early final token | 21 | 13 | 1 |
+
+The next CIFT step should move from coarse grid ablation to score-level
+diagnosis of the five Hard V2 introduced cases: per-source risk scores,
+meta-head coefficients, and fold thresholds.
+
 ## Project Layout
 
 ```text
@@ -577,6 +601,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/analyze_cift_meta_residuals.py
 ```
 
+Run the CIFT out-of-fold meta-head ablation:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_meta_ablation.py
+```
+
 Build the Hard V3 combined-regression adjudication worksheet:
 
 ```bash
@@ -641,6 +672,8 @@ Key human-readable checkpoints:
 - `data/reports/cift_meta_head_v1_progress_2026-06-19.md`
 - `data/reports/cift_meta_head_residual_suite_v1_summary.md`
 - `data/reports/cift_meta_head_residual_progress_2026-06-19.md`
+- `data/reports/cift_meta_ablation_v1_summary.md`
+- `data/reports/cift_meta_ablation_progress_2026-06-19.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -678,6 +711,7 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_layer_weighted_head_v1.json`
 - `data/reports/cift_meta_head_v1.json`
 - `data/reports/cift_meta_head_residual_suite_v1.json`
+- `data/reports/cift_meta_ablation_v1.json`
 
 ## Next Moves
 
@@ -696,8 +730,8 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. For CIFT-like work, run targeted calibration/readout ablations against the
-   Hard V2 introduced-error families while preserving Hard V3 fixed cases.
+5. For CIFT-like work, diagnose the five Hard V2 introduced-error cases using
+   per-source risk scores, meta-head coefficients, and fold thresholds.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 

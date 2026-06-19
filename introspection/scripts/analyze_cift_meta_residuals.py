@@ -198,6 +198,7 @@ def _variant(
         ridge=config.ridge,
         risk_label=config.risk_label,
         inner_fold_count=config.inner_fold_count,
+        decision_rule="logistic_default",
     )
 
 
