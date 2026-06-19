@@ -435,6 +435,23 @@ heads produce. The next refinement should preserve supervised correction while
 testing safer operating points, such as fold-learned thresholds or explicit
 source-score calibration.
 
+A thresholded constrained-combiner pass tested that operating-point hypothesis.
+Learning a fold-specific macro-F1 threshold for the positive and simplex
+logistic variants worsens both constrained variants. Positive logistic rises
+from 23 to 29 candidate errors, and simplex logistic rises from 23 to 27.
+
+| Combiner | Candidate Errors | Fixed | Persistent | Introduced | Net Error Delta |
+|---|---:|---:|---:|---:|---:|
+| Positive logistic | 23 | 3 | 6 | 17 | 14 |
+| Simplex logistic | 23 | 3 | 6 | 17 | 14 |
+| Positive logistic + train-F1 threshold | 29 | 1 | 8 | 21 | 20 |
+| Simplex logistic + train-F1 threshold | 27 | 1 | 8 | 19 | 18 |
+
+This narrows the next CIFT-like branch again: the problem is not just the
+operating threshold on a constrained combiner. The more promising next
+experiment is a signed logistic regularization sweep or source-score
+calibration that preserves the useful cross-source correction.
+
 ## Project Layout
 
 ```text
@@ -774,6 +791,7 @@ Key human-readable checkpoints:
 - `data/reports/cift_meta_source_ablation_v1_summary.md`
 - `data/reports/cift_meta_combiner_ablation_v1_summary.md`
 - `data/reports/cift_meta_combiner_ablation_v2_summary.md`
+- `data/reports/cift_meta_combiner_ablation_v3_summary.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -816,6 +834,7 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_meta_source_ablation_v1.json`
 - `data/reports/cift_meta_combiner_ablation_v1.json`
 - `data/reports/cift_meta_combiner_ablation_v2.json`
+- `data/reports/cift_meta_combiner_ablation_v3.json`
 
 ## Next Moves
 
@@ -834,9 +853,9 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. For CIFT-like work, preserve supervised correction while testing safer
-   operating points: fold-learned thresholds, source-score calibration, or
-   regularized signed weights that keep the Hard V3 fixed cases.
+5. For CIFT-like work, preserve supervised correction and test regularized
+   signed weights or explicit source-score calibration while keeping the Hard
+   V3 fixed cases.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 

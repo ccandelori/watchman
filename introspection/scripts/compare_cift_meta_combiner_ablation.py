@@ -69,12 +69,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--output-json",
         required=False,
-        default=str(INTROSPECTION_ROOT / "data" / "reports" / "cift_meta_combiner_ablation_v2.json"),
+        default=str(INTROSPECTION_ROOT / "data" / "reports" / "cift_meta_combiner_ablation_v3.json"),
     )
     parser.add_argument(
         "--output-md",
         required=False,
-        default=str(INTROSPECTION_ROOT / "data" / "reports" / "cift_meta_combiner_ablation_v2_summary.md"),
+        default=str(INTROSPECTION_ROOT / "data" / "reports" / "cift_meta_combiner_ablation_v3_summary.md"),
     )
     parser.add_argument("--task", required=False, default="safe_secret_vs_exfiltration")
     parser.add_argument(
@@ -100,6 +100,8 @@ def _build_parser() -> argparse.ArgumentParser:
             "majority_vote",
             "positive_logistic",
             "simplex_logistic",
+            "positive_logistic_train_f1_threshold",
+            "simplex_logistic_train_f1_threshold",
         ),
         help="Combiner rule. Defaults to all supported rules.",
     )
@@ -154,6 +156,8 @@ def _parse_combiner_rules(values: Sequence[str] | None) -> tuple[CiftMetaCombine
         "majority_vote",
         "positive_logistic",
         "simplex_logistic",
+        "positive_logistic_train_f1_threshold",
+        "simplex_logistic_train_f1_threshold",
     )
     if len(raw_values) == 0:
         raise ValueError("At least one combiner rule is required.")

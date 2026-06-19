@@ -158,6 +158,16 @@ def _variants() -> tuple[CiftMetaCombinerVariant, ...]:
             combiner_rule="positive_logistic",
         ),
         CiftMetaCombinerVariant(
+            variant_id="positive_logistic_train_f1_threshold",
+            feature_name="cift_meta_combiner_positive_logistic_train_f1_threshold",
+            source_feature_keys=source_feature_keys,
+            calibration_source_labels=("secret_present_safe",),
+            ridge=0.001,
+            risk_label="exfiltration_intent",
+            inner_fold_count=2,
+            combiner_rule="positive_logistic_train_f1_threshold",
+        ),
+        CiftMetaCombinerVariant(
             variant_id="simplex_logistic",
             feature_name="cift_meta_combiner_simplex_logistic",
             source_feature_keys=source_feature_keys,
@@ -166,6 +176,16 @@ def _variants() -> tuple[CiftMetaCombinerVariant, ...]:
             risk_label="exfiltration_intent",
             inner_fold_count=2,
             combiner_rule="simplex_logistic",
+        ),
+        CiftMetaCombinerVariant(
+            variant_id="simplex_logistic_train_f1_threshold",
+            feature_name="cift_meta_combiner_simplex_logistic_train_f1_threshold",
+            source_feature_keys=source_feature_keys,
+            calibration_source_labels=("secret_present_safe",),
+            ridge=0.001,
+            risk_label="exfiltration_intent",
+            inner_fold_count=2,
+            combiner_rule="simplex_logistic_train_f1_threshold",
         ),
     )
 
@@ -181,10 +201,18 @@ class CiftMetaCombinerAblationTest(unittest.TestCase):
             binary_config=_binary_config(),
         )
 
-        self.assertEqual(5, report.variant_count)
+        self.assertEqual(7, report.variant_count)
         self.assertEqual("weak_baseline_feature", report.baseline_feature_key)
         self.assertEqual(
-            ("logistic_meta_head", "mean_score", "top_two_mean", "positive_logistic", "simplex_logistic"),
+            (
+                "logistic_meta_head",
+                "mean_score",
+                "top_two_mean",
+                "positive_logistic",
+                "positive_logistic_train_f1_threshold",
+                "simplex_logistic",
+                "simplex_logistic_train_f1_threshold",
+            ),
             tuple(summary.combiner_rule for summary in report.variant_summaries),
         )
         self.assertGreaterEqual(report.best_variant_summary.candidate_error_count, 0)
@@ -224,7 +252,7 @@ class CiftMetaCombinerAblationTest(unittest.TestCase):
             decoded = json.loads(json_path.read_text(encoding="utf-8"))
             markdown = markdown_path.read_text(encoding="utf-8")
 
-        self.assertEqual(5, decoded["variant_count"])
+        self.assertEqual(7, decoded["variant_count"])
         self.assertIn("best_variant_summary", decoded)
         self.assertIn("CIFT Meta-Head Combiner Ablation", markdown)
 

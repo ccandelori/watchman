@@ -9,6 +9,7 @@ import numpy as np
 from numpy.typing import NDArray
 from scipy.optimize import minimize
 from scipy.optimize import Bounds, LinearConstraint
+from sklearn.metrics import accuracy_score, f1_score
 
 from aegis_introspection.artifacts import ActivationArtifact
 from aegis_introspection.binary_tasks import (
@@ -52,6 +53,8 @@ CiftMetaCombinerRule: TypeAlias = Literal[
     "majority_vote",
     "positive_logistic",
     "simplex_logistic",
+    "positive_logistic_train_f1_threshold",
+    "simplex_logistic_train_f1_threshold",
 ]
 
 FloatVector: TypeAlias = NDArray[np.float64]
@@ -82,6 +85,7 @@ class _ConstrainedLogisticFit:
     coefficients: FloatVector
     feature_mean: FloatVector
     feature_scale: FloatVector
+    threshold: float
 
 
 @dataclass(frozen=True)
@@ -166,6 +170,8 @@ def _validate_variant(variant: CiftMetaCombinerVariant) -> None:
         "majority_vote",
         "positive_logistic",
         "simplex_logistic",
+        "positive_logistic_train_f1_threshold",
+        "simplex_logistic_train_f1_threshold",
     ):
         raise BinaryTaskError(
             f"CIFT combiner variant '{variant.variant_id}' has unsupported combiner rule "
@@ -281,6 +287,33 @@ def _standardize_scores(scores: FloatMatrix, feature_mean: FloatVector, feature_
     return ((scores - feature_mean) / feature_scale).astype(np.float64, copy=False)
 
 
+def _candidate_thresholds(risk_scores: FloatVector) -> tuple[float, ...]:
+    unique_scores = np.unique(risk_scores)
+    if unique_scores.shape[0] == 0:
+        raise BinaryTaskError("Cannot learn CIFT constrained combiner threshold from empty scores.")
+    candidates: list[float] = [float(unique_scores[0] - 1e-12), float(unique_scores[-1] + 1e-12), 0.5]
+    for left, right in zip(unique_scores[:-1], unique_scores[1:], strict=True):
+        candidates.append(float((left + right) / 2.0))
+    return tuple(sorted(set(candidates)))
+
+
+def _learn_threshold(
+    risk_scores: FloatVector,
+    binary_labels: FloatVector,
+) -> float:
+    encoded_labels = binary_labels.astype(np.int64, copy=False)
+    label_indices = np.arange(2, dtype=np.int64)
+
+    def score_threshold(threshold: float) -> tuple[float, float]:
+        predictions = np.asarray([1 if score >= threshold else 0 for score in risk_scores], dtype=np.int64)
+        return (
+            float(f1_score(encoded_labels, predictions, average="macro", labels=label_indices, zero_division=0)),
+            float(accuracy_score(encoded_labels, predictions)),
+        )
+
+    return max(_candidate_thresholds(risk_scores), key=score_threshold)
+
+
 def _fit_constrained_logistic(
     train_scores: FloatMatrix,
     train_labels: NDArray[np.int64],
@@ -312,7 +345,7 @@ def _fit_constrained_logistic(
     )
     constraints: tuple[LinearConstraint, ...] = ()
     method = "L-BFGS-B"
-    if variant.combiner_rule == "simplex_logistic":
+    if variant.combiner_rule in ("simplex_logistic", "simplex_logistic_train_f1_threshold"):
         constraint_row = np.asarray([0.0] + [1.0 for _ in range(feature_count)], dtype=np.float64)
         constraints = (LinearConstraint(constraint_row, lb=1.0, ub=1.0),)
         method = "SLSQP"
@@ -330,11 +363,17 @@ def _fit_constrained_logistic(
             f"CIFT constrained combiner '{variant.variant_id}' optimization failed: {result.message}."
         )
     parameters = np.asarray(result.x, dtype=np.float64)
+    train_risk_scores = _sigmoid(parameters[0] + standardized_scores @ parameters[1:])
+    if variant.combiner_rule in ("positive_logistic_train_f1_threshold", "simplex_logistic_train_f1_threshold"):
+        threshold = _learn_threshold(risk_scores=train_risk_scores, binary_labels=binary_labels)
+    else:
+        threshold = 0.5
     return _ConstrainedLogisticFit(
         intercept=float(parameters[0]),
         coefficients=parameters[1:].astype(np.float64, copy=False),
         feature_mean=feature_mean,
         feature_scale=feature_scale,
+        threshold=threshold,
     )
 
 
@@ -369,7 +408,7 @@ def _predictions_from_source_score_folds(
         risk_scores = _predict_constrained_logistic_scores(fit=fit, test_scores=fold.test_scores)
         other_label = _other_label(dataset.target_labels, variant.risk_label)
         for row_index, risk_score in zip(fold.test_indices.tolist(), risk_scores.tolist(), strict=True):
-            predicted_label = variant.risk_label if risk_score >= 0.5 else other_label
+            predicted_label = variant.risk_label if risk_score >= fit.threshold else other_label
             true_label = dataset.target_labels[row_index]
             predictions.append(
                 BinaryExamplePrediction(
@@ -459,7 +498,12 @@ def _collect_candidate_predictions(
             binary_config=binary_config,
             variant=_head_variant(variant),
         )
-    if variant.combiner_rule in ("positive_logistic", "simplex_logistic"):
+    if variant.combiner_rule in (
+        "positive_logistic",
+        "simplex_logistic",
+        "positive_logistic_train_f1_threshold",
+        "simplex_logistic_train_f1_threshold",
+    ):
         folds = collect_grouped_cift_meta_head_source_score_folds(
             artifact=artifact,
             dataset=dataset,
