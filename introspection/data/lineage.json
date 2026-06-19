@@ -421,6 +421,22 @@
       "dataset_id": "hard_prompts_v3",
       "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
       "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_regularization_crosscheck_v1",
+      "path": "introspection/data/reports/cift_meta_regularization_crosscheck_v1.json",
+      "sha256": "4acb522e6f82e1115a07545cc86d3830dae47b033acc93f97400320fe324cb03",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_regularization_diagnostics_hard_v2_meta_c_10_v1",
+      "path": "introspection/data/reports/cift_meta_regularization_diagnostics_hard_v2_meta_c_10_v1.json",
+      "sha256": "a983d1144ab4bd00514baf80803bc96d0273fa602692765fba3b85d9b1521c99",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
     }
   ]
 }

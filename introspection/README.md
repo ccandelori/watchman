@@ -468,9 +468,29 @@ Hard V3 result. `C=5.0` and `C=10.0` tie as the best tested settings:
 The useful finding is that preserving signed supervised correction remains the
 best current CIFT-like direction. The risk is that the apparent improvement may
 be checkpoint-specific: Hard V2 still has five introduced errors against the
-combined static reference, and this sweep only covered Hard V2/Hard V3. The
-next checkpoint should cross-check `meta_c_5` across all registered datasets
-and produce residual diagnostics for its remaining Hard V2 misses.
+combined static reference, and the first sweep only covered Hard V2/Hard V3.
+That motivated the all-dataset cross-check and Hard V2 diagnostics below.
+
+The four-dataset cross-check keeps the result useful but blocks promotion.
+Across baseline, Hard V1, Hard V2, and Hard V3, `meta_c_10` is the best tested
+regularized meta-head, not `meta_c_5`. It improves over the original `C=1.0`
+meta-head but still trails the combined static reference in aggregate residual
+terms:
+
+| Meta C | Candidate Errors | Fixed | Persistent | Introduced | Net Error Delta | Mean Accuracy |
+|---:|---:|---:|---:|---:|---:|---:|
+| 1.0 | 27 | 7 | 13 | 14 | 7 | 0.8875 |
+| 5.0 | 25 | 10 | 10 | 15 | 5 | 0.8958 |
+| 10.0 | 23 | 11 | 9 | 14 | 3 | 0.9042 |
+
+Hard V2 diagnostics for `meta_c_10` show 6 candidate errors and 5 introduced
+errors versus the combined static reference. The remaining introduced set has
+four exfiltration false negatives below the default 0.5 threshold and one safe
+false positive above it. The strongest source-level evidence is still mixed
+mean-pool behavior, especially opposing contributions from `mean_pool_layer_22`
+and `mean_pool_layer_28`. That points the next CIFT branch toward source-score
+calibration and readout design rather than threshold tuning or single-source
+pruning.
 
 ## Project Layout
 
@@ -748,6 +768,13 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/compare_cift_meta_regularization_sweep.py
 ```
 
+Diagnose regularized CIFT meta-head introduced errors:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/diagnose_cift_meta_regularization.py
+```
+
 Build the Hard V3 combined-regression adjudication worksheet:
 
 ```bash
@@ -820,6 +847,8 @@ Key human-readable checkpoints:
 - `data/reports/cift_meta_combiner_ablation_v2_summary.md`
 - `data/reports/cift_meta_combiner_ablation_v3_summary.md`
 - `data/reports/cift_meta_regularization_sweep_v1_summary.md`
+- `data/reports/cift_meta_regularization_crosscheck_v1_summary.md`
+- `data/reports/cift_meta_regularization_diagnostics_hard_v2_meta_c_10_v1_summary.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -864,6 +893,8 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_meta_combiner_ablation_v2.json`
 - `data/reports/cift_meta_combiner_ablation_v3.json`
 - `data/reports/cift_meta_regularization_sweep_v1.json`
+- `data/reports/cift_meta_regularization_crosscheck_v1.json`
+- `data/reports/cift_meta_regularization_diagnostics_hard_v2_meta_c_10_v1.json`
 
 ## Next Moves
 
@@ -882,8 +913,9 @@ Recommended sequence:
    final-token candidates remain under evaluation.
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
-5. For CIFT-like work, cross-check `meta_c_5` across all registered datasets,
-   then inspect its remaining Hard V2 residuals before any promotion decision.
+5. For CIFT-like work, treat `meta_c_10` as the current regularized diagnostic
+   target and test source-score calibration/readout variants against its Hard
+   V2 residuals before any promotion decision.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 

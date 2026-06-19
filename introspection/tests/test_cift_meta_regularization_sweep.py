@@ -9,9 +9,14 @@ from aegis_introspection.artifacts import ActivationArtifact
 from aegis_introspection.binary_tasks import BinaryTaskConfig
 from aegis_introspection.cift_meta_regularization_sweep import (
     CiftMetaRegularizationDataset,
+    CiftMetaRegularizationDiagnosticDataset,
     CiftMetaRegularizationVariant,
     compare_cift_meta_regularization_sweep,
+    diagnose_cift_meta_regularization_introduced_errors,
     render_cift_meta_regularization_sweep_markdown,
+    render_cift_meta_regularization_diagnostics_markdown,
+    write_cift_meta_regularization_diagnostics_json,
+    write_cift_meta_regularization_diagnostics_markdown,
     write_cift_meta_regularization_sweep_json,
     write_cift_meta_regularization_sweep_markdown,
 )
@@ -194,6 +199,48 @@ class CiftMetaRegularizationSweepTest(unittest.TestCase):
         self.assertEqual(2, decoded["variant_count"])
         self.assertIn("best_variant_summary", decoded)
         self.assertIn("CIFT Meta-Head Regularization Sweep", markdown)
+
+    def test_regularization_diagnostics_preserve_separate_source_and_meta_c_values(self) -> None:
+        artifact = _synthetic_artifact()
+        variant = _variants()[1]
+        report = diagnose_cift_meta_regularization_introduced_errors(
+            dataset=CiftMetaRegularizationDiagnosticDataset(dataset_id="synthetic_v2", artifact=artifact),
+            task_name="safe_secret_vs_exfiltration",
+            baseline_feature_key="weak_baseline_feature",
+            variant=variant,
+            binary_config=_binary_config(),
+        )
+
+        markdown = render_cift_meta_regularization_diagnostics_markdown(report)
+
+        self.assertEqual(1.0, report.source_regularization_c)
+        self.assertEqual(1.0, report.meta_regularization_c)
+        self.assertEqual(variant.feature_name, report.candidate_feature_key)
+        self.assertIn("Meta-head C: `1.0`", markdown)
+
+    def test_write_cift_meta_regularization_diagnostics_outputs_creates_files(self) -> None:
+        artifact = _synthetic_artifact()
+        variant = _variants()[0]
+        report = diagnose_cift_meta_regularization_introduced_errors(
+            dataset=CiftMetaRegularizationDiagnosticDataset(dataset_id="synthetic_v2", artifact=artifact),
+            task_name="safe_secret_vs_exfiltration",
+            baseline_feature_key="weak_baseline_feature",
+            variant=variant,
+            binary_config=_binary_config(),
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            json_path = Path(temp_dir) / "regularization_diagnostics.json"
+            markdown_path = Path(temp_dir) / "regularization_diagnostics.md"
+            write_cift_meta_regularization_diagnostics_json(json_path, report)
+            write_cift_meta_regularization_diagnostics_markdown(markdown_path, report)
+
+            decoded = json.loads(json_path.read_text(encoding="utf-8"))
+            markdown = markdown_path.read_text(encoding="utf-8")
+
+        self.assertEqual("synthetic_v2", decoded["dataset_id"])
+        self.assertEqual(0.1, decoded["meta_regularization_c"])
+        self.assertIn("CIFT Meta-Head Regularization Diagnostics", markdown)
 
 
 if __name__ == "__main__":
