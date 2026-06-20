@@ -1,0 +1,53 @@
+[project]
+name = "aegis"
+version = "0.1.0"
+description = "Runtime credential defense spine for LLM agents."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+proxy = [
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+]
+dev = [
+  "mypy>=1.13,<2",
+  "pytest>=8.3,<9",
+  "pytest-cov>=5,<7",
+  "ruff>=0.8,<1",
+]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests/aegis"]
+addopts = [
+  "--strict-config",
+  "--strict-markers",
+  "--cov=aegis",
+  "--cov-report=term-missing",
+  "--cov-fail-under=90",
+]
+
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+src = ["src", "tests", "scripts"]
+
+[tool.ruff.lint]
+select = ["B", "E", "F", "I", "RUF", "SIM", "UP"]
+
+[tool.ruff.format]
+quote-style = "double"
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_unreachable = true
+pretty = true
+files = ["src/aegis", "scripts"]
