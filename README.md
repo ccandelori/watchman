@@ -73,6 +73,12 @@ Run the full local quality gate:
 make quality
 ```
 
+Run the built-in demo scenarios:
+
+```bash
+uv run python scripts/run_demo.py
+```
+
 Exercise the mock proxy in Python:
 
 ```python
@@ -121,6 +127,7 @@ Coverage is enforced at 90 percent for the runtime package.
 
 ```text
 src/aegis/core/        Runtime contracts and orchestrator
+src/aegis/demo/        Built-in runtime demo scenarios
 src/aegis/detectors/   Detector stage implementations
 src/aegis/policy/      Policy decision logic
 src/aegis/audit/       Audit sinks
