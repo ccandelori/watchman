@@ -13,6 +13,7 @@ def test_demo_scenarios_cover_allow_warn_and_escalate() -> None:
         "benign_allow": Action.ALLOW,
         "cift_review_warn": Action.WARN,
         "canary_leak_escalate": Action.ESCALATE,
+        "encoded_canary_leak_escalate": Action.ESCALATE,
     }
 
 
@@ -39,6 +40,9 @@ def test_render_demo_scenarios_outputs_compact_trace_without_raw_canary() -> Non
     assert "scenario: canary_leak_escalate" in output
     assert "detector: text_canary score=1.000 action=escalate" in output
     assert "match_count=1" in output
+    assert "scenario: encoded_canary_leak_escalate" in output
+    assert "detector: encoded_canary score=1.000 action=escalate" in output
+    assert "encoding=base64" in output
     assert "audit: written" in output
     assert "sk-hny-demoCanaryValue123" not in output
 

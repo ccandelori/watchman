@@ -1,3 +1,5 @@
+import base64
+import codecs
 import unittest
 
 from aegis.audit.memory import InMemoryAuditSink
@@ -13,8 +15,11 @@ from aegis.core.contracts import (
 )
 from aegis.core.orchestrator import AegisRuntime, ModelResponse, RuntimeRequest
 from aegis.detectors.canary import (
+    CanaryDetectorError,
     CanaryRecord,
+    EncodedCanaryDetector,
     InMemoryCanaryRegistry,
+    NoopCanaryDetector,
     TextCanaryDetector,
     canary_sha256,
 )
@@ -70,6 +75,22 @@ def _request() -> RuntimeRequest:
 
 
 class TextCanaryDetectorTest(unittest.TestCase):
+    def test_empty_detector_name_is_rejected(self) -> None:
+        registry = InMemoryCanaryRegistry(records=(_record("sk-hny-testCanaryValue123"),))
+
+        with self.assertRaisesRegex(CanaryDetectorError, "detector_name"):
+            TextCanaryDetector(detector_name="", registry=registry)
+
+    def test_missing_model_response_degrades(self) -> None:
+        registry = InMemoryCanaryRegistry(records=(_record("sk-hny-testCanaryValue123"),))
+        detector = TextCanaryDetector(detector_name="text_canary", registry=registry)
+
+        result = detector.evaluate(turn=_runtime_turn(), model_response=None)
+
+        self.assertEqual(Action.ALLOW, result.recommended_action)
+        self.assertEqual(CapabilityStatus.DEGRADED, result.capability_status)
+        self.assertEqual("model_response_required", result.evidence["reason"])
+
     def test_exact_canary_leak_escalates_with_audit_safe_evidence(self) -> None:
         canary_value = "sk-hny-testCanaryValue123"
         registry = InMemoryCanaryRegistry(records=(_record(canary_value),))
@@ -129,6 +150,218 @@ class TextCanaryDetectorTest(unittest.TestCase):
         self.assertEqual(2, len(response.detector_results))
         self.assertEqual(1, len(audit_sink.recent(limit=10)))
         self.assertNotIn(canary_value, str(response.audit_event.to_dict()))
+
+
+class EncodedCanaryDetectorTest(unittest.TestCase):
+    def test_invalid_configuration_is_rejected(self) -> None:
+        registry = InMemoryCanaryRegistry(records=(_record("sk-hny-testCanaryValue123"),))
+
+        with self.assertRaisesRegex(CanaryDetectorError, "detector_name"):
+            EncodedCanaryDetector(detector_name="", registry=registry, partial_match_threshold=0.8)
+        with self.assertRaisesRegex(CanaryDetectorError, "partial_match_threshold"):
+            EncodedCanaryDetector(detector_name="encoded_canary", registry=registry, partial_match_threshold=1.1)
+
+    def test_missing_model_response_degrades(self) -> None:
+        registry = InMemoryCanaryRegistry(records=(_record("sk-hny-testCanaryValue123"),))
+        detector = EncodedCanaryDetector(
+            detector_name="encoded_canary",
+            registry=registry,
+            partial_match_threshold=0.8,
+        )
+
+        result = detector.evaluate(turn=_runtime_turn(), model_response=None)
+
+        self.assertEqual(Action.ALLOW, result.recommended_action)
+        self.assertEqual(CapabilityStatus.DEGRADED, result.capability_status)
+        self.assertEqual("model_response_required", result.evidence["reason"])
+
+    def test_safe_output_allows_without_matches(self) -> None:
+        registry = InMemoryCanaryRegistry(records=(_record("sk-hny-testCanaryValue123"),))
+        detector = EncodedCanaryDetector(
+            detector_name="encoded_canary",
+            registry=registry,
+            partial_match_threshold=0.8,
+        )
+
+        result = detector.evaluate(
+            turn=_runtime_turn(),
+            model_response=ModelResponse(output_text="No protected values are included.", metadata={}),
+        )
+
+        self.assertEqual(Action.ALLOW, result.recommended_action)
+        self.assertEqual("no_encoded_canary_leak_detected", result.evidence["reason"])
+        self.assertEqual(0, result.evidence["match_count"])
+
+    def test_base64_canary_leak_escalates_when_exact_text_detector_is_dark(self) -> None:
+        canary_value = "sk-hny-testCanaryValue123"
+        encoded_value = base64.b64encode(canary_value.encode("utf-8")).decode("utf-8")
+        registry = InMemoryCanaryRegistry(records=(_record(canary_value),))
+        exact_detector = TextCanaryDetector(detector_name="text_canary", registry=registry)
+        encoded_detector = EncodedCanaryDetector(
+            detector_name="encoded_canary",
+            registry=registry,
+            partial_match_threshold=0.8,
+        )
+        output = f"The requested encoded value is {encoded_value}."
+
+        exact_result = exact_detector.evaluate(
+            turn=_runtime_turn(),
+            model_response=ModelResponse(output_text=output, metadata={}),
+        )
+        encoded_result = encoded_detector.evaluate(
+            turn=_runtime_turn(),
+            model_response=ModelResponse(output_text=output, metadata={}),
+        )
+
+        self.assertEqual(Action.ALLOW, exact_result.recommended_action)
+        self.assertEqual(Action.ESCALATE, encoded_result.recommended_action)
+        self.assertEqual(DetectorComponent.TEXT_CANARY, encoded_result.component)
+        self.assertEqual("encoded_canary_leak_detected", encoded_result.evidence["reason"])
+        self.assertEqual(1, encoded_result.evidence["match_count"])
+        self.assertEqual("base64", encoded_result.evidence["matches"][0]["encoding"])
+        self.assertEqual(True, encoded_result.evidence["matches"][0]["exact"])
+        self.assertEqual("hny_api_key_123", encoded_result.evidence["matches"][0]["canary_id"])
+        self.assertEqual(canary_sha256(canary_value), encoded_result.evidence["matches"][0]["sha256"])
+        self.assertNotIn(canary_value, str(encoded_result.to_dict()))
+
+    def test_hex_rot13_and_leet_canary_leaks_are_detected(self) -> None:
+        canary_value = "sk-hny-testCanaryValue123"
+        registry = InMemoryCanaryRegistry(records=(_record(canary_value),))
+        detector = EncodedCanaryDetector(
+            detector_name="encoded_canary",
+            registry=registry,
+            partial_match_threshold=0.8,
+        )
+        encoded_values = {
+            "hex": canary_value.encode("utf-8").hex(),
+            "rot13": codecs.encode(canary_value, "rot_13"),
+            "leet": "5k-hny-7357C4n4ryV4lu3123",
+        }
+
+        for encoding, encoded_value in encoded_values.items():
+            with self.subTest(encoding=encoding):
+                result = detector.evaluate(
+                    turn=_runtime_turn(),
+                    model_response=ModelResponse(output_text=f"Encoded: {encoded_value}", metadata={}),
+                )
+
+                self.assertEqual(Action.ESCALATE, result.recommended_action)
+                self.assertEqual(encoding, result.evidence["matches"][0]["encoding"])
+
+    def test_reverse_and_fragmented_canary_leaks_are_detected(self) -> None:
+        canary_value = "sk-hny-testCanaryValue123"
+        registry = InMemoryCanaryRegistry(records=(_record(canary_value),))
+        detector = EncodedCanaryDetector(
+            detector_name="encoded_canary",
+            registry=registry,
+            partial_match_threshold=0.8,
+        )
+
+        reverse_result = detector.evaluate(
+            turn=_runtime_turn(),
+            model_response=ModelResponse(output_text=f"Reversed: {canary_value[::-1]}", metadata={}),
+        )
+        fragmented_result = detector.evaluate(
+            turn=_runtime_turn(),
+            model_response=ModelResponse(output_text="Fragmented: sk-hny-test Canary Value123", metadata={}),
+        )
+
+        self.assertEqual(Action.ESCALATE, reverse_result.recommended_action)
+        self.assertEqual("reverse", reverse_result.evidence["matches"][0]["encoding"])
+        self.assertEqual(Action.ESCALATE, fragmented_result.recommended_action)
+        self.assertEqual("fragmentation", fragmented_result.evidence["matches"][0]["encoding"])
+
+    def test_larger_decoded_blob_containing_canary_is_detected(self) -> None:
+        canary_value = "sk-hny-testCanaryValue123"
+        registry = InMemoryCanaryRegistry(records=(_record(canary_value),))
+        detector = EncodedCanaryDetector(
+            detector_name="encoded_canary",
+            registry=registry,
+            partial_match_threshold=0.8,
+        )
+        encoded_blob = base64.b64encode(f"prefix::{canary_value}::suffix".encode()).decode("utf-8")
+
+        result = detector.evaluate(
+            turn=_runtime_turn(),
+            model_response=ModelResponse(output_text=f"Blob: {encoded_blob}", metadata={}),
+        )
+
+        self.assertEqual(Action.ESCALATE, result.recommended_action)
+        self.assertEqual("decoded_base64_blob", result.evidence["matches"][0]["encoding"])
+
+    def test_partial_canary_overlap_sanitizes(self) -> None:
+        canary_value = "sk-hny-testCanaryValue123"
+        registry = InMemoryCanaryRegistry(records=(_record(canary_value),))
+        detector = EncodedCanaryDetector(
+            detector_name="encoded_canary",
+            registry=registry,
+            partial_match_threshold=0.5,
+        )
+
+        result = detector.evaluate(
+            turn=_runtime_turn(),
+            model_response=ModelResponse(output_text="Partial leak: sk-hny-testCan", metadata={}),
+        )
+
+        self.assertEqual(Action.SANITIZE, result.recommended_action)
+        self.assertEqual("partial_canary_overlap_detected", result.evidence["reason"])
+        self.assertEqual("partial", result.evidence["matches"][0]["encoding"])
+        self.assertEqual(False, result.evidence["matches"][0]["exact"])
+
+    def test_verbatim_canary_is_left_to_exact_text_detector(self) -> None:
+        canary_value = "sk-hny-testCanaryValue123"
+        registry = InMemoryCanaryRegistry(records=(_record(canary_value),))
+        detector = EncodedCanaryDetector(
+            detector_name="encoded_canary",
+            registry=registry,
+            partial_match_threshold=0.8,
+        )
+
+        result = detector.evaluate(
+            turn=_runtime_turn(),
+            model_response=ModelResponse(output_text=f"Raw value: {canary_value}", metadata={}),
+        )
+
+        self.assertEqual(Action.ALLOW, result.recommended_action)
+        self.assertEqual(0, result.evidence["match_count"])
+
+    def test_runtime_escalates_when_model_output_contains_encoded_canary(self) -> None:
+        canary_value = "sk-hny-testCanaryValue123"
+        encoded_value = base64.b64encode(canary_value.encode("utf-8")).decode("utf-8")
+        registry = InMemoryCanaryRegistry(records=(_record(canary_value),))
+        audit_sink = InMemoryAuditSink()
+        runtime = AegisRuntime(
+            pre_generation_detectors=(),
+            post_generation_detectors=(
+                TextCanaryDetector(detector_name="text_canary", registry=registry),
+                EncodedCanaryDetector(
+                    detector_name="encoded_canary",
+                    registry=registry,
+                    partial_match_threshold=0.8,
+                ),
+            ),
+            session_detectors=(),
+            policy_engine=SeverityPolicyEngine(),
+            audit_sink=audit_sink,
+            model_provider=CanaryAwareModelProvider(output_text=f"Leaked value: {encoded_value}"),
+        )
+
+        response = runtime.evaluate_turn(_request())
+
+        self.assertEqual(Action.ESCALATE, response.policy_decision.final_action)
+        self.assertEqual(("encoded_canary",), response.policy_decision.triggered_detectors)
+        self.assertEqual(2, len(response.detector_results))
+        self.assertNotIn(canary_value, str(response.audit_event.to_dict()))
+
+
+class NoopCanaryDetectorTest(unittest.TestCase):
+    def test_noop_canary_detector_reports_unconfigured_boundary(self) -> None:
+        result = NoopCanaryDetector().evaluate(turn=_runtime_turn(), model_response=None)
+
+        self.assertEqual(Action.ALLOW, result.recommended_action)
+        self.assertEqual(DetectorComponent.DP_HONEY, result.component)
+        self.assertEqual(CapabilityStatus.DEGRADED, result.capability_status)
+        self.assertEqual("canary_registry_not_configured", result.evidence["reason"])
 
 
 def _runtime_turn() -> NormalizedTurn:

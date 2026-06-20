@@ -22,6 +22,8 @@ The first runtime spine is implemented and CI-enforced:
   - `NoopCanaryDetector` as the unconfigured DP-HONEY/text-canary boundary.
   - `TextCanaryDetector` for exact post-generation detection of registered
     honeytoken leaks.
+  - `EncodedCanaryDetector` for base64, hex, ROT13, leet, reverse,
+    fragmentation, and partial-overlap canary leakage.
 - A fixture-backed `cift_selector_probe_v0` candidate monitor replay path that
   consumes promoted calibrated CIFT scores without importing research code.
 - A mock OpenAI-compatible proxy surface for `/health`,

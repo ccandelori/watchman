@@ -54,6 +54,14 @@ The raw canary value remains in the registry and is not copied into detector
 evidence or audit events. This keeps DP-HONEY injection/registration separate
 from post-output canary detection while giving policy a concrete leakage signal.
 
+`EncodedCanaryDetector` extends the post-generation canary path to encoded or
+fragmented leaks. It scans for registered canary values after base64, hex,
+ROT13, leet, and reverse transforms, attempts to decode larger base64/hex blobs,
+and can emit a `sanitize` recommendation for configured partial-overlap matches.
+Exact encoded matches emit `escalate`. Evidence includes canary IDs, hashes,
+encoding names, output spans when available, and overlap ratios, but not raw
+canary values.
+
 ## Candidate CIFT Monitor V0
 
 `cift_selector_probe_v0` is the first promoted lab-to-runtime CIFT checkpoint.
