@@ -1,0 +1,20 @@
+[project]
+name = "aegis"
+version = "0.1.0"
+description = "Runtime credential defense spine for LLM agents."
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+proxy = [
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+]
+dev = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["src"]
