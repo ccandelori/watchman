@@ -1,2 +1,1 @@
 """Aegis runtime spine."""
-

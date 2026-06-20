@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Mapping
+from collections.abc import Mapping
 from uuid import uuid4
 
 from aegis.audit.memory import InMemoryAuditSink

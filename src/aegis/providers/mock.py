@@ -10,8 +10,5 @@ class MockModelProvider:
 
     def generate(self, turn: NormalizedTurn) -> ModelResponse:
         content = turn.metadata.get("mock_response")
-        if isinstance(content, str) and content != "":
-            output_text = content
-        else:
-            output_text = self._default_content
+        output_text = content if isinstance(content, str) and content != "" else self._default_content
         return ModelResponse(output_text=output_text, metadata={"provider": "mock"})

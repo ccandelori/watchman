@@ -26,9 +26,7 @@ class RuntimeContractsTest(unittest.TestCase):
             capability_mode=CapabilityMode.BLACK_BOX,
             model=ModelInfo(provider="mock", model_id="mock-model", revision=None, selected_device=None),
             messages=(Message(role="user", content="hello"),),
-            tool_calls=(
-                ToolCall(name="send_email", arguments={"to": "team@example.com", "body": "hello"}),
-            ),
+            tool_calls=(ToolCall(name="send_email", arguments={"to": "team@example.com", "body": "hello"}),),
             sensitive_spans=(
                 SensitiveSpan(
                     kind="honeytoken",

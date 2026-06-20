@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from aegis.core.contracts import Action, DetectorResult, PolicyDecision
 
-
 _ACTION_SEVERITY: dict[Action, int] = {
     Action.ALLOW: 0,
     Action.WARN: 1,

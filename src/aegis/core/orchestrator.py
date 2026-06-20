@@ -97,19 +97,12 @@ class AegisRuntime:
             metadata=request.metadata,
         )
 
-        pre_generation_results = tuple(
-            detector.evaluate(turn, None)
-            for detector in self._pre_generation_detectors
-        )
+        pre_generation_results = tuple(detector.evaluate(turn, None) for detector in self._pre_generation_detectors)
         model_response = self._model_provider.generate(turn)
         post_generation_results = tuple(
-            detector.evaluate(turn, model_response)
-            for detector in self._post_generation_detectors
+            detector.evaluate(turn, model_response) for detector in self._post_generation_detectors
         )
-        session_results = tuple(
-            detector.evaluate(turn, model_response)
-            for detector in self._session_detectors
-        )
+        session_results = tuple(detector.evaluate(turn, model_response) for detector in self._session_detectors)
         detector_results = pre_generation_results + post_generation_results + session_results
         policy_decision = self._policy_engine.decide(detector_results)
         latency_ms = (time.perf_counter() - started_at) * 1000.0

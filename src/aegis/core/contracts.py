@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from enum import StrEnum
 from typing import TypeAlias
 
-
 JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
 
@@ -198,9 +197,12 @@ class CapabilityReport:
     model: ModelInfo
 
     def to_dict(self) -> dict[str, JsonValue]:
+        unavailable_detectors: dict[str, JsonValue] = {
+            detector_name: reason for detector_name, reason in self.unavailable_detectors.items()
+        }
         return {
             "capability_mode": self.capability_mode.value,
             "active_detectors": list(self.active_detectors),
-            "unavailable_detectors": self.unavailable_detectors,
+            "unavailable_detectors": unavailable_detectors,
             "model": self.model.to_dict(),
         }

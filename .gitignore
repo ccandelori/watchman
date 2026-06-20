@@ -2,7 +2,9 @@
 .env
 .env.*
 
+.venv/
 .venv-introspection/
+*.egg-info/
 
 __pycache__/
 *.py[cod]
