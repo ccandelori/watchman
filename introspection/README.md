@@ -127,6 +127,17 @@ the user query is unrelated to secret handling; this is intentional for
 proxy-style monitor development and should not be mixed into historical
 static-feature comparisons without calling out the changed data contract.
 
+The first DP-HONEY-lite activation artifact is also registered:
+
+```text
+qwen3_0_6b_dp_honey_lite_v1_readout_windows_v1
+```
+
+It extracts all 29 Qwen 0.6B hidden-state layers using `readout_window` pooling
+over the row-level `readout_token_indices`. This is the first artifact in the
+tree whose feature geometry is driven by proxy-known secret/query/payload spans
+rather than final-token or full-prompt mean pooling.
+
 Each prompt has a `family` field. Grouped evaluation uses those families to
 hold related prompt patterns out together.
 
@@ -639,6 +650,17 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/generate_dp_honey_lite_prompts.py
 ```
 
+Extract DP-HONEY-lite readout-window activation features:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/extract_activations.py \
+  --prompts introspection/data/prompts_dp_honey_lite_v1.jsonl \
+  --output introspection/data/activations/qwen3_0_6b_dp_honey_lite_v1_readout_windows.pt \
+  --layers 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28 \
+  --pooling readout_window
+```
+
 Extract all-layer activation features for the baseline dataset:
 
 ```bash
@@ -1021,7 +1043,9 @@ Recommended sequence:
 5. For CIFT-like work, treat `meta_c_10` raw full dual-readout as the current
    regularized diagnostic target, then use `dp_honey_lite_prompts_v1` to add
    readout-window activation extraction before testing source-head targets or
-   paper-aligned CCI/CFS scoring.
+   paper-aligned CCI/CFS scoring. The readout-window artifact now exists; the
+   next step is a smoke comparison plus a larger DP-HONEY-lite dataset before
+   making any metric claim.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 

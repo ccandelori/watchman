@@ -14,6 +14,10 @@ class EncodedFieldError(TypeError):
     """Raised when tokenization output does not contain the expected tensor fields."""
 
 
+class ReadoutWindowError(ValueError):
+    """Raised when a readout token window cannot be pooled."""
+
+
 @dataclass(frozen=True)
 class HiddenStateSummary:
     layer_index: int
@@ -104,3 +108,28 @@ def mean_pool_activation(forward_pass: HiddenStateForwardPass, layer_index: int)
     token_counts = attention_mask.sum(dim=1).clamp_min(1)
     pooled = (hidden_state * attention_mask).sum(dim=1) / token_counts
     return pooled.clone()
+
+
+def _validate_readout_token_indices(token_indices: tuple[int, ...], sequence_length: int) -> None:
+    if len(token_indices) == 0:
+        raise ReadoutWindowError("readout_token_indices must not be empty.")
+    for index, token_index in enumerate(token_indices):
+        if token_index < 0:
+            raise ReadoutWindowError(f"readout_token_indices item {index} must be non-negative.")
+        if token_index >= sequence_length:
+            raise ReadoutWindowError(
+                f"readout_token_indices item {index}={token_index} is out of range for sequence length "
+                f"{sequence_length}."
+            )
+
+
+def readout_window_activation(
+    forward_pass: HiddenStateForwardPass,
+    layer_index: int,
+    token_indices: tuple[int, ...],
+) -> torch.Tensor:
+    hidden_state = forward_pass.hidden_states[layer_index]
+    sequence_length = int(hidden_state.shape[1])
+    _validate_readout_token_indices(token_indices=token_indices, sequence_length=sequence_length)
+    selected = hidden_state[:, list(token_indices), :]
+    return selected.mean(dim=1).clone()

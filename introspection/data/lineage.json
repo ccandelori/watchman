@@ -103,6 +103,14 @@
       "dataset_id": "hard_prompts_v3",
       "model_id": "Qwen/Qwen3-0.6B",
       "feature_count": 58
+    },
+    {
+      "id": "qwen3_0_6b_dp_honey_lite_v1_readout_windows_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_dp_honey_lite_v1_readout_windows.pt",
+      "sha256": "bd4f608eb90898ce8f523b128847df410b1ff68f18fc46386dac72daf2af6241",
+      "dataset_id": "dp_honey_lite_prompts_v1",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 29
     }
   ],
   "reports": [

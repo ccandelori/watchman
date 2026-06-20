@@ -4,7 +4,7 @@ import argparse
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
+from typing import Sequence, TypeAlias
 
 import torch
 
@@ -25,7 +25,15 @@ from aegis_introspection.features import (
     stack_feature_rows,
 )
 from aegis_introspection.model_loader import ModelLoadConfig, load_causal_lm
-from aegis_introspection.prompts import PromptExample, load_prompt_examples
+from aegis_introspection.prompts import (
+    PromptExample,
+    StructuredPromptExample,
+    load_prompt_examples,
+    load_structured_prompt_examples,
+)
+
+
+PromptExtractionExample: TypeAlias = PromptExample | StructuredPromptExample
 
 
 @dataclass(frozen=True)
@@ -82,7 +90,7 @@ def _build_model_config(config: ExtractionScriptConfig) -> ModelLoadConfig:
 
 def _save_artifact(
     config: ExtractionScriptConfig,
-    examples: tuple[PromptExample, ...],
+    examples: tuple[PromptExtractionExample, ...],
     selected_device: str,
     feature_tensors: dict[str, torch.Tensor],
 ) -> None:
@@ -105,8 +113,25 @@ def _save_artifact(
     torch.save(artifact, config.output_path)
 
 
+def _load_examples(config: ExtractionScriptConfig) -> tuple[PromptExtractionExample, ...]:
+    if "readout_window" in config.pooling_methods:
+        return load_structured_prompt_examples(config.prompts_path)
+    return load_prompt_examples(config.prompts_path)
+
+
+def _readout_token_indices(
+    example: PromptExtractionExample,
+    pooling_methods: tuple[PoolingMethod, ...],
+) -> tuple[int, ...] | None:
+    if "readout_window" not in pooling_methods:
+        return None
+    if not isinstance(example, StructuredPromptExample):
+        raise TypeError("readout_window pooling requires structured prompt examples.")
+    return example.readout_token_indices
+
+
 def run_extraction(config: ExtractionScriptConfig) -> None:
-    examples = load_prompt_examples(config.prompts_path)
+    examples = _load_examples(config)
     loaded_model = load_causal_lm(_build_model_config(config))
 
     feature_rows: list[tuple[ActivationFeature, ...]] = []
@@ -118,6 +143,7 @@ def run_extraction(config: ExtractionScriptConfig) -> None:
                 forward_pass=forward_pass,
                 layer_indices=config.layer_indices,
                 pooling_methods=config.pooling_methods,
+                readout_token_indices=_readout_token_indices(example=example, pooling_methods=config.pooling_methods),
             )
         )
 

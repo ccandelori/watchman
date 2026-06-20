@@ -5,12 +5,17 @@ from typing import Literal, TypeAlias, cast
 
 import torch
 
-from aegis_introspection.activations import HiddenStateForwardPass, final_token_activation, mean_pool_activation
+from aegis_introspection.activations import (
+    HiddenStateForwardPass,
+    final_token_activation,
+    mean_pool_activation,
+    readout_window_activation,
+)
 
 
-PoolingMethod: TypeAlias = Literal["final_token", "mean_pool"]
+PoolingMethod: TypeAlias = Literal["final_token", "mean_pool", "readout_window"]
 
-_VALID_POOLING_METHODS: frozenset[str] = frozenset(("final_token", "mean_pool"))
+_VALID_POOLING_METHODS: frozenset[str] = frozenset(("final_token", "mean_pool", "readout_window"))
 
 
 class FeatureConfigError(ValueError):
@@ -70,6 +75,7 @@ def extract_activation_features(
     forward_pass: HiddenStateForwardPass,
     layer_indices: tuple[int, ...],
     pooling_methods: tuple[PoolingMethod, ...],
+    readout_token_indices: tuple[int, ...] | None,
 ) -> tuple[ActivationFeature, ...]:
     layer_count = len(forward_pass.hidden_states)
     features: list[ActivationFeature] = []
@@ -81,6 +87,10 @@ def extract_activation_features(
                 values = final_token_activation(forward_pass, layer_index)
             elif pooling_method == "mean_pool":
                 values = mean_pool_activation(forward_pass, layer_index)
+            elif pooling_method == "readout_window":
+                if readout_token_indices is None:
+                    raise FeatureConfigError("readout_token_indices are required for readout_window pooling.")
+                values = readout_window_activation(forward_pass, layer_index, readout_token_indices)
             else:
                 raise FeatureConfigError(f"Unsupported pooling method '{pooling_method}'.")
 

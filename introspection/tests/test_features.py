@@ -21,7 +21,10 @@ class FeatureExtractionTest(unittest.TestCase):
             parse_layer_indices("0,last")
 
     def test_parse_pooling_methods_accepts_supported_methods(self) -> None:
-        self.assertEqual(("final_token", "mean_pool"), parse_pooling_methods("final_token,mean_pool"))
+        self.assertEqual(
+            ("final_token", "mean_pool", "readout_window"),
+            parse_pooling_methods("final_token,mean_pool,readout_window"),
+        )
 
     def test_parse_pooling_methods_rejects_unknown_method(self) -> None:
         with self.assertRaises(FeatureConfigError):
@@ -42,6 +45,7 @@ class FeatureExtractionTest(unittest.TestCase):
             forward_pass=forward_pass,
             layer_indices=(0, -1),
             pooling_methods=("final_token", "mean_pool"),
+            readout_token_indices=None,
         )
 
         self.assertEqual(
@@ -53,6 +57,40 @@ class FeatureExtractionTest(unittest.TestCase):
             ),
             tuple(feature.key for feature in features),
         )
+
+    def test_extract_activation_features_supports_readout_window_pooling(self) -> None:
+        forward_pass = HiddenStateForwardPass(
+            prompt="prompt",
+            input_ids=torch.tensor([[1, 2, 3, 4]]),
+            attention_mask=torch.tensor([[1, 1, 1, 1]]),
+            hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 6.0], [5.0, 10.0], [7.0, 14.0]]]),),
+        )
+
+        features = extract_activation_features(
+            forward_pass=forward_pass,
+            layer_indices=(0,),
+            pooling_methods=("readout_window",),
+            readout_token_indices=(1, 2),
+        )
+
+        self.assertEqual(("readout_window_layer_00",), tuple(feature.key for feature in features))
+        torch.testing.assert_close(torch.tensor([[4.0, 8.0]]), features[0].values)
+
+    def test_extract_activation_features_requires_indices_for_readout_window_pooling(self) -> None:
+        forward_pass = HiddenStateForwardPass(
+            prompt="prompt",
+            input_ids=torch.tensor([[1, 2, 3]]),
+            attention_mask=None,
+            hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]]),),
+        )
+
+        with self.assertRaises(FeatureConfigError):
+            extract_activation_features(
+                forward_pass=forward_pass,
+                layer_indices=(0,),
+                pooling_methods=("readout_window",),
+                readout_token_indices=None,
+            )
 
     def test_stack_feature_rows_returns_feature_matrices(self) -> None:
         first_pass = HiddenStateForwardPass(
@@ -72,11 +110,13 @@ class FeatureExtractionTest(unittest.TestCase):
             forward_pass=first_pass,
             layer_indices=(0,),
             pooling_methods=("final_token", "mean_pool"),
+            readout_token_indices=None,
         )
         second_features = extract_activation_features(
             forward_pass=second_pass,
             layer_indices=(0,),
             pooling_methods=("final_token", "mean_pool"),
+            readout_token_indices=None,
         )
 
         stacked = stack_feature_rows((first_features, second_features))
