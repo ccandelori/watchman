@@ -16,6 +16,8 @@ The first runtime spine is implemented and CI-enforced:
 - Typed request, detector, policy, capability, and audit contracts.
 - A minimal orchestrator that normalizes a turn, runs detector stages, calls a
   mock model provider, applies policy, and writes an audit event.
+- A honeytoken ledger that replaces credential placeholders with registered
+  canaries and emits `SensitiveSpan` metadata without exposing real secrets.
 - First detector seams:
   - `ActivationUnavailableDetector` for explicit CIFT capability reporting in
     black-box/mock mode.
@@ -129,6 +131,7 @@ Coverage is enforced at 90 percent for the runtime package.
 
 ```text
 src/aegis/core/        Runtime contracts and orchestrator
+src/aegis/canaries/    Honeytoken registration and injection helpers
 src/aegis/demo/        Built-in runtime demo scenarios
 src/aegis/detectors/   Detector stage implementations
 src/aegis/policy/      Policy decision logic

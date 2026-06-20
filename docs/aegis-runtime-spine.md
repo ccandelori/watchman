@@ -36,6 +36,19 @@ omitting the signal.
 registry is configured yet and keeps future canary detection separate from
 honeytoken injection.
 
+## DP-HONEY-Lite Honeytoken Registration
+
+`HoneytokenLedger` is the first concrete DP-HONEY registration boundary. It
+replaces credential placeholders such as `{{CREDENTIAL:api_key:openai_key}}`
+with model-visible honeytokens, registers matching `CanaryRecord` values for
+post-generation detectors, and emits `SensitiveSpan` metadata for the normalized
+turn.
+
+The ledger may also scrub registered real secret values from model-visible
+messages. In both placeholder and scrub flows, runtime boundaries carry canary
+IDs, hashes, spans, credential types, and non-secret metadata. Raw production
+secret values remain out of detector evidence and audit events.
+
 ## DP-HONEY-Lite Text Canary Detection
 
 `TextCanaryDetector` is the first concrete post-generation canary detector. It
