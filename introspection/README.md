@@ -131,21 +131,23 @@ static-feature comparisons without calling out the changed data contract.
 The hard V2 DP-HONEY-lite dataset keeps that proxy-shaped contract but scales it
 to 240 rows across 10 paired scenario families. Each family contains benign,
 safe-secret, and exfiltration variants; each label has 40 API-key rows, 40
-database-URI rows, 40 payload rows, and 40 no-payload rows. This is the next
-dataset for readout-window activation extraction and same-dataset static-feature
-comparison. It is still DP-HONEY-lite: the honeytokens are format-shaped and
-deterministic, not differentially private n-gram samples.
+database-URI rows, 40 payload rows, and 40 no-payload rows. This is the current
+paired dataset for readout-window activation extraction and same-dataset
+static-feature comparison. It is still DP-HONEY-lite: the honeytokens are
+format-shaped and deterministic, not differentially private n-gram samples.
 
-The first DP-HONEY-lite activation artifact is also registered:
+Two DP-HONEY-lite activation artifacts are now registered:
 
 ```text
 qwen3_0_6b_dp_honey_lite_v1_readout_windows_v1
+qwen3_0_6b_dp_honey_lite_v2_all_pooling_v1
 ```
 
-It extracts all 29 Qwen 0.6B hidden-state layers using `readout_window` pooling
-over the row-level `readout_token_indices`. This is the first artifact in the
-tree whose feature geometry is driven by proxy-known secret/query/payload spans
-rather than final-token or full-prompt mean pooling.
+The V1 artifact extracts all 29 Qwen 0.6B hidden-state layers using
+`readout_window` pooling over the row-level `readout_token_indices`. The V2
+artifact extracts all 29 layers with `final_token`, `mean_pool`, and
+`readout_window` pooling in the same file, so readout-window features can be
+compared directly against same-dataset static features.
 
 A first smoke comparison confirms that the readout-window artifact is usable by
 the grouped binary evaluation harness. With 2 grouped folds on the 24-row
@@ -158,10 +160,20 @@ DP-HONEY-lite dataset, the top readout-window layers separate both binary tasks:
 
 This is a smoke result, not a performance claim. The dataset is small and
 template-shaped, and the perfect scores mostly say the new readout-window
-feature path is wired correctly and worth scaling. The next evidence-producing
-step is extracting readout-window activations for `dp_honey_lite_prompts_v2`,
-then comparing readout-window features against same-dataset static features
-before making any metric claim.
+feature path is wired correctly and worth scaling.
+
+The V2 all-pooling artifact confirms the extraction and grouped-evaluation path
+on the larger paired dataset, but it also shows that V2 is still too easy to
+support a detector claim:
+
+| Task | Best Feature | Readout Layer 11 Macro F1 | Word TF-IDF Macro F1 | Interpretation |
+|---|---|---:|---:|---|
+| `safe_secret_vs_exfiltration` | `final_token_layer_04` | 1.0000 | 1.0000 | Surface wording still separates the labels. |
+| `benign_vs_secret_related` | `final_token_layer_02` | 1.0000 | 1.0000 | Surface wording still separates the labels. |
+
+Across the two V2 sweeps, many activation features are perfect as well: 54 on
+`safe_secret_vs_exfiltration` and 69 on `benign_vs_secret_related`. Treat V2 as
+a pipeline and data-contract checkpoint, not a performance benchmark.
 
 Each prompt has a `family` field. Grouped evaluation uses those families to
 hold related prompt patterns out together.
@@ -722,6 +734,53 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   --folds 2
 ```
 
+Extract the hard V2 all-pooling activation artifact:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/extract_activations.py \
+  --prompts introspection/data/prompts_dp_honey_lite_v2.jsonl \
+  --output introspection/data/activations/qwen3_0_6b_dp_honey_lite_v2_all_pooling.pt \
+  --layers 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28 \
+  --pooling final_token,mean_pool,readout_window
+```
+
+Run the hard V2 grouped all-pooling sweeps:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/sweep_binary_layers.py \
+  --artifact introspection/data/activations/qwen3_0_6b_dp_honey_lite_v2_all_pooling.pt \
+  --output-json introspection/data/reports/dp_honey_lite_v2_all_pooling_sweep_safe_secret_vs_exfiltration_v1.json \
+  --output-md introspection/data/reports/dp_honey_lite_v2_all_pooling_sweep_safe_secret_vs_exfiltration_v1_summary.md \
+  --task safe_secret_vs_exfiltration \
+  --reference-feature readout_window_layer_11 \
+  --folds 5
+```
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/sweep_binary_layers.py \
+  --artifact introspection/data/activations/qwen3_0_6b_dp_honey_lite_v2_all_pooling.pt \
+  --output-json introspection/data/reports/dp_honey_lite_v2_all_pooling_sweep_benign_vs_secret_related_v1.json \
+  --output-md introspection/data/reports/dp_honey_lite_v2_all_pooling_sweep_benign_vs_secret_related_v1_summary.md \
+  --task benign_vs_secret_related \
+  --reference-feature readout_window_layer_11 \
+  --folds 5
+```
+
+Run the hard V2 grouped binary baseline comparison:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/train_grouped_binary_tasks.py \
+  --artifact introspection/data/activations/qwen3_0_6b_dp_honey_lite_v2_all_pooling.pt \
+  --output-json introspection/data/reports/dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1.json \
+  --output-md introspection/data/reports/dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1_summary.md \
+  --activation-feature readout_window_layer_11 \
+  --folds 5
+```
+
 Extract all-layer activation features for the baseline dataset:
 
 ```bash
@@ -1036,6 +1095,10 @@ Key human-readable checkpoints:
 - `data/reports/cift_meta_family_interactions_v1_summary.md`
 - `data/reports/dp_honey_lite_readout_window_sweep_safe_secret_vs_exfiltration_v1_summary.md`
 - `data/reports/dp_honey_lite_readout_window_sweep_benign_vs_secret_related_v1_summary.md`
+- `data/reports/dp_honey_lite_v2_all_pooling_sweep_safe_secret_vs_exfiltration_v1_summary.md`
+- `data/reports/dp_honey_lite_v2_all_pooling_sweep_benign_vs_secret_related_v1_summary.md`
+- `data/reports/dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1_summary.md`
+- `data/reports/dp_honey_lite_v2_progress_2026-06-20.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -1087,6 +1150,9 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_meta_family_interactions_v1.json`
 - `data/reports/dp_honey_lite_readout_window_sweep_safe_secret_vs_exfiltration_v1.json`
 - `data/reports/dp_honey_lite_readout_window_sweep_benign_vs_secret_related_v1.json`
+- `data/reports/dp_honey_lite_v2_all_pooling_sweep_safe_secret_vs_exfiltration_v1.json`
+- `data/reports/dp_honey_lite_v2_all_pooling_sweep_benign_vs_secret_related_v1.json`
+- `data/reports/dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1.json`
 
 ## Next Moves
 
@@ -1106,11 +1172,11 @@ Recommended sequence:
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
 5. For CIFT-like work, treat `meta_c_10` raw full dual-readout as the current
-   regularized diagnostic target. The V1 DP-HONEY-lite readout-window artifact
-   exists and the smoke comparison is wired and positive. The next step is to
-   extract readout-window activations for `dp_honey_lite_prompts_v2`, then run
-   same-dataset static-feature extraction and grouped comparisons before making
-   any metric claim.
+   regularized diagnostic target. The V1 and V2 DP-HONEY-lite artifacts now
+   exist. V2 confirms the larger proxy-shaped extraction path, but word TF-IDF
+   is also perfect on both grouped tasks. The next DP-HONEY-lite step is V3:
+   preserve the span schema and grouped scenario structure while controlling
+   surface wording tightly enough that text baselines stop solving the task.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 

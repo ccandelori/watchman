@@ -123,6 +123,14 @@
       "dataset_id": "dp_honey_lite_prompts_v1",
       "model_id": "Qwen/Qwen3-0.6B",
       "feature_count": 29
+    },
+    {
+      "id": "qwen3_0_6b_dp_honey_lite_v2_all_pooling_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_dp_honey_lite_v2_all_pooling.pt",
+      "sha256": "7b62957f93f8d615563f9bbf799755a1fc8214afb8763bd5c3b0ea2cf3a71042",
+      "dataset_id": "dp_honey_lite_prompts_v2",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 87
     }
   ],
   "reports": [
@@ -508,6 +516,30 @@
       "sha256": "9b39b83501faf7803f9ef4c5e0874c8e7f0240f44b66bf365a1a551760ac1629",
       "dataset_id": "dp_honey_lite_prompts_v1",
       "artifact_id": "qwen3_0_6b_dp_honey_lite_v1_readout_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v2_all_pooling_sweep_safe_secret_vs_exfiltration_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v2_all_pooling_sweep_safe_secret_vs_exfiltration_v1.json",
+      "sha256": "06bf2ab74f27d83c7f1cd91082b7c89ea075fcb5bb74f4ba324b3bd6794ad707",
+      "dataset_id": "dp_honey_lite_prompts_v2",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v2_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v2_all_pooling_sweep_benign_vs_secret_related_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v2_all_pooling_sweep_benign_vs_secret_related_v1.json",
+      "sha256": "8de63c98ec8838992c88131a8f2b8a03554acaa89bf8c712e38c954d01aeda9d",
+      "dataset_id": "dp_honey_lite_prompts_v2",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v2_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1.json",
+      "sha256": "42c3116ed38dbe33b6d964be241eca76ebb295b41222529fdb62bbb1724ba21e",
+      "dataset_id": "dp_honey_lite_prompts_v2",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v2_all_pooling_v1",
       "evaluation_strategy": "stratified_group_kfold"
     }
   ]
