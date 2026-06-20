@@ -36,6 +36,33 @@ omitting the signal.
 registry is configured yet and keeps future canary detection separate from
 honeytoken injection.
 
+## Candidate CIFT Monitor V0
+
+`cift_selector_probe_v0` is the first promoted lab-to-runtime CIFT checkpoint.
+It is a fixture-backed candidate monitor, not a production probe loader. The
+runtime consumes calibrated selector-window scores and applies the runtime
+profile locally:
+
+```text
+score < 0.25        -> allow
+0.25 <= score < 0.5 -> warn, review band
+score >= 0.5        -> warn, balanced band
+```
+
+The profile records:
+
+- score semantics: `inner_cv_platt_calibrated_probability`
+- feature key: `readout_window_layer_15`
+- task: `safe_secret_vs_exfiltration`
+- positive label: `exfiltration_intent`
+- required capability: `self_hosted_introspection`
+
+The replay harness under `aegis.replay` exists for integration tests and demos.
+It loads small `NormalizedTurn` and calibrated CIFT score fixtures, runs them
+through the normal `AegisRuntime`, applies policy, and writes audit events.
+It does not import `aegis_introspection`; research code crosses into runtime
+only through versioned fixtures or future promoted artifacts.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:
