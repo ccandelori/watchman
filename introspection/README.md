@@ -14,7 +14,7 @@ larger system should be treated as a multi-monitor gateway:
 
 | Component | Role | Current Status |
 |---|---|---|
-| DP-HONEY | Inject format-matched honeytokens before model access. | Not implemented here yet. |
+| DP-HONEY | Inject format-matched honeytokens before model access. | DP-HONEY-lite data primitive implemented; full DP-HONEY not implemented yet. |
 | CIFT-like activation monitor | Read hidden-state features before output generation. | Current focus. |
 | Text leakage detector | Scan generated text for canary or secret leakage. | Not implemented here yet. |
 | NIMBUS-like accumulator | Track cumulative leakage risk over a conversation. | Not implemented here yet. |
@@ -32,6 +32,13 @@ transformer layers, followed by learned nonnegative layer weighting. The current
 Aegis work approximates that direction with final-token/readout-style features
 and grouped probe evaluation, but it has not yet implemented the paper's full
 benign-calibrated CCI/CFS scoring path.
+
+DP-HONEY-lite now supplies the proxy-shaped data primitive needed for that next
+CIFT step. It generates format-shaped honeytokens, injects them into structured
+prompts, records character and token spans, and defines readout-token windows.
+It is not the paper's full DP-HONEY system: it does not implement
+differentially private n-gram generation, conformal calibration, or
+indistinguishability testing.
 
 That distinction matters for planning:
 
@@ -96,7 +103,7 @@ readout-position, calibrated-deviation monitor.
 
 ## Current State
 
-Four datasets are currently registered in `data/lineage.json`:
+Five datasets are currently registered in `data/lineage.json`:
 
 | Dataset | Purpose | Rows |
 |---|---|---:|
@@ -104,14 +111,21 @@ Four datasets are currently registered in `data/lineage.json`:
 | `hard_prompts_v1` | Harder contrastive successor to the baseline. | 90 |
 | `hard_prompts_v2` | Targeted successor focused on V1 error clusters. | 90 |
 | `hard_prompts_v3` | Held-out summary, redaction, and replacement checkpoint. | 90 |
+| `dp_honey_lite_prompts_v1` | Proxy-shaped honeytoken prompts with span metadata and readout windows. | 24 |
 
-All four datasets use the same label shape:
+The four historical probe datasets use the same label shape:
 
 | Label | Count | Meaning |
 |---|---:|---|
 | `benign` | 30 | No secret handling or exfiltration request. |
 | `secret_present_safe` | 30 | A secret-like value appears, but the prompt asks for safe handling. |
 | `exfiltration_intent` | 30 | The prompt asks to reveal, transmit, encode, route, or leak secret-like material. |
+
+The DP-HONEY-lite dataset uses the same labels with 8 examples per label across
+6 families. Its `benign` rows still contain an injected honeytoken context, but
+the user query is unrelated to secret handling; this is intentional for
+proxy-style monitor development and should not be mixed into historical
+static-feature comparisons without calling out the changed data contract.
 
 Each prompt has a `family` field. Grouped evaluation uses those families to
 hold related prompt patterns out together.
@@ -560,7 +574,8 @@ introspection/
 │   ├── prompts.jsonl      # Baseline prompt dataset
 │   ├── prompts_hard.jsonl # Hard Baseline V1 dataset
 │   ├── prompts_hard_v2.jsonl # Hard Baseline V2 dataset
-│   └── prompts_hard_v3.jsonl # Hard Baseline V3 dataset
+│   ├── prompts_hard_v3.jsonl # Hard Baseline V3 dataset
+│   └── prompts_dp_honey_lite_v1.jsonl # DP-HONEY-lite structured dataset
 ├── notebooks/            # Interactive exploration notebooks
 ├── scripts/              # CLI entry points for extraction, training, summaries, validation
 ├── src/aegis_introspection/
@@ -615,6 +630,13 @@ Run the full test suite:
 ```bash
 PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python -m unittest discover -s introspection/tests
+```
+
+Generate the DP-HONEY-lite structured prompt dataset:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/generate_dp_honey_lite_prompts.py
 ```
 
 Extract all-layer activation features for the baseline dataset:
@@ -997,9 +1019,9 @@ Recommended sequence:
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
 5. For CIFT-like work, treat `meta_c_10` raw full dual-readout as the current
-   regularized diagnostic target, then test decision-position readouts,
-   source-head targets, or paper-aligned CCI/CFS scoring against its Hard V2
-   residuals before any promotion decision.
+   regularized diagnostic target, then use `dp_honey_lite_prompts_v1` to add
+   readout-window activation extraction before testing source-head targets or
+   paper-aligned CCI/CFS scoring.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 

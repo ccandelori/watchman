@@ -49,6 +49,18 @@
         "exfiltration_intent": 30
       },
       "family_count": 30
+    },
+    {
+      "id": "dp_honey_lite_prompts_v1",
+      "path": "introspection/data/prompts_dp_honey_lite_v1.jsonl",
+      "sha256": "acca30334661b447c55180ea2e44f5db0de4800def9ca7761449a8e636cb3d54",
+      "purpose": "DP-HONEY-lite proxy-shaped prompt dataset with format-shaped honeytokens, character spans, token spans, and CIFT readout windows.",
+      "label_counts": {
+        "benign": 8,
+        "secret_present_safe": 8,
+        "exfiltration_intent": 8
+      },
+      "family_count": 6
     }
   ],
   "artifacts": [
