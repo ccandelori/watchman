@@ -138,6 +138,21 @@ over the row-level `readout_token_indices`. This is the first artifact in the
 tree whose feature geometry is driven by proxy-known secret/query/payload spans
 rather than final-token or full-prompt mean pooling.
 
+A first smoke comparison confirms that the readout-window artifact is usable by
+the grouped binary evaluation harness. With 2 grouped folds on the 24-row
+DP-HONEY-lite dataset, the top readout-window layers separate both binary tasks:
+
+| Task | Best Readout Feature | Macro F1 | Accuracy |
+|---|---|---:|---:|
+| `safe_secret_vs_exfiltration` | `readout_window_layer_07` | 1.0000 | 1.0000 |
+| `benign_vs_secret_related` | `readout_window_layer_16` | 1.0000 | 1.0000 |
+
+This is a smoke result, not a performance claim. The dataset is small and
+template-shaped, and the perfect scores mostly say the new readout-window
+feature path is wired correctly and worth scaling. The next evidence-producing
+step is a larger DP-HONEY-lite dataset with more families and harder paraphrase
+variation.
+
 Each prompt has a `family` field. Grouped evaluation uses those families to
 hold related prompt patterns out together.
 
@@ -661,6 +676,30 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   --pooling readout_window
 ```
 
+Run DP-HONEY-lite readout-window smoke sweeps:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/sweep_binary_layers.py \
+  --artifact introspection/data/activations/qwen3_0_6b_dp_honey_lite_v1_readout_windows.pt \
+  --output-json introspection/data/reports/dp_honey_lite_readout_window_sweep_safe_secret_vs_exfiltration_v1.json \
+  --output-md introspection/data/reports/dp_honey_lite_readout_window_sweep_safe_secret_vs_exfiltration_v1_summary.md \
+  --task safe_secret_vs_exfiltration \
+  --reference-feature readout_window_layer_11 \
+  --folds 2
+```
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/sweep_binary_layers.py \
+  --artifact introspection/data/activations/qwen3_0_6b_dp_honey_lite_v1_readout_windows.pt \
+  --output-json introspection/data/reports/dp_honey_lite_readout_window_sweep_benign_vs_secret_related_v1.json \
+  --output-md introspection/data/reports/dp_honey_lite_readout_window_sweep_benign_vs_secret_related_v1_summary.md \
+  --task benign_vs_secret_related \
+  --reference-feature readout_window_layer_11 \
+  --folds 2
+```
+
 Extract all-layer activation features for the baseline dataset:
 
 ```bash
@@ -973,6 +1012,8 @@ Key human-readable checkpoints:
 - `data/reports/cift_meta_score_calibration_v1_summary.md`
 - `data/reports/cift_meta_readout_family_v1_summary.md`
 - `data/reports/cift_meta_family_interactions_v1_summary.md`
+- `data/reports/dp_honey_lite_readout_window_sweep_safe_secret_vs_exfiltration_v1_summary.md`
+- `data/reports/dp_honey_lite_readout_window_sweep_benign_vs_secret_related_v1_summary.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -1022,6 +1063,8 @@ Key machine-readable reports registered in lineage:
 - `data/reports/cift_meta_score_calibration_v1.json`
 - `data/reports/cift_meta_readout_family_v1.json`
 - `data/reports/cift_meta_family_interactions_v1.json`
+- `data/reports/dp_honey_lite_readout_window_sweep_safe_secret_vs_exfiltration_v1.json`
+- `data/reports/dp_honey_lite_readout_window_sweep_benign_vs_secret_related_v1.json`
 
 ## Next Moves
 
@@ -1044,7 +1087,8 @@ Recommended sequence:
    regularized diagnostic target, then use `dp_honey_lite_prompts_v1` to add
    readout-window activation extraction before testing source-head targets or
    paper-aligned CCI/CFS scoring. The readout-window artifact now exists; the
-   next step is a smoke comparison plus a larger DP-HONEY-lite dataset before
+   smoke comparison is wired and positive; the next step is a larger
+   DP-HONEY-lite dataset plus same-dataset static-feature extraction before
    making any metric claim.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
