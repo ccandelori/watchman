@@ -585,6 +585,14 @@
       "dataset_id": "dp_honey_lite_prompts_v3",
       "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
       "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_policy_diagnostics_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_policy_diagnostics_v1.json",
+      "sha256": "0e01a2f467d1599ce598afe17332ee49bd2af53ef6a1f15fc71b832670990576",
+      "dataset_id": "dp_honey_lite_prompts_v3",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
     }
   ]
 }

@@ -194,6 +194,15 @@ Treat V3 as a hard negative/control checkpoint. It is useful because it shows
 that the prior perfect results depended on easy surface structure, but it does
 not yet provide a strong CIFT-like detector.
 
+The V3.1 policy diagnostic confirms that the hard V3 label rule itself is not
+ambiguous. A deterministic parser that reads `selected_field`, `selected_mode`,
+and the selected mode policy reaches 1.0000 macro F1 / 1.0000 accuracy on the
+target task across all rows, payload rows, no-payload rows, `mode_a` rows, and
+`mode_b` rows. The activation probe remains weak on those same slices:
+0.5284 overall, 0.4635 on payload rows, 0.4758 on no-payload rows, 0.5127 on
+`mode_a`, and 0.4888 on `mode_b`. This points away from dataset repair and
+toward better feature localization around the selected policy tokens.
+
 Each prompt has a `family` field. Grouped evaluation uses those families to
 hold related prompt patterns out together.
 
@@ -844,6 +853,18 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   --folds 5
 ```
 
+Run the hard V3 policy diagnostic:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/diagnose_v3_policy.py \
+  --artifact introspection/data/activations/qwen3_0_6b_dp_honey_lite_v3_all_pooling.pt \
+  --output-json introspection/data/reports/dp_honey_lite_v3_policy_diagnostics_v1.json \
+  --output-md introspection/data/reports/dp_honey_lite_v3_policy_diagnostics_v1_summary.md \
+  --activation-feature readout_window_layer_21 \
+  --folds 5
+```
+
 Extract all-layer activation features for the baseline dataset:
 
 ```bash
@@ -1165,6 +1186,7 @@ Key human-readable checkpoints:
 - `data/reports/dp_honey_lite_v3_all_pooling_sweep_safe_secret_vs_exfiltration_v1_summary.md`
 - `data/reports/dp_honey_lite_v3_all_pooling_sweep_benign_vs_secret_related_v1_summary.md`
 - `data/reports/dp_honey_lite_v3_grouped_binary_tasks_readout_window_layer_21_v1_summary.md`
+- `data/reports/dp_honey_lite_v3_policy_diagnostics_v1_summary.md`
 - `data/reports/dp_honey_lite_v3_progress_2026-06-20.md`
 
 Key machine-readable reports registered in lineage:
@@ -1223,6 +1245,7 @@ Key machine-readable reports registered in lineage:
 - `data/reports/dp_honey_lite_v3_all_pooling_sweep_safe_secret_vs_exfiltration_v1.json`
 - `data/reports/dp_honey_lite_v3_all_pooling_sweep_benign_vs_secret_related_v1.json`
 - `data/reports/dp_honey_lite_v3_grouped_binary_tasks_readout_window_layer_21_v1.json`
+- `data/reports/dp_honey_lite_v3_policy_diagnostics_v1.json`
 
 ## Next Moves
 
@@ -1243,11 +1266,11 @@ Recommended sequence:
    checkpoint performance, and post-hoc discovery risk.
 5. For CIFT-like work, treat `meta_c_10` raw full dual-readout as the current
    regularized diagnostic target. The V1, V2, and V3 DP-HONEY-lite artifacts
-   now exist. V3 breaks the target-task text shortcut, but the best activation
-   feature is only slightly above chance. The next DP-HONEY-lite step is a V3.1
-   diagnostic pass: split payload versus no-payload rows, test whether the base
-   model can answer the selected-mode policy directly, and consider readout
-   windows centered on selected-mode tokens.
+   now exist. V3 breaks the target-task text shortcut, and V3.1 shows the
+   selected-mode policy rule is parser-recoverable while the current activation
+   readout remains weak. The next DP-HONEY-lite step is feature localization:
+   center readout windows on selected-mode and selected-field tokens, then
+   compare those features against the V3.1 parser diagnostic.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 
