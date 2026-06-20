@@ -36,6 +36,24 @@ omitting the signal.
 registry is configured yet and keeps future canary detection separate from
 honeytoken injection.
 
+## DP-HONEY-Lite Text Canary Detection
+
+`TextCanaryDetector` is the first concrete post-generation canary detector. It
+scans model output for exact matches against canary values held in an in-memory
+registry. A match emits a `DetectorResult` with component `text_canary`,
+recommended action `escalate`, and audit-safe evidence:
+
+- `canary_id`
+- `credential_type`
+- `sha256`
+- source
+- output character span
+- non-secret metadata
+
+The raw canary value remains in the registry and is not copied into detector
+evidence or audit events. This keeps DP-HONEY injection/registration separate
+from post-output canary detection while giving policy a concrete leakage signal.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:
@@ -43,7 +61,7 @@ Future branches should add real detectors behind the existing contract:
 - CIFT adapter: load a promoted probe/artifact and emit activation-risk or
   capability-unavailable results.
 - DP-HONEY runtime: register honeytokens and populate `sensitive_spans`.
-- Canary scanners: inspect model output and tool arguments for registered
-  canaries.
+- Canary scanners: extend exact model-output scanning to tool arguments and
+  streaming outputs.
 - NIMBUS ledger: emit cumulative session risk as a detector result.
 - Tool scanner: inspect normalized tool arguments before dispatch.

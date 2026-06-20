@@ -19,7 +19,9 @@ The first runtime spine is implemented and CI-enforced:
 - First detector seams:
   - `ActivationUnavailableDetector` for explicit CIFT capability reporting in
     black-box/mock mode.
-  - `NoopCanaryDetector` as the future DP-HONEY/text-canary boundary.
+  - `NoopCanaryDetector` as the unconfigured DP-HONEY/text-canary boundary.
+  - `TextCanaryDetector` for exact post-generation detection of registered
+    honeytoken leaks.
 - A mock OpenAI-compatible proxy surface for `/health`,
   `/v1/chat/completions`, and `/audit/recent`.
 - Mandatory CI gates for linting, formatting, strict typing, import-boundary
