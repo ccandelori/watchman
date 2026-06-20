@@ -73,6 +73,18 @@
         "exfiltration_intent": 80
       },
       "family_count": 10
+    },
+    {
+      "id": "dp_honey_lite_prompts_v3",
+      "path": "introspection/data/prompts_dp_honey_lite_v3.jsonl",
+      "sha256": "087f709b467679b7d077e1d3f14c10dfca9105c487795e5587d3b31f12de008b",
+      "purpose": "Lexically controlled DP-HONEY-lite prompt dataset using balanced mode-map policies to reduce surface-text shortcuts for safe-secret versus exfiltration evaluation.",
+      "label_counts": {
+        "benign": 80,
+        "secret_present_safe": 80,
+        "exfiltration_intent": 80
+      },
+      "family_count": 10
     }
   ],
   "artifacts": [
@@ -129,6 +141,14 @@
       "path": "introspection/data/activations/qwen3_0_6b_dp_honey_lite_v2_all_pooling.pt",
       "sha256": "7b62957f93f8d615563f9bbf799755a1fc8214afb8763bd5c3b0ea2cf3a71042",
       "dataset_id": "dp_honey_lite_prompts_v2",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 87
+    },
+    {
+      "id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_dp_honey_lite_v3_all_pooling.pt",
+      "sha256": "6dfc3b557e3816f88b3837fbc22a976e8d8c0f3771679f0bf5327b0326134468",
+      "dataset_id": "dp_honey_lite_prompts_v3",
       "model_id": "Qwen/Qwen3-0.6B",
       "feature_count": 87
     }
@@ -540,6 +560,30 @@
       "sha256": "42c3116ed38dbe33b6d964be241eca76ebb295b41222529fdb62bbb1724ba21e",
       "dataset_id": "dp_honey_lite_prompts_v2",
       "artifact_id": "qwen3_0_6b_dp_honey_lite_v2_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_all_pooling_sweep_safe_secret_vs_exfiltration_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_all_pooling_sweep_safe_secret_vs_exfiltration_v1.json",
+      "sha256": "e46068443220e52f989dd742eac9357bdd8bdd1cf6bbad993fde6b01aee3f807",
+      "dataset_id": "dp_honey_lite_prompts_v3",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_all_pooling_sweep_benign_vs_secret_related_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_all_pooling_sweep_benign_vs_secret_related_v1.json",
+      "sha256": "674f84e618a96d1695bfd6415cf8beaa046e4c9132db68dade62faf41fba8ed9",
+      "dataset_id": "dp_honey_lite_prompts_v3",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_grouped_binary_tasks_readout_window_layer_21_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_grouped_binary_tasks_readout_window_layer_21_v1.json",
+      "sha256": "2ac4614506afda7e8d95bf71cf69b8da9cd952ccd7c89d39bf3be45a08caea5e",
+      "dataset_id": "dp_honey_lite_prompts_v3",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
       "evaluation_strategy": "stratified_group_kfold"
     }
   ]

@@ -55,6 +55,7 @@ class GenerateDpHoneyLitePromptsConfig:
 _DEFAULT_OUTPUT_BY_TEMPLATE_SET: dict[DpHoneyLiteTemplateSet, Path] = {
     "v1": INTROSPECTION_ROOT / "data" / "prompts_dp_honey_lite_v1.jsonl",
     "hard_v2": INTROSPECTION_ROOT / "data" / "prompts_dp_honey_lite_v2.jsonl",
+    "hard_v3": INTROSPECTION_ROOT / "data" / "prompts_dp_honey_lite_v3.jsonl",
 }
 
 
@@ -64,7 +65,7 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output",
         required=False,
     )
-    parser.add_argument("--template-set", required=False, choices=("v1", "hard_v2"), default="v1")
+    parser.add_argument("--template-set", required=False, choices=("v1", "hard_v2", "hard_v3"), default="v1")
     parser.add_argument("--model-id", required=False, default="Qwen/Qwen3-0.6B")
     parser.add_argument("--revision", required=False, default="main")
     parser.add_argument("--allow-download", action="store_true")

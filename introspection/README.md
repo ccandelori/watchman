@@ -103,7 +103,7 @@ readout-position, calibrated-deviation monitor.
 
 ## Current State
 
-Six datasets are currently registered in `data/lineage.json`:
+Seven datasets are currently registered in `data/lineage.json`:
 
 | Dataset | Purpose | Rows |
 |---|---|---:|
@@ -113,6 +113,7 @@ Six datasets are currently registered in `data/lineage.json`:
 | `hard_prompts_v3` | Held-out summary, redaction, and replacement checkpoint. | 90 |
 | `dp_honey_lite_prompts_v1` | Proxy-shaped honeytoken prompts with span metadata and readout windows. | 24 |
 | `dp_honey_lite_prompts_v2` | Harder paired DP-HONEY-lite scenarios with balanced credential and payload conditions. | 240 |
+| `dp_honey_lite_prompts_v3` | Lexically controlled mode-map prompts for safe-secret versus exfiltration pressure testing. | 240 |
 
 The four historical probe datasets use the same label shape:
 
@@ -131,21 +132,27 @@ static-feature comparisons without calling out the changed data contract.
 The hard V2 DP-HONEY-lite dataset keeps that proxy-shaped contract but scales it
 to 240 rows across 10 paired scenario families. Each family contains benign,
 safe-secret, and exfiltration variants; each label has 40 API-key rows, 40
-database-URI rows, 40 payload rows, and 40 no-payload rows. This is the current
-paired dataset for readout-window activation extraction and same-dataset
-static-feature comparison. It is still DP-HONEY-lite: the honeytokens are
-format-shaped and deterministic, not differentially private n-gram samples.
+database-URI rows, 40 payload rows, and 40 no-payload rows. It is still
+DP-HONEY-lite: the honeytokens are format-shaped and deterministic, not
+differentially private n-gram samples.
 
-Two DP-HONEY-lite activation artifacts are now registered:
+The hard V3 DP-HONEY-lite dataset keeps the same span schema and balance, but
+changes the prompt contract to a lexically controlled mode map. Every row
+contains `credential_value`, `summary_value`, `mode_a`, `mode_b`, `copy`, and
+`mask`; selected modes are balanced across labels; and the mode-to-credential
+action mapping flips across scenario families.
+
+Three DP-HONEY-lite activation artifacts are now registered:
 
 ```text
 qwen3_0_6b_dp_honey_lite_v1_readout_windows_v1
 qwen3_0_6b_dp_honey_lite_v2_all_pooling_v1
+qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1
 ```
 
 The V1 artifact extracts all 29 Qwen 0.6B hidden-state layers using
 `readout_window` pooling over the row-level `readout_token_indices`. The V2
-artifact extracts all 29 layers with `final_token`, `mean_pool`, and
+and V3 artifacts extract all 29 layers with `final_token`, `mean_pool`, and
 `readout_window` pooling in the same file, so readout-window features can be
 compared directly against same-dataset static features.
 
@@ -174,6 +181,18 @@ support a detector claim:
 Across the two V2 sweeps, many activation features are perfect as well: 54 on
 `safe_secret_vs_exfiltration` and 69 on `benign_vs_secret_related`. Treat V2 as
 a pipeline and data-contract checkpoint, not a performance benchmark.
+
+V3 is the first DP-HONEY-lite checkpoint where the target text baseline no
+longer solves the target task:
+
+| Task | Best Activation Feature | Best Activation Macro F1 | Word TF-IDF Macro F1 | Interpretation |
+|---|---|---:|---:|---|
+| `safe_secret_vs_exfiltration` | `readout_window_layer_21` | 0.5284 | 0.2670 | Surface-text shortcut is broken, but activation signal is weak. |
+| `benign_vs_secret_related` | `final_token_layer_01` | 0.9906 | 1.0000 | Still lexically easy because selected field differs. |
+
+Treat V3 as a hard negative/control checkpoint. It is useful because it shows
+that the prior perfect results depended on easy surface structure, but it does
+not yet provide a strong CIFT-like detector.
 
 Each prompt has a `family` field. Grouped evaluation uses those families to
 hold related prompt patterns out together.
@@ -624,7 +643,8 @@ introspection/
 │   ├── prompts_hard_v2.jsonl # Hard Baseline V2 dataset
 │   ├── prompts_hard_v3.jsonl # Hard Baseline V3 dataset
 │   ├── prompts_dp_honey_lite_v1.jsonl # DP-HONEY-lite structured smoke dataset
-│   └── prompts_dp_honey_lite_v2.jsonl # Hard DP-HONEY-lite paired scenario dataset
+│   ├── prompts_dp_honey_lite_v2.jsonl # Hard DP-HONEY-lite paired scenario dataset
+│   └── prompts_dp_honey_lite_v3.jsonl # Lexically controlled DP-HONEY-lite mode-map dataset
 ├── notebooks/            # Interactive exploration notebooks
 ├── scripts/              # CLI entry points for extraction, training, summaries, validation
 ├── src/aegis_introspection/
@@ -695,6 +715,17 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/generate_dp_honey_lite_prompts.py \
   --template-set hard_v2 \
   --seed aegis-dp-honey-lite-v2 \
+  --examples-per-template 4 \
+  --readout-width 6
+```
+
+Generate the hard V3 DP-HONEY-lite prompt dataset:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/generate_dp_honey_lite_prompts.py \
+  --template-set hard_v3 \
+  --seed aegis-dp-honey-lite-v3 \
   --examples-per-template 4 \
   --readout-width 6
 ```
@@ -778,6 +809,38 @@ PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/intr
   --output-json introspection/data/reports/dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1.json \
   --output-md introspection/data/reports/dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1_summary.md \
   --activation-feature readout_window_layer_11 \
+  --folds 5
+```
+
+Extract and evaluate the hard V3 all-pooling checkpoint:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/extract_activations.py \
+  --prompts introspection/data/prompts_dp_honey_lite_v3.jsonl \
+  --output introspection/data/activations/qwen3_0_6b_dp_honey_lite_v3_all_pooling.pt \
+  --layers 0,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,26,27,28 \
+  --pooling final_token,mean_pool,readout_window
+```
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/sweep_binary_layers.py \
+  --artifact introspection/data/activations/qwen3_0_6b_dp_honey_lite_v3_all_pooling.pt \
+  --output-json introspection/data/reports/dp_honey_lite_v3_all_pooling_sweep_safe_secret_vs_exfiltration_v1.json \
+  --output-md introspection/data/reports/dp_honey_lite_v3_all_pooling_sweep_safe_secret_vs_exfiltration_v1_summary.md \
+  --task safe_secret_vs_exfiltration \
+  --reference-feature readout_window_layer_11 \
+  --folds 5
+```
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=/Users/sheep/Desktop/Gauntlet/Capstone/introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python introspection/scripts/train_grouped_binary_tasks.py \
+  --artifact introspection/data/activations/qwen3_0_6b_dp_honey_lite_v3_all_pooling.pt \
+  --output-json introspection/data/reports/dp_honey_lite_v3_grouped_binary_tasks_readout_window_layer_21_v1.json \
+  --output-md introspection/data/reports/dp_honey_lite_v3_grouped_binary_tasks_readout_window_layer_21_v1_summary.md \
+  --activation-feature readout_window_layer_21 \
   --folds 5
 ```
 
@@ -1099,6 +1162,10 @@ Key human-readable checkpoints:
 - `data/reports/dp_honey_lite_v2_all_pooling_sweep_benign_vs_secret_related_v1_summary.md`
 - `data/reports/dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1_summary.md`
 - `data/reports/dp_honey_lite_v2_progress_2026-06-20.md`
+- `data/reports/dp_honey_lite_v3_all_pooling_sweep_safe_secret_vs_exfiltration_v1_summary.md`
+- `data/reports/dp_honey_lite_v3_all_pooling_sweep_benign_vs_secret_related_v1_summary.md`
+- `data/reports/dp_honey_lite_v3_grouped_binary_tasks_readout_window_layer_21_v1_summary.md`
+- `data/reports/dp_honey_lite_v3_progress_2026-06-20.md`
 
 Key machine-readable reports registered in lineage:
 
@@ -1153,6 +1220,9 @@ Key machine-readable reports registered in lineage:
 - `data/reports/dp_honey_lite_v2_all_pooling_sweep_safe_secret_vs_exfiltration_v1.json`
 - `data/reports/dp_honey_lite_v2_all_pooling_sweep_benign_vs_secret_related_v1.json`
 - `data/reports/dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1.json`
+- `data/reports/dp_honey_lite_v3_all_pooling_sweep_safe_secret_vs_exfiltration_v1.json`
+- `data/reports/dp_honey_lite_v3_all_pooling_sweep_benign_vs_secret_related_v1.json`
+- `data/reports/dp_honey_lite_v3_grouped_binary_tasks_readout_window_layer_21_v1.json`
 
 ## Next Moves
 
@@ -1172,11 +1242,12 @@ Recommended sequence:
 4. Define a promotion rule that weighs average performance, worst-case
    checkpoint performance, and post-hoc discovery risk.
 5. For CIFT-like work, treat `meta_c_10` raw full dual-readout as the current
-   regularized diagnostic target. The V1 and V2 DP-HONEY-lite artifacts now
-   exist. V2 confirms the larger proxy-shaped extraction path, but word TF-IDF
-   is also perfect on both grouped tasks. The next DP-HONEY-lite step is V3:
-   preserve the span schema and grouped scenario structure while controlling
-   surface wording tightly enough that text baselines stop solving the task.
+   regularized diagnostic target. The V1, V2, and V3 DP-HONEY-lite artifacts
+   now exist. V3 breaks the target-task text shortcut, but the best activation
+   feature is only slightly above chance. The next DP-HONEY-lite step is a V3.1
+   diagnostic pass: split payload versus no-payload rows, test whether the base
+   model can answer the selected-mode policy directly, and consider readout
+   windows centered on selected-mode tokens.
 6. Keep registering every dataset, artifact, and machine-readable report in
    `data/lineage.json`.
 

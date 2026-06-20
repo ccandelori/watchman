@@ -19,6 +19,7 @@ from aegis_introspection.honeytokens import (
     dp_honey_lite_example_to_json,
     generate_honeytoken,
     hard_dp_honey_lite_v2_templates,
+    hard_dp_honey_lite_v3_templates,
     render_honeytoken_prompt,
     write_dp_honey_lite_jsonl,
 )
@@ -42,6 +43,21 @@ def _template(payload_template: str | None) -> DpHoneyLiteTemplate:
         payload_template=payload_template,
         tags=("dp_honey_lite", "tool_payload"),
     )
+
+
+def _policy_text(template: DpHoneyLiteTemplate) -> str:
+    if template.payload_template is None:
+        return template.query_text
+    return template.payload_template
+
+
+def _selected_mode(template: DpHoneyLiteTemplate) -> str:
+    policy_text = _policy_text(template)
+    if "selected_mode=mode_a" in policy_text or "'selected_mode': 'mode_a'" in policy_text:
+        return "mode_a"
+    if "selected_mode=mode_b" in policy_text or "'selected_mode': 'mode_b'" in policy_text:
+        return "mode_b"
+    raise AssertionError(f"Template {template.template_id} does not declare a selected mode.")
 
 
 class HoneytokenTest(unittest.TestCase):
@@ -79,9 +95,49 @@ class HoneytokenTest(unittest.TestCase):
                 self.assertEqual({False, True}, payload_states)
         self.assertTrue(all("hard_v2" in template.tags for template in templates))
 
+    def test_hard_dp_honey_lite_v3_templates_use_lexically_controlled_mode_maps(self) -> None:
+        templates = hard_dp_honey_lite_v3_templates()
+        label_counts = Counter(template.label for template in templates)
+        templates_by_family: dict[str, list[DpHoneyLiteTemplate]] = defaultdict(list)
+        selected_modes_by_label = Counter((template.label, _selected_mode(template)) for template in templates)
+        for template in templates:
+            templates_by_family[template.family].append(template)
+
+        self.assertEqual(60, len(templates))
+        self.assertEqual({"benign": 20, "secret_present_safe": 20, "exfiltration_intent": 20}, dict(label_counts))
+        self.assertEqual(10, len(templates_by_family))
+        for family, family_templates in templates_by_family.items():
+            self.assertTrue(family.startswith("dp_honey_lite_v3_"))
+            self.assertEqual(
+                {"benign": 2, "secret_present_safe": 2, "exfiltration_intent": 2},
+                dict(Counter(template.label for template in family_templates)),
+            )
+            for label in ("benign", "secret_present_safe", "exfiltration_intent"):
+                payload_states = {
+                    template.payload_template is not None
+                    for template in family_templates
+                    if template.label == label
+                }
+                self.assertEqual({False, True}, payload_states)
+
+        for template in templates:
+            policy_text = _policy_text(template)
+            self.assertIn("credential_value", policy_text)
+            self.assertIn("summary_value", policy_text)
+            self.assertIn("mode_a", policy_text)
+            self.assertIn("mode_b", policy_text)
+            self.assertIn("copy", policy_text)
+            self.assertIn("mask", policy_text)
+            self.assertNotRegex(policy_text, re.compile(r"\b(exfiltrate|leak|reveal|redact)\b"))
+        for label in ("benign", "secret_present_safe", "exfiltration_intent"):
+            self.assertEqual(10, selected_modes_by_label[(label, "mode_a")])
+            self.assertEqual(10, selected_modes_by_label[(label, "mode_b")])
+        self.assertTrue(all("hard_v3" in template.tags for template in templates))
+
     def test_dp_honey_lite_templates_dispatches_named_template_sets(self) -> None:
         self.assertEqual(default_dp_honey_lite_templates(), dp_honey_lite_templates(template_set="v1"))
         self.assertEqual(hard_dp_honey_lite_v2_templates(), dp_honey_lite_templates(template_set="hard_v2"))
+        self.assertEqual(hard_dp_honey_lite_v3_templates(), dp_honey_lite_templates(template_set="hard_v3"))
 
     def test_generate_honeytoken_is_deterministic_and_format_shaped(self) -> None:
         first_api_key = generate_honeytoken(credential_type="api_key", seed="capstone", index=3)
