@@ -20,6 +20,8 @@ The first runtime spine is implemented and CI-enforced:
   - `ActivationUnavailableDetector` for explicit CIFT capability reporting in
     black-box/mock mode.
   - `NoopCanaryDetector` as the future DP-HONEY/text-canary boundary.
+- A fixture-backed `cift_selector_probe_v0` candidate monitor replay path that
+  consumes promoted calibrated CIFT scores without importing research code.
 - A mock OpenAI-compatible proxy surface for `/health`,
   `/v1/chat/completions`, and `/audit/recent`.
 - Mandatory CI gates for linting, formatting, strict typing, import-boundary
@@ -122,6 +124,7 @@ src/aegis/policy/      Policy decision logic
 src/aegis/audit/       Audit sinks
 src/aegis/providers/   Model provider adapters
 src/aegis/proxy/       Proxy adapters and mock proxy surface
+src/aegis/replay/      Offline replay harnesses for fixtures and demos
 src/aegis/sdk/         SDK entrypoint for embedding the runtime
 tests/aegis/           Runtime spine tests
 scripts/               Repository quality and architecture checks
