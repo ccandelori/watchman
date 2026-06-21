@@ -1,0 +1,23 @@
+:root { --bg:#0f1419; --panel:#1a2230; --ink:#e6edf3; --muted:#9fb0c3; --accent:#3fb950; --warn:#d29922; --err:#f85149; }
+* { box-sizing: border-box; }
+body { margin:0; font:15px/1.5 system-ui, sans-serif; background:var(--bg); color:var(--ink); }
+.banner { display:flex; gap:1rem; align-items:baseline; padding:.75rem 1.25rem; background:#111820; border-bottom:1px solid #2a3444; }
+.banner .safety { color:var(--warn); font-size:.85rem; }
+main { display:grid; grid-template-columns:200px 1fr; gap:1.25rem; padding:1.25rem; max-width:1100px; }
+nav { display:flex; flex-direction:column; gap:.25rem; }
+nav button { text-align:left; padding:.5rem .75rem; background:transparent; color:var(--ink); border:1px solid transparent; border-radius:6px; cursor:pointer; }
+nav button:hover { background:var(--panel); }
+nav button.active { background:var(--panel); border-color:#2a3444; }
+.panel { background:var(--panel); border:1px solid #2a3444; border-radius:10px; padding:1.25rem; min-height:60vh; }
+form { display:flex; flex-wrap:wrap; gap:.75rem 1rem; align-items:end; margin-bottom:1rem; }
+label { display:flex; flex-direction:column; gap:.25rem; font-size:.8rem; color:var(--muted); }
+input, select { background:#0d1117; color:var(--ink); border:1px solid #2a3444; border-radius:6px; padding:.4rem .5rem; }
+button.run { background:var(--accent); color:#04150a; border:none; border-radius:6px; padding:.5rem .9rem; font-weight:600; cursor:pointer; }
+.output { white-space:pre-wrap; font-family:ui-monospace, monospace; font-size:.85rem; }
+.tokens div { padding:.1rem 0; border-bottom:1px solid #20293650; }
+.tag { color:var(--muted); font-size:.7rem; margin-left:.5rem; }
+.card { display:grid; grid-template-columns:auto 1fr; gap:.25rem 1rem; font-family:ui-monospace, monospace; }
+.card b { color:var(--muted); font-weight:500; }
+.badge-ok { color:var(--accent); } .badge-bad { color:var(--err); } .badge-drift { color:var(--warn); }
+.error { color:var(--err); background:#2a1416; border:1px solid #5a2226; border-radius:6px; padding:.5rem .75rem; margin-bottom:1rem; }
+.copy { margin-left:.5rem; font-size:.75rem; cursor:pointer; color:var(--muted); background:none; border:1px solid #2a3444; border-radius:4px; }
