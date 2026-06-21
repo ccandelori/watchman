@@ -126,6 +126,18 @@ class DPHoneyCanaryGeneratorTest(unittest.TestCase):
         self.assertEqual(Action.ESCALATE, result.recommended_action)
         self.assertNotIn("{{CREDENTIAL", str(injection.to_dict()))
 
+    def test_default_dp_honey_ledger_scopes_canaries_by_session(self) -> None:
+        first = build_dp_honey_ledger(session_id="session-a", generator=DPHoneyCanaryGenerator(corpus_size=20))
+        second = build_dp_honey_ledger(session_id="session-b", generator=DPHoneyCanaryGenerator(corpus_size=20))
+
+        first_token = first.plant(slot_name="repo_pat", credential_type="github_pat", turn_index=0)
+        second_token = second.plant(slot_name="repo_pat", credential_type="github_pat", turn_index=0)
+
+        self.assertNotEqual(first_token.value, second_token.value)
+        self.assertEqual(
+            first_token.value, first.plant(slot_name="repo_pat", credential_type="github_pat", turn_index=1).value
+        )
+
     def test_ledger_source_can_still_be_overridden_for_existing_callers(self) -> None:
         ledger = HoneytokenLedger(
             session_id="session-ledger",

@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import re
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 
@@ -70,7 +71,10 @@ def resolve_model_ref(name: str, models_dir: Path | None = None) -> Path:
     return _models_dir(models_dir) / filename
 
 
-def list_formats_payload() -> list[dict]:
+JsonDict = dict[str, Any]
+
+
+def list_formats_payload() -> list[JsonDict]:
     """All registered formats as JSON-friendly dicts (for the UI)."""
     return [
         {
@@ -93,7 +97,7 @@ def preview_corpus(fmt: str, count: int, seed: int) -> list[str]:
     return [spec.random_example(rng) for _ in range(count)]
 
 
-def _model_from_params(params: dict, models_dir: Path | None = None) -> BigramHoneytokenModel:
+def _model_from_params(params: JsonDict, models_dir: Path | None = None) -> BigramHoneytokenModel:
     if params.get("source") == "model":
         model_name = params.get("model")
         if not model_name:
@@ -111,7 +115,7 @@ def _model_from_params(params: dict, models_dir: Path | None = None) -> BigramHo
     )
 
 
-def run_generate(params: dict, models_dir: Path | None = None) -> dict:
+def run_generate(params: JsonDict, models_dir: Path | None = None) -> JsonDict:
     """Generate a batch of synthetic tokens from format params or a saved model."""
     count = int(params.get("count", 1))
     enforce_count_limit(count, maximum=GENERATE_MAX, label="count")
@@ -124,7 +128,7 @@ def run_generate(params: dict, models_dir: Path | None = None) -> dict:
     return {"tokens": tokens, "format": model.format_slug, "safety": dict(_SAFETY)}
 
 
-def run_report(params: dict, models_dir: Path | None = None) -> dict:
+def run_report(params: JsonDict, models_dir: Path | None = None) -> JsonDict:
     """Generate a batch (<= REPORT_MAX) and compute realism metrics."""
     count = int(params.get("count", 1))
     enforce_count_limit(count, maximum=REPORT_MAX, label="count")
@@ -137,17 +141,17 @@ def run_report(params: dict, models_dir: Path | None = None) -> dict:
     return compute_report(tokens, model)
 
 
-def run_scan(text: str) -> dict:
+def run_scan(text: str) -> JsonDict:
     """Scan text and return SAFE-1 findings without matched values."""
     return {"findings": scanner.scan(text)}
 
 
-def run_auto_decoy(text: str, *, seed: int = 0) -> dict:
+def run_auto_decoy(text: str, *, seed: int = 0) -> JsonDict:
     """Scan text and return matching decoys plus swapped text."""
     return scanner.auto_decoy(text, seed=seed)
 
 
-def run_train(params: dict, models_dir: Path | None = None) -> dict:
+def run_train(params: JsonDict, models_dir: Path | None = None) -> JsonDict:
     """Train a model from format params and save it into the models dir."""
     out_name = params.get("out_name", "")
     if (
@@ -183,7 +187,7 @@ def run_train(params: dict, models_dir: Path | None = None) -> dict:
     }
 
 
-def _describe_model(name: str, path: Path, source: str) -> dict:
+def _describe_model(name: str, path: Path, source: str) -> JsonDict:
     info = {"name": name, "source": source, "slug": None}
     try:
         data = read_artifact_dict(path)
@@ -194,9 +198,9 @@ def _describe_model(name: str, path: Path, source: str) -> dict:
     return info
 
 
-def list_models(models_dir: Path | None = None) -> list[dict]:
+def list_models(models_dir: Path | None = None) -> list[JsonDict]:
     """List the committed golden fixture plus any saved models in the models dir."""
-    entries: list[dict] = []
+    entries: list[JsonDict] = []
     if GOLDEN_PATH.exists():
         entries.append(_describe_model(GOLDEN_NAME, GOLDEN_PATH, "fixture"))
     directory = _models_dir(models_dir)
@@ -206,7 +210,7 @@ def list_models(models_dir: Path | None = None) -> list[dict]:
     return entries
 
 
-def _snapshot_status(slug: str, stored_hash) -> str:
+def _snapshot_status(slug: str, stored_hash: object) -> str:
     # Mirrors detect.dp_honey.__main__._snapshot_status (kept local to avoid
     # importing a private CLI helper).
     try:
@@ -216,7 +220,7 @@ def _snapshot_status(slug: str, stored_hash) -> str:
     return "OK" if stored_hash == live.spec_hash() else "DRIFT"
 
 
-def run_inspect(model_name: str, models_dir: Path | None = None) -> dict:
+def run_inspect(model_name: str, models_dir: Path | None = None) -> JsonDict:
     """Lenient inspection of an artifact (reports drift; never raises on drift)."""
     data = read_artifact_dict(resolve_model_ref(model_name, models_dir))
     fmt = data.get("format", {})
@@ -237,7 +241,7 @@ def run_inspect(model_name: str, models_dir: Path | None = None) -> dict:
     }
 
 
-def run_validate(model_name: str, models_dir: Path | None = None) -> dict:
+def run_validate(model_name: str, models_dir: Path | None = None) -> JsonDict:
     """Strictly validate an artifact; never raises — returns a result dict."""
     try:
         load_model(resolve_model_ref(model_name, models_dir))

@@ -14,8 +14,9 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
+from typing import cast
 
 import numpy as np
 
@@ -52,7 +53,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
-        return args.func(args)
+        handler = cast(Callable[[argparse.Namespace], int], args.func)
+        return handler(args)
     except DPHoneyError as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1

@@ -47,7 +47,7 @@ jobs:
         run: uv run ruff format --check src/aegis src/detect tests/aegis tests/dp_honey scripts
 
       - name: Type check
-        run: uv run mypy src/aegis scripts
+        run: uv run mypy src/aegis src/detect scripts
 
       - name: Import boundaries
         run: uv run python scripts/check_import_boundaries.py

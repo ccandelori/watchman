@@ -47,7 +47,7 @@ def enforce_count_limit(count: int, *, maximum: int, label: str = "count") -> No
         raise CountLimitError(f"{label} must be <= {maximum}, got {count}")
 
 
-def compute_report(tokens: list[str], model: BigramHoneytokenModel) -> dict:
+def compute_report(tokens: list[str], model: BigramHoneytokenModel) -> dict[str, object]:
     """Compute the realism report for *tokens* generated/validated against *model*."""
     spec = model.format_spec
     count = len(tokens)
@@ -77,7 +77,7 @@ def compute_report(tokens: list[str], model: BigramHoneytokenModel) -> dict:
 
 def _pooled_char_entropy_bits(tokens: list[str]) -> float:
     """Shannon entropy (bits) of the pooled character distribution; 0.0 if empty."""
-    counter: Counter = Counter()
+    counter: Counter[str] = Counter()
     total = 0
     for token in tokens:
         counter.update(token)

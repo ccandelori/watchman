@@ -47,7 +47,7 @@ class Literal:
 
     text: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         return {"kind": "literal", "text": self.text}
 
 
@@ -59,7 +59,7 @@ class Variable:
     alphabet: str
     length: int
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         return {
             "kind": "variable",
             "name": self.name,
@@ -81,7 +81,7 @@ class Checksum:
     length: int
     algorithm: str
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, object]:
         return {
             "kind": "checksum",
             "name": self.name,
@@ -109,7 +109,7 @@ class FormatSpec:
     name: str
     description: str
     category: str
-    segments: tuple
+    segments: tuple[Segment, ...]
     safety_note: str
     provider_valid: bool = False
     scannable: bool = True
@@ -211,7 +211,7 @@ class FormatSpec:
         """Generate *size* synthetic, spec-valid examples for training."""
         return [self.random_example(rng) for _ in range(size)]
 
-    def to_snapshot(self) -> dict:
+    def to_snapshot(self) -> dict[str, object]:
         """Serializable structural snapshot (the artifact's format identity)."""
         return {
             "slug": self.slug,

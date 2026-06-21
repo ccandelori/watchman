@@ -16,6 +16,7 @@ from __future__ import annotations
 import json
 import math
 from pathlib import Path
+from typing import Any, cast
 
 from .bigram import START, BigramHoneytokenModel
 from .errors import (
@@ -34,10 +35,11 @@ SAFETY_NOTE = (
     "trained on real secrets."
 )
 
-ArtifactSource = str | Path | dict
+ArtifactDict = dict[str, Any]
+ArtifactSource = str | Path | ArtifactDict
 
 
-def model_to_dict(model: BigramHoneytokenModel) -> dict:
+def model_to_dict(model: BigramHoneytokenModel) -> ArtifactDict:
     """Serialize *model* into the canonical artifact dictionary."""
     from . import __version__  # local import avoids a package-init cycle
 
@@ -80,7 +82,7 @@ def save_model(model: BigramHoneytokenModel, path: str | Path, *, force: bool = 
     return path
 
 
-def read_artifact_dict(source: ArtifactSource) -> dict:
+def read_artifact_dict(source: ArtifactSource) -> ArtifactDict:
     """Return the artifact as a dict, decoding from a path if needed.
 
     Raises :class:`ModelArtifactDecodeError` for unreadable files or invalid JSON.
@@ -180,7 +182,7 @@ def _require(condition: bool, message: str) -> None:
         raise ModelSchemaError(message)
 
 
-def _field(mapping: object, key: str):
+def _field(mapping: object, key: str) -> Any:
     _require(isinstance(mapping, dict) and key in mapping, f"missing or malformed field: {key!r}")
     return mapping[key]  # type: ignore[index]
 
@@ -199,7 +201,7 @@ def _validate_checksum_algorithms(stored_snapshot: object) -> None:
             )
 
 
-def _num(mapping: dict, key: str) -> float:
+def _num(mapping: ArtifactDict, key: str) -> float:
     value = _field(mapping, key)
     _require(isinstance(value, (int, float)) and not isinstance(value, bool), f"field {key!r} must be a number")
     number = float(value)
@@ -207,25 +209,25 @@ def _num(mapping: dict, key: str) -> float:
     return number
 
 
-def _int(mapping: dict, key: str) -> int:
+def _int(mapping: ArtifactDict, key: str) -> int:
     value = _field(mapping, key)
     _require(isinstance(value, int) and not isinstance(value, bool), f"field {key!r} must be an integer")
-    return value
+    return int(value)
 
 
-def _validate_transitions(transitions: object, symbols: set, start_token: str) -> None:
+def _validate_transitions(transitions: object, symbols: set[str], start_token: str) -> None:
     _require(isinstance(transitions, dict), "transitions must be a JSON object")
+    transition_rows = cast(dict[str, object], transitions)
     valid_states = symbols | {start_token}
-    for state, row in transitions.items():
+    for state, row in transition_rows.items():
         _require(state in valid_states, f"transition state not in alphabet: {state!r}")
         _require(isinstance(row, dict), f"transition row must be an object: {state!r}")
+        probabilities = cast(dict[str, object], row)
         total = 0.0
-        for char, prob in row.items():
+        for char, prob in probabilities.items():
             _require(char in symbols, f"transition target not in alphabet: {char!r}")
-            _require(
-                isinstance(prob, (int, float)) and not isinstance(prob, bool),
-                f"probability must be numeric: {state!r}->{char!r}",
-            )
+            if not isinstance(prob, (int, float)) or isinstance(prob, bool):
+                raise ModelSchemaError(f"probability must be numeric: {state!r}->{char!r}")
             value = float(prob)
             _require(math.isfinite(value), f"probability must be finite: {state!r}->{char!r}")
             _require(value >= 0.0, f"probability must be nonnegative: {state!r}->{char!r}")

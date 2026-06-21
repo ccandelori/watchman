@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import hashlib
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from functools import cache
 
 from aegis.canaries.ledger import HoneytokenLedger
@@ -66,15 +66,22 @@ class DPHoneyCanaryGenerator:
         )
         return model.sample(1, seed=_sample_seed(self.seed_salt, slot_name, credential_type, format_slug))[0]
 
+    def for_session(self, session_id: str) -> DPHoneyCanaryGenerator:
+        """Return a generator whose deterministic seed space is scoped to a session."""
+        if session_id == "":
+            raise DPHoneyCanaryGeneratorError("session_id must not be empty.")
+        return replace(self, seed_salt=f"{self.seed_salt}\0session:{session_id}")
+
 
 def build_dp_honey_ledger(
     session_id: str,
     generator: DPHoneyCanaryGenerator | None = None,
 ) -> HoneytokenLedger:
     """Return a HoneytokenLedger configured to plant DP-HONEY-generated canaries."""
+    session_generator = (generator if generator is not None else DPHoneyCanaryGenerator()).for_session(session_id)
     return HoneytokenLedger(
         session_id=session_id,
-        generator=generator if generator is not None else DPHoneyCanaryGenerator(),
+        generator=session_generator,
         source="dp_honey",
     )
 

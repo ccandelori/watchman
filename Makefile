@@ -12,7 +12,7 @@ format-check:
 	uv run --extra dev ruff format --check src/aegis src/detect tests/aegis tests/dp_honey scripts
 
 typecheck:
-	uv run --extra dev mypy src/aegis scripts
+	uv run --extra dev mypy src/aegis src/detect scripts
 
 boundaries:
 	uv run python scripts/check_import_boundaries.py
