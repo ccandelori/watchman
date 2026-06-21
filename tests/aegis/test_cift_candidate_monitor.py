@@ -28,6 +28,7 @@ class CiftCandidateMonitorTest(unittest.TestCase):
         scores_by_example_id = load_cift_candidate_scores_jsonl(FIXTURE_ROOT / "detector_results.jsonl")
         audit_sink = InMemoryAuditSink()
         runtime = AegisRuntime(
+            turn_annotators=(),
             pre_generation_detectors=(
                 PrecomputedCiftCandidateDetector(
                     profile=CIFT_SELECTOR_PROBE_V0,
@@ -70,6 +71,7 @@ class CiftCandidateMonitorTest(unittest.TestCase):
             metadata={"example_id": "not-needed"},
         )
         runtime = AegisRuntime(
+            turn_annotators=(),
             pre_generation_detectors=(detector,),
             post_generation_detectors=(),
             session_detectors=(),
@@ -104,6 +106,7 @@ class CiftCandidateMonitorTest(unittest.TestCase):
             metadata={"example_id": "missing-score"},
         )
         runtime = AegisRuntime(
+            turn_annotators=(),
             pre_generation_detectors=(detector,),
             post_generation_detectors=(),
             session_detectors=(),

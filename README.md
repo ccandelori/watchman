@@ -32,6 +32,9 @@ The first runtime spine is implemented and CI-enforced:
   an exported JSON linear CIFT model artifact, consumes feature vectors from
   `NormalizedTurn.metadata`, and emits active, degraded, or unavailable CIFT
   evidence without importing the introspection package.
+- A `TurnAnnotator` seam that can attach derived metadata before pre-generation
+  detectors run, plus a CIFT feature-vector annotator that preserves the
+  runtime/import boundary while preparing self-hosted activation features.
 - A mock OpenAI-compatible proxy surface for `/health`,
   `/v1/chat/completions`, and `/audit/recent`.
 - Mandatory CI gates for linting, formatting, strict typing, import-boundary
@@ -45,6 +48,7 @@ keeps future detector and proxy work compatible.
 ```text
 chat request
   -> NormalizedTurn
+  -> turn annotators
   -> pre-generation detectors
   -> model provider
   -> post-generation detectors
@@ -160,7 +164,9 @@ New runtime work must preserve the spine boundaries:
   and latency.
 - CIFT must emit either activation risk or explicit unavailable evidence.
 - Runtime CIFT detectors consume promoted JSON artifacts and feature-vector
-  metadata. Training pickles and research modules remain in `introspection/`.
+  metadata. Feature-vector annotators may attach derived activation features
+  before detectors run, but training pickles and research modules remain in
+  `introspection/`.
 - DP-HONEY injection/registration and canary detection remain separate stages.
 - Real credentials cross runtime boundaries as handles, spans, hashes, or
   evidence, not raw production secrets.

@@ -6,17 +6,23 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from aegis.audit.memory import InMemoryAuditSink
 from aegis.core.contracts import Action, CapabilityMode, CapabilityStatus, Message, ModelInfo, NormalizedTurn
+from aegis.core.orchestrator import AegisRuntime, RuntimeRequest
 from aegis.detectors.cift_runtime import (
+    CiftFeatureVectorAnnotator,
     CiftRuntimeDetector,
     CiftRuntimeDetectorError,
     CiftRuntimeLinearModel,
     cift_feature_vector_from_turn,
     cift_runtime_model_to_dict,
     load_cift_runtime_model,
+    normalized_turn_with_cift_feature_vector,
     predict_cift_runtime_model,
     validate_cift_runtime_model,
 )
+from aegis.policy.engine import SeverityPolicyEngine
+from aegis.providers.mock import MockModelProvider
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 RUNTIME_MODEL_PATH = (
@@ -29,6 +35,34 @@ RUNTIME_MODEL_PATH = (
 
 
 class CiftRuntimeDetectorTest(unittest.TestCase):
+    def test_runtime_scores_feature_vector_attached_by_turn_annotator(self) -> None:
+        extractor = RecordingFeatureExtractor(feature_vector=(3.0, 2.0))
+        runtime = AegisRuntime(
+            turn_annotators=(
+                CiftFeatureVectorAnnotator(
+                    feature_key="readout_window_layer_15",
+                    extractor=extractor,
+                    source="test_self_hosted_extractor",
+                ),
+            ),
+            pre_generation_detectors=(
+                CiftRuntimeDetector(detector_name="cift_runtime", model=_runtime_model(positive_class_index=1)),
+            ),
+            post_generation_detectors=(),
+            session_detectors=(),
+            policy_engine=SeverityPolicyEngine(),
+            audit_sink=InMemoryAuditSink(),
+            model_provider=MockModelProvider(default_content="ok"),
+        )
+
+        response = runtime.evaluate_turn(_request(capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION))
+
+        self.assertEqual([("trace-cift-runtime", "readout_window_layer_15")], extractor.calls)
+        self.assertEqual(Action.WARN, response.policy_decision.final_action)
+        self.assertEqual(CapabilityStatus.ACTIVE, response.detector_results[0].capability_status)
+        self.assertEqual("test_self_hosted_extractor", _feature_source(response.audit_event.normalized_turn))
+        self.assertNotIn("feature_vectors", response.detector_results[0].evidence)
+
     def test_self_hosted_turn_with_feature_vector_emits_active_detector_result(self) -> None:
         detector = CiftRuntimeDetector(detector_name="cift_runtime", model=_runtime_model(positive_class_index=1))
         turn = _turn(
@@ -111,6 +145,65 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
 
     def test_missing_generated_artifact_would_break_the_runtime_integration_claim(self) -> None:
         self.assertTrue(RUNTIME_MODEL_PATH.exists())
+
+    def test_feature_annotator_does_not_call_extractor_in_black_box_mode(self) -> None:
+        extractor = RecordingFeatureExtractor(feature_vector=(3.0, 2.0))
+        annotator = CiftFeatureVectorAnnotator(
+            feature_key="readout_window_layer_15",
+            extractor=extractor,
+            source="test_self_hosted_extractor",
+        )
+        turn = _turn(capability_mode=CapabilityMode.BLACK_BOX, metadata={})
+
+        annotated = annotator.annotate(turn)
+
+        self.assertIs(turn, annotated)
+        self.assertEqual([], extractor.calls)
+
+    def test_feature_annotator_preserves_existing_cift_metadata_and_does_not_mutate_input(self) -> None:
+        extractor = RecordingFeatureExtractor(feature_vector=(3.0, 2.0))
+        annotator = CiftFeatureVectorAnnotator(
+            feature_key="readout_window_layer_15",
+            extractor=extractor,
+            source="test_self_hosted_extractor",
+        )
+        turn = _turn(
+            capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+            metadata={"cift": {"readout_token_indices": [1, 2, 3]}},
+        )
+
+        annotated = annotator.annotate(turn)
+
+        self.assertNotEqual(id(turn.metadata), id(annotated.metadata))
+        self.assertEqual({"readout_token_indices": [1, 2, 3]}, turn.metadata["cift"])
+        self.assertEqual((3.0, 2.0), cift_feature_vector_from_turn(annotated, "readout_window_layer_15"))
+        self.assertEqual([1, 2, 3], annotated.metadata["cift"]["readout_token_indices"])
+        self.assertEqual("test_self_hosted_extractor", _feature_source(annotated))
+
+    def test_feature_annotator_leaves_self_hosted_turn_degraded_when_extractor_returns_none(self) -> None:
+        extractor = RecordingFeatureExtractor(feature_vector=None)
+        annotator = CiftFeatureVectorAnnotator(
+            feature_key="readout_window_layer_15",
+            extractor=extractor,
+            source="test_self_hosted_extractor",
+        )
+        turn = _turn(capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION, metadata={})
+
+        annotated = annotator.annotate(turn)
+
+        self.assertIs(turn, annotated)
+        self.assertEqual([("trace-cift-runtime", "readout_window_layer_15")], extractor.calls)
+
+    def test_normalized_turn_with_cift_feature_vector_rejects_bad_cift_metadata(self) -> None:
+        turn = _turn(capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION, metadata={"cift": "bad"})
+
+        with self.assertRaises(CiftRuntimeDetectorError):
+            normalized_turn_with_cift_feature_vector(
+                turn=turn,
+                feature_key="readout_window_layer_15",
+                feature_vector=(1.0, 2.0),
+                source="test_self_hosted_extractor",
+            )
 
     def test_feature_vector_parser_rejects_malformed_cift_metadata(self) -> None:
         turn = _turn(
@@ -227,6 +320,43 @@ def _turn(capability_mode: CapabilityMode, metadata: dict[str, object]) -> Norma
         sensitive_spans=(),
         metadata=metadata,
     )
+
+
+def _request(capability_mode: CapabilityMode) -> RuntimeRequest:
+    return RuntimeRequest(
+        trace_id="trace-cift-runtime",
+        session_id="session-cift-runtime",
+        turn_index=1,
+        capability_mode=capability_mode,
+        model=ModelInfo(provider="mock", model_id="mock-qwen", revision=None, selected_device="cpu"),
+        messages=(Message(role="user", content="hello"),),
+        tool_calls=(),
+        sensitive_spans=(),
+        metadata={},
+    )
+
+
+def _feature_source(turn: NormalizedTurn) -> object:
+    cift_metadata = turn.metadata["cift"]
+    if not isinstance(cift_metadata, dict):
+        raise AssertionError("metadata.cift must be an object.")
+    feature_sources = cift_metadata["feature_sources"]
+    if not isinstance(feature_sources, dict):
+        raise AssertionError("metadata.cift.feature_sources must be an object.")
+    readout_source = feature_sources["readout_window_layer_15"]
+    if not isinstance(readout_source, dict):
+        raise AssertionError("feature source must be an object.")
+    return readout_source["source"]
+
+
+class RecordingFeatureExtractor:
+    def __init__(self, feature_vector: tuple[float, ...] | None) -> None:
+        self.calls: list[tuple[str, str]] = []
+        self._feature_vector = feature_vector
+
+    def extract_feature_vector(self, turn: NormalizedTurn, feature_key: str) -> tuple[float, ...] | None:
+        self.calls.append((turn.trace_id, feature_key))
+        return self._feature_vector
 
 
 def _model_from_temp_file(record: dict[str, object]) -> CiftRuntimeLinearModel:

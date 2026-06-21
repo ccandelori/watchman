@@ -11,6 +11,12 @@ All adapters normalize external inputs into `NormalizedTurn`. Detectors consume
 that normalized shape and return `DetectorResult` values. Detectors do not call
 each other and do not make final enforcement decisions.
 
+Turn annotators may attach derived metadata to a normalized turn before detector
+stages run. They are the sanctioned place for self-hosted model hooks to add
+activation-derived features, tool normalization metadata, or other computed
+runtime context. Annotators return a new `NormalizedTurn`; they do not emit
+policy decisions or audit events.
+
 The policy layer is the only layer that emits `PolicyDecision`. The audit layer
 records `AuditEvent` objects containing the normalized turn, detector results,
 policy decision, and runtime metadata.
@@ -20,6 +26,7 @@ policy decision, and runtime metadata.
 ```text
 chat request
   -> NormalizedTurn
+  -> turn annotators
   -> ActivationUnavailableDetector
   -> MockModelProvider
   -> NoopCanaryDetector
@@ -123,12 +130,27 @@ active CIFT `DetectorResult` with the model score, predicted label, threshold,
 feature key, and artifact IDs. It never copies the feature vector into audit
 evidence.
 
+`CiftFeatureVectorAnnotator` is the first sanctioned self-hosted feature hook.
+It runs before pre-generation detectors, calls a caller-supplied extractor, and
+attaches the returned feature vector under:
+
+```text
+NormalizedTurn.metadata["cift"]["feature_vectors"][feature_key]
+```
+
+The annotator does not call the extractor in black-box or SDK-only modes. If a
+self-hosted extractor cannot provide a vector, the turn remains unchanged and
+`CiftRuntimeDetector` reports degraded CIFT capability. This keeps live
+activation capture as a connector concern while preserving the runtime spine
+contract.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:
 
-- CIFT provider hook: attach `metadata["cift"]["feature_vectors"]` from
-  self-hosted activation capture before `CiftRuntimeDetector` runs.
+- CIFT provider implementation: implement the caller-supplied extractor that
+  converts self-hosted activation capture into the feature vectors consumed by
+  `CiftFeatureVectorAnnotator`.
 - DP-HONEY runtime: register honeytokens and populate `sensitive_spans`.
 - Canary scanners: extend exact model-output scanning to tool arguments and
   streaming outputs.

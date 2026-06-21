@@ -6,7 +6,7 @@ import time
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
+from typing import Protocol, cast
 
 from aegis.core.contracts import (
     Action,
@@ -61,6 +61,40 @@ class CiftRuntimePrediction:
     predicted_label: str
     recommended_action: Action
     operating_band: str
+
+
+class CiftFeatureExtractor(Protocol):
+    def extract_feature_vector(self, turn: NormalizedTurn, feature_key: str) -> tuple[float, ...] | None:
+        """Extract a CIFT feature vector for a normalized turn."""
+
+
+@dataclass(frozen=True)
+class CiftFeatureVectorAnnotator:
+    feature_key: str
+    extractor: CiftFeatureExtractor
+    source: str
+
+    def annotate(self, turn: NormalizedTurn) -> NormalizedTurn:
+        if self.feature_key == "":
+            raise CiftRuntimeDetectorError("feature_key must not be empty.")
+        if self.source == "":
+            raise CiftRuntimeDetectorError("source must not be empty.")
+        if turn.capability_mode not in (CapabilityMode.SELF_HOSTED_INTROSPECTION, CapabilityMode.OFFLINE_EVAL):
+            return turn
+
+        feature_vector = self.extractor.extract_feature_vector(turn=turn, feature_key=self.feature_key)
+        if feature_vector is None:
+            return turn
+        validated_vector = tuple(
+            _float_item(value=item, field_name=f"extractor.{self.feature_key}[{index}]")
+            for index, item in enumerate(feature_vector)
+        )
+        return normalized_turn_with_cift_feature_vector(
+            turn=turn,
+            feature_key=self.feature_key,
+            feature_vector=validated_vector,
+            source=self.source,
+        )
 
 
 class CiftRuntimeDetector:
@@ -228,6 +262,44 @@ def cift_feature_vector_from_turn(turn: NormalizedTurn, feature_key: str) -> tup
     return tuple(_float_item(value=item, field_name=f"metadata.cift.feature_vectors.{feature_key}") for item in value)
 
 
+def normalized_turn_with_cift_feature_vector(
+    turn: NormalizedTurn,
+    feature_key: str,
+    feature_vector: tuple[float, ...],
+    source: str,
+) -> NormalizedTurn:
+    if feature_key == "":
+        raise CiftRuntimeDetectorError("feature_key must not be empty.")
+    if source == "":
+        raise CiftRuntimeDetectorError("source must not be empty.")
+    encoded_feature_vector: list[JsonValue] = [
+        _float_item(value=item, field_name=f"feature_vector[{index}]") for index, item in enumerate(feature_vector)
+    ]
+    cift_metadata = _copied_cift_metadata(turn.metadata)
+    feature_vectors = _copied_feature_vectors(cift_metadata)
+    feature_vectors[feature_key] = encoded_feature_vector
+    cift_metadata[_FEATURE_VECTORS_KEY] = feature_vectors
+    cift_metadata["feature_sources"] = _feature_sources_metadata(
+        cift_metadata=cift_metadata,
+        feature_key=feature_key,
+        source=source,
+        feature_count=len(encoded_feature_vector),
+    )
+    metadata = dict(turn.metadata)
+    metadata[_CIFT_METADATA_KEY] = cift_metadata
+    return NormalizedTurn(
+        trace_id=turn.trace_id,
+        session_id=turn.session_id,
+        turn_index=turn.turn_index,
+        capability_mode=turn.capability_mode,
+        model=turn.model,
+        messages=turn.messages,
+        tool_calls=turn.tool_calls,
+        sensitive_spans=turn.sensitive_spans,
+        metadata=metadata,
+    )
+
+
 def validate_cift_runtime_model(model: CiftRuntimeLinearModel) -> None:
     if model.schema_version != _SCHEMA_VERSION:
         raise CiftRuntimeDetectorError(f"Unsupported CIFT runtime model schema '{model.schema_version}'.")
@@ -357,6 +429,41 @@ def _sigmoid(value: float) -> float:
 
 def _negative_label(model: CiftRuntimeLinearModel) -> str:
     return next(label for label in model.label_names if label != model.positive_label)
+
+
+def _copied_cift_metadata(metadata: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    cift_metadata = metadata.get(_CIFT_METADATA_KEY)
+    if cift_metadata is None:
+        return {}
+    if not isinstance(cift_metadata, dict):
+        raise CiftRuntimeDetectorError("NormalizedTurn metadata.cift must be an object when present.")
+    return dict(cift_metadata)
+
+
+def _copied_feature_vectors(cift_metadata: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    feature_vectors = cift_metadata.get(_FEATURE_VECTORS_KEY)
+    if feature_vectors is None:
+        return {}
+    if not isinstance(feature_vectors, dict):
+        raise CiftRuntimeDetectorError("NormalizedTurn metadata.cift.feature_vectors must be an object when present.")
+    return dict(feature_vectors)
+
+
+def _feature_sources_metadata(
+    cift_metadata: Mapping[str, JsonValue],
+    feature_key: str,
+    source: str,
+    feature_count: int,
+) -> dict[str, JsonValue]:
+    feature_sources = cift_metadata.get("feature_sources")
+    if feature_sources is None:
+        sources: dict[str, JsonValue] = {}
+    elif isinstance(feature_sources, dict):
+        sources = dict(feature_sources)
+    else:
+        raise CiftRuntimeDetectorError("NormalizedTurn metadata.cift.feature_sources must be an object when present.")
+    sources[feature_key] = {"source": source, "feature_count": feature_count}
+    return sources
 
 
 def _elapsed_ms(started_at: float) -> float:

@@ -129,6 +129,7 @@ def _metadata_int(metadata: Mapping[str, JsonValue], key: str, default: int) -> 
 def create_default_proxy() -> MockProxyApp:
     audit_sink = InMemoryAuditSink()
     runtime = AegisRuntime(
+        turn_annotators=(),
         pre_generation_detectors=(ActivationUnavailableDetector(),),
         post_generation_detectors=(NoopCanaryDetector(),),
         session_detectors=(),

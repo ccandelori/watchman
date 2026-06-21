@@ -130,6 +130,7 @@ class TextCanaryDetectorTest(unittest.TestCase):
         canary_value = "sk-hny-testCanaryValue123"
         audit_sink = InMemoryAuditSink()
         runtime = AegisRuntime(
+            turn_annotators=(),
             pre_generation_detectors=(CiftWarningDetector(),),
             post_generation_detectors=(
                 TextCanaryDetector(
@@ -331,6 +332,7 @@ class EncodedCanaryDetectorTest(unittest.TestCase):
         registry = InMemoryCanaryRegistry(records=(_record(canary_value),))
         audit_sink = InMemoryAuditSink()
         runtime = AegisRuntime(
+            turn_annotators=(),
             pre_generation_detectors=(),
             post_generation_detectors=(
                 TextCanaryDetector(detector_name="text_canary", registry=registry),

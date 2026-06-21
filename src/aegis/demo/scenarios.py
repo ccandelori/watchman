@@ -242,6 +242,7 @@ def _evaluate_scenario(
 ) -> AegisRuntimeResponse:
     audit_sink = InMemoryAuditSink()
     runtime = AegisRuntime(
+        turn_annotators=(),
         pre_generation_detectors=pre_generation_detectors,
         post_generation_detectors=post_generation_detectors,
         session_detectors=(),
