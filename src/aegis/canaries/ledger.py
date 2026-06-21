@@ -51,10 +51,14 @@ class HoneytokenLedger:
         self,
         session_id: str,
         generator: HoneytokenGenerator,
+        source: str = "dp_honey_lite",
     ) -> None:
         if session_id == "":
             raise HoneytokenLedgerError("session_id must not be empty.")
+        if source == "":
+            raise HoneytokenLedgerError("source must not be empty.")
         self.session_id = session_id
+        self.source = source
         self._generator = generator
         self._honeytokens_by_slot: dict[str, Honeytoken] = {}
         self._real_secrets_by_slot: dict[str, tuple[str, str]] = {}
@@ -82,7 +86,7 @@ class HoneytokenLedger:
             value=value,
             canary_id=canary_id,
             sha256=canary_sha256(value),
-            source="dp_honey_lite",
+            source=self.source,
             turn_planted=turn_index,
         )
         self._honeytokens_by_slot[slot_name] = honeytoken

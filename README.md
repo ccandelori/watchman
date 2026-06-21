@@ -175,6 +175,21 @@ Fallback findings are low confidence and preserve visible shape only; they do
 not claim provider checksums, signatures, tenant IDs, account IDs, expiration
 rules, or backend validity.
 
+The Aegis-facing bridge keeps runtime responsibilities separated:
+
+```text
+src/detect/dp_honey/scanner.py
+  -> src/aegis/detectors/dp_honey.py
+  -> DetectorResult evidence
+  -> policy decision
+  -> src/aegis/proxy/dp_honey.py auto-decoy helper when policy selects sanitize
+```
+
+`src/aegis/canaries/dp_honey.py` provides `DPHoneyCanaryGenerator`, a callable
+generator for `HoneytokenLedger`, plus `build_dp_honey_ledger()` for ledgers that
+plant DP-HONEY-generated canaries while Aegis still owns registration,
+`SensitiveSpan` metadata, and audit records.
+
 The web UI sidebar maps to the same workflows:
 
 | Sidebar section | What it does |
