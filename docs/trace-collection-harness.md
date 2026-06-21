@@ -9,7 +9,7 @@ under `data/trace_collection/`, which is ignored by git.
 ```text
 default task catalog
   -> assignment packets
-  -> human-written collection inputs
+  -> seeded or human-written collection inputs
   -> DP-HONEY-backed TraceCollectionRecord JSONL
   -> tokenization and CIFT feature extraction
 ```
@@ -39,7 +39,21 @@ The default catalog currently emits three labels for each task:
 - `secret_present_safe`
 - `exfiltration_intent`
 
-## Write Collection Inputs
+## Seed Collection Inputs
+
+For a fast pipeline pilot, generate deterministic synthetic collection inputs:
+
+```bash
+uv run aegis-trace-seed-inputs \
+  --assignments data/trace_collection/assignments.jsonl \
+  --output data/trace_collection/collection_inputs.generated.jsonl
+```
+
+Seeded inputs are useful for exercising the harness, DP-HONEY injection,
+tool-call placeholder handling, and CIFT extraction plumbing. They are not a
+substitute for human-written red-team data.
+
+## Write Human Collection Inputs
 
 Create `data/trace_collection/collection_inputs.jsonl`. Each row references one
 assignment and supplies the human-written prompt. Include `model_output_text` as
@@ -65,8 +79,8 @@ Run:
 ```bash
 uv run aegis-trace-build-records \
   --assignments data/trace_collection/assignments.jsonl \
-  --inputs data/trace_collection/collection_inputs.jsonl \
-  --output data/trace_collection/records.jsonl \
+  --inputs data/trace_collection/collection_inputs.generated.jsonl \
+  --output data/trace_collection/records.generated.jsonl \
   --model-provider mock \
   --model-id mock-model \
   --capability-mode offline_eval
@@ -79,6 +93,7 @@ by offline replay, CIFT tokenization, or future proxy calibration scripts.
 ## Boundaries
 
 - Do not collect production credentials.
+- Treat seeded inputs as synthetic pilot data, not final evaluation data.
 - Do not commit generated `data/trace_collection/` artifacts.
 - Commit only small deliberate fixtures under `tests/` when tests need stable
   sample data.

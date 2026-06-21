@@ -4,6 +4,7 @@ from aegis.trace_collection.harness import (
     TraceCollectionRecord,
     TraceCollectionSubmission,
     TraceCollectionTask,
+    build_seed_trace_collection_submissions,
     build_trace_collection_assignments,
     build_trace_collection_record,
     build_trace_collection_records_from_submissions,
@@ -11,6 +12,7 @@ from aegis.trace_collection.harness import (
     read_trace_collection_submissions_jsonl,
     write_trace_collection_assignments_jsonl,
     write_trace_collection_jsonl,
+    write_trace_collection_submissions_jsonl,
 )
 from aegis.trace_collection.tasks import default_trace_collection_tasks
 
@@ -20,6 +22,7 @@ __all__ = [
     "TraceCollectionRecord",
     "TraceCollectionSubmission",
     "TraceCollectionTask",
+    "build_seed_trace_collection_submissions",
     "build_trace_collection_assignments",
     "build_trace_collection_record",
     "build_trace_collection_records_from_submissions",
@@ -28,4 +31,5 @@ __all__ = [
     "read_trace_collection_submissions_jsonl",
     "write_trace_collection_assignments_jsonl",
     "write_trace_collection_jsonl",
+    "write_trace_collection_submissions_jsonl",
 ]

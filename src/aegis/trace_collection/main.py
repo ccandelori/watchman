@@ -7,12 +7,14 @@ from pathlib import Path
 
 from aegis.core.contracts import CapabilityMode, ModelInfo
 from aegis.trace_collection.harness import (
+    build_seed_trace_collection_submissions,
     build_trace_collection_assignments,
     build_trace_collection_records_from_submissions,
     read_trace_collection_assignments_jsonl,
     read_trace_collection_submissions_jsonl,
     write_trace_collection_assignments_jsonl,
     write_trace_collection_jsonl,
+    write_trace_collection_submissions_jsonl,
 )
 from aegis.trace_collection.tasks import default_trace_collection_tasks
 
@@ -30,6 +32,12 @@ class _RecordBuilderCliArgs:
     output_path: Path
     model: ModelInfo
     capability_mode: CapabilityMode
+
+
+@dataclass(frozen=True)
+class _SeedInputCliArgs:
+    assignments_path: Path
+    output_path: Path
 
 
 def run_assignment_cli(argv: tuple[str, ...]) -> None:
@@ -55,8 +63,22 @@ def run_record_builder_cli(argv: tuple[str, ...]) -> None:
     write_trace_collection_jsonl(path=args.output_path, records=records)
 
 
+def run_seed_input_cli(argv: tuple[str, ...]) -> None:
+    args = _parse_seed_input_args(argv)
+    assignments = read_trace_collection_assignments_jsonl(path=args.assignments_path)
+    submissions = build_seed_trace_collection_submissions(
+        assignments=assignments,
+        tasks=default_trace_collection_tasks(),
+    )
+    write_trace_collection_submissions_jsonl(path=args.output_path, submissions=submissions)
+
+
 def record_builder_main() -> None:
     run_record_builder_cli(argv=tuple(sys.argv[1:]))
+
+
+def seed_input_main() -> None:
+    run_seed_input_cli(argv=tuple(sys.argv[1:]))
 
 
 def _parse_assignment_args(argv: tuple[str, ...]) -> _AssignmentCliArgs:
@@ -130,4 +152,24 @@ def _parse_record_builder_args(argv: tuple[str, ...]) -> _RecordBuilderCliArgs:
         output_path=Path(output_value),
         model=ModelInfo(provider=model_provider_value, model_id=model_id_value, revision=None, selected_device=None),
         capability_mode=CapabilityMode(capability_mode_value),
+    )
+
+
+def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
+    parser = argparse.ArgumentParser(
+        prog="aegis-trace-seed-inputs",
+        description="Write deterministic seed collection inputs from assignment packets.",
+    )
+    parser.add_argument("--assignments", required=True, help="Assignment JSONL path.")
+    parser.add_argument("--output", required=True, help="Output JSONL path for seeded collection inputs.")
+    namespace = parser.parse_args(list(argv))
+    assignments_value: object = namespace.assignments
+    output_value: object = namespace.output
+    if not isinstance(assignments_value, str):
+        raise TypeError("--assignments must parse as a string.")
+    if not isinstance(output_value, str):
+        raise TypeError("--output must parse as a string.")
+    return _SeedInputCliArgs(
+        assignments_path=Path(assignments_value),
+        output_path=Path(output_value),
     )

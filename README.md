@@ -103,10 +103,14 @@ uv run aegis-trace-assignments \
 Build normalized records from completed collection inputs:
 
 ```bash
+uv run aegis-trace-seed-inputs \
+  --assignments data/trace_collection/assignments.jsonl \
+  --output data/trace_collection/collection_inputs.generated.jsonl
+
 uv run aegis-trace-build-records \
   --assignments data/trace_collection/assignments.jsonl \
-  --inputs data/trace_collection/collection_inputs.jsonl \
-  --output data/trace_collection/records.jsonl \
+  --inputs data/trace_collection/collection_inputs.generated.jsonl \
+  --output data/trace_collection/records.generated.jsonl \
   --model-provider mock \
   --model-id mock-model \
   --capability-mode offline_eval

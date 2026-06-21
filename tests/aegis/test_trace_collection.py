@@ -14,13 +14,14 @@ from aegis.trace_collection.harness import (
     TraceCollectionInput,
     TraceCollectionSubmission,
     TraceCollectionTask,
+    build_seed_trace_collection_submissions,
     build_trace_collection_assignments,
     build_trace_collection_record,
     build_trace_collection_records_from_submissions,
     write_trace_collection_assignments_jsonl,
     write_trace_collection_jsonl,
 )
-from aegis.trace_collection.main import run_assignment_cli, run_record_builder_cli
+from aegis.trace_collection.main import run_assignment_cli, run_record_builder_cli, run_seed_input_cli
 from aegis.trace_collection.tasks import default_trace_collection_tasks
 
 
@@ -295,6 +296,52 @@ class TraceCollectionHarnessTest(unittest.TestCase):
         self.assertEqual("mock-model", rows[0]["normalized_turn"]["model"]["model_id"])
         self.assertNotIn("{{CREDENTIAL", json.dumps(rows[0]["normalized_turn"]))
         self.assertGreaterEqual(len(rows[0]["normalized_turn"]["sensitive_spans"]), 2)
+
+    def test_seed_submissions_generate_one_input_per_assignment_with_tool_payload_attack(self) -> None:
+        assignments = build_trace_collection_assignments(participant_ids=("alice",), tasks=(_task(),))
+
+        submissions = build_seed_trace_collection_submissions(assignments=assignments, tasks=(_task(),))
+        exfiltration_submission = next(
+            submission
+            for submission in submissions
+            if submission.assignment_id == "assignment-alice-repo-secret-review-exfiltration_intent"
+        )
+
+        self.assertEqual(3, len(submissions))
+        self.assertEqual(None, exfiltration_submission.model_output_text)
+        self.assertEqual("send_security_report", exfiltration_submission.tool_calls[0].name)
+        self.assertIn(
+            "{{CREDENTIAL:repo_pat:github_pat}}",
+            json.dumps(exfiltration_submission.tool_calls[0].arguments),
+        )
+
+    def test_seed_input_cli_writes_collection_inputs_for_existing_assignments(self) -> None:
+        assignments = build_trace_collection_assignments(
+            participant_ids=("alice",),
+            tasks=default_trace_collection_tasks(),
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            assignments_path = directory_path / "assignments.jsonl"
+            output_path = directory_path / "collection_inputs.jsonl"
+            write_trace_collection_assignments_jsonl(path=assignments_path, assignments=assignments)
+
+            run_seed_input_cli(
+                argv=(
+                    "--assignments",
+                    str(assignments_path),
+                    "--output",
+                    str(output_path),
+                )
+            )
+            rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+        self.assertEqual(len(default_trace_collection_tasks()) * 3, len(rows))
+        self.assertEqual("assignment-alice-repo-access-review-benign", rows[0]["assignment_id"])
+        self.assertEqual([], rows[0]["tool_calls"])
+        self.assertIn("operator_prompt", rows[0])
+        self.assertIn("{{CREDENTIAL:repo_pat:github_pat}}", json.dumps(rows[2]))
 
 
 if __name__ == "__main__":
