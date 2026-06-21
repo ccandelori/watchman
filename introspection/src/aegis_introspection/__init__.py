@@ -1,0 +1,1 @@
+"""Aegis model-introspection helpers."""
