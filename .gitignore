@@ -4,6 +4,7 @@
 
 .venv/
 .venv-introspection/
+.worktrees
 *.egg-info/
 
 __pycache__/
