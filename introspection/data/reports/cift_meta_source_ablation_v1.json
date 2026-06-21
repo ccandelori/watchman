@@ -1,0 +1,685 @@
+{
+  "source_model_id": "Qwen/Qwen3-0.6B",
+  "source_revision": "main",
+  "source_selected_device": "cpu",
+  "evaluation_strategy": "stratified_group_kfold",
+  "fold_count": 5,
+  "random_seed": 42,
+  "regularization_c": 1.0,
+  "max_iter": 1000,
+  "task_name": "safe_secret_vs_exfiltration",
+  "method_name": "activation_probe",
+  "baseline_feature_key": "concat(final_token_layer_11,final_token_layer_16)",
+  "dataset_count": 2,
+  "variant_count": 7,
+  "best_variant_summary": {
+    "variant_id": "full_dual_readout",
+    "feature_name": "cift_meta_source_ablation_full_dual_readout",
+    "source_feature_keys": [
+      "final_token_layer_22",
+      "final_token_layer_23",
+      "final_token_layer_24",
+      "final_token_layer_25",
+      "final_token_layer_26",
+      "final_token_layer_27",
+      "final_token_layer_28",
+      "mean_pool_layer_22",
+      "mean_pool_layer_23",
+      "mean_pool_layer_24",
+      "mean_pool_layer_25",
+      "mean_pool_layer_26",
+      "mean_pool_layer_27",
+      "mean_pool_layer_28"
+    ],
+    "calibration_source_labels": [
+      "secret_present_safe"
+    ],
+    "decision_rule": "logistic_default",
+    "dataset_count": 2,
+    "reference_error_count": 9,
+    "candidate_error_count": 12,
+    "fixed_error_count": 3,
+    "persistent_error_count": 6,
+    "introduced_error_count": 6,
+    "net_error_delta": 3,
+    "mean_candidate_accuracy": 0.8999999999999999,
+    "min_candidate_accuracy": 0.8833333333333333
+  },
+  "variant_summaries": [
+    {
+      "variant_id": "full_dual_readout",
+      "feature_name": "cift_meta_source_ablation_full_dual_readout",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 12,
+      "fixed_error_count": 3,
+      "persistent_error_count": 6,
+      "introduced_error_count": 6,
+      "net_error_delta": 3,
+      "mean_candidate_accuracy": 0.8999999999999999,
+      "min_candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "variant_id": "drop_last_mean_pool",
+      "feature_name": "cift_meta_source_ablation_drop_last_mean_pool",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 12,
+      "fixed_error_count": 4,
+      "persistent_error_count": 5,
+      "introduced_error_count": 7,
+      "net_error_delta": 3,
+      "mean_candidate_accuracy": 0.8999999999999999,
+      "min_candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "variant_id": "drop_last_two_mean_pool",
+      "feature_name": "cift_meta_source_ablation_drop_last_two_mean_pool",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 15,
+      "fixed_error_count": 2,
+      "persistent_error_count": 7,
+      "introduced_error_count": 8,
+      "net_error_delta": 6,
+      "mean_candidate_accuracy": 0.875,
+      "min_candidate_accuracy": 0.8666666666666667
+    },
+    {
+      "variant_id": "drop_last_final_token",
+      "feature_name": "cift_meta_source_ablation_drop_last_final_token",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 14,
+      "fixed_error_count": 3,
+      "persistent_error_count": 6,
+      "introduced_error_count": 8,
+      "net_error_delta": 5,
+      "mean_candidate_accuracy": 0.8833333333333333,
+      "min_candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "variant_id": "drop_last_dual_readout_layer",
+      "feature_name": "cift_meta_source_ablation_drop_last_dual_readout_layer",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 15,
+      "fixed_error_count": 2,
+      "persistent_error_count": 7,
+      "introduced_error_count": 8,
+      "net_error_delta": 6,
+      "mean_candidate_accuracy": 0.875,
+      "min_candidate_accuracy": 0.8666666666666667
+    },
+    {
+      "variant_id": "final_token_only",
+      "feature_name": "cift_meta_source_ablation_final_token_only",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 20,
+      "fixed_error_count": 1,
+      "persistent_error_count": 8,
+      "introduced_error_count": 12,
+      "net_error_delta": 11,
+      "mean_candidate_accuracy": 0.8333333333333334,
+      "min_candidate_accuracy": 0.8333333333333334
+    },
+    {
+      "variant_id": "mean_pool_only",
+      "feature_name": "cift_meta_source_ablation_mean_pool_only",
+      "source_feature_keys": [
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 17,
+      "fixed_error_count": 7,
+      "persistent_error_count": 2,
+      "introduced_error_count": 15,
+      "net_error_delta": 8,
+      "mean_candidate_accuracy": 0.8583333333333334,
+      "min_candidate_accuracy": 0.8333333333333334
+    }
+  ],
+  "dataset_variants": [
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "full_dual_readout",
+      "feature_name": "cift_meta_source_ablation_full_dual_readout",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 7,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 5,
+      "net_error_delta": 5,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "full_dual_readout",
+      "feature_name": "cift_meta_source_ablation_full_dual_readout",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 5,
+      "fixed_error_count": 3,
+      "persistent_error_count": 4,
+      "introduced_error_count": 1,
+      "net_error_delta": -2,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.9166666666666666
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "drop_last_mean_pool",
+      "feature_name": "cift_meta_source_ablation_drop_last_mean_pool",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 7,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 5,
+      "net_error_delta": 5,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "drop_last_mean_pool",
+      "feature_name": "cift_meta_source_ablation_drop_last_mean_pool",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 5,
+      "fixed_error_count": 4,
+      "persistent_error_count": 3,
+      "introduced_error_count": 2,
+      "net_error_delta": -2,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.9166666666666666
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "drop_last_two_mean_pool",
+      "feature_name": "cift_meta_source_ablation_drop_last_two_mean_pool",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 8,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 6,
+      "net_error_delta": 6,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8666666666666667
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "drop_last_two_mean_pool",
+      "feature_name": "cift_meta_source_ablation_drop_last_two_mean_pool",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 7,
+      "fixed_error_count": 2,
+      "persistent_error_count": 5,
+      "introduced_error_count": 2,
+      "net_error_delta": 0,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "drop_last_final_token",
+      "feature_name": "cift_meta_source_ablation_drop_last_final_token",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 7,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 5,
+      "net_error_delta": 5,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "drop_last_final_token",
+      "feature_name": "cift_meta_source_ablation_drop_last_final_token",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 7,
+      "fixed_error_count": 3,
+      "persistent_error_count": 4,
+      "introduced_error_count": 3,
+      "net_error_delta": 0,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "drop_last_dual_readout_layer",
+      "feature_name": "cift_meta_source_ablation_drop_last_dual_readout_layer",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 7,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 5,
+      "net_error_delta": 5,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "drop_last_dual_readout_layer",
+      "feature_name": "cift_meta_source_ablation_drop_last_dual_readout_layer",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 8,
+      "fixed_error_count": 2,
+      "persistent_error_count": 5,
+      "introduced_error_count": 3,
+      "net_error_delta": 1,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.8666666666666667
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "final_token_only",
+      "feature_name": "cift_meta_source_ablation_final_token_only",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 10,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 8,
+      "net_error_delta": 8,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8333333333333334
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "final_token_only",
+      "feature_name": "cift_meta_source_ablation_final_token_only",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 10,
+      "fixed_error_count": 1,
+      "persistent_error_count": 6,
+      "introduced_error_count": 4,
+      "net_error_delta": 3,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.8333333333333334
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "mean_pool_only",
+      "feature_name": "cift_meta_source_ablation_mean_pool_only",
+      "source_feature_keys": [
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 10,
+      "fixed_error_count": 2,
+      "persistent_error_count": 0,
+      "introduced_error_count": 10,
+      "net_error_delta": 8,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8333333333333334
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "mean_pool_only",
+      "feature_name": "cift_meta_source_ablation_mean_pool_only",
+      "source_feature_keys": [
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 7,
+      "fixed_error_count": 5,
+      "persistent_error_count": 2,
+      "introduced_error_count": 5,
+      "net_error_delta": 0,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.8833333333333333
+    }
+  ]
+}
