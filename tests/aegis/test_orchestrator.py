@@ -7,6 +7,7 @@ from aegis.core.contracts import (
     CapabilityStatus,
     DetectorComponent,
     DetectorResult,
+    JsonValue,
     Message,
     ModelInfo,
     NormalizedTurn,
@@ -35,10 +36,50 @@ class OutputAwareDetector:
         )
 
 
+class MetadataAnnotator:
+    def __init__(self, key: str, value: JsonValue) -> None:
+        self._key = key
+        self._value = value
+
+    def annotate(self, turn: NormalizedTurn) -> NormalizedTurn:
+        metadata = dict(turn.metadata)
+        metadata[self._key] = self._value
+        return NormalizedTurn(
+            trace_id=turn.trace_id,
+            session_id=turn.session_id,
+            turn_index=turn.turn_index,
+            capability_mode=turn.capability_mode,
+            model=turn.model,
+            messages=turn.messages,
+            tool_calls=turn.tool_calls,
+            sensitive_spans=turn.sensitive_spans,
+            metadata=metadata,
+        )
+
+
+class MetadataDetector:
+    def __init__(self, key: str) -> None:
+        self._key = key
+
+    def evaluate(self, turn: NormalizedTurn, model_response: ModelResponse | None) -> DetectorResult:
+        return DetectorResult(
+            detector_name="metadata_detector",
+            component=DetectorComponent.CAPABILITY,
+            score=1.0 if turn.metadata.get(self._key) == "attached" else 0.0,
+            confidence=1.0,
+            recommended_action=Action.ALLOW,
+            capability_required=None,
+            capability_status=CapabilityStatus.ACTIVE,
+            evidence={"observed_value": turn.metadata.get(self._key)},
+            latency_ms=0.1,
+        )
+
+
 class AegisRuntimeTest(unittest.TestCase):
     def test_mock_turn_produces_detector_results_policy_decision_and_audit_event(self) -> None:
         audit_sink = InMemoryAuditSink()
         runtime = AegisRuntime(
+            turn_annotators=(),
             pre_generation_detectors=(ActivationUnavailableDetector(),),
             post_generation_detectors=(NoopCanaryDetector(),),
             session_detectors=(),
@@ -68,6 +109,7 @@ class AegisRuntimeTest(unittest.TestCase):
 
     def test_black_box_runtime_emits_activation_unavailable_result(self) -> None:
         runtime = AegisRuntime(
+            turn_annotators=(),
             pre_generation_detectors=(ActivationUnavailableDetector(),),
             post_generation_detectors=(),
             session_detectors=(),
@@ -96,6 +138,7 @@ class AegisRuntimeTest(unittest.TestCase):
 
     def test_post_generation_detector_receives_model_output_before_policy(self) -> None:
         runtime = AegisRuntime(
+            turn_annotators=(),
             pre_generation_detectors=(),
             post_generation_detectors=(OutputAwareDetector(),),
             session_detectors=(),
@@ -119,6 +162,34 @@ class AegisRuntimeTest(unittest.TestCase):
 
         self.assertEqual(Action.WARN, response.policy_decision.final_action)
         self.assertEqual("generated text", response.detector_results[0].evidence["output_text"])
+
+    def test_turn_annotators_run_before_pre_generation_detectors_and_audit(self) -> None:
+        runtime = AegisRuntime(
+            turn_annotators=(MetadataAnnotator(key="derived_feature", value="attached"),),
+            pre_generation_detectors=(MetadataDetector(key="derived_feature"),),
+            post_generation_detectors=(),
+            session_detectors=(),
+            policy_engine=SeverityPolicyEngine(),
+            audit_sink=InMemoryAuditSink(),
+            model_provider=MockModelProvider(default_content="ok"),
+        )
+        request = RuntimeRequest(
+            trace_id="trace-annotator",
+            session_id="session-annotator",
+            turn_index=1,
+            capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+            model=ModelInfo(provider="mock", model_id="mock-model", revision=None, selected_device="cpu"),
+            messages=(Message(role="user", content="hello"),),
+            tool_calls=(),
+            sensitive_spans=(),
+            metadata={},
+        )
+
+        response = runtime.evaluate_turn(request)
+
+        self.assertEqual(1.0, response.detector_results[0].score)
+        self.assertEqual("attached", response.detector_results[0].evidence["observed_value"])
+        self.assertEqual("attached", response.audit_event.normalized_turn.metadata["derived_feature"])
 
 
 if __name__ == "__main__":

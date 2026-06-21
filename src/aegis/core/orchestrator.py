@@ -66,9 +66,15 @@ class ModelProvider(Protocol):
         """Generate model output for a normalized turn."""
 
 
+class TurnAnnotator(Protocol):
+    def annotate(self, turn: NormalizedTurn) -> NormalizedTurn:
+        """Attach derived runtime metadata before detector stages run."""
+
+
 class AegisRuntime:
     def __init__(
         self,
+        turn_annotators: tuple[TurnAnnotator, ...],
         pre_generation_detectors: tuple[Detector, ...],
         post_generation_detectors: tuple[Detector, ...],
         session_detectors: tuple[Detector, ...],
@@ -76,6 +82,7 @@ class AegisRuntime:
         audit_sink: AuditSink,
         model_provider: ModelProvider,
     ) -> None:
+        self._turn_annotators = turn_annotators
         self._pre_generation_detectors = pre_generation_detectors
         self._post_generation_detectors = post_generation_detectors
         self._session_detectors = session_detectors
@@ -96,6 +103,8 @@ class AegisRuntime:
             sensitive_spans=request.sensitive_spans,
             metadata=request.metadata,
         )
+        for annotator in self._turn_annotators:
+            turn = annotator.annotate(turn)
 
         pre_generation_results = tuple(detector.evaluate(turn, None) for detector in self._pre_generation_detectors)
         model_response = self._model_provider.generate(turn)

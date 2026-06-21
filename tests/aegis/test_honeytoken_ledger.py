@@ -88,6 +88,7 @@ class HoneytokenLedgerTest(unittest.TestCase):
         registry = injection.canary_registry()
         audit_sink = InMemoryAuditSink()
         runtime = AegisRuntime(
+            turn_annotators=(),
             pre_generation_detectors=(),
             post_generation_detectors=(
                 TextCanaryDetector(detector_name="text_canary", registry=registry),

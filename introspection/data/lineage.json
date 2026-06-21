@@ -1,0 +1,998 @@
+{
+  "schema_version": 1,
+  "created_on": "2026-06-18",
+  "datasets": [
+    {
+      "id": "baseline_prompts_v1",
+      "path": "introspection/data/prompts.jsonl",
+      "sha256": "dfebd7d7254c99fa09f38622da76f0c9f4fac402bab1e8b14a0b3c3632afedbd",
+      "purpose": "Baseline hand-authored prompt dataset for early Aegis model-introspection checkpoints.",
+      "label_counts": {
+        "benign": 30,
+        "secret_present_safe": 30,
+        "exfiltration_intent": 30
+      },
+      "family_count": 30
+    },
+    {
+      "id": "hard_prompts_v1",
+      "path": "introspection/data/prompts_hard.jsonl",
+      "sha256": "0e01383a82e7fb9747226dc282b5968530ad7984afcdbeafe4dd1c4078ddafc3",
+      "purpose": "Hard Baseline V1 prompt dataset with contrastive safe-secret and exfiltration examples.",
+      "label_counts": {
+        "benign": 30,
+        "secret_present_safe": 30,
+        "exfiltration_intent": 30
+      },
+      "family_count": 30
+    },
+    {
+      "id": "hard_prompts_v2",
+      "path": "introspection/data/prompts_hard_v2.jsonl",
+      "sha256": "13ffebc4bc32e4ba334e7a8a57c9587ec1b15840fb4b6898c4fc6f75c334588d",
+      "purpose": "Hard Baseline V2 prompt dataset focused on output-contract, tool-argument, broker, policy, and summary contrasts.",
+      "label_counts": {
+        "benign": 30,
+        "secret_present_safe": 30,
+        "exfiltration_intent": 30
+      },
+      "family_count": 30
+    },
+    {
+      "id": "hard_prompts_v3",
+      "path": "introspection/data/prompts_hard_v3.jsonl",
+      "sha256": "84eaa0d31955bbaabce7fd933993355f9208f2be76b1e5f1e0cfa3aa40c7ed46",
+      "purpose": "Hard Baseline V3 held-out prompt dataset focused on summary, redaction, and replacement contrasts with neutral secret identifiers.",
+      "label_counts": {
+        "benign": 30,
+        "secret_present_safe": 30,
+        "exfiltration_intent": 30
+      },
+      "family_count": 30
+    },
+    {
+      "id": "dp_honey_lite_prompts_v1",
+      "path": "introspection/data/prompts_dp_honey_lite_v1.jsonl",
+      "sha256": "acca30334661b447c55180ea2e44f5db0de4800def9ca7761449a8e636cb3d54",
+      "purpose": "DP-HONEY-lite proxy-shaped prompt dataset with format-shaped honeytokens, character spans, token spans, and CIFT readout windows.",
+      "label_counts": {
+        "benign": 8,
+        "secret_present_safe": 8,
+        "exfiltration_intent": 8
+      },
+      "family_count": 6
+    },
+    {
+      "id": "dp_honey_lite_prompts_v2",
+      "path": "introspection/data/prompts_dp_honey_lite_v2.jsonl",
+      "sha256": "c86180a9ec478515e2b8f0848c69aa6738bf13f18b17cff7968eea6fc6c3aa3a",
+      "purpose": "Hard DP-HONEY-lite proxy-shaped prompt dataset with paired scenario labels, balanced credential and payload conditions, span metadata, and CIFT readout windows.",
+      "label_counts": {
+        "benign": 80,
+        "secret_present_safe": 80,
+        "exfiltration_intent": 80
+      },
+      "family_count": 10
+    },
+    {
+      "id": "dp_honey_lite_prompts_v3",
+      "path": "introspection/data/prompts_dp_honey_lite_v3.jsonl",
+      "sha256": "087f709b467679b7d077e1d3f14c10dfca9105c487795e5587d3b31f12de008b",
+      "purpose": "Lexically controlled DP-HONEY-lite prompt dataset using balanced mode-map policies to reduce surface-text shortcuts for safe-secret versus exfiltration evaluation.",
+      "label_counts": {
+        "benign": 80,
+        "secret_present_safe": 80,
+        "exfiltration_intent": 80
+      },
+      "family_count": 10
+    },
+    {
+      "id": "dp_honey_lite_v3_policy_windows",
+      "path": "introspection/data/prompts_dp_honey_lite_v3_policy_windows.jsonl",
+      "sha256": "f74b95e0eb40689b9959352378c3fb116d5b2ff7dbafa7321d479dc09a9a1850",
+      "purpose": "V3-derived policy-window dataset whose readout window includes selected policy clauses and explicit copy/mask decision text for oracle-style localization control.",
+      "label_counts": {
+        "benign": 80,
+        "secret_present_safe": 80,
+        "exfiltration_intent": 80
+      },
+      "family_count": 10
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_windows",
+      "path": "introspection/data/prompts_dp_honey_lite_v3_selector_windows.jsonl",
+      "sha256": "d4f6480bb607a97653542d0a22fb60f0169e8a046044df3d815229ac6ece2ea4",
+      "purpose": "V3-derived selector-window dataset whose readout window includes selected_field and selected_mode tokens without the explicit copy/mask decision clause.",
+      "label_counts": {
+        "benign": 80,
+        "secret_present_safe": 80,
+        "exfiltration_intent": 80
+      },
+      "family_count": 10
+    },
+    {
+      "id": "dp_honey_lite_prompts_v4",
+      "path": "introspection/data/prompts_dp_honey_lite_v4.jsonl",
+      "sha256": "dd9fbc3594b6fe53a2cc9306c9f7f68f9c26cdd1374f284b2ba9c9ded4ec07d4",
+      "purpose": "Targeted DP-HONEY-lite mode_b checkpoint focused on prior selector-window failure families. This is a control dataset, not a detector benchmark, because the target task remains text-baseline recoverable.",
+      "label_counts": {
+        "benign": 48,
+        "secret_present_safe": 48,
+        "exfiltration_intent": 48
+      },
+      "family_count": 6
+    },
+    {
+      "id": "dp_honey_lite_v4_selector_windows",
+      "path": "introspection/data/prompts_dp_honey_lite_v4_selector_windows.jsonl",
+      "sha256": "fefbd5f13b54854bb5512999c76f4a33f6e269293cf06e009751b1e2e983204d",
+      "purpose": "V4-derived selector-window control focused on selected_field and mode_b selected_mode tokens for prior failure families.",
+      "label_counts": {
+        "benign": 48,
+        "secret_present_safe": 48,
+        "exfiltration_intent": 48
+      },
+      "family_count": 6
+    },
+    {
+      "id": "dp_honey_lite_v4_policy_windows",
+      "path": "introspection/data/prompts_dp_honey_lite_v4_policy_windows.jsonl",
+      "sha256": "9a6db6fe785fc70cf783e36b1bbd9653b5f1acc02944de18db5bc4fb11f29e3d",
+      "purpose": "V4-derived policy-window control whose readout window includes the selected mode_b copy/mask decision path.",
+      "label_counts": {
+        "benign": 48,
+        "secret_present_safe": 48,
+        "exfiltration_intent": 48
+      },
+      "family_count": 6
+    },
+    {
+      "id": "dp_honey_lite_prompts_v4_1",
+      "path": "introspection/data/prompts_dp_honey_lite_v4_1.jsonl",
+      "sha256": "6a507b0aec4594b4d5d4120eef36a4e5985f2c035d3725bc71b7eeff93e18dbc",
+      "purpose": "Focused DP-HONEY-lite relational-control checkpoint using prior failure families while balancing selected modes and keeping mode policy maps stable within each family.",
+      "label_counts": {
+        "benign": 48,
+        "secret_present_safe": 48,
+        "exfiltration_intent": 48
+      },
+      "family_count": 6
+    },
+    {
+      "id": "dp_honey_lite_v4_1_selector_windows",
+      "path": "introspection/data/prompts_dp_honey_lite_v4_1_selector_windows.jsonl",
+      "sha256": "8e9e7ffaeb7de81ffdbaa2c9bde52433e0a9508858e1733cb24425bbdfbf4d7d",
+      "purpose": "V4.1-derived selector-window dataset whose readout window includes selected_field and selected_mode tokens without the explicit copy/mask decision clause.",
+      "label_counts": {
+        "benign": 48,
+        "secret_present_safe": 48,
+        "exfiltration_intent": 48
+      },
+      "family_count": 6
+    },
+    {
+      "id": "dp_honey_lite_v4_1_policy_windows",
+      "path": "introspection/data/prompts_dp_honey_lite_v4_1_policy_windows.jsonl",
+      "sha256": "26e7fb77d75c34cd6db0ed4731bc15188d141ed18e078ead10d3b037cbdf48da",
+      "purpose": "V4.1-derived policy-window dataset whose readout window includes the selected policy decision path for oracle-style localization control.",
+      "label_counts": {
+        "benign": 48,
+        "secret_present_safe": 48,
+        "exfiltration_intent": 48
+      },
+      "family_count": 6
+    },
+    {
+      "id": "dp_honey_lite_prompts_v4_3_sealed",
+      "path": "introspection/data/prompts_dp_honey_lite_v4_3_sealed.jsonl",
+      "sha256": "74a0599de5910d4e184b027fe67fe83a36af3a3e0f2de64c6c11c300c622207e",
+      "purpose": "Sealed DP-HONEY-lite V4.3 raw holdout dataset with fresh scenario families, non-overlapping honeytokens, span metadata, and a no-model-feedback seal. Not for training, tuning, calibration, error inspection, or detector export before explicit unseal.",
+      "label_counts": {
+        "benign": 48,
+        "secret_present_safe": 48,
+        "exfiltration_intent": 48
+      },
+      "family_count": 6
+    },
+    {
+      "id": "dp_honey_lite_v4_3_sealed_selector_windows",
+      "path": "introspection/data/prompts_dp_honey_lite_v4_3_sealed_selector_windows.jsonl",
+      "sha256": "0a36cd68c20c9254a6156d2b0469d8205e60b6553e4caae603181d3a49f6120c",
+      "purpose": "Sealed DP-HONEY-lite V4.3 selector-window holdout derivative whose readout window matches the selected_field/selected_mode CIFT geometry used by the V4.1 trained checkpoint. Future final evaluation target only after explicit unseal.",
+      "label_counts": {
+        "benign": 48,
+        "secret_present_safe": 48,
+        "exfiltration_intent": 48
+      },
+      "family_count": 6
+    },
+    {
+      "id": "runtime_turns_dp_honey_lite_v3_selector_windows_v1",
+      "path": "introspection/data/runtime_turns_dp_honey_lite_v3_selector_windows.jsonl",
+      "sha256": "f4c103cec14813f317af7dfdf8213127b65cbe2223f9b6f44f295e0e4ac823fe",
+      "purpose": "Aegis NormalizedTurn-shaped bridge export for the DP-HONEY-lite V3 selector-window dataset.",
+      "label_counts": {
+        "benign": 80,
+        "secret_present_safe": 80,
+        "exfiltration_intent": 80
+      },
+      "family_count": 10
+    },
+    {
+      "id": "runtime_turns_dp_honey_lite_v4_1_selector_windows_v1",
+      "path": "introspection/data/runtime_turns_dp_honey_lite_v4_1_selector_windows.jsonl",
+      "sha256": "29f5bbdeb250244a2a8c5aa119774bc9fac965f7f6faa509c9f8a9248852534b",
+      "purpose": "Aegis NormalizedTurn-shaped bridge export for the DP-HONEY-lite V4.1 selector-window dataset.",
+      "label_counts": {
+        "benign": 48,
+        "secret_present_safe": 48,
+        "exfiltration_intent": 48
+      },
+      "family_count": 6
+    }
+  ],
+  "artifacts": [
+    {
+      "id": "qwen3_0_6b_baseline_sampled_layers_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_features.pt",
+      "sha256": "30ec6e4e6f9c3aa65165cd43bdba710111a23c036bc73d910dd277fd15455f89",
+      "dataset_id": "baseline_prompts_v1",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 10
+    },
+    {
+      "id": "qwen3_0_6b_baseline_all_layers_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_all_layers.pt",
+      "sha256": "2843c190e6829e13754472ff4da923f0ae4dfd94e81d1c34df228306a7e19db0",
+      "dataset_id": "baseline_prompts_v1",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 58
+    },
+    {
+      "id": "qwen3_0_6b_hard_all_layers_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_hard_all_layers.pt",
+      "sha256": "3ffa8aaf42e113487a5b31a2158d3c14532154e5f37fcfb348cc90b78dd84b1d",
+      "dataset_id": "hard_prompts_v1",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 58
+    },
+    {
+      "id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_hard_v2_all_layers.pt",
+      "sha256": "e5df7c3651b459cee755167922524cdebbcb155240848537dadc64e6e0e2ae1b",
+      "dataset_id": "hard_prompts_v2",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 58
+    },
+    {
+      "id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_hard_v3_all_layers.pt",
+      "sha256": "d18782ae96e492568104b60374f06bc22b29c4777bf0fe6a41319e08a027ccf0",
+      "dataset_id": "hard_prompts_v3",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 58
+    },
+    {
+      "id": "qwen3_0_6b_dp_honey_lite_v1_readout_windows_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_dp_honey_lite_v1_readout_windows.pt",
+      "sha256": "bd4f608eb90898ce8f523b128847df410b1ff68f18fc46386dac72daf2af6241",
+      "dataset_id": "dp_honey_lite_prompts_v1",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 29
+    },
+    {
+      "id": "qwen3_0_6b_dp_honey_lite_v2_all_pooling_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_dp_honey_lite_v2_all_pooling.pt",
+      "sha256": "7b62957f93f8d615563f9bbf799755a1fc8214afb8763bd5c3b0ea2cf3a71042",
+      "dataset_id": "dp_honey_lite_prompts_v2",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 87
+    },
+    {
+      "id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_dp_honey_lite_v3_all_pooling.pt",
+      "sha256": "6dfc3b557e3816f88b3837fbc22a976e8d8c0f3771679f0bf5327b0326134468",
+      "dataset_id": "dp_honey_lite_prompts_v3",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 87
+    },
+    {
+      "id": "qwen3_0_6b_dp_honey_lite_v3_policy_windows_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_dp_honey_lite_v3_policy_windows.pt",
+      "sha256": "7797126bc807947ec5b59e01455a9146bc5c12ba5aa326b962ed7aed4d1c59d3",
+      "dataset_id": "dp_honey_lite_v3_policy_windows",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 29
+    },
+    {
+      "id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_dp_honey_lite_v3_selector_windows.pt",
+      "sha256": "80daba8c393cef68eec729e1551053ec380f0313e369f8f082f6ae382c24dbf4",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 29
+    },
+    {
+      "id": "qwen3_0_6b_dp_honey_lite_v4_selector_windows_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_dp_honey_lite_v4_selector_windows.pt",
+      "sha256": "363ca9462fa999200f574735ca4223f3873f3b9ef47e69f7ca639d055d8a6ba7",
+      "dataset_id": "dp_honey_lite_v4_selector_windows",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 29
+    },
+    {
+      "id": "qwen3_0_6b_dp_honey_lite_v4_1_selector_windows_v1",
+      "path": "introspection/data/activations/qwen3_0_6b_dp_honey_lite_v4_1_selector_windows.pt",
+      "sha256": "a1d27ed3b747d6454047435ac77ae1299e181d09755367f53d5570dec76a626d",
+      "dataset_id": "dp_honey_lite_v4_1_selector_windows",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 29
+    },
+    {
+      "id": "cift_qwen3_0_6b_dp_honey_lite_v4_1_selector_window_layer_15_v1",
+      "path": "introspection/data/models/cift_qwen3_0_6b_dp_honey_lite_v4_1_selector_window_layer_15_v1.pkl",
+      "sha256": "ae4073cdcf35da7d89686d3530e410a2e619fcc4488b2f5b10cfc477e9cd84af",
+      "dataset_id": "dp_honey_lite_v4_1_selector_windows",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 1024
+    },
+    {
+      "id": "cift_qwen3_0_6b_dp_honey_lite_v4_1_selector_window_layer_15_runtime_v1",
+      "path": "introspection/data/models/cift_qwen3_0_6b_dp_honey_lite_v4_1_selector_window_layer_15_runtime_v1.json",
+      "sha256": "2a8f85733b3d035cee1c2f145a92e9e01c79dff79b9d5222ec2d1d53a48ba095",
+      "dataset_id": "dp_honey_lite_v4_1_selector_windows",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 1024
+    }
+  ],
+  "reports": [
+    {
+      "id": "baseline_probe_sampled_layers_v1",
+      "path": "introspection/data/reports/probe_baseline.json",
+      "sha256": "0e63d50aa43abca46f6c4a724e5de51cf906661fe4df4d65c6f418db4acf60e0",
+      "dataset_id": "baseline_prompts_v1",
+      "artifact_id": "qwen3_0_6b_baseline_sampled_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "baseline_text_word_tfidf_v1",
+      "path": "introspection/data/reports/text_baseline.json",
+      "sha256": "5e06a5e404c95dea1af43ca810b08f944549007884f6df113122d498902b3eeb",
+      "dataset_id": "baseline_prompts_v1",
+      "artifact_id": "qwen3_0_6b_baseline_sampled_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "baseline_probe_all_layers_v1",
+      "path": "introspection/data/reports/probe_all_layers.json",
+      "sha256": "feb4a722700da8fb27aa1d15e6b9ac5c8d69a7bc14159271b485353713778237",
+      "dataset_id": "baseline_prompts_v1",
+      "artifact_id": "qwen3_0_6b_baseline_all_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "baseline_binary_random_v1",
+      "path": "introspection/data/reports/binary_tasks.json",
+      "sha256": "d683674ac5f62bb2a32839b627b9de0d0855e6e7626f53c07bc5e03be6d213d5",
+      "dataset_id": "baseline_prompts_v1",
+      "artifact_id": "qwen3_0_6b_baseline_all_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "baseline_binary_grouped_v1",
+      "path": "introspection/data/reports/binary_tasks_grouped.json",
+      "sha256": "4b55f7f032a1862612f23efde5318265b74dedb6a77ecc8ec783355183763f0c",
+      "dataset_id": "baseline_prompts_v1",
+      "artifact_id": "qwen3_0_6b_baseline_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_binary_random_v1",
+      "path": "introspection/data/reports/binary_tasks_hard.json",
+      "sha256": "904c84b6494b47228b0bc7135e173976ddd25168136a597e0b448099eee4db4c",
+      "dataset_id": "hard_prompts_v1",
+      "artifact_id": "qwen3_0_6b_hard_all_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "hard_binary_grouped_v1",
+      "path": "introspection/data/reports/binary_tasks_hard_grouped.json",
+      "sha256": "a1d02c7abfcc4918c7c7118fa5c216201635e36f5acfd68807c55edbcbab34c9",
+      "dataset_id": "hard_prompts_v1",
+      "artifact_id": "qwen3_0_6b_hard_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_binary_grouped_error_analysis_v1",
+      "path": "introspection/data/reports/binary_error_analysis_hard_grouped.json",
+      "sha256": "759f366f7e0d349b62ac026dcc259d216945227115f9e7d4a1fb1d3d0aeb1312",
+      "dataset_id": "hard_prompts_v1",
+      "artifact_id": "qwen3_0_6b_hard_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_binary_random_v1",
+      "path": "introspection/data/reports/binary_tasks_hard_v2.json",
+      "sha256": "78e3c72367cd26798ae72620cedd4901f3a83cb6671c0c84f1316cffa59254dd",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_kfold"
+    },
+    {
+      "id": "hard_v2_binary_grouped_v1",
+      "path": "introspection/data/reports/binary_tasks_hard_v2_grouped.json",
+      "sha256": "61bb29cbbb5758aa445f0a186a551b6eb4fb21b4af3508b5c029b0d821841827",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_binary_grouped_error_analysis_v1",
+      "path": "introspection/data/reports/binary_error_analysis_hard_v2_grouped.json",
+      "sha256": "ecc6483e76885f5438fb47f105403e2e6a9665ab970f898b1011242098496c53",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_error_adjudication_v1",
+      "path": "introspection/data/reports/hard_v2_error_adjudication.json",
+      "sha256": "0903e6e5e4ffeb0217aa527f6d32d477572c734a87fa1b249dfb01895c48ee17",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_binary_layer_sweep_grouped_v1",
+      "path": "introspection/data/reports/binary_layer_sweep_hard_v2_grouped.json",
+      "sha256": "ba82d48593f84c2fd8409e65d079981dd6254006fb9e9b7f9d9fb893851105f0",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "candidate_feature_crosscheck_v1",
+      "path": "introspection/data/reports/candidate_feature_crosscheck.json",
+      "sha256": "49c8f2a914599c62d3e3c6c0f00bfc09ad3dac0a1aecfba979bcd5a2eb6cb7d2",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_candidate_error_analysis_v1",
+      "path": "introspection/data/reports/binary_error_analysis_hard_v2_candidate_final_token_layer_11_grouped.json",
+      "sha256": "f9f68059c7e6abb623feb44d10c51516a995f0737cfc3e87903edb4bb605ca41",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_candidate_residual_error_comparison_v1",
+      "path": "introspection/data/reports/hard_v2_candidate_residual_error_comparison.json",
+      "sha256": "ce5854a2cb37b4dcf591852e99517c18c5260e49773a72b36b6cecbe36f23e8e",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v2_candidate_error_adjudication_v1",
+      "path": "introspection/data/reports/hard_v2_candidate_error_adjudication.json",
+      "sha256": "178c5add27075f381067d316363efe4bcc30941aff5fbc028b64b61d413c1808",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v3_candidate_feature_crosscheck_v1",
+      "path": "introspection/data/reports/candidate_feature_crosscheck_hard_v3.json",
+      "sha256": "d5d5e3c55f86e449495638b3c252f0feb7ddf07f86cc4ba2b3ecbd1fb2fd5139",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v3_reference_error_analysis_v1",
+      "path": "introspection/data/reports/binary_error_analysis_hard_v3_reference_grouped.json",
+      "sha256": "229267f0955fe825a4a5a9cfb48e474d29deb846e1f799b6b578c1c4aa342570",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v3_candidate_error_analysis_v1",
+      "path": "introspection/data/reports/binary_error_analysis_hard_v3_candidate_final_token_layer_11_grouped.json",
+      "sha256": "9790b45ddb065367b91f95bc012d3dc2d2f306e8dd4ab404dab791b1127ac265",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v3_candidate_residual_error_comparison_v1",
+      "path": "introspection/data/reports/hard_v3_candidate_residual_error_comparison.json",
+      "sha256": "14a5ae584ac880afd8c785c2180a51cddfa17a6e10e098e5bc8a726562950ef3",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v3_binary_layer_sweep_grouped_v1",
+      "path": "introspection/data/reports/binary_layer_sweep_hard_v3_grouped.json",
+      "sha256": "3240dbccebb97671f0051c2c1f678219436866f76fcd651040362418ff3d866b",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "candidate_feature_crosscheck_with_hard_v3_v1",
+      "path": "introspection/data/reports/candidate_feature_crosscheck_with_hard_v3.json",
+      "sha256": "b6327dbdf137d2691120e753135ccb52c6d677e1fefbf197ee0645fcf2d145a5",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v3_candidate_error_adjudication_v1",
+      "path": "introspection/data/reports/hard_v3_candidate_error_adjudication.json",
+      "sha256": "7e95da4a0ca57cea150b39754fdec45787f717b95544bceec75612996b2f4022",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "feature_stability_reference_l11_l16_v1",
+      "path": "introspection/data/reports/feature_stability_reference_l11_l16.json",
+      "sha256": "0efa2c2a1a8e2b7df64c6d8ea353b49101652431e2aa167fe957fa499f53492f",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "feature_stability_combined_l11_l16_v1",
+      "path": "introspection/data/reports/feature_stability_combined_l11_l16.json",
+      "sha256": "b503fa988b592c63a92a95c4ff93a996272daac28581fb1b5388e57b95c9896e",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "combined_feature_residual_suite_v1",
+      "path": "introspection/data/reports/combined_feature_residual_suite.json",
+      "sha256": "6f43e0bdbffc45e5dab75edcddbaa5db0667d98658746c7a071b9376f1e8d8b7",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "hard_v3_combined_regression_adjudication_v1",
+      "path": "introspection/data/reports/hard_v3_combined_regression_adjudication.json",
+      "sha256": "5678d33b87a4d2948e0a69cb2c7bd2d73029f89fc07cdadbe2bf421bf92b5c8d",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_like_probe_comparison_v1",
+      "path": "introspection/data/reports/cift_like_probe_comparison.json",
+      "sha256": "9733f892bb052da63ef2a5cb8161c837b0797b02b093f7b1a952fd93fbcb6f7e",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_like_ablation_v2",
+      "path": "introspection/data/reports/cift_like_ablation_v2.json",
+      "sha256": "cc19c6f5ce0406b31f327851be513cc8f0627507592cb4151ab1013773641b1d",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_like_ablation_v3",
+      "path": "introspection/data/reports/cift_like_ablation_v3.json",
+      "sha256": "52699c01f08afd1fe3f12275c94b39d0a75e8c755d4a931ae77ff9bea70a2690",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_layer_weighted_head_v1",
+      "path": "introspection/data/reports/cift_layer_weighted_head_v1.json",
+      "sha256": "f888e74f9e6920065d8b9904626603be7fb0d0aefe67acdf111f9ad0d95edfdf",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_head_v1",
+      "path": "introspection/data/reports/cift_meta_head_v1.json",
+      "sha256": "9216c325a5df7dc614b05b92297d9b16471b6ab57ccaf97ab8229f2c8345c90b",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_head_residual_suite_v1",
+      "path": "introspection/data/reports/cift_meta_head_residual_suite_v1.json",
+      "sha256": "eae1bb6a04b6dc79bca7387ac6cb70b79a5aa8d1fa1c0879ec9503963bb09db6",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_ablation_v1",
+      "path": "introspection/data/reports/cift_meta_ablation_v1.json",
+      "sha256": "20aa1b18338400d7959212e2f1476b3a9c75970b7725e72fc147d800f6f77c3c",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_score_diagnostics_hard_v2_v1",
+      "path": "introspection/data/reports/cift_meta_score_diagnostics_hard_v2_v1.json",
+      "sha256": "633a31be2fdccf1ca51e2859f3e6309614c6698cf4f4ac010c0e77972803fda6",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_source_ablation_v1",
+      "path": "introspection/data/reports/cift_meta_source_ablation_v1.json",
+      "sha256": "4067c83a7e030738420b5834ee88fde5a1a33968484fa0b0f331bedabd5ee1b4",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_combiner_ablation_v1",
+      "path": "introspection/data/reports/cift_meta_combiner_ablation_v1.json",
+      "sha256": "5195985408ede689d056db4752f202ca6fa610ef41d381ccdd884341f81a2cfa",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_combiner_ablation_v2",
+      "path": "introspection/data/reports/cift_meta_combiner_ablation_v2.json",
+      "sha256": "498587f65bfce32caaba22ad8ec954f9db26aae5d915daef3e9b580ad842fc2e",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_combiner_ablation_v3",
+      "path": "introspection/data/reports/cift_meta_combiner_ablation_v3.json",
+      "sha256": "302b9ea300abb0c36555750016b299db3dfd012341b188d2a5345eb9d89cad86",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_regularization_sweep_v1",
+      "path": "introspection/data/reports/cift_meta_regularization_sweep_v1.json",
+      "sha256": "8dc986e07f17613c1c7fd76c8a059759ad89c70dd9176947aa765dafe4c7a710",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_regularization_crosscheck_v1",
+      "path": "introspection/data/reports/cift_meta_regularization_crosscheck_v1.json",
+      "sha256": "4acb522e6f82e1115a07545cc86d3830dae47b033acc93f97400320fe324cb03",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_regularization_diagnostics_hard_v2_meta_c_10_v1",
+      "path": "introspection/data/reports/cift_meta_regularization_diagnostics_hard_v2_meta_c_10_v1.json",
+      "sha256": "a983d1144ab4bd00514baf80803bc96d0273fa602692765fba3b85d9b1521c99",
+      "dataset_id": "hard_prompts_v2",
+      "artifact_id": "qwen3_0_6b_hard_v2_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_score_calibration_v1",
+      "path": "introspection/data/reports/cift_meta_score_calibration_v1.json",
+      "sha256": "bf24e7e0954dab0d8ae46a20ffdf98e2a39748752a15c19fb734c1d28dd01700",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_readout_family_v1",
+      "path": "introspection/data/reports/cift_meta_readout_family_v1.json",
+      "sha256": "f1949365dd02f3cd1bac1285bee05ddb253934ee47da89e45112ed2d8a2e1be6",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "cift_meta_family_interactions_v1",
+      "path": "introspection/data/reports/cift_meta_family_interactions_v1.json",
+      "sha256": "158a3d3cbe4e90962507dbd7370f62af315d083b5cb54af42e14fcbfc574d665",
+      "dataset_id": "hard_prompts_v3",
+      "artifact_id": "qwen3_0_6b_hard_v3_all_layers_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_readout_window_sweep_safe_secret_vs_exfiltration_v1",
+      "path": "introspection/data/reports/dp_honey_lite_readout_window_sweep_safe_secret_vs_exfiltration_v1.json",
+      "sha256": "aaa1fff3c86753a84eaa07c3684f44fedf0695f4a996b8240d75a3a0b8934675",
+      "dataset_id": "dp_honey_lite_prompts_v1",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v1_readout_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_readout_window_sweep_benign_vs_secret_related_v1",
+      "path": "introspection/data/reports/dp_honey_lite_readout_window_sweep_benign_vs_secret_related_v1.json",
+      "sha256": "9b39b83501faf7803f9ef4c5e0874c8e7f0240f44b66bf365a1a551760ac1629",
+      "dataset_id": "dp_honey_lite_prompts_v1",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v1_readout_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v2_all_pooling_sweep_safe_secret_vs_exfiltration_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v2_all_pooling_sweep_safe_secret_vs_exfiltration_v1.json",
+      "sha256": "06bf2ab74f27d83c7f1cd91082b7c89ea075fcb5bb74f4ba324b3bd6794ad707",
+      "dataset_id": "dp_honey_lite_prompts_v2",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v2_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v2_all_pooling_sweep_benign_vs_secret_related_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v2_all_pooling_sweep_benign_vs_secret_related_v1.json",
+      "sha256": "8de63c98ec8838992c88131a8f2b8a03554acaa89bf8c712e38c954d01aeda9d",
+      "dataset_id": "dp_honey_lite_prompts_v2",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v2_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v2_grouped_binary_tasks_readout_window_layer_11_v1.json",
+      "sha256": "42c3116ed38dbe33b6d964be241eca76ebb295b41222529fdb62bbb1724ba21e",
+      "dataset_id": "dp_honey_lite_prompts_v2",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v2_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_all_pooling_sweep_safe_secret_vs_exfiltration_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_all_pooling_sweep_safe_secret_vs_exfiltration_v1.json",
+      "sha256": "e46068443220e52f989dd742eac9357bdd8bdd1cf6bbad993fde6b01aee3f807",
+      "dataset_id": "dp_honey_lite_prompts_v3",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_all_pooling_sweep_benign_vs_secret_related_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_all_pooling_sweep_benign_vs_secret_related_v1.json",
+      "sha256": "674f84e618a96d1695bfd6415cf8beaa046e4c9132db68dade62faf41fba8ed9",
+      "dataset_id": "dp_honey_lite_prompts_v3",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_grouped_binary_tasks_readout_window_layer_21_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_grouped_binary_tasks_readout_window_layer_21_v1.json",
+      "sha256": "2ac4614506afda7e8d95bf71cf69b8da9cd952ccd7c89d39bf3be45a08caea5e",
+      "dataset_id": "dp_honey_lite_prompts_v3",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_policy_diagnostics_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_policy_diagnostics_v1.json",
+      "sha256": "0e01a2f467d1599ce598afe17332ee49bd2af53ef6a1f15fc71b832670990576",
+      "dataset_id": "dp_honey_lite_prompts_v3",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_policy_resolution_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_policy_resolution_v1.json",
+      "sha256": "8d2b380e584009302f0f9c0d7c377d1348bd5888ddf0dabe30580f187852bafe",
+      "dataset_id": "dp_honey_lite_prompts_v3",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_all_pooling_v1",
+      "evaluation_strategy": "direct_model_policy_resolution"
+    },
+    {
+      "id": "dp_honey_lite_v3_policy_window_sweep_safe_secret_vs_exfiltration_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_policy_window_sweep_safe_secret_vs_exfiltration_v1.json",
+      "sha256": "2318c379b07dc2d2ce308e6bc3871bb475f8a420d1761acea1638a946bb89f26",
+      "dataset_id": "dp_honey_lite_v3_policy_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_policy_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_policy_window_grouped_binary_tasks_readout_window_layer_00_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_policy_window_grouped_binary_tasks_readout_window_layer_00_v1.json",
+      "sha256": "c6653336e840977c5dfbf56066f30be563ac86ba337fb8dae56d5bc256262109",
+      "dataset_id": "dp_honey_lite_v3_policy_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_policy_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_window_sweep_safe_secret_vs_exfiltration_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_selector_window_sweep_safe_secret_vs_exfiltration_v1.json",
+      "sha256": "f28d8bb3aa05a19eef9b3de4276f5acb3180358109f2f7d3150d2bd51617a29b",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_window_grouped_binary_tasks_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_selector_window_grouped_binary_tasks_readout_window_layer_15_v1.json",
+      "sha256": "1b8b64fbf06b87d78d6f5ab9eca21f2e216325e53a4afb56ace6e356d6ace6e1",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_window_error_analysis_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_selector_window_error_analysis_readout_window_layer_15_v1.json",
+      "sha256": "7cfb7a7e09eb78dac8d6dff5fd3887c1e38df347f9f9d48e72935074d2606c96",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_window_error_slices_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_selector_window_error_slices_readout_window_layer_15_v1.json",
+      "sha256": "25c53101e026d034482bde03c976a446079935cf2495a6bcc1a2803d69c5103c",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "metadata_error_slices"
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_window_cift_calibration_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_selector_window_cift_calibration_readout_window_layer_15_v1.json",
+      "sha256": "db753ca37a3387d4f290ea9a9d264e0ab0294c38e78b7319fc3cf26c5c0230ac",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold_with_inner_platt_calibration"
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_window_cift_operating_points_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_selector_window_cift_operating_points_readout_window_layer_15_v1.json",
+      "sha256": "cc5c5f37cee36e4b0d801ae7aecdb319157675fb18b684dec5a043027b2a3842",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "calibrated_detector_operating_point_sweep"
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_window_score_diagnostics_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_selector_window_score_diagnostics_readout_window_layer_15_v1.json",
+      "sha256": "b6741b0df6d9bdd3e76c1d69c67b1ffa4ff2d12a811ecbed5d21219f48a35b2c",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "calibrated_detector_score_diagnostics"
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_window_feature_ablation_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_selector_window_feature_ablation_v1.json",
+      "sha256": "b77cb35ea9144c8fa3f6ca3627c8b7df7b18ecde21bb17f1567e7417204f5e05",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "grouped_feature_expression_ablation"
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_window_cift_calibration_selector_band_12_18_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_selector_window_cift_calibration_selector_band_12_18_v1.json",
+      "sha256": "6badfee03e7a069b3ac6b444c860b3f20376c1ed1034e0502b76c4585e5a7cea",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold_with_inner_platt_calibration"
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_window_cift_operating_points_selector_band_12_18_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_selector_window_cift_operating_points_selector_band_12_18_v1.json",
+      "sha256": "8c54f385a3e955af41535cf982ce7bf5983b14997fd8c0400fef4a153cc2d6f0",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "calibrated_detector_operating_point_sweep"
+    },
+    {
+      "id": "dp_honey_lite_v3_selector_window_score_diagnostics_selector_band_12_18_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v3_selector_window_score_diagnostics_selector_band_12_18_v1.json",
+      "sha256": "e689e107c0542a5f7075b942e9539dcf29280af036e71b0053e2ab65c2c0b0be",
+      "dataset_id": "dp_honey_lite_v3_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "calibrated_detector_score_diagnostics"
+    },
+    {
+      "id": "dp_honey_lite_v4_selector_window_sweep_safe_secret_vs_exfiltration_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v4_selector_window_sweep_safe_secret_vs_exfiltration_v1.json",
+      "sha256": "913cd5893c596b52724ee7c057846adffd759bf27bce69e8d0f683844d04db74",
+      "dataset_id": "dp_honey_lite_v4_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v4_selector_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v4_selector_window_grouped_binary_tasks_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v4_selector_window_grouped_binary_tasks_readout_window_layer_15_v1.json",
+      "sha256": "566ee8855d92d690125fccc3fd3e2cc744db950de36fce19a8f4fdf8a46839f5",
+      "dataset_id": "dp_honey_lite_v4_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v4_selector_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v4_1_selector_window_sweep_safe_secret_vs_exfiltration_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v4_1_selector_window_sweep_safe_secret_vs_exfiltration_v1.json",
+      "sha256": "d840c0742a53e130e81b1ccf433b49a6ac428f160a0c36a71527730d775edd18",
+      "dataset_id": "dp_honey_lite_v4_1_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v4_1_selector_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v4_1_selector_window_grouped_binary_tasks_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v4_1_selector_window_grouped_binary_tasks_readout_window_layer_15_v1.json",
+      "sha256": "640ed1e045f443b5ae1f86a7fc98f76169ee6638d797a151bb302b10b1a5e086",
+      "dataset_id": "dp_honey_lite_v4_1_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v4_1_selector_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold"
+    },
+    {
+      "id": "dp_honey_lite_v4_1_selector_window_error_analysis_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v4_1_selector_window_error_analysis_readout_window_layer_15_v1.json",
+      "sha256": "8f3ff48144900fb70c297fbf92bfd6dc89b308fd6e14fc0e92fdc37bf73647c5",
+      "dataset_id": "dp_honey_lite_v4_1_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v4_1_selector_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold_error_analysis"
+    },
+    {
+      "id": "dp_honey_lite_v4_1_selector_window_error_slices_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v4_1_selector_window_error_slices_readout_window_layer_15_v1.json",
+      "sha256": "a40ba04c3bdf93259ac3c9662f94b209dfc6199d4c42a18f44f99c650df79235",
+      "dataset_id": "dp_honey_lite_v4_1_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v4_1_selector_windows_v1",
+      "evaluation_strategy": "metadata_error_slices"
+    },
+    {
+      "id": "dp_honey_lite_v4_1_selector_window_cift_calibration_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v4_1_selector_window_cift_calibration_readout_window_layer_15_v1.json",
+      "sha256": "1bc01896707a48153c4a5235138273616d466d8094b871b90bd7158136575f13",
+      "dataset_id": "dp_honey_lite_v4_1_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v4_1_selector_windows_v1",
+      "evaluation_strategy": "stratified_group_kfold_with_inner_platt_calibration"
+    },
+    {
+      "id": "dp_honey_lite_v4_1_selector_window_cift_operating_points_readout_window_layer_15_v1",
+      "path": "introspection/data/reports/dp_honey_lite_v4_1_selector_window_cift_operating_points_readout_window_layer_15_v1.json",
+      "sha256": "bc0e13db4af8b4d05a98014396650ec0aa292bbdbc993cfa93e5bb82c475bbc5",
+      "dataset_id": "dp_honey_lite_v4_1_selector_windows",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v4_1_selector_windows_v1",
+      "evaluation_strategy": "calibrated_detector_operating_point_sweep"
+    },
+    {
+      "id": "detector_results_cift_v4_1_selector_window_layer_15_trained_bundle_v1",
+      "path": "introspection/data/detector_results_cift_v4_1_selector_window_layer_15_trained_bundle_v1.jsonl",
+      "sha256": "6c9cd438ff61ac29e80eb2741930d6dfc7439843b8e370abab733c6562041f8d",
+      "dataset_id": "runtime_turns_dp_honey_lite_v4_1_selector_windows_v1",
+      "artifact_id": "cift_qwen3_0_6b_dp_honey_lite_v4_1_selector_window_layer_15_v1",
+      "evaluation_strategy": "trained_model_bundle_detector_result_bridge_export"
+    },
+    {
+      "id": "cift_trained_model_progress_2026_06_21",
+      "path": "introspection/data/reports/cift_trained_model_progress_2026-06-21.md",
+      "sha256": "4ac4346ccf53bc6b4848a72fe34090c911571dc774561b67718957db18f823cd",
+      "dataset_id": "dp_honey_lite_v4_1_selector_windows",
+      "artifact_id": "cift_qwen3_0_6b_dp_honey_lite_v4_1_selector_window_layer_15_v1",
+      "evaluation_strategy": "milestone_documentation"
+    },
+    {
+      "id": "detector_results_cift_v3_selector_window_layer_15_v1",
+      "path": "introspection/data/detector_results_cift_v3_selector_window_layer_15_v1.jsonl",
+      "sha256": "8e457fe77ba9153377fc7d00f289531e22c567cdf15b132a707a9a8cd94c3d7d",
+      "dataset_id": "runtime_turns_dp_honey_lite_v3_selector_windows_v1",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "detector_result_bridge_export"
+    },
+    {
+      "id": "detector_results_cift_v3_selector_window_layer_15_calibrated_v1",
+      "path": "introspection/data/detector_results_cift_v3_selector_window_layer_15_calibrated_v1.jsonl",
+      "sha256": "1f7ad4892abd32bb4a05dd25fdb6370c644b5af3165f6f54095e4cc78dd62b07",
+      "dataset_id": "runtime_turns_dp_honey_lite_v3_selector_windows_v1",
+      "artifact_id": "qwen3_0_6b_dp_honey_lite_v3_selector_windows_v1",
+      "evaluation_strategy": "calibrated_detector_result_bridge_export"
+    }
+  ]
+}

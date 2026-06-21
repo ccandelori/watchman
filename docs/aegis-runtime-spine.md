@@ -11,6 +11,12 @@ All adapters normalize external inputs into `NormalizedTurn`. Detectors consume
 that normalized shape and return `DetectorResult` values. Detectors do not call
 each other and do not make final enforcement decisions.
 
+Turn annotators may attach derived metadata to a normalized turn before detector
+stages run. They are the sanctioned place for self-hosted model hooks to add
+activation-derived features, tool normalization metadata, or other computed
+runtime context. Annotators return a new `NormalizedTurn`; they do not emit
+policy decisions or audit events.
+
 The policy layer is the only layer that emits `PolicyDecision`. The audit layer
 records `AuditEvent` objects containing the normalized turn, detector results,
 policy decision, and runtime metadata.
@@ -20,6 +26,7 @@ policy decision, and runtime metadata.
 ```text
 chat request
   -> NormalizedTurn
+  -> turn annotators
   -> ActivationUnavailableDetector
   -> MockModelProvider
   -> NoopCanaryDetector
@@ -102,12 +109,48 @@ through the normal `AegisRuntime`, applies policy, and writes audit events.
 It does not import `aegis_introspection`; research code crosses into runtime
 only through versioned fixtures or future promoted artifacts.
 
+## Runtime CIFT Model Adapter
+
+`CiftRuntimeDetector` is the first bundle-backed CIFT runtime adapter. It does
+not load research pickles and does not import `aegis_introspection`. Instead,
+the introspection side exports a promoted JSON artifact containing scaler
+parameters, logistic-regression coefficients, class ordering, decision
+thresholds, and metadata. The runtime loads that JSON artifact and scores a
+feature vector supplied on the normalized turn:
+
+```text
+NormalizedTurn.metadata["cift"]["feature_vectors"][feature_key]
+```
+
+When the runtime mode is black-box or SDK-only, the detector emits
+`capability_status=unavailable` with audit-safe evidence. When the mode is
+self-hosted but no feature vector has been attached, it emits
+`capability_status=degraded`. When the feature vector is present, it emits an
+active CIFT `DetectorResult` with the model score, predicted label, threshold,
+feature key, and artifact IDs. It never copies the feature vector into audit
+evidence.
+
+`CiftFeatureVectorAnnotator` is the first sanctioned self-hosted feature hook.
+It runs before pre-generation detectors, calls a caller-supplied extractor, and
+attaches the returned feature vector under:
+
+```text
+NormalizedTurn.metadata["cift"]["feature_vectors"][feature_key]
+```
+
+The annotator does not call the extractor in black-box or SDK-only modes. If a
+self-hosted extractor cannot provide a vector, the turn remains unchanged and
+`CiftRuntimeDetector` reports degraded CIFT capability. This keeps live
+activation capture as a connector concern while preserving the runtime spine
+contract.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:
 
-- CIFT adapter: load a promoted probe/artifact and emit activation-risk or
-  capability-unavailable results.
+- CIFT provider implementation: implement the caller-supplied extractor that
+  converts self-hosted activation capture into the feature vectors consumed by
+  `CiftFeatureVectorAnnotator`.
 - DP-HONEY runtime: register honeytokens and populate `sensitive_spans`.
 - Canary scanners: extend exact model-output scanning to tool arguments and
   streaming outputs.

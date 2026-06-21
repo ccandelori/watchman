@@ -1,0 +1,1066 @@
+{
+  "source_model_id": "Qwen/Qwen3-0.6B",
+  "source_revision": "main",
+  "source_selected_device": "cpu",
+  "evaluation_strategy": "stratified_group_kfold",
+  "fold_count": 5,
+  "random_seed": 42,
+  "regularization_c": 1.0,
+  "max_iter": 1000,
+  "task_name": "safe_secret_vs_exfiltration",
+  "method_name": "activation_probe",
+  "baseline_feature_key": "concat(final_token_layer_11,final_token_layer_16)",
+  "dataset_count": 2,
+  "variant_count": 12,
+  "best_variant_summary": {
+    "variant_id": "full_dual_readout_safe_secret_logistic_default",
+    "feature_name": "cift_meta_ablation_full_dual_readout_safe_secret_logistic_default",
+    "source_feature_keys": [
+      "final_token_layer_22",
+      "final_token_layer_23",
+      "final_token_layer_24",
+      "final_token_layer_25",
+      "final_token_layer_26",
+      "final_token_layer_27",
+      "final_token_layer_28",
+      "mean_pool_layer_22",
+      "mean_pool_layer_23",
+      "mean_pool_layer_24",
+      "mean_pool_layer_25",
+      "mean_pool_layer_26",
+      "mean_pool_layer_27",
+      "mean_pool_layer_28"
+    ],
+    "calibration_source_labels": [
+      "secret_present_safe"
+    ],
+    "decision_rule": "logistic_default",
+    "dataset_count": 2,
+    "reference_error_count": 9,
+    "candidate_error_count": 12,
+    "fixed_error_count": 3,
+    "persistent_error_count": 6,
+    "introduced_error_count": 6,
+    "net_error_delta": 3,
+    "mean_candidate_accuracy": 0.8999999999999999,
+    "min_candidate_accuracy": 0.8833333333333333
+  },
+  "variant_summaries": [
+    {
+      "variant_id": "full_dual_readout_safe_secret_logistic_default",
+      "feature_name": "cift_meta_ablation_full_dual_readout_safe_secret_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 12,
+      "fixed_error_count": 3,
+      "persistent_error_count": 6,
+      "introduced_error_count": 6,
+      "net_error_delta": 3,
+      "mean_candidate_accuracy": 0.8999999999999999,
+      "min_candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "variant_id": "full_dual_readout_safe_secret_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_full_dual_readout_safe_secret_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 14,
+      "fixed_error_count": 3,
+      "persistent_error_count": 6,
+      "introduced_error_count": 8,
+      "net_error_delta": 5,
+      "mean_candidate_accuracy": 0.8833333333333333,
+      "min_candidate_accuracy": 0.8666666666666667
+    },
+    {
+      "variant_id": "full_dual_readout_nonleaking_logistic_default",
+      "feature_name": "cift_meta_ablation_full_dual_readout_nonleaking_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 12,
+      "fixed_error_count": 3,
+      "persistent_error_count": 6,
+      "introduced_error_count": 6,
+      "net_error_delta": 3,
+      "mean_candidate_accuracy": 0.8999999999999999,
+      "min_candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "variant_id": "full_dual_readout_nonleaking_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_full_dual_readout_nonleaking_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 14,
+      "fixed_error_count": 3,
+      "persistent_error_count": 6,
+      "introduced_error_count": 8,
+      "net_error_delta": 5,
+      "mean_candidate_accuracy": 0.8833333333333333,
+      "min_candidate_accuracy": 0.8666666666666667
+    },
+    {
+      "variant_id": "early_dual_readout_safe_secret_logistic_default",
+      "feature_name": "cift_meta_ablation_early_dual_readout_safe_secret_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 22,
+      "fixed_error_count": 1,
+      "persistent_error_count": 8,
+      "introduced_error_count": 14,
+      "net_error_delta": 13,
+      "mean_candidate_accuracy": 0.8166666666666667,
+      "min_candidate_accuracy": 0.7833333333333333
+    },
+    {
+      "variant_id": "early_dual_readout_safe_secret_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_dual_readout_safe_secret_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 25,
+      "fixed_error_count": 1,
+      "persistent_error_count": 8,
+      "introduced_error_count": 17,
+      "net_error_delta": 16,
+      "mean_candidate_accuracy": 0.7916666666666667,
+      "min_candidate_accuracy": 0.7833333333333333
+    },
+    {
+      "variant_id": "early_dual_readout_nonleaking_logistic_default",
+      "feature_name": "cift_meta_ablation_early_dual_readout_nonleaking_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 22,
+      "fixed_error_count": 1,
+      "persistent_error_count": 8,
+      "introduced_error_count": 14,
+      "net_error_delta": 13,
+      "mean_candidate_accuracy": 0.8166666666666667,
+      "min_candidate_accuracy": 0.7833333333333333
+    },
+    {
+      "variant_id": "early_dual_readout_nonleaking_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_dual_readout_nonleaking_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 25,
+      "fixed_error_count": 1,
+      "persistent_error_count": 8,
+      "introduced_error_count": 17,
+      "net_error_delta": 16,
+      "mean_candidate_accuracy": 0.7916666666666667,
+      "min_candidate_accuracy": 0.7833333333333333
+    },
+    {
+      "variant_id": "early_final_token_safe_secret_logistic_default",
+      "feature_name": "cift_meta_ablation_early_final_token_safe_secret_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 21,
+      "fixed_error_count": 1,
+      "persistent_error_count": 8,
+      "introduced_error_count": 13,
+      "net_error_delta": 12,
+      "mean_candidate_accuracy": 0.825,
+      "min_candidate_accuracy": 0.8
+    },
+    {
+      "variant_id": "early_final_token_safe_secret_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_final_token_safe_secret_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 27,
+      "fixed_error_count": 1,
+      "persistent_error_count": 8,
+      "introduced_error_count": 19,
+      "net_error_delta": 18,
+      "mean_candidate_accuracy": 0.775,
+      "min_candidate_accuracy": 0.75
+    },
+    {
+      "variant_id": "early_final_token_nonleaking_logistic_default",
+      "feature_name": "cift_meta_ablation_early_final_token_nonleaking_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 21,
+      "fixed_error_count": 1,
+      "persistent_error_count": 8,
+      "introduced_error_count": 13,
+      "net_error_delta": 12,
+      "mean_candidate_accuracy": 0.825,
+      "min_candidate_accuracy": 0.8
+    },
+    {
+      "variant_id": "early_final_token_nonleaking_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_final_token_nonleaking_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "dataset_count": 2,
+      "reference_error_count": 9,
+      "candidate_error_count": 27,
+      "fixed_error_count": 1,
+      "persistent_error_count": 8,
+      "introduced_error_count": 19,
+      "net_error_delta": 18,
+      "mean_candidate_accuracy": 0.775,
+      "min_candidate_accuracy": 0.75
+    }
+  ],
+  "dataset_variants": [
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "full_dual_readout_safe_secret_logistic_default",
+      "feature_name": "cift_meta_ablation_full_dual_readout_safe_secret_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 7,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 5,
+      "net_error_delta": 5,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "full_dual_readout_safe_secret_logistic_default",
+      "feature_name": "cift_meta_ablation_full_dual_readout_safe_secret_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 5,
+      "fixed_error_count": 3,
+      "persistent_error_count": 4,
+      "introduced_error_count": 1,
+      "net_error_delta": -2,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.9166666666666666
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "full_dual_readout_safe_secret_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_full_dual_readout_safe_secret_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 2,
+      "candidate_error_count": 8,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 6,
+      "net_error_delta": 6,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8666666666666667
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "full_dual_readout_safe_secret_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_full_dual_readout_safe_secret_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 7,
+      "candidate_error_count": 6,
+      "fixed_error_count": 3,
+      "persistent_error_count": 4,
+      "introduced_error_count": 2,
+      "net_error_delta": -1,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.9
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "full_dual_readout_nonleaking_logistic_default",
+      "feature_name": "cift_meta_ablation_full_dual_readout_nonleaking_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 7,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 5,
+      "net_error_delta": 5,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "full_dual_readout_nonleaking_logistic_default",
+      "feature_name": "cift_meta_ablation_full_dual_readout_nonleaking_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 5,
+      "fixed_error_count": 3,
+      "persistent_error_count": 4,
+      "introduced_error_count": 1,
+      "net_error_delta": -2,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.9166666666666666
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "full_dual_readout_nonleaking_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_full_dual_readout_nonleaking_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 2,
+      "candidate_error_count": 8,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 6,
+      "net_error_delta": 6,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8666666666666667
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "full_dual_readout_nonleaking_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_full_dual_readout_nonleaking_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "final_token_layer_26",
+        "final_token_layer_27",
+        "final_token_layer_28",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25",
+        "mean_pool_layer_26",
+        "mean_pool_layer_27",
+        "mean_pool_layer_28"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 7,
+      "candidate_error_count": 6,
+      "fixed_error_count": 3,
+      "persistent_error_count": 4,
+      "introduced_error_count": 2,
+      "net_error_delta": -1,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.9
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "early_dual_readout_safe_secret_logistic_default",
+      "feature_name": "cift_meta_ablation_early_dual_readout_safe_secret_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 9,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 7,
+      "net_error_delta": 7,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.85
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "early_dual_readout_safe_secret_logistic_default",
+      "feature_name": "cift_meta_ablation_early_dual_readout_safe_secret_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 13,
+      "fixed_error_count": 1,
+      "persistent_error_count": 6,
+      "introduced_error_count": 7,
+      "net_error_delta": 6,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.7833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "early_dual_readout_safe_secret_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_dual_readout_safe_secret_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 2,
+      "candidate_error_count": 12,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 10,
+      "net_error_delta": 10,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "early_dual_readout_safe_secret_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_dual_readout_safe_secret_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 7,
+      "candidate_error_count": 13,
+      "fixed_error_count": 1,
+      "persistent_error_count": 6,
+      "introduced_error_count": 7,
+      "net_error_delta": 6,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.7833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "early_dual_readout_nonleaking_logistic_default",
+      "feature_name": "cift_meta_ablation_early_dual_readout_nonleaking_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 9,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 7,
+      "net_error_delta": 7,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.85
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "early_dual_readout_nonleaking_logistic_default",
+      "feature_name": "cift_meta_ablation_early_dual_readout_nonleaking_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 13,
+      "fixed_error_count": 1,
+      "persistent_error_count": 6,
+      "introduced_error_count": 7,
+      "net_error_delta": 6,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.7833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "early_dual_readout_nonleaking_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_dual_readout_nonleaking_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 2,
+      "candidate_error_count": 12,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 10,
+      "net_error_delta": 10,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.8
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "early_dual_readout_nonleaking_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_dual_readout_nonleaking_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25",
+        "mean_pool_layer_22",
+        "mean_pool_layer_23",
+        "mean_pool_layer_24",
+        "mean_pool_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 7,
+      "candidate_error_count": 13,
+      "fixed_error_count": 1,
+      "persistent_error_count": 6,
+      "introduced_error_count": 7,
+      "net_error_delta": 6,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.7833333333333333
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "early_final_token_safe_secret_logistic_default",
+      "feature_name": "cift_meta_ablation_early_final_token_safe_secret_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 9,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 7,
+      "net_error_delta": 7,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.85
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "early_final_token_safe_secret_logistic_default",
+      "feature_name": "cift_meta_ablation_early_final_token_safe_secret_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 12,
+      "fixed_error_count": 1,
+      "persistent_error_count": 6,
+      "introduced_error_count": 6,
+      "net_error_delta": 5,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.8
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "early_final_token_safe_secret_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_final_token_safe_secret_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 2,
+      "candidate_error_count": 15,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 13,
+      "net_error_delta": 13,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.75
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "early_final_token_safe_secret_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_final_token_safe_secret_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 7,
+      "candidate_error_count": 12,
+      "fixed_error_count": 1,
+      "persistent_error_count": 6,
+      "introduced_error_count": 6,
+      "net_error_delta": 5,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.8
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "early_final_token_nonleaking_logistic_default",
+      "feature_name": "cift_meta_ablation_early_final_token_nonleaking_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 2,
+      "candidate_error_count": 9,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 7,
+      "net_error_delta": 7,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.85
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "early_final_token_nonleaking_logistic_default",
+      "feature_name": "cift_meta_ablation_early_final_token_nonleaking_logistic_default",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "logistic_default",
+      "reference_error_count": 7,
+      "candidate_error_count": 12,
+      "fixed_error_count": 1,
+      "persistent_error_count": 6,
+      "introduced_error_count": 6,
+      "net_error_delta": 5,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.8
+    },
+    {
+      "dataset_id": "hard_prompts_v2",
+      "variant_id": "early_final_token_nonleaking_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_final_token_nonleaking_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 2,
+      "candidate_error_count": 15,
+      "fixed_error_count": 0,
+      "persistent_error_count": 2,
+      "introduced_error_count": 13,
+      "net_error_delta": 13,
+      "reference_accuracy": 0.9666666666666667,
+      "candidate_accuracy": 0.75
+    },
+    {
+      "dataset_id": "hard_prompts_v3",
+      "variant_id": "early_final_token_nonleaking_train_f1_threshold",
+      "feature_name": "cift_meta_ablation_early_final_token_nonleaking_train_f1_threshold",
+      "source_feature_keys": [
+        "final_token_layer_22",
+        "final_token_layer_23",
+        "final_token_layer_24",
+        "final_token_layer_25"
+      ],
+      "calibration_source_labels": [
+        "benign",
+        "secret_present_safe"
+      ],
+      "decision_rule": "train_f1_threshold",
+      "reference_error_count": 7,
+      "candidate_error_count": 12,
+      "fixed_error_count": 1,
+      "persistent_error_count": 6,
+      "introduced_error_count": 6,
+      "net_error_delta": 5,
+      "reference_accuracy": 0.8833333333333333,
+      "candidate_accuracy": 0.8
+    }
+  ]
+}
