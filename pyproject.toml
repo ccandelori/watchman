@@ -29,6 +29,7 @@ dev = [
 
 [project.scripts]
 aegis-trace-assignments = "aegis.trace_collection.__main__:main"
+aegis-trace-build-records = "aegis.trace_collection.main:record_builder_main"
 dp-honey = "detect.dp_honey.__main__:main"
 dp-honey-ui = "detect.dp_honey.webui.__main__:main"
 

@@ -4,8 +4,9 @@ import json
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, TypeAlias
+from typing import Literal, TypeAlias, TypeGuard
 
+from aegis.canaries.dp_honey import build_dp_honey_ledger
 from aegis.canaries.ledger import Honeytoken, HoneytokenLedger, inject_honeytokens
 from aegis.core.contracts import CapabilityMode, JsonValue, Message, ModelInfo, NormalizedTurn, SensitiveSpan, ToolCall
 from aegis.detectors.canary import CanaryRecord
@@ -59,6 +60,18 @@ class TraceCollectionInput:
     def __post_init__(self) -> None:
         _validate_non_empty("participant_id", self.participant_id)
         _validate_trace_label(self.label)
+        _validate_non_empty("operator_prompt", self.operator_prompt)
+
+
+@dataclass(frozen=True)
+class TraceCollectionSubmission:
+    assignment_id: str
+    operator_prompt: str
+    model_output_text: str | None
+    tool_calls: tuple[ToolCall, ...]
+
+    def __post_init__(self) -> None:
+        _validate_non_empty("assignment_id", self.assignment_id)
         _validate_non_empty("operator_prompt", self.operator_prompt)
 
 
@@ -202,12 +215,67 @@ def build_trace_collection_record(
     )
 
 
+def build_trace_collection_records_from_submissions(
+    assignments: tuple[TraceCollectionAssignment, ...],
+    submissions: tuple[TraceCollectionSubmission, ...],
+    tasks: tuple[TraceCollectionTask, ...],
+    model: ModelInfo,
+    capability_mode: CapabilityMode,
+) -> tuple[TraceCollectionRecord, ...]:
+    assignments_by_id = _assignments_by_id(assignments)
+    tasks_by_id = _tasks_by_id(tasks)
+    records: list[TraceCollectionRecord] = []
+    for submission in submissions:
+        assignment = assignments_by_id.get(submission.assignment_id)
+        if assignment is None:
+            raise TraceCollectionError(f"unknown assignment_id: {submission.assignment_id}")
+        task = tasks_by_id.get(assignment.task_id)
+        if task is None:
+            raise TraceCollectionError(
+                f"assignment_id {assignment.assignment_id} references unknown task_id: {assignment.task_id}"
+            )
+        _validate_assignment_matches_task(assignment=assignment, task=task)
+        ledger = build_dp_honey_ledger(session_id=_session_id_for_assignment(assignment.assignment_id))
+        records.append(
+            build_trace_collection_record(
+                task=task,
+                collection_input=TraceCollectionInput(
+                    participant_id=assignment.participant_id,
+                    label=assignment.label,
+                    operator_prompt=submission.operator_prompt,
+                    model_output_text=submission.model_output_text,
+                    tool_calls=submission.tool_calls,
+                ),
+                model=model,
+                capability_mode=capability_mode,
+                ledger=ledger,
+            )
+        )
+    return tuple(records)
+
+
 def write_trace_collection_jsonl(path: Path, records: tuple[TraceCollectionRecord, ...]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open("w", encoding="utf-8") as output_file:
         for record in records:
             output_file.write(json.dumps(record.to_dict(), sort_keys=True))
             output_file.write("\n")
+
+
+def read_trace_collection_assignments_jsonl(path: Path) -> tuple[TraceCollectionAssignment, ...]:
+    rows = _read_jsonl_objects(path)
+    assignments: list[TraceCollectionAssignment] = []
+    for index, row in enumerate(rows, start=1):
+        assignments.append(_assignment_from_json(row=row, context=f"{path}:{index}"))
+    return tuple(assignments)
+
+
+def read_trace_collection_submissions_jsonl(path: Path) -> tuple[TraceCollectionSubmission, ...]:
+    rows = _read_jsonl_objects(path)
+    submissions: list[TraceCollectionSubmission] = []
+    for index, row in enumerate(rows, start=1):
+        submissions.append(_submission_from_json(row=row, context=f"{path}:{index}"))
+    return tuple(submissions)
 
 
 def write_trace_collection_assignments_jsonl(
@@ -242,6 +310,150 @@ def _inject_tool_call_honeytokens(
             sensitive_spans.extend(result.sensitive_spans)
         transformed_tool_calls.append(ToolCall(name=tool_call.name, arguments=transformed_arguments))
     return _ToolCallInjectionResult(tool_calls=tuple(transformed_tool_calls), sensitive_spans=tuple(sensitive_spans))
+
+
+def _read_jsonl_objects(path: Path) -> tuple[dict[str, JsonValue], ...]:
+    rows: list[dict[str, JsonValue]] = []
+    with path.open("r", encoding="utf-8") as input_file:
+        for line_number, line in enumerate(input_file, start=1):
+            stripped_line = line.strip()
+            if stripped_line == "":
+                continue
+            parsed: object = json.loads(stripped_line)
+            rows.append(_json_object(value=parsed, context=f"{path}:{line_number}"))
+    return tuple(rows)
+
+
+def _assignment_from_json(row: dict[str, JsonValue], context: str) -> TraceCollectionAssignment:
+    return TraceCollectionAssignment(
+        assignment_id=_required_str(row=row, field_name="assignment_id", context=context),
+        participant_id=_required_str(row=row, field_name="participant_id", context=context),
+        task_id=_required_str(row=row, field_name="task_id", context=context),
+        label=_required_trace_label(row=row, field_name="label", context=context),
+        family=_required_str(row=row, field_name="family", context=context),
+        task_brief=_required_str(row=row, field_name="task_brief", context=context),
+        operator_instruction=_required_str(row=row, field_name="operator_instruction", context=context),
+        credential_type=_required_str(row=row, field_name="credential_type", context=context),
+    )
+
+
+def _submission_from_json(row: dict[str, JsonValue], context: str) -> TraceCollectionSubmission:
+    return TraceCollectionSubmission(
+        assignment_id=_required_str(row=row, field_name="assignment_id", context=context),
+        operator_prompt=_required_str(row=row, field_name="operator_prompt", context=context),
+        model_output_text=_required_nullable_str(row=row, field_name="model_output_text", context=context),
+        tool_calls=_tool_calls_from_json(
+            value=_required_field(row=row, field_name="tool_calls", context=context),
+            context=f"{context}:tool_calls",
+        ),
+    )
+
+
+def _tool_calls_from_json(value: JsonValue, context: str) -> tuple[ToolCall, ...]:
+    if not isinstance(value, list):
+        raise TraceCollectionError(f"{context} must be a list.")
+    tool_calls: list[ToolCall] = []
+    for index, item in enumerate(value):
+        item_object = _json_object(value=item, context=f"{context}[{index}]")
+        arguments_value = _required_field(row=item_object, field_name="arguments", context=f"{context}[{index}]")
+        arguments = _json_object(value=arguments_value, context=f"{context}[{index}].arguments")
+        tool_calls.append(
+            ToolCall(
+                name=_required_str(row=item_object, field_name="name", context=f"{context}[{index}]"),
+                arguments=arguments,
+            )
+        )
+    return tuple(tool_calls)
+
+
+def _json_object(value: object, context: str) -> dict[str, JsonValue]:
+    if not isinstance(value, dict):
+        raise TraceCollectionError(f"{context} must be a JSON object.")
+    json_object: dict[str, JsonValue] = {}
+    for key, raw_value in value.items():
+        if not isinstance(key, str):
+            raise TraceCollectionError(f"{context} contains a non-string object key.")
+        if not _is_json_value(raw_value):
+            raise TraceCollectionError(f"{context}.{key} is not JSON-serializable.")
+        json_object[key] = raw_value
+    return json_object
+
+
+def _is_json_value(value: object) -> TypeGuard[JsonValue]:
+    if value is None or isinstance(value, str | int | float | bool):
+        return True
+    if isinstance(value, list):
+        return all(_is_json_value(item) for item in value)
+    if isinstance(value, dict):
+        return all(isinstance(key, str) and _is_json_value(item) for key, item in value.items())
+    return False
+
+
+def _required_field(row: dict[str, JsonValue], field_name: str, context: str) -> JsonValue:
+    if field_name not in row:
+        raise TraceCollectionError(f"{context} missing required field: {field_name}")
+    return row[field_name]
+
+
+def _required_str(row: dict[str, JsonValue], field_name: str, context: str) -> str:
+    value = _required_field(row=row, field_name=field_name, context=context)
+    if not isinstance(value, str) or value == "":
+        raise TraceCollectionError(f"{context}.{field_name} must be a non-empty string.")
+    return value
+
+
+def _required_nullable_str(row: dict[str, JsonValue], field_name: str, context: str) -> str | None:
+    value = _required_field(row=row, field_name=field_name, context=context)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TraceCollectionError(f"{context}.{field_name} must be a string or null.")
+    return value
+
+
+def _required_trace_label(row: dict[str, JsonValue], field_name: str, context: str) -> TraceLabel:
+    return _trace_label_from_str(_required_str(row=row, field_name=field_name, context=context))
+
+
+def _trace_label_from_str(value: str) -> TraceLabel:
+    if value == "benign":
+        return "benign"
+    if value == "secret_present_safe":
+        return "secret_present_safe"
+    if value == "exfiltration_intent":
+        return "exfiltration_intent"
+    raise TraceCollectionError(f"unsupported trace label: {value}")
+
+
+def _assignments_by_id(assignments: tuple[TraceCollectionAssignment, ...]) -> dict[str, TraceCollectionAssignment]:
+    assignments_by_id: dict[str, TraceCollectionAssignment] = {}
+    for assignment in assignments:
+        if assignment.assignment_id in assignments_by_id:
+            raise TraceCollectionError(f"duplicate assignment_id: {assignment.assignment_id}")
+        assignments_by_id[assignment.assignment_id] = assignment
+    return assignments_by_id
+
+
+def _tasks_by_id(tasks: tuple[TraceCollectionTask, ...]) -> dict[str, TraceCollectionTask]:
+    tasks_by_id: dict[str, TraceCollectionTask] = {}
+    for task in tasks:
+        if task.task_id in tasks_by_id:
+            raise TraceCollectionError(f"duplicate task_id: {task.task_id}")
+        tasks_by_id[task.task_id] = task
+    return tasks_by_id
+
+
+def _validate_assignment_matches_task(assignment: TraceCollectionAssignment, task: TraceCollectionTask) -> None:
+    if assignment.family != task.family:
+        raise TraceCollectionError(f"assignment_id {assignment.assignment_id} family does not match task catalog.")
+    if assignment.credential_type != task.credential_type:
+        raise TraceCollectionError(
+            f"assignment_id {assignment.assignment_id} credential_type does not match task catalog."
+        )
+
+
+def _session_id_for_assignment(assignment_id: str) -> str:
+    return f"trace_collection_{_safe_identifier(assignment_id)}"
 
 
 def _inject_argument_value(

@@ -100,10 +100,24 @@ uv run aegis-trace-assignments \
   --output data/trace_collection/assignments.jsonl
 ```
 
+Build normalized records from completed collection inputs:
+
+```bash
+uv run aegis-trace-build-records \
+  --assignments data/trace_collection/assignments.jsonl \
+  --inputs data/trace_collection/collection_inputs.jsonl \
+  --output data/trace_collection/records.jsonl \
+  --model-provider mock \
+  --model-id mock-model \
+  --capability-mode offline_eval
+```
+
 The trace-collection harness emits proxy-shaped `NormalizedTurn` records with
 DP-HONEY canaries, labels, families, `SensitiveSpan` metadata, and pending CIFT
 tokenization markers. It is for controlled fake-secret data collection, not for
-recording production credentials.
+recording production credentials. See
+[docs/trace-collection-harness.md](docs/trace-collection-harness.md) for the
+input schema and workflow.
 
 Exercise the mock proxy in Python:
 
@@ -191,5 +205,6 @@ adapter code.
 ## Related Docs
 
 - [Runtime spine](docs/aegis-runtime-spine.md)
+- [Trace collection harness](docs/trace-collection-harness.md)
 - [Contributing](CONTRIBUTING.md)
 - [Asana MCP setup](docs/ASANA_MCP_SETUP.md)
