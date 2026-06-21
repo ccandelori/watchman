@@ -391,6 +391,19 @@ not a production policy authority. The bundle emits full-train classifier
 probabilities at threshold `0.50`; calibration reports remain the out-of-fold
 evidence trail.
 
+The runtime-facing version of this model is a JSON artifact:
+
+```text
+cift_qwen3_0_6b_dp_honey_lite_v4_1_selector_window_layer_15_runtime_v1
+```
+
+It lives at
+`data/models/cift_qwen3_0_6b_dp_honey_lite_v4_1_selector_window_layer_15_runtime_v1.json`
+and contains only runtime-native scaler parameters, logistic-regression weights,
+class ordering, threshold metadata, and audit-safe identifiers. This is the
+artifact that `aegis.detectors.CiftRuntimeDetector` can load without importing
+`aegis_introspection` or unpickling research classes.
+
 The V4.1 runtime bridge now includes both `NormalizedTurn` rows and trained
 bundle `DetectorResult` rows. The trained DetectorResult export has 96 task
 rows: 48 `allow`, 48 `warn`, and 1.0000 in-sample projection accuracy over the
@@ -853,6 +866,7 @@ features to the current score vector.
 introspection/
 ├── data/
 │   ├── activations/      # Serialized activation feature artifacts
+│   ├── models/           # Trained research bundles and runtime JSON exports
 │   ├── probes/           # Reserved for trained probe artifacts
 │   ├── reports/          # JSON reports and narrative progress notes
 │   ├── lineage.json      # Canonical experiment ledger

@@ -335,6 +335,14 @@
       "dataset_id": "dp_honey_lite_v4_1_selector_windows",
       "model_id": "Qwen/Qwen3-0.6B",
       "feature_count": 1024
+    },
+    {
+      "id": "cift_qwen3_0_6b_dp_honey_lite_v4_1_selector_window_layer_15_runtime_v1",
+      "path": "introspection/data/models/cift_qwen3_0_6b_dp_honey_lite_v4_1_selector_window_layer_15_runtime_v1.json",
+      "sha256": "2a8f85733b3d035cee1c2f145a92e9e01c79dff79b9d5222ec2d1d53a48ba095",
+      "dataset_id": "dp_honey_lite_v4_1_selector_windows",
+      "model_id": "Qwen/Qwen3-0.6B",
+      "feature_count": 1024
     }
   ],
   "reports": [

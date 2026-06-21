@@ -102,12 +102,33 @@ through the normal `AegisRuntime`, applies policy, and writes audit events.
 It does not import `aegis_introspection`; research code crosses into runtime
 only through versioned fixtures or future promoted artifacts.
 
+## Runtime CIFT Model Adapter
+
+`CiftRuntimeDetector` is the first bundle-backed CIFT runtime adapter. It does
+not load research pickles and does not import `aegis_introspection`. Instead,
+the introspection side exports a promoted JSON artifact containing scaler
+parameters, logistic-regression coefficients, class ordering, decision
+thresholds, and metadata. The runtime loads that JSON artifact and scores a
+feature vector supplied on the normalized turn:
+
+```text
+NormalizedTurn.metadata["cift"]["feature_vectors"][feature_key]
+```
+
+When the runtime mode is black-box or SDK-only, the detector emits
+`capability_status=unavailable` with audit-safe evidence. When the mode is
+self-hosted but no feature vector has been attached, it emits
+`capability_status=degraded`. When the feature vector is present, it emits an
+active CIFT `DetectorResult` with the model score, predicted label, threshold,
+feature key, and artifact IDs. It never copies the feature vector into audit
+evidence.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:
 
-- CIFT adapter: load a promoted probe/artifact and emit activation-risk or
-  capability-unavailable results.
+- CIFT provider hook: attach `metadata["cift"]["feature_vectors"]` from
+  self-hosted activation capture before `CiftRuntimeDetector` runs.
 - DP-HONEY runtime: register honeytokens and populate `sensitive_spans`.
 - Canary scanners: extend exact model-output scanning to tool arguments and
   streaming outputs.

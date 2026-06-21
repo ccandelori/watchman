@@ -28,6 +28,10 @@ The first runtime spine is implemented and CI-enforced:
     fragmentation, and partial-overlap canary leakage.
 - A fixture-backed `cift_selector_probe_v0` candidate monitor replay path that
   consumes promoted calibrated CIFT scores without importing research code.
+- A runtime-native `aegis.detectors.cift_runtime.CiftRuntimeDetector` that loads
+  an exported JSON linear CIFT model artifact, consumes feature vectors from
+  `NormalizedTurn.metadata`, and emits active, degraded, or unavailable CIFT
+  evidence without importing the introspection package.
 - A mock OpenAI-compatible proxy surface for `/health`,
   `/v1/chat/completions`, and `/audit/recent`.
 - Mandatory CI gates for linting, formatting, strict typing, import-boundary
@@ -155,6 +159,8 @@ New runtime work must preserve the spine boundaries:
 - Audit records normalized input summary, detector outputs, policy decision,
   and latency.
 - CIFT must emit either activation risk or explicit unavailable evidence.
+- Runtime CIFT detectors consume promoted JSON artifacts and feature-vector
+  metadata. Training pickles and research modules remain in `introspection/`.
 - DP-HONEY injection/registration and canary detection remain separate stages.
 - Real credentials cross runtime boundaries as handles, spans, hashes, or
   evidence, not raw production secrets.
