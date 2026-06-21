@@ -18,6 +18,8 @@ The first runtime spine is implemented and CI-enforced:
   mock model provider, applies policy, and writes an audit event.
 - A honeytoken ledger that replaces credential placeholders with registered
   canaries and emits `SensitiveSpan` metadata without exposing real secrets.
+- DP-HONEY generator, scanner, auto-decoy fallback, CLI, and local web UI under
+  `src/detect/dp_honey`.
 - First detector seams:
   - `ActivationUnavailableDetector` for explicit CIFT capability reporting in
     black-box/mock mode.
@@ -38,16 +40,46 @@ keeps future detector and proxy work compatible.
 
 ## Runtime Shape
 
-```text
-chat request
-  -> NormalizedTurn
-  -> pre-generation detectors
-  -> model provider
-  -> post-generation detectors
-  -> session detectors
-  -> policy engine
-  -> audit sink
-  -> response
+```mermaid
+flowchart TD
+    request["Chat request"]
+    normalized["NormalizedTurn"]
+    pre["Pre-generation detectors"]
+    provider["Model provider"]
+    post["Post-generation detectors"]
+    session["Session detectors"]
+    policy["Policy engine"]
+    audit["Audit sink"]
+    response["Response"]
+
+    request --> normalized
+    normalized --> pre
+    pre --> provider
+    provider --> post
+    post --> session
+    session --> policy
+    policy --> audit
+    policy --> response
+
+    subgraph dphoney["DP-HONEY package"]
+        registry["FormatSpec registry"]
+        generator["Synthetic generator"]
+        scanner["Registry-derived scanner"]
+        fallback["Unknown-token fallback"]
+        decoy["Auto-decoy replacement"]
+        webui["Local web UI"]
+
+        registry --> generator
+        registry --> scanner
+        scanner --> decoy
+        fallback --> decoy
+        generator --> webui
+        scanner --> webui
+        decoy --> webui
+    end
+
+    registry -. "future runtime canary formats" .-> pre
+    scanner -. "future text findings" .-> post
 ```
 
 The core invariant is:
@@ -104,6 +136,61 @@ print(payload["choices"][0]["message"]["content"])
 print(payload["aegis"]["policy_decision"])
 ```
 
+Run DP-HONEY commands:
+
+```bash
+uv run dp-honey list-formats
+uv run dp-honey generate --format github-ghp --count 1 --seed 1
+uv run dp-honey scan --file suspect.txt
+uv run dp-honey auto-decoy --file suspect.txt --seed 1
+```
+
+Run the local DP-HONEY web UI:
+
+```bash
+uv sync --extra dev --extra dp-honey-ui
+uv run dp-honey-ui
+```
+
+Then open `http://127.0.0.1:8000`.
+
+## DP-HONEY Generator And Scanner
+
+DP-HONEY creates synthetic, shape-only honeytokens for credential-leak detection
+research. The values look like common secret families but are never
+provider-valid, signed, decryptable, authenticated, or usable credentials.
+
+The package has three main workflows:
+
+- **Generate:** train a DP-noised character bigram model from a declarative
+  format spec and emit synthetic decoys.
+- **Scan:** detect registered secret-shaped spans without echoing matched values
+  unless `--show-matches` is explicitly passed.
+- **Auto-decoy:** replace detected spans with same-family synthetic decoys and
+  return swapped text.
+
+If pasted text contains a token that is not registered, DP-HONEY uses a
+best-effort `unknown-token` fallback for long, high-entropy token-like strings.
+Fallback findings are low confidence and preserve visible shape only; they do
+not claim provider checksums, signatures, tenant IDs, account IDs, expiration
+rules, or backend validity.
+
+The web UI sidebar maps to the same workflows:
+
+| Sidebar section | What it does |
+| --- | --- |
+| **Formats** | Lists each registered token family with slug, category, description, provider-valid flag, and safety note. |
+| **Preview corpus** | Shows uniformly sampled synthetic examples for one selected format before model training. |
+| **Generate** | Produces synthetic honeytokens from a format or saved model artifact. |
+| **Report** | Computes realism/sanity metrics such as validity rate, duplicate rate, character entropy, and average bigram log-likelihood. |
+| **Scan & auto-decoy** | Detects registered secrets plus low-confidence `unknown-token` fallback matches, then can replace detected spans with synthetic decoys. |
+| **Train** | Trains a reusable DP-noised bigram model and saves it into the local `models/` library. |
+| **Inspect model** | Reads model metadata leniently so you can see schema version, format slug, registry version, privacy settings, alphabet size, safety note, and snapshot status. |
+| **Validate** | Strictly validates a model artifact and reports whether it can be safely loaded for generation. |
+
+See [src/detect/dp_honey/README.md](src/detect/dp_honey/README.md) for the full
+format matrix, artifact schema, Python API, and safety boundaries.
+
 ## Quality Gates
 
 The repository treats the runtime spine as an enforced contract. Pull requests
@@ -118,8 +205,8 @@ make quality
 It runs:
 
 ```bash
-uv run --extra dev ruff check src/aegis tests/aegis scripts
-uv run --extra dev ruff format --check src/aegis tests/aegis scripts
+uv run --extra dev ruff check src/aegis src/detect tests/aegis tests/dp_honey scripts
+uv run --extra dev ruff format --check src/aegis src/detect tests/aegis tests/dp_honey scripts
 uv run --extra dev mypy src/aegis scripts
 uv run python scripts/check_import_boundaries.py
 uv run --extra dev pytest
@@ -140,7 +227,9 @@ src/aegis/providers/   Model provider adapters
 src/aegis/proxy/       Proxy adapters and mock proxy surface
 src/aegis/replay/      Offline replay harnesses for fixtures and demos
 src/aegis/sdk/         SDK entrypoint for embedding the runtime
+src/detect/dp_honey/   DP-HONEY generator, scanner, CLI, and web UI
 tests/aegis/           Runtime spine tests
+tests/dp_honey/        DP-HONEY tests and synthetic golden fixture
 scripts/               Repository quality and architecture checks
 docs/                  Project and setup documentation
 ```

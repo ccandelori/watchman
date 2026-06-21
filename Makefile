@@ -6,10 +6,10 @@ test:
 	uv run --extra dev pytest
 
 lint:
-	uv run --extra dev ruff check src/aegis tests/aegis scripts
+	uv run --extra dev ruff check src/aegis src/detect tests/aegis tests/dp_honey scripts
 
 format-check:
-	uv run --extra dev ruff format --check src/aegis tests/aegis scripts
+	uv run --extra dev ruff format --check src/aegis src/detect tests/aegis tests/dp_honey scripts
 
 typecheck:
 	uv run --extra dev mypy src/aegis scripts

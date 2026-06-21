@@ -5,6 +5,7 @@
 .venv/
 .venv-introspection/
 *.egg-info/
+models/
 
 __pycache__/
 *.py[cod]

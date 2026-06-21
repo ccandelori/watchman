@@ -3,10 +3,16 @@ name = "aegis"
 version = "0.1.0"
 description = "Runtime credential defense spine for LLM agents."
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "numpy>=1.24",
+]
 
 [project.optional-dependencies]
 proxy = [
+  "fastapi>=0.111",
+  "uvicorn>=0.30",
+]
+dp-honey-ui = [
   "fastapi>=0.111",
   "uvicorn>=0.30",
 ]
@@ -17,6 +23,10 @@ dev = [
   "ruff>=0.8,<1",
 ]
 
+[project.scripts]
+dp-honey = "detect.dp_honey.__main__:main"
+dp-honey-ui = "detect.dp_honey.webui.__main__:main"
+
 [build-system]
 requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
@@ -24,8 +34,11 @@ build-backend = "setuptools.build_meta"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+"detect.dp_honey.webui" = ["static/*"]
+
 [tool.pytest.ini_options]
-testpaths = ["tests/aegis"]
+testpaths = ["tests/aegis", "tests/dp_honey"]
 addopts = [
   "--strict-config",
   "--strict-markers",
