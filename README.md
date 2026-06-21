@@ -91,6 +91,20 @@ Run the built-in demo scenarios:
 uv run python scripts/run_demo.py
 ```
 
+Generate controlled trace-collection assignments for human operators:
+
+```bash
+uv run aegis-trace-assignments \
+  --participant alice \
+  --participant bob \
+  --output data/trace_collection/assignments.jsonl
+```
+
+The trace-collection harness emits proxy-shaped `NormalizedTurn` records with
+DP-HONEY canaries, labels, families, `SensitiveSpan` metadata, and pending CIFT
+tokenization markers. It is for controlled fake-secret data collection, not for
+recording production credentials.
+
 Exercise the mock proxy in Python:
 
 ```python
