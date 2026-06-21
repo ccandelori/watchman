@@ -12,12 +12,16 @@ SRC_PATH = INTROSPECTION_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from aegis_introspection.artifacts import load_activation_artifact
 from aegis_introspection.binary_tasks import BinaryTaskConfig
 from aegis_introspection.error_analysis import (
     evaluate_grouped_binary_error_analysis,
     write_binary_error_analysis_json,
     write_binary_error_analysis_markdown,
+)
+from aegis_introspection.sealed_holdout import (
+    add_unseal_flag,
+    assert_unsealed_paths,
+    load_activation_artifact_with_unseal_policy,
 )
 
 
@@ -33,6 +37,7 @@ class AnalyzeBinaryErrorsScriptConfig:
     activation_feature_key: str
     word_ngram_range: tuple[int, int]
     char_ngram_range: tuple[int, int]
+    allow_sealed_holdout: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -61,6 +66,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--word-ngram-max", required=False, type=int, default=2)
     parser.add_argument("--char-ngram-min", required=False, type=int, default=3)
     parser.add_argument("--char-ngram-max", required=False, type=int, default=5)
+    add_unseal_flag(parser)
     return parser
 
 
@@ -77,6 +83,7 @@ def _parse_args(argv: Sequence[str]) -> AnalyzeBinaryErrorsScriptConfig:
         activation_feature_key=str(namespace.activation_feature),
         word_ngram_range=(int(namespace.word_ngram_min), int(namespace.word_ngram_max)),
         char_ngram_range=(int(namespace.char_ngram_min), int(namespace.char_ngram_max)),
+        allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
 
 
@@ -93,7 +100,16 @@ def _binary_task_config(config: AnalyzeBinaryErrorsScriptConfig) -> BinaryTaskCo
 
 
 def run_analysis(config: AnalyzeBinaryErrorsScriptConfig) -> None:
-    artifact = load_activation_artifact(config.artifact_path)
+    assert_unsealed_paths(
+        paths=(config.artifact_path, config.output_json_path, config.output_markdown_path),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="binary error analysis",
+    )
+    artifact = load_activation_artifact_with_unseal_policy(
+        path=config.artifact_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="binary error analysis",
+    )
     report = evaluate_grouped_binary_error_analysis(artifact, _binary_task_config(config))
     write_binary_error_analysis_json(config.output_json_path, report)
     write_binary_error_analysis_markdown(config.output_markdown_path, report)

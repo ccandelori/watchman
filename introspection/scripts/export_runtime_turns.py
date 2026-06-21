@@ -15,6 +15,7 @@ if str(SRC_PATH) not in sys.path:
 
 from aegis_introspection.probe import JsonValue
 from aegis_introspection.runtime_bridge import RuntimeBridgeConfig, structured_prompt_to_normalized_turn
+from aegis_introspection.sealed_holdout import add_unseal_flag, assert_unsealed_jsonl_tags, assert_unsealed_paths
 
 
 @dataclass(frozen=True)
@@ -28,6 +29,7 @@ class ExportRuntimeTurnsConfig:
     selected_device: str | None
     sensitive_source: str
     session_id: str
+    allow_sealed_holdout: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -49,6 +51,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--selected-device", required=False, default="cpu")
     parser.add_argument("--sensitive-source", required=False, default="dp_honey_lite")
     parser.add_argument("--session-id", required=False, default="introspection-offline-eval")
+    add_unseal_flag(parser)
     return parser
 
 
@@ -64,6 +67,7 @@ def _parse_args(argv: Sequence[str]) -> ExportRuntimeTurnsConfig:
         selected_device=str(namespace.selected_device),
         sensitive_source=str(namespace.sensitive_source),
         session_id=str(namespace.session_id),
+        allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
 
 
@@ -109,6 +113,16 @@ def _runtime_bridge_config(
 
 
 def run_export(config: ExportRuntimeTurnsConfig) -> None:
+    assert_unsealed_paths(
+        paths=(config.input_path, config.output_path),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="runtime turn export",
+    )
+    assert_unsealed_jsonl_tags(
+        path=config.input_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="runtime turn export",
+    )
     records = _load_jsonl(config.input_path)
     config.output_path.parent.mkdir(parents=True, exist_ok=True)
     with config.output_path.open("w", encoding="utf-8") as file:

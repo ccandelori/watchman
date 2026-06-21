@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from pathlib import Path
 
-from aegis_introspection.artifacts import ActivationArtifact, load_activation_artifact
+from aegis_introspection.artifacts import ActivationArtifact
 from aegis_introspection.binary_tasks import (
     BinaryTaskConfig,
     BinaryTaskDefinition,
@@ -20,6 +20,7 @@ from aegis_introspection.cift_model_bundle import (
 )
 from aegis_introspection.lineage import sha256_file
 from aegis_introspection.probe import encode_labels, tensor_to_float_matrix
+from aegis_introspection.sealed_holdout import load_activation_artifact_with_unseal_policy
 
 
 class CiftModelTrainingError(ValueError):
@@ -42,6 +43,7 @@ class CiftModelTrainingConfig:
     score_semantics: str
     candidate_status: CandidateStatus
     created_at: str
+    allow_sealed_holdout: bool
 
 
 @dataclass(frozen=True)
@@ -58,7 +60,11 @@ class CiftModelTrainingReport:
 
 def train_cift_model_bundle(config: CiftModelTrainingConfig) -> CiftModelTrainingReport:
     _validate_config(config)
-    artifact = load_activation_artifact(config.artifact_path)
+    artifact = load_activation_artifact_with_unseal_policy(
+        path=config.artifact_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="CIFT model bundle training",
+    )
     definition = _task_definition(config.task_name)
     dataset = build_binary_task_dataset(artifact=artifact, definition=definition)
     feature_tensor = activation_feature_tensor(artifact=artifact, feature_key=config.activation_feature_key)

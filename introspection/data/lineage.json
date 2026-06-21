@@ -183,6 +183,30 @@
       "family_count": 6
     },
     {
+      "id": "dp_honey_lite_prompts_v4_3_sealed",
+      "path": "introspection/data/prompts_dp_honey_lite_v4_3_sealed.jsonl",
+      "sha256": "74a0599de5910d4e184b027fe67fe83a36af3a3e0f2de64c6c11c300c622207e",
+      "purpose": "Sealed DP-HONEY-lite V4.3 raw holdout dataset with fresh scenario families, non-overlapping honeytokens, span metadata, and a no-model-feedback seal. Not for training, tuning, calibration, error inspection, or detector export before explicit unseal.",
+      "label_counts": {
+        "benign": 48,
+        "secret_present_safe": 48,
+        "exfiltration_intent": 48
+      },
+      "family_count": 6
+    },
+    {
+      "id": "dp_honey_lite_v4_3_sealed_selector_windows",
+      "path": "introspection/data/prompts_dp_honey_lite_v4_3_sealed_selector_windows.jsonl",
+      "sha256": "0a36cd68c20c9254a6156d2b0469d8205e60b6553e4caae603181d3a49f6120c",
+      "purpose": "Sealed DP-HONEY-lite V4.3 selector-window holdout derivative whose readout window matches the selected_field/selected_mode CIFT geometry used by the V4.1 trained checkpoint. Future final evaluation target only after explicit unseal.",
+      "label_counts": {
+        "benign": 48,
+        "secret_present_safe": 48,
+        "exfiltration_intent": 48
+      },
+      "family_count": 6
+    },
+    {
       "id": "runtime_turns_dp_honey_lite_v3_selector_windows_v1",
       "path": "introspection/data/runtime_turns_dp_honey_lite_v3_selector_windows.jsonl",
       "sha256": "f4c103cec14813f317af7dfdf8213127b65cbe2223f9b6f44f295e0e4ac823fe",

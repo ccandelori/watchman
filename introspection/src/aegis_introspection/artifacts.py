@@ -7,6 +7,8 @@ import torch
 
 from aegis_introspection.features import PoolingMethod
 
+_SEALED_HOLDOUT_TAG = "sealed_holdout"
+
 
 class ActivationArtifactError(ValueError):
     """Raised when an activation artifact does not match the expected schema."""
@@ -133,5 +135,19 @@ def validate_activation_artifact(value: object) -> ActivationArtifact:
 
 
 def load_activation_artifact(path: Path) -> ActivationArtifact:
+    artifact = load_activation_artifact_allowing_sealed_holdout(path)
+    _reject_sealed_artifact(artifact=artifact, path=path)
+    return artifact
+
+
+def load_activation_artifact_allowing_sealed_holdout(path: Path) -> ActivationArtifact:
     loaded = torch.load(path, map_location="cpu", weights_only=False)
     return validate_activation_artifact(loaded)
+
+
+def _reject_sealed_artifact(artifact: ActivationArtifact, path: Path) -> None:
+    if any(_SEALED_HOLDOUT_TAG in row_tags for row_tags in artifact["tags"]):
+        raise ActivationArtifactError(
+            f"Refusing to load sealed holdout activation artifact '{path}'. "
+            "Use an explicit sealed-holdout loader only after recording the unseal decision."
+        )

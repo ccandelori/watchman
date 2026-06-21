@@ -21,6 +21,7 @@ from aegis_introspection.detector_result_bridge import (
     cift_prediction_to_detector_result,
 )
 from aegis_introspection.probe import JsonValue
+from aegis_introspection.sealed_holdout import add_unseal_flag, assert_unsealed_jsonl_tags, assert_unsealed_paths
 
 
 @dataclass(frozen=True)
@@ -40,6 +41,7 @@ class ExportCiftDetectorResultsConfig:
     positive_action: str
     negative_action: str
     confidence: float
+    allow_sealed_holdout: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -85,6 +87,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--positive-action", required=False, choices=("allow", "warn", "sanitize", "block", "escalate"), default="warn")
     parser.add_argument("--negative-action", required=False, choices=("allow", "warn", "sanitize", "block", "escalate"), default="allow")
     parser.add_argument("--confidence", required=False, type=float, default=0.7736)
+    add_unseal_flag(parser)
     return parser
 
 
@@ -106,6 +109,7 @@ def _parse_args(argv: Sequence[str]) -> ExportCiftDetectorResultsConfig:
         positive_action=str(namespace.positive_action),
         negative_action=str(namespace.negative_action),
         confidence=float(namespace.confidence),
+        allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
 
 
@@ -162,6 +166,16 @@ def _method_predictions(config: ExportCiftDetectorResultsConfig):
 
 
 def run_export(config: ExportCiftDetectorResultsConfig) -> None:
+    assert_unsealed_paths(
+        paths=(config.runtime_turns_path, config.error_report_path, config.output_path),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="CIFT DetectorResult export",
+    )
+    assert_unsealed_jsonl_tags(
+        path=config.runtime_turns_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="CIFT DetectorResult export",
+    )
     turns_by_example_id = _load_runtime_turns_by_example_id(config.runtime_turns_path)
     detector_config = _detector_config(config)
     predictions = _method_predictions(config)

@@ -103,7 +103,7 @@ readout-position, calibrated-deviation monitor.
 
 ## Current State
 
-Seventeen datasets are currently registered in `data/lineage.json`:
+Nineteen datasets are currently registered in `data/lineage.json`:
 
 | Dataset | Purpose | Rows |
 |---|---|---:|
@@ -122,6 +122,8 @@ Seventeen datasets are currently registered in `data/lineage.json`:
 | `dp_honey_lite_prompts_v4_1` | Focused relational-control checkpoint without the V4 label-specific policy-map shortcut. | 144 |
 | `dp_honey_lite_v4_1_policy_windows` | V4.1-derived policy-window control with explicit selected decision text. | 144 |
 | `dp_honey_lite_v4_1_selector_windows` | V4.1-derived selector-window checkpoint over selected field and selected mode tokens. | 144 |
+| `dp_honey_lite_prompts_v4_3_sealed` | Sealed raw holdout with fresh scenario families, non-overlapping honeytokens, and span metadata. | 144 |
+| `dp_honey_lite_v4_3_sealed_selector_windows` | Sealed selector-window holdout derivative for future one-shot CIFT evaluation. | 144 |
 | `runtime_turns_dp_honey_lite_v3_selector_windows_v1` | `NormalizedTurn`-shaped bridge export for runtime-spine integration checks. | 240 |
 | `runtime_turns_dp_honey_lite_v4_1_selector_windows_v1` | `NormalizedTurn`-shaped bridge export for V4.1 runtime-spine integration checks. | 144 |
 
@@ -394,6 +396,21 @@ bundle `DetectorResult` rows. The trained DetectorResult export has 96 task
 rows: 48 `allow`, 48 `warn`, and 1.0000 in-sample projection accuracy over the
 training examples. Treat that as an integration sanity check only. The quality
 claim remains the grouped out-of-fold evaluation and calibration metrics above.
+
+V4.3 is the first sealed holdout checkpoint for the CIFT-like thread. It keeps
+the V4.1 relational selector-window data contract but uses fresh scenario
+families and non-overlapping synthetic honeytokens. The raw dataset is
+`dp_honey_lite_prompts_v4_3_sealed`; the intended future CIFT target is
+`dp_honey_lite_v4_3_sealed_selector_windows`, whose readout windows match the
+V4.1 selected-field and selected-mode geometry.
+
+The V4.3 seal is a process guard, not a claim that committed synthetic prompts
+are private. Do not use V4.3 for training, model selection, threshold tuning,
+calibration, detector export, or error inspection until the team records an
+explicit unseal decision. Sensitive CIFT scripts refuse paths or row tags marked
+sealed unless run with `--allow-sealed-holdout`. When V4.3 is unsealed, name the
+frozen model bundle, feature key, threshold, and metric suite before scoring;
+run the evaluation once; report the result before making any follow-up changes.
 
 Each prompt has a `family` field. Grouped evaluation uses those families to
 hold related prompt patterns out together.
@@ -852,6 +869,8 @@ introspection/
 │   ├── prompts_dp_honey_lite_v4_selector_windows.jsonl # V4 selector-window control
 │   ├── prompts_dp_honey_lite_v4_1.jsonl # Focused V4.1 relational-control dataset
 │   ├── prompts_dp_honey_lite_v4_1_selector_windows.jsonl # V4.1 selector-window checkpoint
+│   ├── prompts_dp_honey_lite_v4_3_sealed.jsonl # Sealed V4.3 raw holdout
+│   ├── prompts_dp_honey_lite_v4_3_sealed_selector_windows.jsonl # Sealed V4.3 selector-window holdout
 │   ├── detector_results_cift_v3_selector_window_layer_15_v1.jsonl # Aegis DetectorResult bridge export
 │   ├── detector_results_cift_v3_selector_window_layer_15_calibrated_v1.jsonl # Calibrated DetectorResult export
 │   └── runtime_turns_dp_honey_lite_v3_selector_windows.jsonl # Aegis NormalizedTurn bridge export
@@ -1757,6 +1776,7 @@ Key human-readable checkpoints:
 - `data/reports/dp_honey_lite_v4_1_selector_window_grouped_binary_tasks_readout_window_layer_15_v1_summary.md`
 - `data/reports/dp_honey_lite_v3_progress_2026-06-20.md`
 - `data/reports/dp_honey_lite_v3_selector_window_progress_2026-06-20.md`
+- `data/reports/cift_v4_3_sealed_holdout_progress_2026-06-21.md`
 
 Key machine-readable reports registered in lineage:
 

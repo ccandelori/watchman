@@ -12,12 +12,16 @@ SRC_PATH = INTROSPECTION_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from aegis_introspection.artifacts import load_activation_artifact
 from aegis_introspection.cift_calibration import (
     CiftCalibrationConfig,
     collect_grouped_calibrated_cift_predictions,
     write_cift_calibration_json,
     write_cift_calibration_markdown,
+)
+from aegis_introspection.sealed_holdout import (
+    add_unseal_flag,
+    assert_unsealed_paths,
+    load_activation_artifact_with_unseal_policy,
 )
 
 
@@ -35,6 +39,7 @@ class CalibrateCiftDetectorCliConfig:
     max_iter: int
     regularization_c: float
     decision_threshold: float
+    allow_sealed_holdout: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -73,6 +78,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--max-iter", required=False, type=int, default=1000)
     parser.add_argument("--regularization-c", required=False, type=float, default=1.0)
     parser.add_argument("--decision-threshold", required=False, type=float, default=0.5)
+    add_unseal_flag(parser)
     return parser
 
 
@@ -91,6 +97,7 @@ def _parse_args(argv: Sequence[str]) -> CalibrateCiftDetectorCliConfig:
         max_iter=int(namespace.max_iter),
         regularization_c=float(namespace.regularization_c),
         decision_threshold=float(namespace.decision_threshold),
+        allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
 
 
@@ -109,7 +116,16 @@ def _calibration_config(config: CalibrateCiftDetectorCliConfig) -> CiftCalibrati
 
 
 def run_calibration(config: CalibrateCiftDetectorCliConfig) -> None:
-    artifact = load_activation_artifact(config.artifact_path)
+    assert_unsealed_paths(
+        paths=(config.artifact_path, config.output_json_path, config.output_markdown_path),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="CIFT calibration",
+    )
+    artifact = load_activation_artifact_with_unseal_policy(
+        path=config.artifact_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="CIFT calibration",
+    )
     report = collect_grouped_calibrated_cift_predictions(
         artifact=artifact,
         config=_calibration_config(config),

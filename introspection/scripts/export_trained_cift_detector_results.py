@@ -17,6 +17,11 @@ from aegis_introspection.trained_detector_export import (
     TrainedDetectorExportConfig,
     export_trained_cift_detector_results,
 )
+from aegis_introspection.sealed_holdout import (
+    add_unseal_flag,
+    assert_unsealed_jsonl_tags,
+    assert_unsealed_paths,
+)
 
 
 @dataclass(frozen=True)
@@ -31,6 +36,7 @@ class ExportTrainedCiftDetectorResultsCliConfig:
     positive_action: RecommendedAction
     negative_action: RecommendedAction
     confidence: float
+    allow_sealed_holdout: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -79,6 +85,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--positive-action", required=False, choices=_recommended_actions(), default="warn")
     parser.add_argument("--negative-action", required=False, choices=_recommended_actions(), default="allow")
     parser.add_argument("--confidence", required=False, type=float, default=0.7704)
+    add_unseal_flag(parser)
     return parser
 
 
@@ -99,6 +106,7 @@ def _parse_args(argv: Sequence[str]) -> ExportTrainedCiftDetectorResultsCliConfi
         positive_action=_recommended_action(str(namespace.positive_action)),
         negative_action=_recommended_action(str(namespace.negative_action)),
         confidence=float(namespace.confidence),
+        allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
 
 
@@ -128,10 +136,21 @@ def _export_config(config: ExportTrainedCiftDetectorResultsCliConfig) -> Trained
         positive_action=config.positive_action,
         negative_action=config.negative_action,
         confidence=config.confidence,
+        allow_sealed_holdout=config.allow_sealed_holdout,
     )
 
 
 def run_export(config: ExportTrainedCiftDetectorResultsCliConfig) -> None:
+    assert_unsealed_paths(
+        paths=(config.runtime_turns_path, config.artifact_path, config.model_bundle_path, config.output_path),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="trained CIFT DetectorResult export",
+    )
+    assert_unsealed_jsonl_tags(
+        path=config.runtime_turns_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="trained CIFT DetectorResult export",
+    )
     row_count = export_trained_cift_detector_results(_export_config(config))
     print(f"Wrote {row_count} trained CIFT DetectorResult rows to {config.output_path}")
 

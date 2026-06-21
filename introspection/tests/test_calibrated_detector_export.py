@@ -113,6 +113,7 @@ class CalibratedDetectorExportTest(unittest.TestCase):
                 positive_action="warn",
                 negative_action="allow",
                 confidence=1.0,
+                allow_sealed_holdout=False,
             )
 
             row_count = export_calibrated_cift_detector_results(config)

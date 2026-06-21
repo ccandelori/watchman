@@ -62,6 +62,7 @@ class CiftModelTrainingTest(unittest.TestCase):
                 score_semantics="full_train_classifier_probability",
                 candidate_status="offline_research_candidate",
                 created_at="2026-06-21T00:00:00Z",
+                allow_sealed_holdout=False,
             )
 
             report = train_cift_model_bundle(config)

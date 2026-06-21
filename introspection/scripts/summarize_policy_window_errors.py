@@ -21,6 +21,7 @@ from aegis_introspection.policy_window_error_slices import (
     write_policy_window_error_slice_json,
     write_policy_window_error_slice_markdown,
 )
+from aegis_introspection.sealed_holdout import add_unseal_flag, assert_unsealed_jsonl_tags, assert_unsealed_paths
 
 
 _DEFAULT_DIMENSIONS: tuple[ErrorSliceDimension, ...] = (
@@ -43,6 +44,7 @@ class SummarizePolicyWindowErrorsConfig:
     task_name: str
     method_name: BinaryMethodName
     dimensions: tuple[ErrorSliceDimension, ...]
+    allow_sealed_holdout: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -95,6 +97,7 @@ def _build_parser() -> argparse.ArgumentParser:
         action="append",
         choices=_DEFAULT_DIMENSIONS,
     )
+    add_unseal_flag(parser)
     return parser
 
 
@@ -109,10 +112,21 @@ def _parse_args(argv: Sequence[str]) -> SummarizePolicyWindowErrorsConfig:
         task_name=str(namespace.task),
         method_name=cast(BinaryMethodName, namespace.method),
         dimensions=cast(tuple[ErrorSliceDimension, ...], dimensions),
+        allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
 
 
 def run_summary(config: SummarizePolicyWindowErrorsConfig) -> None:
+    assert_unsealed_paths(
+        paths=(config.prompts_path, config.error_report_path, config.output_json_path, config.output_markdown_path),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="policy-window error summary",
+    )
+    assert_unsealed_jsonl_tags(
+        path=config.prompts_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="policy-window error summary",
+    )
     error_report = load_binary_error_analysis_report_json(config.error_report_path)
     metadata_by_id = load_prompt_policy_metadata(config.prompts_path)
     slice_report = build_policy_window_error_slice_report(

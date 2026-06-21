@@ -31,6 +31,7 @@ from aegis_introspection.prompts import (
     load_prompt_examples,
     load_structured_prompt_examples,
 )
+from aegis_introspection.sealed_holdout import add_unseal_flag, assert_unsealed_paths, assert_unsealed_tag_rows
 
 
 PromptExtractionExample: TypeAlias = PromptExample | StructuredPromptExample
@@ -46,6 +47,7 @@ class ExtractionScriptConfig:
     local_files_only: bool
     layer_indices: tuple[int, ...]
     pooling_methods: tuple[PoolingMethod, ...]
+    allow_sealed_holdout: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -62,6 +64,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--layers", required=False, default="0,7,14,21,28")
     parser.add_argument("--pooling", required=False, default="final_token,mean_pool")
     parser.add_argument("--allow-download", action="store_true")
+    add_unseal_flag(parser)
     return parser
 
 
@@ -76,6 +79,7 @@ def _parse_args(argv: Sequence[str]) -> ExtractionScriptConfig:
         local_files_only=not bool(namespace.allow_download),
         layer_indices=parse_layer_indices(str(namespace.layers)),
         pooling_methods=parse_pooling_methods(str(namespace.pooling)),
+        allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
 
 
@@ -131,7 +135,17 @@ def _readout_token_indices(
 
 
 def run_extraction(config: ExtractionScriptConfig) -> None:
+    assert_unsealed_paths(
+        paths=(config.prompts_path, config.output_path),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="activation extraction",
+    )
     examples = _load_examples(config)
+    assert_unsealed_tag_rows(
+        tag_rows=(example.tags for example in examples),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="activation extraction",
+    )
     loaded_model = load_causal_lm(_build_model_config(config))
 
     feature_rows: list[tuple[ActivationFeature, ...]] = []

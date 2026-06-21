@@ -58,6 +58,15 @@ _DEFAULT_OUTPUT_BY_TEMPLATE_SET: dict[DpHoneyLiteTemplateSet, Path] = {
     "hard_v3": INTROSPECTION_ROOT / "data" / "prompts_dp_honey_lite_v3.jsonl",
     "hard_v4": INTROSPECTION_ROOT / "data" / "prompts_dp_honey_lite_v4.jsonl",
     "hard_v4_1": INTROSPECTION_ROOT / "data" / "prompts_dp_honey_lite_v4_1.jsonl",
+    "hard_v4_3_sealed": INTROSPECTION_ROOT / "data" / "prompts_dp_honey_lite_v4_3_sealed.jsonl",
+}
+_DEFAULT_SEED_BY_TEMPLATE_SET: dict[DpHoneyLiteTemplateSet, str] = {
+    "v1": "aegis-dp-honey-lite-v1",
+    "hard_v2": "aegis-dp-honey-lite-v2",
+    "hard_v3": "aegis-dp-honey-lite-v3",
+    "hard_v4": "aegis-dp-honey-lite-v4",
+    "hard_v4_1": "aegis-dp-honey-lite-v4-1",
+    "hard_v4_3_sealed": "aegis-dp-honey-lite-v4-3-sealed",
 }
 
 
@@ -70,13 +79,13 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--template-set",
         required=False,
-        choices=("v1", "hard_v2", "hard_v3", "hard_v4", "hard_v4_1"),
+        choices=("v1", "hard_v2", "hard_v3", "hard_v4", "hard_v4_1", "hard_v4_3_sealed"),
         default="v1",
     )
     parser.add_argument("--model-id", required=False, default="Qwen/Qwen3-0.6B")
     parser.add_argument("--revision", required=False, default="main")
     parser.add_argument("--allow-download", action="store_true")
-    parser.add_argument("--seed", required=False, default="aegis-dp-honey-lite-v1")
+    parser.add_argument("--seed", required=False)
     parser.add_argument("--examples-per-template", required=False, type=int, default=4)
     parser.add_argument("--readout-width", required=False, type=int, default=6)
     return parser
@@ -86,12 +95,13 @@ def _parse_args(argv: Sequence[str]) -> GenerateDpHoneyLitePromptsConfig:
     namespace = _build_parser().parse_args(argv)
     template_set = cast(DpHoneyLiteTemplateSet, namespace.template_set)
     output_path = Path(str(namespace.output)) if namespace.output is not None else _DEFAULT_OUTPUT_BY_TEMPLATE_SET[template_set]
+    seed = str(namespace.seed) if namespace.seed is not None else _DEFAULT_SEED_BY_TEMPLATE_SET[template_set]
     return GenerateDpHoneyLitePromptsConfig(
         output_path=output_path,
         model_id=str(namespace.model_id),
         revision=str(namespace.revision),
         local_files_only=not bool(namespace.allow_download),
-        seed=str(namespace.seed),
+        seed=seed,
         examples_per_template=int(namespace.examples_per_template),
         readout_width=int(namespace.readout_width),
         template_set=template_set,

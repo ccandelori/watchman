@@ -72,6 +72,7 @@ class TrainedDetectorExportTest(unittest.TestCase):
                     score_semantics="full_train_classifier_probability",
                     candidate_status="offline_research_candidate",
                     created_at="2026-06-21T00:00:00Z",
+                    allow_sealed_holdout=False,
                 )
             )
             runtime_turns_path.write_text(
@@ -98,6 +99,7 @@ class TrainedDetectorExportTest(unittest.TestCase):
                 positive_action="warn",
                 negative_action="allow",
                 confidence=0.77,
+                allow_sealed_holdout=False,
             )
 
             row_count = export_trained_cift_detector_results(config)

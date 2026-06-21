@@ -4,7 +4,6 @@ import json
 from dataclasses import dataclass
 from pathlib import Path
 
-from aegis_introspection.artifacts import load_activation_artifact
 from aegis_introspection.binary_tasks import (
     BinaryTaskDefinition,
     activation_feature_tensor,
@@ -20,6 +19,7 @@ from aegis_introspection.detector_result_bridge import (
     trained_cift_prediction_to_detector_result,
 )
 from aegis_introspection.probe import JsonValue, tensor_to_float_matrix
+from aegis_introspection.sealed_holdout import load_activation_artifact_with_unseal_policy
 
 
 class TrainedDetectorExportError(ValueError):
@@ -38,11 +38,16 @@ class TrainedDetectorExportConfig:
     positive_action: RecommendedAction
     negative_action: RecommendedAction
     confidence: float
+    allow_sealed_holdout: bool
 
 
 def export_trained_cift_detector_results(config: TrainedDetectorExportConfig) -> int:
     turns_by_example_id = load_runtime_turns_by_example_id(config.runtime_turns_path)
-    artifact = load_activation_artifact(config.artifact_path)
+    artifact = load_activation_artifact_with_unseal_policy(
+        path=config.artifact_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="trained CIFT DetectorResult export",
+    )
     bundle = load_cift_model_bundle(config.model_bundle_path)
     definition = _task_definition(bundle.metadata.task_name)
     dataset = build_binary_task_dataset(artifact=artifact, definition=definition)

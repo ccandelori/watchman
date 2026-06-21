@@ -17,6 +17,7 @@ from aegis_introspection.calibrated_detector_export import (
     export_calibrated_cift_detector_results,
 )
 from aegis_introspection.detector_result_bridge import RecommendedAction
+from aegis_introspection.sealed_holdout import add_unseal_flag, assert_unsealed_jsonl_tags, assert_unsealed_paths
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,7 @@ class ExportCalibratedCiftDetectorResultsCliConfig:
     positive_action: RecommendedAction
     negative_action: RecommendedAction
     confidence: float
+    allow_sealed_holdout: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -78,6 +80,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default="allow",
     )
     parser.add_argument("--confidence", required=False, type=float, default=0.7736)
+    add_unseal_flag(parser)
     return parser
 
 
@@ -93,6 +96,7 @@ def _parse_args(argv: Sequence[str]) -> ExportCalibratedCiftDetectorResultsCliCo
         positive_action=cast(RecommendedAction, namespace.positive_action),
         negative_action=cast(RecommendedAction, namespace.negative_action),
         confidence=float(namespace.confidence),
+        allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
 
 
@@ -107,10 +111,21 @@ def _export_config(config: ExportCalibratedCiftDetectorResultsCliConfig) -> Cali
         positive_action=config.positive_action,
         negative_action=config.negative_action,
         confidence=config.confidence,
+        allow_sealed_holdout=config.allow_sealed_holdout,
     )
 
 
 def run_export(config: ExportCalibratedCiftDetectorResultsCliConfig) -> None:
+    assert_unsealed_paths(
+        paths=(config.runtime_turns_path, config.calibration_report_path, config.output_path),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="calibrated CIFT DetectorResult export",
+    )
+    assert_unsealed_jsonl_tags(
+        path=config.runtime_turns_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="calibrated CIFT DetectorResult export",
+    )
     row_count = export_calibrated_cift_detector_results(_export_config(config))
     print(f"Wrote {row_count} calibrated CIFT detector-result rows to {config.output_path}")
 
