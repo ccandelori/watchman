@@ -100,6 +100,24 @@ pending authorization state. The only DP-HONEY sensitive span is the protected
 context span, so readout-window features test whether the model state reflects
 credential-access intent before output or tool egress.
 
+Use the paired-intent profile when stress-testing lexical shortcuts in the
+synthetic corpus:
+
+```bash
+uv run aegis-trace-seed-inputs \
+  --assignments data/trace_collection/assignments.jsonl \
+  --variants-per-label 20 \
+  --profile paired_intent \
+  --output data/trace_collection/collection_inputs.paired_intent_720.jsonl
+```
+
+The paired-intent profile keeps the same pre-output boundary as
+`pre_output_intent`, but makes safe-secret and exfiltration rows share identical
+tool payloads. Their prompt difference is a task-specific paired control segment
+with matched tokens and balanced boolean order across the default task catalog.
+This profile is a diagnostic stress test for CIFT experiments, not final
+training data.
+
 ## Write Human Collection Inputs
 
 Create `data/trace_collection/collection_inputs.jsonl`. Each row references one

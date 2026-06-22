@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import sys
 import tempfile
 import unittest
@@ -15,6 +16,7 @@ from aegis.trace_collection.harness import (
     TraceCollectionSubmission,
     TraceCollectionTask,
     build_matched_seed_trace_collection_submissions,
+    build_paired_intent_seed_trace_collection_submissions,
     build_pre_output_intent_seed_trace_collection_submissions,
     build_seed_trace_collection_submissions,
     build_trace_collection_assignments,
@@ -52,6 +54,21 @@ def _ledger() -> HoneytokenLedger:
         generator=lambda slot_name, credential_type: f"hny_{slot_name}_{credential_type}",
         source="dp_honey",
     )
+
+
+def _prompt_token_set(prompt: str) -> set[str]:
+    return set(re.findall(r"[a-z0-9_]+", prompt.lower()))
+
+
+def _control_pair(prompt: str) -> str:
+    match = re.search(r"Set ([^.]+)\. Keep", prompt)
+    if match is None:
+        raise AssertionError(f"Prompt does not contain a paired control segment: {prompt}")
+    return match.group(1)
+
+
+def _boolean_order(control_pair: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"\btrue\b|\bfalse\b", control_pair))
 
 
 class TraceCollectionHarnessTest(unittest.TestCase):
@@ -440,6 +457,101 @@ class TraceCollectionHarnessTest(unittest.TestCase):
         self.assertEqual("dp_honey", sensitive_spans[0]["source"])
         self.assertNotIn("{{CREDENTIAL", json.dumps(encoded["normalized_turn"]["tool_calls"]))
 
+    def test_paired_intent_seed_submissions_match_tool_payloads_and_prompt_frames(self) -> None:
+        assignments = build_trace_collection_assignments(participant_ids=("alice",), tasks=(_task(),))
+
+        submissions = build_paired_intent_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=(_task(),),
+            variants_per_label=2,
+        )
+        safe_submission = next(
+            submission
+            for submission in submissions
+            if submission.submission_id == "assignment-alice-repo-secret-review-secret_present_safe-v000"
+        )
+        exfiltration_submission = next(
+            submission
+            for submission in submissions
+            if submission.submission_id == "assignment-alice-repo-secret-review-exfiltration_intent-v000"
+        )
+
+        self.assertEqual(6, len(submissions))
+        self.assertEqual(safe_submission.tool_calls[0].name, exfiltration_submission.tool_calls[0].name)
+        self.assertEqual(
+            safe_submission.tool_calls[0].arguments,
+            exfiltration_submission.tool_calls[0].arguments,
+        )
+        self.assertNotIn("{{CREDENTIAL", json.dumps(exfiltration_submission.tool_calls[0].arguments))
+        self.assertIn("service_continue=false; operator_review=true", safe_submission.operator_prompt)
+        self.assertIn("service_continue=true; operator_review=false", exfiltration_submission.operator_prompt)
+        self.assertEqual(
+            _prompt_token_set(safe_submission.operator_prompt),
+            _prompt_token_set(exfiltration_submission.operator_prompt),
+        )
+
+    def test_paired_intent_default_catalog_varies_control_phrases_by_task(self) -> None:
+        assignments = build_trace_collection_assignments(
+            participant_ids=("alice",),
+            tasks=default_trace_collection_tasks(),
+        )
+
+        submissions = build_paired_intent_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=default_trace_collection_tasks(),
+            variants_per_label=1,
+        )
+        safe_controls: set[str] = set()
+        exfiltration_controls: set[str] = set()
+        safe_boolean_orders: set[tuple[str, ...]] = set()
+        for task in default_trace_collection_tasks():
+            safe_submission = next(
+                submission
+                for submission in submissions
+                if submission.assignment_id == f"assignment-alice-{task.task_id}-secret_present_safe"
+            )
+            exfiltration_submission = next(
+                submission
+                for submission in submissions
+                if submission.assignment_id == f"assignment-alice-{task.task_id}-exfiltration_intent"
+            )
+            safe_control = _control_pair(safe_submission.operator_prompt)
+            exfiltration_control = _control_pair(exfiltration_submission.operator_prompt)
+            safe_controls.add(safe_control)
+            exfiltration_controls.add(exfiltration_control)
+            safe_boolean_orders.add(_boolean_order(safe_control))
+
+            self.assertNotEqual(safe_control, exfiltration_control)
+            self.assertEqual(_prompt_token_set(safe_control), _prompt_token_set(exfiltration_control))
+
+        self.assertGreater(len(safe_controls), 1)
+        self.assertGreater(len(exfiltration_controls), 1)
+        self.assertIn(("false", "true"), safe_boolean_orders)
+        self.assertIn(("true", "false"), safe_boolean_orders)
+
+    def test_paired_intent_records_only_have_context_honeytoken_spans(self) -> None:
+        assignments = build_trace_collection_assignments(participant_ids=("alice",), tasks=(_task(),))
+        submissions = build_paired_intent_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=(_task(),),
+            variants_per_label=1,
+        )
+
+        records = build_trace_collection_records_from_submissions(
+            assignments=assignments,
+            submissions=submissions,
+            tasks=(_task(),),
+            model=_model(),
+            capability_mode=CapabilityMode.OFFLINE_EVAL,
+        )
+        exfiltration_record = next(record for record in records if record.label == "exfiltration_intent")
+        encoded = exfiltration_record.to_dict()
+        sensitive_spans = encoded["normalized_turn"]["sensitive_spans"]
+
+        self.assertEqual(1, len(sensitive_spans))
+        self.assertEqual("dp_honey", sensitive_spans[0]["source"])
+        self.assertNotIn("{{CREDENTIAL", json.dumps(encoded["normalized_turn"]["tool_calls"]))
+
     def test_seed_input_cli_writes_collection_inputs_for_existing_assignments(self) -> None:
         assignments = build_trace_collection_assignments(
             participant_ids=("alice",),
@@ -555,6 +667,50 @@ class TraceCollectionHarnessTest(unittest.TestCase):
         self.assertNotIn("{{CREDENTIAL", json.dumps(safe_row["tool_calls"][0]["arguments"]))
         self.assertNotIn("{{CREDENTIAL", json.dumps(exfiltration_row["tool_calls"][0]["arguments"]))
         self.assertIn("downstream", exfiltration_row["operator_prompt"])
+
+    def test_seed_input_cli_writes_paired_intent_collection_inputs(self) -> None:
+        assignments = build_trace_collection_assignments(
+            participant_ids=("alice",),
+            tasks=default_trace_collection_tasks(),
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            assignments_path = directory_path / "assignments.jsonl"
+            output_path = directory_path / "collection_inputs.jsonl"
+            write_trace_collection_assignments_jsonl(path=assignments_path, assignments=assignments)
+
+            run_seed_input_cli(
+                argv=(
+                    "--assignments",
+                    str(assignments_path),
+                    "--variants-per-label",
+                    "2",
+                    "--profile",
+                    "paired_intent",
+                    "--output",
+                    str(output_path),
+                )
+            )
+            rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+        safe_row = next(
+            row
+            for row in rows
+            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+        )
+        exfiltration_row = next(
+            row
+            for row in rows
+            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+        )
+        self.assertEqual(len(default_trace_collection_tasks()) * 3 * 2, len(rows))
+        self.assertEqual(safe_row["tool_calls"][0], exfiltration_row["tool_calls"][0])
+        self.assertNotIn("{{CREDENTIAL", json.dumps(exfiltration_row["tool_calls"][0]["arguments"]))
+        self.assertEqual(
+            _prompt_token_set(safe_row["operator_prompt"]),
+            _prompt_token_set(exfiltration_row["operator_prompt"]),
+        )
 
     def test_default_task_catalog_supports_large_diverse_seed_corpus(self) -> None:
         tasks = default_trace_collection_tasks()

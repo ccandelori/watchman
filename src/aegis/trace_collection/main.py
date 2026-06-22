@@ -10,6 +10,7 @@ from aegis.core.contracts import CapabilityMode, ModelInfo
 from aegis.trace_collection.harness import (
     SeedInputProfile,
     build_matched_seed_trace_collection_submissions,
+    build_paired_intent_seed_trace_collection_submissions,
     build_pre_output_intent_seed_trace_collection_submissions,
     build_seed_trace_collection_submissions,
     build_trace_collection_assignments,
@@ -84,8 +85,14 @@ def run_seed_input_cli(argv: tuple[str, ...]) -> None:
             tasks=default_trace_collection_tasks(),
             variants_per_label=args.variants_per_label,
         )
-    else:
+    elif args.profile == "pre_output_intent":
         submissions = build_pre_output_intent_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=default_trace_collection_tasks(),
+            variants_per_label=args.variants_per_label,
+        )
+    else:
+        submissions = build_paired_intent_seed_trace_collection_submissions(
             assignments=assignments,
             tasks=default_trace_collection_tasks(),
             variants_per_label=args.variants_per_label,
@@ -186,7 +193,7 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
         "--profile",
         required=False,
         default="standard",
-        choices=("standard", "matched_hard", "pre_output_intent"),
+        choices=("standard", "matched_hard", "pre_output_intent", "paired_intent"),
         help="Seed input profile to generate.",
     )
     parser.add_argument("--output", required=True, help="Output JSONL path for seeded collection inputs.")
@@ -206,8 +213,13 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
     variants_per_label = int(variants_per_label_value)
     if variants_per_label < 1:
         raise ValueError("--variants-per-label must be positive.")
-    if profile_value != "standard" and profile_value != "matched_hard" and profile_value != "pre_output_intent":
-        raise ValueError("--profile must be 'standard', 'matched_hard', or 'pre_output_intent'.")
+    if (
+        profile_value != "standard"
+        and profile_value != "matched_hard"
+        and profile_value != "pre_output_intent"
+        and profile_value != "paired_intent"
+    ):
+        raise ValueError("--profile must be 'standard', 'matched_hard', 'pre_output_intent', or 'paired_intent'.")
     return _SeedInputCliArgs(
         assignments_path=Path(assignments_value),
         output_path=Path(output_value),
