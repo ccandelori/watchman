@@ -38,6 +38,7 @@ proxy-shaped corpus where:
 | Synthetic paraphrase 120 | Exercise the new work-item flow end to end. | Activation beat text on random folds, but grouped text baselines were still perfect. | Use an independent paraphrase generator. |
 | LM Studio one-shot 120 | Use local Qwen through LM Studio for more natural paired completions. | Naturalness improved, but all pairs failed strict lexical balance; text baselines still beat activation. | Put the validator inside the generation loop. |
 | LM Studio repaired 120 | Repair pairs until they pass strict unigram/bigram validation. | Unigram shortcuts were removed, char baseline weakened, but word bigrams still dominated. | Make phrase order itself non-memorisable. |
+| Crossed-action 120 | Force each pair to share identical unigram and bigram inventory while swapping allowed versus denied action semantics. | Activation beat word 1-2 and char baselines under grouped evaluation, but word 1-3 TF-IDF was perfect because the grammar frame stayed fixed. | Vary syntactic frames around the same allowed/denied semantic contrast. |
 
 ## Current State
 
@@ -51,11 +52,12 @@ The honest current result is sharper:
 - Pair validation can enforce token balance and matched tool payloads.
 - LM Studio can generate and repair local paired prompts.
 - Unigram lexical shortcuts can be suppressed.
-- Word-bigram shortcuts remain the main obstacle.
+- Word-bigram shortcuts can be suppressed in a controlled diagnostic.
+- Fixed trigram grammar is now the main visible shortcut.
 
 The current bottleneck is data design, not extraction plumbing.
 
-## What The Latest Result Means
+## What The Latest Results Mean
 
 The LM Studio repaired corpus passed strict pair validation:
 
@@ -75,13 +77,35 @@ But grouped evaluation still favored text:
 
 So unigram balance helped, but bigram order remains label-correlated.
 
+The crossed-action diagnostic then attacked that specific bigram shortcut:
+
+- 60 pairs.
+- 0 failed pairs.
+- Max unigram delta: 0.
+- Min bigram Jaccard: 1.0000.
+- Average bigram Jaccard: 1.0000.
+- Tool payload mismatch pairs: 0.
+- Tool placeholder pairs: 0.
+
+Grouped evaluation on the crossed-action corpus showed the intended pressure:
+
+- Activation probe: 0.9231 macro F1.
+- Word TF-IDF 1-2: 0.4848 macro F1.
+- Char TF-IDF 3-5: 0.4896 macro F1.
+- Word TF-IDF 1-3: 1.0000 macro F1.
+
+So the crossed-action corpus is the first clear activation-over-word-1-2
+diagnostic. It is not yet text-invariant evidence because trigrams still
+recover the fixed allowed/denied grammar.
+
 ## Next Data Requirement
 
 The next corpus should be generated with a stronger acceptance condition:
 
 1. Pair passes strict tool and unigram validation.
-2. Pair avoids stable label-specific action-clause order.
-3. Corpus-level grouped word 1-2 TF-IDF must fall below the activation probe,
+2. Pair avoids stable label-specific action-clause order and fixed trigram
+   grammar.
+3. Corpus-level grouped word 1-2 and word 1-3 TF-IDF must fall below the activation probe,
    or the corpus is treated as a diagnostic artifact only.
 
 The next generation recipe should deliberately cross phrase order:
