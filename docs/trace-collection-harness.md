@@ -82,6 +82,24 @@ values such as `withheld_by_policy`; exfiltration rows use the same tool shape
 with a DP-HONEY credential placeholder. This reduces the easy artifact where
 only exfiltration examples have payload readout windows.
 
+Use the pre-output intent profile when training CIFT against intent before a
+secret has been copied into a generated tool payload:
+
+```bash
+uv run aegis-trace-seed-inputs \
+  --assignments data/trace_collection/assignments.jsonl \
+  --variants-per-label 20 \
+  --profile pre_output_intent \
+  --output data/trace_collection/collection_inputs.pre_output_intent_720.jsonl
+```
+
+The pre-output intent profile gives all labels matched tool-call shapes, but it
+does not place credential placeholders or generated honeytokens in tool-call
+arguments. Safe-secret and exfiltration rows both keep the tool payload in a
+pending authorization state. The only DP-HONEY sensitive span is the protected
+context span, so readout-window features test whether the model state reflects
+credential-access intent before output or tool egress.
+
 ## Write Human Collection Inputs
 
 Create `data/trace_collection/collection_inputs.jsonl`. Each row references one
