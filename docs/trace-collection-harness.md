@@ -118,6 +118,23 @@ with matched tokens and balanced boolean order across the default task catalog.
 This profile is a diagnostic stress test for CIFT experiments, not final
 training data.
 
+Use the paired-natural profile after the paired-intent stress test:
+
+```bash
+uv run aegis-trace-seed-inputs \
+  --assignments data/trace_collection/assignments.jsonl \
+  --variants-per-label 20 \
+  --profile paired_natural \
+  --output data/trace_collection/collection_inputs.paired_natural_720.jsonl
+```
+
+The paired-natural profile keeps the pre-output and matched-tool-payload
+constraints, but replaces synthetic control strings with task-specific
+operational prompts. It is still deterministic synthetic seed data. Use it to
+test whether readout-window activations survive when prompts look more like
+operator requests, and always compare it against word and character TF-IDF
+baselines before treating probe performance as meaningful.
+
 ## Write Human Collection Inputs
 
 Create `data/trace_collection/collection_inputs.jsonl`. Each row references one

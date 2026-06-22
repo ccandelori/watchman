@@ -17,6 +17,7 @@ from aegis.trace_collection.harness import (
     TraceCollectionTask,
     build_matched_seed_trace_collection_submissions,
     build_paired_intent_seed_trace_collection_submissions,
+    build_paired_natural_seed_trace_collection_submissions,
     build_pre_output_intent_seed_trace_collection_submissions,
     build_seed_trace_collection_submissions,
     build_trace_collection_assignments,
@@ -69,6 +70,13 @@ def _control_pair(prompt: str) -> str:
 
 def _boolean_order(control_pair: str) -> tuple[str, ...]:
     return tuple(re.findall(r"\btrue\b|\bfalse\b", control_pair))
+
+
+def _assert_prompt_is_natural(prompt: str) -> None:
+    synthetic_markers = ("=", "true", "false", "control packet")
+    for marker in synthetic_markers:
+        if marker in prompt.lower():
+            raise AssertionError(f"Prompt still contains synthetic control marker {marker!r}: {prompt}")
 
 
 class TraceCollectionHarnessTest(unittest.TestCase):
@@ -552,6 +560,89 @@ class TraceCollectionHarnessTest(unittest.TestCase):
         self.assertEqual("dp_honey", sensitive_spans[0]["source"])
         self.assertNotIn("{{CREDENTIAL", json.dumps(encoded["normalized_turn"]["tool_calls"]))
 
+    def test_paired_natural_seed_submissions_use_natural_prompts_and_matched_tool_payloads(self) -> None:
+        assignments = build_trace_collection_assignments(participant_ids=("alice",), tasks=(_task(),))
+
+        submissions = build_paired_natural_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=(_task(),),
+            variants_per_label=2,
+        )
+        safe_submission = next(
+            submission
+            for submission in submissions
+            if submission.submission_id == "assignment-alice-repo-secret-review-secret_present_safe-v000"
+        )
+        exfiltration_submission = next(
+            submission
+            for submission in submissions
+            if submission.submission_id == "assignment-alice-repo-secret-review-exfiltration_intent-v000"
+        )
+
+        self.assertEqual(6, len(submissions))
+        self.assertEqual(safe_submission.tool_calls[0], exfiltration_submission.tool_calls[0])
+        self.assertNotEqual(safe_submission.operator_prompt, exfiltration_submission.operator_prompt)
+        self.assertNotIn("{{CREDENTIAL", json.dumps(exfiltration_submission.tool_calls[0].arguments))
+        _assert_prompt_is_natural(safe_submission.operator_prompt)
+        _assert_prompt_is_natural(exfiltration_submission.operator_prompt)
+
+    def test_paired_natural_default_catalog_varies_task_specific_prompts(self) -> None:
+        assignments = build_trace_collection_assignments(
+            participant_ids=("alice",),
+            tasks=default_trace_collection_tasks(),
+        )
+
+        submissions = build_paired_natural_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=default_trace_collection_tasks(),
+            variants_per_label=1,
+        )
+        safe_prompts: set[str] = set()
+        exfiltration_prompts: set[str] = set()
+        for task in default_trace_collection_tasks():
+            safe_submission = next(
+                submission
+                for submission in submissions
+                if submission.assignment_id == f"assignment-alice-{task.task_id}-secret_present_safe"
+            )
+            exfiltration_submission = next(
+                submission
+                for submission in submissions
+                if submission.assignment_id == f"assignment-alice-{task.task_id}-exfiltration_intent"
+            )
+            safe_prompts.add(safe_submission.operator_prompt)
+            exfiltration_prompts.add(exfiltration_submission.operator_prompt)
+
+            self.assertEqual(safe_submission.tool_calls[0], exfiltration_submission.tool_calls[0])
+            _assert_prompt_is_natural(safe_submission.operator_prompt)
+            _assert_prompt_is_natural(exfiltration_submission.operator_prompt)
+
+        self.assertEqual(len(default_trace_collection_tasks()), len(safe_prompts))
+        self.assertEqual(len(default_trace_collection_tasks()), len(exfiltration_prompts))
+
+    def test_paired_natural_records_only_have_context_honeytoken_spans(self) -> None:
+        assignments = build_trace_collection_assignments(participant_ids=("alice",), tasks=(_task(),))
+        submissions = build_paired_natural_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=(_task(),),
+            variants_per_label=1,
+        )
+
+        records = build_trace_collection_records_from_submissions(
+            assignments=assignments,
+            submissions=submissions,
+            tasks=(_task(),),
+            model=_model(),
+            capability_mode=CapabilityMode.OFFLINE_EVAL,
+        )
+        exfiltration_record = next(record for record in records if record.label == "exfiltration_intent")
+        encoded = exfiltration_record.to_dict()
+        sensitive_spans = encoded["normalized_turn"]["sensitive_spans"]
+
+        self.assertEqual(1, len(sensitive_spans))
+        self.assertEqual("dp_honey", sensitive_spans[0]["source"])
+        self.assertNotIn("{{CREDENTIAL", json.dumps(encoded["normalized_turn"]["tool_calls"]))
+
     def test_seed_input_cli_writes_collection_inputs_for_existing_assignments(self) -> None:
         assignments = build_trace_collection_assignments(
             participant_ids=("alice",),
@@ -711,6 +802,47 @@ class TraceCollectionHarnessTest(unittest.TestCase):
             _prompt_token_set(safe_row["operator_prompt"]),
             _prompt_token_set(exfiltration_row["operator_prompt"]),
         )
+
+    def test_seed_input_cli_writes_paired_natural_collection_inputs(self) -> None:
+        assignments = build_trace_collection_assignments(
+            participant_ids=("alice",),
+            tasks=default_trace_collection_tasks(),
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            assignments_path = directory_path / "assignments.jsonl"
+            output_path = directory_path / "collection_inputs.jsonl"
+            write_trace_collection_assignments_jsonl(path=assignments_path, assignments=assignments)
+
+            run_seed_input_cli(
+                argv=(
+                    "--assignments",
+                    str(assignments_path),
+                    "--variants-per-label",
+                    "2",
+                    "--profile",
+                    "paired_natural",
+                    "--output",
+                    str(output_path),
+                )
+            )
+            rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+        safe_row = next(
+            row
+            for row in rows
+            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+        )
+        exfiltration_row = next(
+            row
+            for row in rows
+            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+        )
+        self.assertEqual(len(default_trace_collection_tasks()) * 3 * 2, len(rows))
+        self.assertEqual(safe_row["tool_calls"][0], exfiltration_row["tool_calls"][0])
+        _assert_prompt_is_natural(safe_row["operator_prompt"])
+        _assert_prompt_is_natural(exfiltration_row["operator_prompt"])
 
     def test_default_task_catalog_supports_large_diverse_seed_corpus(self) -> None:
         tasks = default_trace_collection_tasks()
