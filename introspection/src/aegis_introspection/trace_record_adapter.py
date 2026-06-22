@@ -123,7 +123,7 @@ class RenderedTracePrompt:
 class ToolPayloadReadout:
     payload_char_span: CharSpan
     payload_token_span: TokenSpan
-    secret_char_span: CharSpan
+    readout_char_span: CharSpan
     tool_call_name: str
     argument_path: str
 
@@ -289,6 +289,14 @@ def _convert_trace_record(
             offsets=offsets,
             context=context,
         )
+        readout_tag = "readout:payload_secret"
+    else:
+        payload_readout = _safe_tool_payload_readout(
+            tool_argument_segments=rendered.tool_argument_segments,
+            offsets=offsets,
+            context=context,
+        )
+        readout_tag = "readout:safe_payload" if payload_readout is not None else "readout:query_tail"
 
     if payload_readout is None:
         readout_token_indices = _readout_indices_for_char_span(
@@ -311,7 +319,7 @@ def _convert_trace_record(
     else:
         readout_token_indices = _readout_indices_for_char_span(
             offsets=offsets,
-            char_span=payload_readout.secret_char_span,
+            char_span=payload_readout.readout_char_span,
             lower_bound=max(secret_token_span.end, query_token_span.end, payload_readout.payload_token_span.start),
             readout_token_count=config.readout_token_count,
             context=context,
@@ -319,7 +327,7 @@ def _convert_trace_record(
         tags = _tags_for_record(
             record=record,
             collection=collection,
-            readout_tag="readout:payload_secret",
+            readout_tag=readout_tag,
             context=context,
         )
         payload_char_span = payload_readout.payload_char_span
@@ -507,9 +515,29 @@ def _tool_payload_readout(
     return ToolPayloadReadout(
         payload_char_span=payload_char_span,
         payload_token_span=_token_span_for_char_span(offsets=offsets, char_span=payload_char_span, context=context),
-        secret_char_span=payload_secret_char_span,
+        readout_char_span=payload_secret_char_span,
         tool_call_name=tool_call_name,
         argument_path=argument_path,
+    )
+
+
+def _safe_tool_payload_readout(
+    tool_argument_segments: tuple[ToolArgumentSegment, ...],
+    offsets: tuple[TokenOffset, ...],
+    context: str,
+) -> ToolPayloadReadout | None:
+    if len(tool_argument_segments) == 0:
+        return None
+    credential_segments = tuple(
+        segment for segment in tool_argument_segments if segment.argument_path.endswith(".credential")
+    )
+    segment = credential_segments[0] if len(credential_segments) > 0 else tool_argument_segments[0]
+    return ToolPayloadReadout(
+        payload_char_span=segment.value_span,
+        payload_token_span=_token_span_for_char_span(offsets=offsets, char_span=segment.value_span, context=context),
+        readout_char_span=segment.value_span,
+        tool_call_name=segment.tool_call_name,
+        argument_path=segment.argument_path,
     )
 
 

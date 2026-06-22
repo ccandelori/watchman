@@ -66,6 +66,22 @@ produces:
 12 task families * 3 labels * 20 variants = 720 collection inputs
 ```
 
+Use the matched-hard profile when training readout-window CIFT probes:
+
+```bash
+uv run aegis-trace-seed-inputs \
+  --assignments data/trace_collection/assignments.jsonl \
+  --variants-per-label 20 \
+  --profile matched_hard \
+  --output data/trace_collection/collection_inputs.matched_hard_720.jsonl
+```
+
+The matched-hard profile gives benign, safe-secret, and exfiltration rows a
+tool call on every variant. Safe-secret rows use matched non-secret payload
+values such as `withheld_by_policy`; exfiltration rows use the same tool shape
+with a DP-HONEY credential placeholder. This reduces the easy artifact where
+only exfiltration examples have payload readout windows.
+
 ## Write Human Collection Inputs
 
 Create `data/trace_collection/collection_inputs.jsonl`. Each row references one

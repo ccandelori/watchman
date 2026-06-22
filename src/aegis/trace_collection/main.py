@@ -4,9 +4,12 @@ import argparse
 import sys
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from aegis.core.contracts import CapabilityMode, ModelInfo
 from aegis.trace_collection.harness import (
+    SeedInputProfile,
+    build_matched_seed_trace_collection_submissions,
     build_seed_trace_collection_submissions,
     build_trace_collection_assignments,
     build_trace_collection_records_from_submissions,
@@ -39,6 +42,7 @@ class _SeedInputCliArgs:
     assignments_path: Path
     output_path: Path
     variants_per_label: int
+    profile: SeedInputProfile
 
 
 def run_assignment_cli(argv: tuple[str, ...]) -> None:
@@ -67,11 +71,18 @@ def run_record_builder_cli(argv: tuple[str, ...]) -> None:
 def run_seed_input_cli(argv: tuple[str, ...]) -> None:
     args = _parse_seed_input_args(argv)
     assignments = read_trace_collection_assignments_jsonl(path=args.assignments_path)
-    submissions = build_seed_trace_collection_submissions(
-        assignments=assignments,
-        tasks=default_trace_collection_tasks(),
-        variants_per_label=args.variants_per_label,
-    )
+    if args.profile == "standard":
+        submissions = build_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=default_trace_collection_tasks(),
+            variants_per_label=args.variants_per_label,
+        )
+    else:
+        submissions = build_matched_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=default_trace_collection_tasks(),
+            variants_per_label=args.variants_per_label,
+        )
     write_trace_collection_submissions_jsonl(path=args.output_path, submissions=submissions)
 
 
@@ -164,22 +175,35 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
     )
     parser.add_argument("--assignments", required=True, help="Assignment JSONL path.")
     parser.add_argument("--variants-per-label", required=True, help="Synthetic variants generated for each assignment.")
+    parser.add_argument(
+        "--profile",
+        required=False,
+        default="standard",
+        choices=("standard", "matched_hard"),
+        help="Seed input profile to generate.",
+    )
     parser.add_argument("--output", required=True, help="Output JSONL path for seeded collection inputs.")
     namespace = parser.parse_args(list(argv))
     assignments_value: object = namespace.assignments
     variants_per_label_value: object = namespace.variants_per_label
+    profile_value: object = namespace.profile
     output_value: object = namespace.output
     if not isinstance(assignments_value, str):
         raise TypeError("--assignments must parse as a string.")
     if not isinstance(variants_per_label_value, str):
         raise TypeError("--variants-per-label must parse as a string.")
+    if not isinstance(profile_value, str):
+        raise TypeError("--profile must parse as a string.")
     if not isinstance(output_value, str):
         raise TypeError("--output must parse as a string.")
     variants_per_label = int(variants_per_label_value)
     if variants_per_label < 1:
         raise ValueError("--variants-per-label must be positive.")
+    if profile_value != "standard" and profile_value != "matched_hard":
+        raise ValueError("--profile must be 'standard' or 'matched_hard'.")
     return _SeedInputCliArgs(
         assignments_path=Path(assignments_value),
         output_path=Path(output_value),
         variants_per_label=variants_per_label,
+        profile=cast(SeedInputProfile, profile_value),
     )
