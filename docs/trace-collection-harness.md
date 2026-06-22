@@ -152,6 +152,25 @@ pairs with the same token multiset but different word order. This is a
 diagnostic corpus for separating unigram shortcuts from phrase-order shortcuts;
 it is not a substitute for human-written traces.
 
+Use the paired-crossed-action profile when testing whether readout-window
+activations survive after both unigram and word-bigram shortcuts are removed:
+
+```bash
+uv run aegis-trace-seed-inputs \
+  --assignments data/trace_collection/assignments.jsonl \
+  --variants-per-label 10 \
+  --profile paired_crossed_action \
+  --output data/trace_collection/collection_inputs.paired_crossed_action_360.jsonl
+```
+
+The paired-crossed-action profile keeps matched tool payloads and constructs
+each safe/exfiltration pair with identical unigram counts and identical word
+bigram counts. The label is carried by swapping which longer action phrase is
+allowed versus denied. This is useful for diagnosing whether text baselines are
+winning through shallow lexical features. It still leaves longer template
+features possible, so report word 1-3 baselines before interpreting activation
+probe gains.
+
 ## Validate Paired Inputs
 
 Before converting paired safe/exfiltration inputs into CIFT structured prompts,
@@ -173,6 +192,9 @@ in tool calls. It writes a JSON report and exits non-zero when any pair fails.
 
 Use strict unigram settings for adversarial seed data. For human or LLM
 paraphrase data, choose thresholds deliberately and record them with the report.
+For `paired_crossed_action`, use `--maximum-unigram-delta 0` and
+`--minimum-bigram-jaccard 1.0`; any failure means the diagnostic profile is not
+preserving its core contract.
 
 ## Collect Paired Paraphrases
 

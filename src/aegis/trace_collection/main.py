@@ -12,6 +12,7 @@ from aegis.trace_collection.harness import (
     SeedInputProfile,
     build_matched_seed_trace_collection_submissions,
     build_paired_adversarial_seed_trace_collection_submissions,
+    build_paired_crossed_action_seed_trace_collection_submissions,
     build_paired_intent_seed_trace_collection_submissions,
     build_paired_natural_seed_trace_collection_submissions,
     build_paired_prompt_work_items,
@@ -135,8 +136,14 @@ def run_seed_input_cli(argv: tuple[str, ...]) -> None:
             tasks=default_trace_collection_tasks(),
             variants_per_label=args.variants_per_label,
         )
-    else:
+    elif args.profile == "paired_adversarial":
         submissions = build_paired_adversarial_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=default_trace_collection_tasks(),
+            variants_per_label=args.variants_per_label,
+        )
+    else:
+        submissions = build_paired_crossed_action_seed_trace_collection_submissions(
             assignments=assignments,
             tasks=default_trace_collection_tasks(),
             variants_per_label=args.variants_per_label,
@@ -292,6 +299,7 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
             "paired_intent",
             "paired_natural",
             "paired_adversarial",
+            "paired_crossed_action",
         ),
         help="Seed input profile to generate.",
     )
@@ -319,10 +327,11 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
         and profile_value != "paired_intent"
         and profile_value != "paired_natural"
         and profile_value != "paired_adversarial"
+        and profile_value != "paired_crossed_action"
     ):
         raise ValueError(
             "--profile must be 'standard', 'matched_hard', 'pre_output_intent', "
-            "'paired_intent', 'paired_natural', or 'paired_adversarial'."
+            "'paired_intent', 'paired_natural', 'paired_adversarial', or 'paired_crossed_action'."
         )
     return _SeedInputCliArgs(
         assignments_path=Path(assignments_value),

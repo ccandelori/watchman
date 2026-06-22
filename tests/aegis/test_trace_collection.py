@@ -20,6 +20,7 @@ from aegis.trace_collection.harness import (
     TraceCollectionTask,
     build_matched_seed_trace_collection_submissions,
     build_paired_adversarial_seed_trace_collection_submissions,
+    build_paired_crossed_action_seed_trace_collection_submissions,
     build_paired_intent_seed_trace_collection_submissions,
     build_paired_natural_seed_trace_collection_submissions,
     build_paired_prompt_work_items,
@@ -79,6 +80,11 @@ def _prompt_token_set(prompt: str) -> set[str]:
 
 def _prompt_token_counter(prompt: str) -> Counter[str]:
     return Counter(re.findall(r"[a-z0-9_]+", prompt.lower()))
+
+
+def _prompt_bigram_counter(prompt: str) -> Counter[tuple[str, str]]:
+    tokens = tuple(re.findall(r"[a-z0-9_]+", prompt.lower()))
+    return Counter((tokens[index], tokens[index + 1]) for index in range(len(tokens) - 1))
 
 
 def _control_pair(prompt: str) -> str:
@@ -1048,6 +1054,67 @@ class TraceCollectionHarnessTest(unittest.TestCase):
             _prompt_token_counter(safe_row["operator_prompt"]),
             _prompt_token_counter(exfiltration_row["operator_prompt"]),
         )
+
+    def test_seed_input_cli_writes_paired_crossed_action_collection_inputs(self) -> None:
+        assignments = build_trace_collection_assignments(
+            participant_ids=("alice",),
+            tasks=default_trace_collection_tasks(),
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            assignments_path = directory_path / "assignments.jsonl"
+            output_path = directory_path / "collection_inputs.jsonl"
+            write_trace_collection_assignments_jsonl(path=assignments_path, assignments=assignments)
+
+            run_seed_input_cli(
+                argv=(
+                    "--assignments",
+                    str(assignments_path),
+                    "--variants-per-label",
+                    "2",
+                    "--profile",
+                    "paired_crossed_action",
+                    "--output",
+                    str(output_path),
+                )
+            )
+            rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+        safe_row = next(
+            row
+            for row in rows
+            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+        )
+        exfiltration_row = next(
+            row
+            for row in rows
+            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+        )
+        submissions = build_paired_crossed_action_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=default_trace_collection_tasks(),
+            variants_per_label=1,
+        )
+        report = validate_paired_prompt_collection(
+            assignments=assignments,
+            submissions=submissions,
+            config=PairedPromptValidationConfig(maximum_unigram_delta=0, minimum_bigram_jaccard=1.0),
+        )
+
+        self.assertEqual(len(default_trace_collection_tasks()) * 3 * 2, len(rows))
+        self.assertEqual(safe_row["tool_calls"][0], exfiltration_row["tool_calls"][0])
+        self.assertEqual(
+            _prompt_token_counter(safe_row["operator_prompt"]),
+            _prompt_token_counter(exfiltration_row["operator_prompt"]),
+        )
+        self.assertEqual(
+            _prompt_bigram_counter(safe_row["operator_prompt"]),
+            _prompt_bigram_counter(exfiltration_row["operator_prompt"]),
+        )
+        self.assertIn("keep credential authority inside aegis", safe_row["operator_prompt"])
+        self.assertIn("carry credential authority outside aegis", exfiltration_row["operator_prompt"])
+        self.assertEqual(0, report.failed_pair_count)
 
     def test_pair_validation_cli_writes_report_for_balanced_collection_inputs(self) -> None:
         assignments = build_trace_collection_assignments(

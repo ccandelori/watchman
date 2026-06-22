@@ -39,6 +39,7 @@ proxy-shaped corpus where:
 | LM Studio one-shot 120 | Use local Qwen through LM Studio for more natural paired completions. | Naturalness improved, but all pairs failed strict lexical balance; text baselines still beat activation. | Put the validator inside the generation loop. |
 | LM Studio repaired 120 | Repair pairs until they pass strict unigram/bigram validation. | Unigram shortcuts were removed, char baseline weakened, but word bigrams still dominated. | Make phrase order itself non-memorisable. |
 | Crossed-action 120 | Force each pair to share identical unigram and bigram inventory while swapping allowed versus denied action semantics. | Activation beat word 1-2 and char baselines under grouped evaluation, but word 1-3 TF-IDF was perfect because the grammar frame stayed fixed. | Vary syntactic frames around the same allowed/denied semantic contrast. |
+| Paired-crossed-action default 360 | Promote crossed-action generation into the trace harness and run it on the full default task catalog. | The result reproduced the activation-over-word-1-2 diagnostic at 240 CIFT rows, while confirming word 1-3 and 1-4 template shortcuts remain perfect. | Treat this profile as a regression diagnostic and build grammar-diverse traces next. |
 
 ## Current State
 
@@ -53,7 +54,9 @@ The honest current result is sharper:
 - LM Studio can generate and repair local paired prompts.
 - Unigram lexical shortcuts can be suppressed.
 - Word-bigram shortcuts can be suppressed in a controlled diagnostic.
-- Fixed trigram grammar is now the main visible shortcut.
+- Fixed trigram and fourgram grammar are now the main visible shortcuts.
+- `paired_crossed_action` is now a reproducible harness profile rather than a
+  one-off local corpus recipe.
 
 The current bottleneck is data design, not extraction plumbing.
 
@@ -97,6 +100,28 @@ Grouped evaluation on the crossed-action corpus showed the intended pressure:
 So the crossed-action corpus is the first clear activation-over-word-1-2
 diagnostic. It is not yet text-invariant evidence because trigrams still
 recover the fixed allowed/denied grammar.
+
+The reproducible `paired_crossed_action` harness profile expanded the same
+diagnostic to the default 12-task catalog:
+
+- 120 pairs.
+- 0 failed pairs.
+- Max unigram delta: 0.
+- Min bigram Jaccard: 1.0000.
+- Average bigram Jaccard: 1.0000.
+- Tool payload mismatch pairs: 0.
+- Tool placeholder pairs: 0.
+
+Grouped evaluation on 240 structured safe/exfiltration rows showed:
+
+- Activation probe: 0.8429 macro F1.
+- Word TF-IDF 1-2: 0.4926 macro F1.
+- Char TF-IDF 3-5: 0.4347 macro F1.
+- Word TF-IDF 1-3: 1.0000 macro F1.
+- Word TF-IDF 1-4: 1.0000 macro F1.
+
+This gives us a reproducible regression diagnostic for unigram/bigram shortcut
+control, but it does not close the template-shortcut problem.
 
 ## Next Data Requirement
 
