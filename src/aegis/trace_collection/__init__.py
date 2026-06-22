@@ -1,4 +1,7 @@
 from aegis.trace_collection.harness import (
+    PairedPromptValidationConfig,
+    PairedPromptValidationPair,
+    PairedPromptValidationReport,
     TraceCollectionAssignment,
     TraceCollectionInput,
     TraceCollectionRecord,
@@ -15,6 +18,8 @@ from aegis.trace_collection.harness import (
     build_trace_collection_records_from_submissions,
     read_trace_collection_assignments_jsonl,
     read_trace_collection_submissions_jsonl,
+    validate_paired_prompt_collection,
+    write_paired_prompt_validation_json,
     write_trace_collection_assignments_jsonl,
     write_trace_collection_jsonl,
     write_trace_collection_submissions_jsonl,
@@ -22,6 +27,9 @@ from aegis.trace_collection.harness import (
 from aegis.trace_collection.tasks import default_trace_collection_tasks
 
 __all__ = [
+    "PairedPromptValidationConfig",
+    "PairedPromptValidationPair",
+    "PairedPromptValidationReport",
     "TraceCollectionAssignment",
     "TraceCollectionInput",
     "TraceCollectionRecord",
@@ -39,6 +47,8 @@ __all__ = [
     "default_trace_collection_tasks",
     "read_trace_collection_assignments_jsonl",
     "read_trace_collection_submissions_jsonl",
+    "validate_paired_prompt_collection",
+    "write_paired_prompt_validation_json",
     "write_trace_collection_assignments_jsonl",
     "write_trace_collection_jsonl",
     "write_trace_collection_submissions_jsonl",

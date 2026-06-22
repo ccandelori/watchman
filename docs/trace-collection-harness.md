@@ -152,6 +152,28 @@ pairs with the same token multiset but different word order. This is a
 diagnostic corpus for separating unigram shortcuts from phrase-order shortcuts;
 it is not a substitute for human-written traces.
 
+## Validate Paired Inputs
+
+Before converting paired safe/exfiltration inputs into CIFT structured prompts,
+run the pair validator:
+
+```bash
+uv run aegis-trace-validate-pairs \
+  --assignments data/trace_collection/assignments.jsonl \
+  --inputs data/trace_collection/collection_inputs.paired_adversarial_720.jsonl \
+  --maximum-unigram-delta 0 \
+  --minimum-bigram-jaccard 0.1 \
+  --output data/trace_collection/pair_validation.paired_adversarial_720.json
+```
+
+The validator groups `secret_present_safe` and `exfiltration_intent` rows by
+participant, task, and variant. It checks prompt unigram balance, weighted
+bigram overlap, matching tool payloads, and absence of credential placeholders
+in tool calls. It writes a JSON report and exits non-zero when any pair fails.
+
+Use strict unigram settings for adversarial seed data. For human or LLM
+paraphrase data, choose thresholds deliberately and record them with the report.
+
 ## Write Human Collection Inputs
 
 Create `data/trace_collection/collection_inputs.jsonl`. Each row references one

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal, TypeAlias, TypeGuard
@@ -23,6 +24,7 @@ SeedInputProfile: TypeAlias = Literal[
 ]
 
 _SCHEMA_VERSION = "trace_collection/v1"
+_PAIR_VALIDATION_SCHEMA_VERSION = "trace_pair_validation/v1"
 _TRACE_LABELS: tuple[TraceLabel, ...] = ("benign", "secret_present_safe", "exfiltration_intent")
 _TRACE_SOURCES: tuple[TraceCollectionSource, ...] = ("human", "synthetic_seed")
 _PLACEHOLDER_PATTERN = re.compile(r"\{\{CREDENTIAL:([^:}]+):([^}]+)\}\}")
@@ -307,6 +309,64 @@ class TraceCollectionRecord:
 
 
 @dataclass(frozen=True)
+class PairedPromptValidationConfig:
+    maximum_unigram_delta: int
+    minimum_bigram_jaccard: float
+
+    def __post_init__(self) -> None:
+        if self.maximum_unigram_delta < 0:
+            raise TraceCollectionError("maximum_unigram_delta must not be negative.")
+        if self.minimum_bigram_jaccard < 0.0 or self.minimum_bigram_jaccard > 1.0:
+            raise TraceCollectionError("minimum_bigram_jaccard must be between 0.0 and 1.0.")
+
+
+@dataclass(frozen=True)
+class PairedPromptValidationPair:
+    task_id: str
+    participant_id: str
+    variant_id: str
+    safe_submission_id: str
+    exfiltration_submission_id: str
+    unigram_delta: int
+    bigram_jaccard: float
+    tool_calls_match: bool
+    tool_call_placeholder_present: bool
+    passed: bool
+    failures: tuple[str, ...]
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "task_id": self.task_id,
+            "participant_id": self.participant_id,
+            "variant_id": self.variant_id,
+            "safe_submission_id": self.safe_submission_id,
+            "exfiltration_submission_id": self.exfiltration_submission_id,
+            "unigram_delta": self.unigram_delta,
+            "bigram_jaccard": self.bigram_jaccard,
+            "tool_calls_match": self.tool_calls_match,
+            "tool_call_placeholder_present": self.tool_call_placeholder_present,
+            "passed": self.passed,
+            "failures": list(self.failures),
+        }
+
+
+@dataclass(frozen=True)
+class PairedPromptValidationReport:
+    schema_version: str
+    pair_count: int
+    failed_pair_count: int
+    pairs: tuple[PairedPromptValidationPair, ...]
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "schema_version": self.schema_version,
+            "pair_count": self.pair_count,
+            "failed_pair_count": self.failed_pair_count,
+            "pairs": [pair.to_dict() for pair in self.pairs],
+        }
+
+
+@dataclass(frozen=True)
 class _ArgumentInjectionResult:
     value: JsonValue
     sensitive_spans: tuple[SensitiveSpan, ...]
@@ -435,6 +495,59 @@ def build_trace_collection_records_from_submissions(
             )
         )
     return tuple(records)
+
+
+def validate_paired_prompt_collection(
+    assignments: tuple[TraceCollectionAssignment, ...],
+    submissions: tuple[TraceCollectionSubmission, ...],
+    config: PairedPromptValidationConfig,
+) -> PairedPromptValidationReport:
+    assignments_by_id = _assignments_by_id(assignments)
+    safe_submissions: dict[tuple[str, str, str], TraceCollectionSubmission] = {}
+    exfiltration_submissions: dict[tuple[str, str, str], TraceCollectionSubmission] = {}
+    for submission in submissions:
+        assignment = assignments_by_id.get(submission.assignment_id)
+        if assignment is None:
+            raise TraceCollectionError(f"unknown assignment_id: {submission.assignment_id}")
+        pair_key = (assignment.participant_id, assignment.task_id, submission.variant_id)
+        if assignment.label == "secret_present_safe":
+            _store_paired_submission(
+                paired_submissions=safe_submissions,
+                pair_key=pair_key,
+                submission=submission,
+                label=assignment.label,
+            )
+        elif assignment.label == "exfiltration_intent":
+            _store_paired_submission(
+                paired_submissions=exfiltration_submissions,
+                pair_key=pair_key,
+                submission=submission,
+                label=assignment.label,
+            )
+
+    pairs: list[PairedPromptValidationPair] = []
+    for pair_key, safe_submission in sorted(safe_submissions.items()):
+        exfiltration_submission = exfiltration_submissions.get(pair_key)
+        if exfiltration_submission is None:
+            raise TraceCollectionError(f"missing exfiltration_intent submission for pair: {_pair_key_text(pair_key)}")
+        pairs.append(
+            _validate_paired_prompt_submissions(
+                pair_key=pair_key,
+                safe_submission=safe_submission,
+                exfiltration_submission=exfiltration_submission,
+                config=config,
+            )
+        )
+    for pair_key in exfiltration_submissions:
+        if pair_key not in safe_submissions:
+            raise TraceCollectionError(f"missing secret_present_safe submission for pair: {_pair_key_text(pair_key)}")
+    failed_pair_count = sum(1 for pair in pairs if not pair.passed)
+    return PairedPromptValidationReport(
+        schema_version=_PAIR_VALIDATION_SCHEMA_VERSION,
+        pair_count=len(pairs),
+        failed_pair_count=failed_pair_count,
+        pairs=tuple(pairs),
+    )
 
 
 def build_seed_trace_collection_submissions(
@@ -743,6 +856,124 @@ def write_trace_collection_assignments_jsonl(
         for assignment in assignments:
             output_file.write(json.dumps(assignment.to_dict(), sort_keys=True))
             output_file.write("\n")
+
+
+def write_paired_prompt_validation_json(path: Path, report: PairedPromptValidationReport) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report.to_dict(), indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _store_paired_submission(
+    paired_submissions: dict[tuple[str, str, str], TraceCollectionSubmission],
+    pair_key: tuple[str, str, str],
+    submission: TraceCollectionSubmission,
+    label: TraceLabel,
+) -> None:
+    if pair_key in paired_submissions:
+        raise TraceCollectionError(f"duplicate {label} submission for pair: {_pair_key_text(pair_key)}")
+    paired_submissions[pair_key] = submission
+
+
+def _validate_paired_prompt_submissions(
+    pair_key: tuple[str, str, str],
+    safe_submission: TraceCollectionSubmission,
+    exfiltration_submission: TraceCollectionSubmission,
+    config: PairedPromptValidationConfig,
+) -> PairedPromptValidationPair:
+    safe_unigrams = _token_counter(safe_submission.operator_prompt)
+    exfiltration_unigrams = _token_counter(exfiltration_submission.operator_prompt)
+    unigram_delta = _counter_delta(left=safe_unigrams, right=exfiltration_unigrams)
+    bigram_jaccard = _weighted_bigram_jaccard(
+        left=_bigram_counter(_prompt_tokens(safe_submission.operator_prompt)),
+        right=_bigram_counter(_prompt_tokens(exfiltration_submission.operator_prompt)),
+    )
+    tool_calls_match = safe_submission.tool_calls == exfiltration_submission.tool_calls
+    tool_call_placeholder_present = _tool_calls_contain_placeholder(
+        tool_calls=safe_submission.tool_calls + exfiltration_submission.tool_calls
+    )
+    failures = _paired_prompt_failures(
+        unigram_delta=unigram_delta,
+        bigram_jaccard=bigram_jaccard,
+        tool_calls_match=tool_calls_match,
+        tool_call_placeholder_present=tool_call_placeholder_present,
+        config=config,
+    )
+    return PairedPromptValidationPair(
+        task_id=pair_key[1],
+        participant_id=pair_key[0],
+        variant_id=pair_key[2],
+        safe_submission_id=safe_submission.submission_id,
+        exfiltration_submission_id=exfiltration_submission.submission_id,
+        unigram_delta=unigram_delta,
+        bigram_jaccard=bigram_jaccard,
+        tool_calls_match=tool_calls_match,
+        tool_call_placeholder_present=tool_call_placeholder_present,
+        passed=len(failures) == 0,
+        failures=failures,
+    )
+
+
+def _paired_prompt_failures(
+    unigram_delta: int,
+    bigram_jaccard: float,
+    tool_calls_match: bool,
+    tool_call_placeholder_present: bool,
+    config: PairedPromptValidationConfig,
+) -> tuple[str, ...]:
+    failures: list[str] = []
+    if unigram_delta > config.maximum_unigram_delta:
+        failures.append("unigram_delta")
+    if bigram_jaccard < config.minimum_bigram_jaccard:
+        failures.append("bigram_jaccard")
+    if not tool_calls_match:
+        failures.append("tool_calls_match")
+    if tool_call_placeholder_present:
+        failures.append("tool_call_placeholder")
+    return tuple(failures)
+
+
+def _token_counter(prompt: str) -> Counter[str]:
+    return Counter(_prompt_tokens(prompt))
+
+
+def _prompt_tokens(prompt: str) -> tuple[str, ...]:
+    return tuple(re.findall(r"[a-z0-9_]+", prompt.lower()))
+
+
+def _bigram_counter(tokens: tuple[str, ...]) -> Counter[tuple[str, str]]:
+    bigrams: list[tuple[str, str]] = []
+    for index in range(len(tokens) - 1):
+        bigrams.append((tokens[index], tokens[index + 1]))
+    return Counter(bigrams)
+
+
+def _counter_delta(left: Counter[str], right: Counter[str]) -> int:
+    left_only = left - right
+    right_only = right - left
+    return sum(left_only.values()) + sum(right_only.values())
+
+
+def _weighted_bigram_jaccard(left: Counter[tuple[str, str]], right: Counter[tuple[str, str]]) -> float:
+    keys = set(left.keys()) | set(right.keys())
+    if len(keys) == 0:
+        return 1.0
+    intersection_total = 0
+    union_total = 0
+    for key in keys:
+        intersection_total += min(left[key], right[key])
+        union_total += max(left[key], right[key])
+    if union_total == 0:
+        return 1.0
+    return intersection_total / union_total
+
+
+def _tool_calls_contain_placeholder(tool_calls: tuple[ToolCall, ...]) -> bool:
+    return "{{CREDENTIAL" in json.dumps([tool_call.to_dict() for tool_call in tool_calls], sort_keys=True)
+
+
+def _pair_key_text(pair_key: tuple[str, str, str]) -> str:
+    participant_id, task_id, variant_id = pair_key
+    return f"participant_id={participant_id} task_id={task_id} variant_id={variant_id}"
 
 
 def _inject_tool_call_honeytokens(

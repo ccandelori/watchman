@@ -8,6 +8,7 @@ from typing import cast
 
 from aegis.core.contracts import CapabilityMode, ModelInfo
 from aegis.trace_collection.harness import (
+    PairedPromptValidationConfig,
     SeedInputProfile,
     build_matched_seed_trace_collection_submissions,
     build_paired_adversarial_seed_trace_collection_submissions,
@@ -19,6 +20,8 @@ from aegis.trace_collection.harness import (
     build_trace_collection_records_from_submissions,
     read_trace_collection_assignments_jsonl,
     read_trace_collection_submissions_jsonl,
+    validate_paired_prompt_collection,
+    write_paired_prompt_validation_json,
     write_trace_collection_assignments_jsonl,
     write_trace_collection_jsonl,
     write_trace_collection_submissions_jsonl,
@@ -47,6 +50,14 @@ class _SeedInputCliArgs:
     output_path: Path
     variants_per_label: int
     profile: SeedInputProfile
+
+
+@dataclass(frozen=True)
+class _PairValidationCliArgs:
+    assignments_path: Path
+    inputs_path: Path
+    output_path: Path
+    config: PairedPromptValidationConfig
 
 
 def run_assignment_cli(argv: tuple[str, ...]) -> None:
@@ -114,12 +125,30 @@ def run_seed_input_cli(argv: tuple[str, ...]) -> None:
     write_trace_collection_submissions_jsonl(path=args.output_path, submissions=submissions)
 
 
+def run_pair_validation_cli(argv: tuple[str, ...]) -> None:
+    args = _parse_pair_validation_args(argv)
+    assignments = read_trace_collection_assignments_jsonl(path=args.assignments_path)
+    submissions = read_trace_collection_submissions_jsonl(path=args.inputs_path)
+    report = validate_paired_prompt_collection(
+        assignments=assignments,
+        submissions=submissions,
+        config=args.config,
+    )
+    write_paired_prompt_validation_json(path=args.output_path, report=report)
+    if report.failed_pair_count > 0:
+        raise SystemExit(f"paired prompt validation failed for {report.failed_pair_count} pair(s)")
+
+
 def record_builder_main() -> None:
     run_record_builder_cli(argv=tuple(sys.argv[1:]))
 
 
 def seed_input_main() -> None:
     run_seed_input_cli(argv=tuple(sys.argv[1:]))
+
+
+def pair_validation_main() -> None:
+    run_pair_validation_cli(argv=tuple(sys.argv[1:]))
 
 
 def _parse_assignment_args(argv: tuple[str, ...]) -> _AssignmentCliArgs:
@@ -251,4 +280,41 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
         output_path=Path(output_value),
         variants_per_label=variants_per_label,
         profile=cast(SeedInputProfile, profile_value),
+    )
+
+
+def _parse_pair_validation_args(argv: tuple[str, ...]) -> _PairValidationCliArgs:
+    parser = argparse.ArgumentParser(
+        prog="aegis-trace-validate-pairs",
+        description="Validate paired safe/exfiltration trace collection inputs before CIFT extraction.",
+    )
+    parser.add_argument("--assignments", required=True, help="Assignment JSONL path.")
+    parser.add_argument("--inputs", required=True, help="Collection input JSONL path.")
+    parser.add_argument("--maximum-unigram-delta", required=True, help="Maximum token-count delta per pair.")
+    parser.add_argument("--minimum-bigram-jaccard", required=True, help="Minimum weighted bigram Jaccard per pair.")
+    parser.add_argument("--output", required=True, help="Output JSON report path.")
+    namespace = parser.parse_args(list(argv))
+    assignments_value: object = namespace.assignments
+    inputs_value: object = namespace.inputs
+    output_value: object = namespace.output
+    maximum_unigram_delta_value: object = namespace.maximum_unigram_delta
+    minimum_bigram_jaccard_value: object = namespace.minimum_bigram_jaccard
+    if not isinstance(assignments_value, str):
+        raise TypeError("--assignments must parse as a string.")
+    if not isinstance(inputs_value, str):
+        raise TypeError("--inputs must parse as a string.")
+    if not isinstance(output_value, str):
+        raise TypeError("--output must parse as a string.")
+    if not isinstance(maximum_unigram_delta_value, str):
+        raise TypeError("--maximum-unigram-delta must parse as a string.")
+    if not isinstance(minimum_bigram_jaccard_value, str):
+        raise TypeError("--minimum-bigram-jaccard must parse as a string.")
+    return _PairValidationCliArgs(
+        assignments_path=Path(assignments_value),
+        inputs_path=Path(inputs_value),
+        output_path=Path(output_value),
+        config=PairedPromptValidationConfig(
+            maximum_unigram_delta=int(maximum_unigram_delta_value),
+            minimum_bigram_jaccard=float(minimum_bigram_jaccard_value),
+        ),
     )
