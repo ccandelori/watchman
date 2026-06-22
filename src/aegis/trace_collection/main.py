@@ -10,6 +10,7 @@ from aegis.core.contracts import CapabilityMode, ModelInfo
 from aegis.trace_collection.harness import (
     SeedInputProfile,
     build_matched_seed_trace_collection_submissions,
+    build_paired_adversarial_seed_trace_collection_submissions,
     build_paired_intent_seed_trace_collection_submissions,
     build_paired_natural_seed_trace_collection_submissions,
     build_pre_output_intent_seed_trace_collection_submissions,
@@ -98,8 +99,14 @@ def run_seed_input_cli(argv: tuple[str, ...]) -> None:
             tasks=default_trace_collection_tasks(),
             variants_per_label=args.variants_per_label,
         )
-    else:
+    elif args.profile == "paired_natural":
         submissions = build_paired_natural_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=default_trace_collection_tasks(),
+            variants_per_label=args.variants_per_label,
+        )
+    else:
+        submissions = build_paired_adversarial_seed_trace_collection_submissions(
             assignments=assignments,
             tasks=default_trace_collection_tasks(),
             variants_per_label=args.variants_per_label,
@@ -200,7 +207,14 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
         "--profile",
         required=False,
         default="standard",
-        choices=("standard", "matched_hard", "pre_output_intent", "paired_intent", "paired_natural"),
+        choices=(
+            "standard",
+            "matched_hard",
+            "pre_output_intent",
+            "paired_intent",
+            "paired_natural",
+            "paired_adversarial",
+        ),
         help="Seed input profile to generate.",
     )
     parser.add_argument("--output", required=True, help="Output JSONL path for seeded collection inputs.")
@@ -226,10 +240,11 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
         and profile_value != "pre_output_intent"
         and profile_value != "paired_intent"
         and profile_value != "paired_natural"
+        and profile_value != "paired_adversarial"
     ):
         raise ValueError(
             "--profile must be 'standard', 'matched_hard', 'pre_output_intent', "
-            "'paired_intent', or 'paired_natural'."
+            "'paired_intent', 'paired_natural', or 'paired_adversarial'."
         )
     return _SeedInputCliArgs(
         assignments_path=Path(assignments_value),

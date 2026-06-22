@@ -135,6 +135,23 @@ test whether readout-window activations survive when prompts look more like
 operator requests, and always compare it against word and character TF-IDF
 baselines before treating probe performance as meaningful.
 
+Use the paired-adversarial profile when testing whether lexical balancing
+removes the simplest prompt shortcuts:
+
+```bash
+uv run aegis-trace-seed-inputs \
+  --assignments data/trace_collection/assignments.jsonl \
+  --variants-per-label 20 \
+  --profile paired_adversarial \
+  --output data/trace_collection/collection_inputs.paired_adversarial_720.jsonl
+```
+
+The paired-adversarial profile keeps safe-secret and exfiltration tool payloads
+identical, avoids credential placeholders in tool calls, and writes prompt
+pairs with the same token multiset but different word order. This is a
+diagnostic corpus for separating unigram shortcuts from phrase-order shortcuts;
+it is not a substitute for human-written traces.
+
 ## Write Human Collection Inputs
 
 Create `data/trace_collection/collection_inputs.jsonl`. Each row references one

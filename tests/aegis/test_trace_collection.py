@@ -5,6 +5,7 @@ import re
 import sys
 import tempfile
 import unittest
+from collections import Counter
 from pathlib import Path
 
 import aegis.trace_collection.__main__ as trace_collection_main
@@ -16,6 +17,7 @@ from aegis.trace_collection.harness import (
     TraceCollectionSubmission,
     TraceCollectionTask,
     build_matched_seed_trace_collection_submissions,
+    build_paired_adversarial_seed_trace_collection_submissions,
     build_paired_intent_seed_trace_collection_submissions,
     build_paired_natural_seed_trace_collection_submissions,
     build_pre_output_intent_seed_trace_collection_submissions,
@@ -59,6 +61,10 @@ def _ledger() -> HoneytokenLedger:
 
 def _prompt_token_set(prompt: str) -> set[str]:
     return set(re.findall(r"[a-z0-9_]+", prompt.lower()))
+
+
+def _prompt_token_counter(prompt: str) -> Counter[str]:
+    return Counter(re.findall(r"[a-z0-9_]+", prompt.lower()))
 
 
 def _control_pair(prompt: str) -> str:
@@ -643,6 +649,65 @@ class TraceCollectionHarnessTest(unittest.TestCase):
         self.assertEqual("dp_honey", sensitive_spans[0]["source"])
         self.assertNotIn("{{CREDENTIAL", json.dumps(encoded["normalized_turn"]["tool_calls"]))
 
+    def test_paired_adversarial_seed_submissions_balance_prompt_tokens_and_match_tool_payloads(self) -> None:
+        assignments = build_trace_collection_assignments(
+            participant_ids=("alice",),
+            tasks=default_trace_collection_tasks(),
+        )
+
+        submissions = build_paired_adversarial_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=default_trace_collection_tasks(),
+            variants_per_label=2,
+        )
+        for task in default_trace_collection_tasks():
+            for variant_id in ("v000", "v001"):
+                safe_submission = next(
+                    submission
+                    for submission in submissions
+                    if submission.assignment_id == f"assignment-alice-{task.task_id}-secret_present_safe"
+                    and submission.variant_id == variant_id
+                )
+                exfiltration_submission = next(
+                    submission
+                    for submission in submissions
+                    if submission.assignment_id == f"assignment-alice-{task.task_id}-exfiltration_intent"
+                    and submission.variant_id == variant_id
+                )
+
+                self.assertEqual(safe_submission.tool_calls[0], exfiltration_submission.tool_calls[0])
+                self.assertNotEqual(safe_submission.operator_prompt, exfiltration_submission.operator_prompt)
+                self.assertEqual(
+                    _prompt_token_counter(safe_submission.operator_prompt),
+                    _prompt_token_counter(exfiltration_submission.operator_prompt),
+                )
+                self.assertNotIn("{{CREDENTIAL", json.dumps(exfiltration_submission.tool_calls[0].arguments))
+                _assert_prompt_is_natural(safe_submission.operator_prompt)
+                _assert_prompt_is_natural(exfiltration_submission.operator_prompt)
+
+    def test_paired_adversarial_records_only_have_context_honeytoken_spans(self) -> None:
+        assignments = build_trace_collection_assignments(participant_ids=("alice",), tasks=(_task(),))
+        submissions = build_paired_adversarial_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=(_task(),),
+            variants_per_label=1,
+        )
+
+        records = build_trace_collection_records_from_submissions(
+            assignments=assignments,
+            submissions=submissions,
+            tasks=(_task(),),
+            model=_model(),
+            capability_mode=CapabilityMode.OFFLINE_EVAL,
+        )
+        exfiltration_record = next(record for record in records if record.label == "exfiltration_intent")
+        encoded = exfiltration_record.to_dict()
+        sensitive_spans = encoded["normalized_turn"]["sensitive_spans"]
+
+        self.assertEqual(1, len(sensitive_spans))
+        self.assertEqual("dp_honey", sensitive_spans[0]["source"])
+        self.assertNotIn("{{CREDENTIAL", json.dumps(encoded["normalized_turn"]["tool_calls"]))
+
     def test_seed_input_cli_writes_collection_inputs_for_existing_assignments(self) -> None:
         assignments = build_trace_collection_assignments(
             participant_ids=("alice",),
@@ -843,6 +908,49 @@ class TraceCollectionHarnessTest(unittest.TestCase):
         self.assertEqual(safe_row["tool_calls"][0], exfiltration_row["tool_calls"][0])
         _assert_prompt_is_natural(safe_row["operator_prompt"])
         _assert_prompt_is_natural(exfiltration_row["operator_prompt"])
+
+    def test_seed_input_cli_writes_paired_adversarial_collection_inputs(self) -> None:
+        assignments = build_trace_collection_assignments(
+            participant_ids=("alice",),
+            tasks=default_trace_collection_tasks(),
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            assignments_path = directory_path / "assignments.jsonl"
+            output_path = directory_path / "collection_inputs.jsonl"
+            write_trace_collection_assignments_jsonl(path=assignments_path, assignments=assignments)
+
+            run_seed_input_cli(
+                argv=(
+                    "--assignments",
+                    str(assignments_path),
+                    "--variants-per-label",
+                    "2",
+                    "--profile",
+                    "paired_adversarial",
+                    "--output",
+                    str(output_path),
+                )
+            )
+            rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+        safe_row = next(
+            row
+            for row in rows
+            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+        )
+        exfiltration_row = next(
+            row
+            for row in rows
+            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+        )
+        self.assertEqual(len(default_trace_collection_tasks()) * 3 * 2, len(rows))
+        self.assertEqual(safe_row["tool_calls"][0], exfiltration_row["tool_calls"][0])
+        self.assertEqual(
+            _prompt_token_counter(safe_row["operator_prompt"]),
+            _prompt_token_counter(exfiltration_row["operator_prompt"]),
+        )
 
     def test_default_task_catalog_supports_large_diverse_seed_corpus(self) -> None:
         tasks = default_trace_collection_tasks()
