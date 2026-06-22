@@ -22,6 +22,11 @@ Records are normalized runtime artifacts. They contain rendered prompts with
 DP-HONEY canaries, `SensitiveSpan` metadata, labels, families, and pending CIFT
 tokenization markers.
 
+Structured prompt records are CIFT-facing artifacts. They render each
+`NormalizedTurn`, tokenize it with the same model tokenizer used for activation
+extraction, and add `secret_token_span`, `query_token_span`,
+`payload_token_span`, and `readout_token_indices`.
+
 ## Generate Assignments
 
 Run from the repository root:
@@ -99,6 +104,34 @@ uv run aegis-trace-build-records \
 The output is JSONL where each row is a `TraceCollectionRecord`. The nested
 `normalized_turn` field matches the runtime spine contract and can be consumed
 by offline replay, CIFT tokenization, or future proxy calibration scripts.
+
+## Convert Records for CIFT
+
+Run the converter from an environment with `transformers` installed:
+
+```bash
+python introspection/scripts/convert_trace_records_to_structured_prompts.py \
+  --records data/trace_collection/records.generated.jsonl \
+  --output data/trace_collection/structured_prompts.generated.jsonl \
+  --model-id Qwen/Qwen3-0.6B \
+  --revision main \
+  --readout-token-count 8
+```
+
+The converter writes structured prompt rows accepted by
+`introspection/scripts/extract_activations.py --pooling readout_window`.
+Rows without a DP-HONEY secret span are skipped instead of receiving fake
+secret spans. For the seeded 720-row corpus, this yields:
+
+```text
+240 secret_present_safe rows
+240 exfiltration_intent rows
+240 benign rows skipped for separate calibration
+```
+
+This skip is intentional. The current structured prompt contract is for
+secret-bearing CIFT readout windows; benign no-secret calibration should remain
+a separate artifact.
 
 ## Boundaries
 
