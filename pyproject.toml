@@ -28,6 +28,7 @@ dev = [
 ]
 
 [project.scripts]
+aegis-proxy = "aegis.proxy.server:main"
 aegis-trace-assignments = "aegis.trace_collection.__main__:main"
 aegis-trace-build-records = "aegis.trace_collection.main:record_builder_main"
 aegis-trace-seed-inputs = "aegis.trace_collection.main:seed_input_main"

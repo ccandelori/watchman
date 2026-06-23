@@ -95,6 +95,38 @@ Run the built-in demo scenarios:
 uv run python scripts/run_demo.py
 ```
 
+Run the development HTTP proxy:
+
+```bash
+uv run aegis-proxy --host 127.0.0.1 --port 8000
+```
+
+The development proxy exposes the current OpenAI-compatible mock surface:
+
+```text
+GET  /health
+POST /v1/chat/completions
+GET  /audit/recent
+```
+
+Send one local chat request:
+
+```bash
+curl -s http://127.0.0.1:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "mock-model",
+    "messages": [{"role": "user", "content": "hello"}],
+    "metadata": {"trace_id": "trace-local-1", "session_id": "session-local-1"}
+  }'
+```
+
+Redteam scenarios should target the HTTP surface first. For pre-server tests,
+use `aegis.redteam.InProcessAegisTarget`; for server-backed tests, use
+`aegis.redteam.HttpAegisTarget`. Both adapters return the same
+`RedteamResult` shape with assistant text, raw response, and the `aegis`
+detector/policy block.
+
 Generate controlled trace-collection assignments for human operators:
 
 ```bash
@@ -184,6 +216,7 @@ src/aegis/policy/      Policy decision logic
 src/aegis/audit/       Audit sinks
 src/aegis/providers/   Model provider adapters
 src/aegis/proxy/       Proxy adapters and mock proxy surface
+src/aegis/redteam/     Redteam target adapters for HTTP and in-process tests
 src/aegis/replay/      Offline replay harnesses for fixtures and demos
 src/aegis/sdk/         SDK entrypoint for embedding the runtime
 tests/aegis/           Runtime spine tests
