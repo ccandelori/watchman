@@ -66,6 +66,16 @@ uv run --extra dev aegis-nimbus-eval-infonce \
   --output data/nimbus_training/nimbus_infonce_eval.generated.json
 ```
 
+Use markdown when a human-readable run summary is more useful than JSON:
+
+```bash
+uv run --extra dev aegis-nimbus-eval-infonce \
+  --input data/nimbus_training/nimbus_training.generated.jsonl \
+  --model data/nimbus_training/nimbus_infonce_model.generated.json \
+  --output data/nimbus_training/nimbus_infonce_eval.generated.md \
+  --format markdown
+```
+
 The v0 trainer uses a small lexical scorer with grid-searched non-negative
 feature weights. It proves the InfoNCE objective, JSON artifact shape, evaluator
 metrics, and bit conversion:

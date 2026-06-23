@@ -112,6 +112,42 @@ def test_nimbus_infonce_train_and_eval_clis_write_json(
     }
 
 
+def test_nimbus_infonce_eval_cli_writes_markdown_summary(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    corpus_path = tmp_path / "corpus.jsonl"
+    model_path = tmp_path / "model.json"
+    report_path = tmp_path / "report.md"
+    write_nimbus_training_records_jsonl(corpus_path, generate_default_nimbus_training_records())
+    model = train_nimbus_infonce_model(
+        generate_default_nimbus_training_records(),
+        NimbusInfoNCERunConfig(max_weight=4, weight_step=1),
+    )
+    save_nimbus_infonce_model(model_path, model)
+
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        (
+            "aegis-nimbus-eval-infonce",
+            "--input",
+            str(corpus_path),
+            "--model",
+            str(model_path),
+            "--output",
+            str(report_path),
+            "--format",
+            "markdown",
+        ),
+    )
+    main_eval()
+
+    markdown = report_path.read_text(encoding="utf-8")
+
+    assert "# NIMBUS InfoNCE Evaluation" in markdown
+    assert "| partial | 4 |" in markdown
+    assert "safe-canary-repo-alpha-7294" not in markdown
+    assert "safe-decoy-marker" not in markdown
+
+
 def test_nimbus_infonce_train_rejects_malformed_in_memory_record() -> None:
     malformed_record = replace(generate_default_nimbus_training_records()[0], schema_version="wrong-schema")
 

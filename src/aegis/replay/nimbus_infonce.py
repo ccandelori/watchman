@@ -11,6 +11,7 @@ import re
 import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 
 from aegis.core.contracts import JsonValue
@@ -38,6 +39,11 @@ _CREDENTIAL_LIKE_PREFIXES = ("ghp_", "github_pat_", "sk_", "hny_", "aws_", "AKIA
 
 class NimbusInfoNCEError(ValueError):
     """Raised when offline NIMBUS InfoNCE training or evaluation fails."""
+
+
+class NimbusInfoNCEEvalFormat(StrEnum):
+    JSON = "json"
+    MARKDOWN = "markdown"
 
 
 @dataclass(frozen=True)
@@ -210,6 +216,43 @@ def save_nimbus_infonce_eval_report(path: Path, report: NimbusInfoNCEEvalReport)
     path.write_text(json.dumps(report.to_dict(), allow_nan=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def save_nimbus_infonce_markdown_report(path: Path, report: NimbusInfoNCEEvalReport) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_nimbus_infonce_markdown(report), encoding="utf-8")
+
+
+def render_nimbus_infonce_markdown(report: NimbusInfoNCEEvalReport) -> str:
+    lines = [
+        "# NIMBUS InfoNCE Evaluation",
+        "",
+        f"- Model: `{report.model_id}`",
+        f"- Records: `{report.record_count}`",
+        f"- Attack top-1 accuracy: `{_format_float(report.attack_top1_accuracy)}`",
+        f"- Mean NCE loss bits: `{_format_float(report.mean_nce_loss_bits)}`",
+        f"- Mean estimated leakage bits: `{_format_float(report.mean_estimated_leakage_bits)}`",
+        f"- Mean absolute error bits: `{_format_float(report.mean_absolute_error_bits)}`",
+        "",
+        "| Label | Count | Top-1 accuracy | Mean target bits | Mean estimated bits | MAE bits |",
+        "| --- | ---: | ---: | ---: | ---: | ---: |",
+    ]
+    for metric in report.label_metrics:
+        lines.append(
+            "| "
+            + " | ".join(
+                (
+                    _markdown_cell(metric.leakage_label),
+                    str(metric.count),
+                    _format_float(metric.top1_accuracy),
+                    _format_float(metric.mean_target_turn_leakage_bits),
+                    _format_float(metric.mean_estimated_leakage_bits),
+                    _format_float(metric.mean_absolute_error_bits),
+                )
+            )
+            + " |"
+        )
+    return "\n".join(lines) + "\n"
+
+
 def parse_train_args(argv: Sequence[str]) -> tuple[Path, Path, NimbusInfoNCERunConfig]:
     parser = argparse.ArgumentParser(description="Train an offline lexical NIMBUS InfoNCE critic artifact.")
     parser.add_argument("--input", required=True, type=Path, help="Path to nimbus-training-turn/v0 JSONL.")
@@ -220,13 +263,20 @@ def parse_train_args(argv: Sequence[str]) -> tuple[Path, Path, NimbusInfoNCERunC
     return args.input, args.output, NimbusInfoNCERunConfig(max_weight=args.max_weight, weight_step=args.weight_step)
 
 
-def parse_eval_args(argv: Sequence[str]) -> tuple[Path, Path, Path]:
+def parse_eval_args(argv: Sequence[str]) -> tuple[Path, Path, Path, NimbusInfoNCEEvalFormat]:
     parser = argparse.ArgumentParser(description="Evaluate an offline lexical NIMBUS InfoNCE critic artifact.")
     parser.add_argument("--input", required=True, type=Path, help="Path to nimbus-training-turn/v0 JSONL.")
     parser.add_argument("--model", required=True, type=Path, help="Path to the trained model JSON artifact.")
     parser.add_argument("--output", required=True, type=Path, help="Path for the JSON evaluation report.")
+    parser.add_argument(
+        "--format",
+        choices=tuple(item.value for item in NimbusInfoNCEEvalFormat),
+        required=False,
+        default=NimbusInfoNCEEvalFormat.JSON.value,
+        help="Output format for the evaluation report.",
+    )
     args = parser.parse_args(argv)
-    return args.input, args.model, args.output
+    return args.input, args.model, args.output, NimbusInfoNCEEvalFormat(args.format)
 
 
 def main_train() -> None:
@@ -242,11 +292,17 @@ def main_train() -> None:
 
 def main_eval() -> None:
     try:
-        input_path, model_path, output_path = parse_eval_args(tuple(sys.argv[1:]))
+        input_path, model_path, output_path, output_format = parse_eval_args(tuple(sys.argv[1:]))
         records = read_nimbus_training_records_jsonl(input_path)
         model = load_nimbus_infonce_model(model_path)
         report = evaluate_nimbus_infonce_model(model, records)
-        save_nimbus_infonce_eval_report(output_path, report)
+        if output_format == NimbusInfoNCEEvalFormat.JSON:
+            save_nimbus_infonce_eval_report(output_path, report)
+            return
+        if output_format == NimbusInfoNCEEvalFormat.MARKDOWN:
+            save_nimbus_infonce_markdown_report(output_path, report)
+            return
+        raise NimbusInfoNCEError(f"Unsupported output format '{output_format}'.")
     except (NimbusInfoNCEError, NimbusTrainingCorpusError) as exc:
         sys.stderr.write(f"{exc}\n")
         raise SystemExit(1) from exc
@@ -476,6 +532,14 @@ def _mean(values: tuple[float, ...]) -> float:
     if len(values) == 0:
         raise NimbusInfoNCEError("cannot compute mean of an empty sequence.")
     return sum(values) / len(values)
+
+
+def _format_float(value: float) -> str:
+    return f"{value:.6g}"
+
+
+def _markdown_cell(value: str) -> str:
+    return value.replace("\n", " ").replace("|", "\\|")
 
 
 def _validate_training_records(records: tuple[NimbusTrainingTurnRecord, ...]) -> None:
