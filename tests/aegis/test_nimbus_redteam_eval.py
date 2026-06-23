@@ -350,6 +350,30 @@ def test_nested_aegis_metadata_detector_results_are_supported(tmp_path: Path) ->
     assert metrics[0].triggered_detector_names == ("nimbus",)
 
 
+def test_nested_aegis_metadata_detector_results_are_preferred_over_flattened_copy(tmp_path: Path) -> None:
+    record = _benign_record()
+    turn_results = _required_list(record["turn_results"])
+    first_turn = dict(_required_dict(turn_results[0]))
+    flattened_detectors = first_turn["detector_results"]
+    first_turn["aegis_metadata"] = {
+        "detector_results": flattened_detectors,
+        "policy_decision": first_turn["policy_decision"],
+    }
+    first_turn["detector_results"] = [
+        {"name": "encoded_canary", "evidence": {}},
+        {"name": "nimbus", "evidence": {"capability_reason": "no_secret_context_handle"}},
+    ]
+    record["turn_results"] = (first_turn,)
+    path = tmp_path / "nested-preferred.jsonl"
+    _write_jsonl(path, (record,))
+
+    metrics = load_nimbus_redteam_metrics_jsonl(path)
+
+    assert len(metrics) == 1
+    assert metrics[0].nimbus_action.value == "allow"
+    assert metrics[0].budget_fraction == 0.0
+
+
 def _write_jsonl(path: Path, records: tuple[dict[str, object], ...]) -> None:
     with path.open("w", encoding="utf-8") as file:
         for record in records:

@@ -308,14 +308,14 @@ def _policy_triggered_detector_names(turn: Mapping[str, object], context: str) -
 
 
 def _turn_detector_results(turn: Mapping[str, object], context: str) -> list[object]:
-    detector_results = turn.get("detector_results")
-    if isinstance(detector_results, list):
-        return detector_results
-
     aegis_metadata = _optional_mapping(turn.get("aegis_metadata"), f"{context} aegis_metadata")
     nested_detector_results = aegis_metadata.get("detector_results")
     if isinstance(nested_detector_results, list):
         return nested_detector_results
+
+    detector_results = turn.get("detector_results")
+    if isinstance(detector_results, list):
+        return detector_results
 
     raise NimbusRedteamParseError(f"{context}: field 'detector_results' must be a list.")
 
