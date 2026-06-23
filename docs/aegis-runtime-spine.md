@@ -220,7 +220,9 @@ experiments. It implements the existing `NimbusCritic` shape, requires an
 injected resolver for true and negative secret contexts, and emits only safe
 aggregate evidence. The default development proxy remains on the deterministic
 `CanaryNimbusCritic` until a learned artifact is calibrated and explicitly
-configured.
+configured. Offline `nimbus-infonce-model/v0` artifacts must be converted
+explicitly into the runtime model shape before use; the runtime adapter does not
+import corpus rows or trainer code.
 
 ## Follow-Up Integration
 

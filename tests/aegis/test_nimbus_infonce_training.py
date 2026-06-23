@@ -16,6 +16,7 @@ from aegis.replay.nimbus_infonce import (
     main_eval,
     main_train,
     save_nimbus_infonce_model,
+    to_runtime_learned_nimbus_model,
     train_nimbus_infonce_model,
 )
 from aegis.replay.nimbus_training import (
@@ -65,6 +66,20 @@ def test_nimbus_infonce_model_artifact_round_trips_without_raw_contexts(tmp_path
     assert "safe-decoy-marker" not in raw_artifact
     assert "{{CREDENTIAL:" not in raw_artifact
     json.loads(raw_artifact)
+
+
+def test_nimbus_infonce_model_exports_runtime_learned_model() -> None:
+    model = train_nimbus_infonce_model(
+        generate_default_nimbus_training_records(),
+        NimbusInfoNCERunConfig(max_weight=4, weight_step=1),
+    )
+
+    runtime_model = to_runtime_learned_nimbus_model(model)
+
+    assert runtime_model.model_id == model.model_id
+    assert runtime_model.feature_names == model.feature_names
+    assert runtime_model.weights == model.weights
+    assert runtime_model.negative_count == model.negative_count
 
 
 def test_nimbus_infonce_train_and_eval_clis_write_json(

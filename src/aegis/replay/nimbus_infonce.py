@@ -15,6 +15,7 @@ from enum import StrEnum
 from pathlib import Path
 
 from aegis.core.contracts import JsonValue
+from aegis.detectors.nimbus_learned import NimbusLearnedInfoNCEModel
 from aegis.replay.nimbus_training import (
     INFO_NCE_NEGATIVE_COUNT,
     NIMBUS_TRAINING_SCHEMA_VERSION,
@@ -209,6 +210,16 @@ def load_nimbus_infonce_model(path: Path) -> NimbusInfoNCEModel:
     model = _model_from_mapping(_as_mapping(decoded, str(path)))
     _validate_model(model)
     return model
+
+
+def to_runtime_learned_nimbus_model(model: NimbusInfoNCEModel) -> NimbusLearnedInfoNCEModel:
+    _validate_model(model)
+    return NimbusLearnedInfoNCEModel(
+        model_id=model.model_id,
+        feature_names=model.feature_names,
+        weights=model.weights,
+        negative_count=model.negative_count,
+    )
 
 
 def save_nimbus_infonce_eval_report(path: Path, report: NimbusInfoNCEEvalReport) -> None:
