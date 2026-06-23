@@ -1,0 +1,588 @@
+from __future__ import annotations
+
+import argparse
+import base64
+import binascii
+import hashlib
+import itertools
+import json
+import math
+import re
+import sys
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass
+from pathlib import Path
+
+from aegis.core.contracts import JsonValue
+from aegis.replay.nimbus_training import (
+    INFO_NCE_NEGATIVE_COUNT,
+    NIMBUS_TRAINING_SCHEMA_VERSION,
+    NimbusLeakageLabel,
+    NimbusSecretContext,
+    NimbusTrainingCorpusError,
+    NimbusTrainingTurnRecord,
+    read_nimbus_training_records_jsonl,
+    validate_nimbus_training_record,
+)
+
+NIMBUS_INFONCE_MODEL_SCHEMA_VERSION = "nimbus-infonce-model/v0"
+NIMBUS_INFONCE_EVAL_SCHEMA_VERSION = "nimbus-infonce-eval/v0"
+NIMBUS_INFONCE_MODEL_ID = "nimbus-infonce-lexical-v0"
+NIMBUS_INFONCE_FEATURE_NAMES = ("output_token_overlap", "decoded_output_token_overlap", "state_token_overlap")
+
+_TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
+_BASE64_CANDIDATE_PATTERN = re.compile(r"\b[A-Za-z0-9+/]{12,}={0,2}\b")
+_SAFE_PUBLIC_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
+_CREDENTIAL_LIKE_PREFIXES = ("ghp_", "github_pat_", "sk_", "hny_", "aws_", "AKIA")
+
+
+class NimbusInfoNCEError(ValueError):
+    """Raised when offline NIMBUS InfoNCE training or evaluation fails."""
+
+
+@dataclass(frozen=True)
+class NimbusInfoNCERunConfig:
+    max_weight: int
+    weight_step: int
+
+    def __post_init__(self) -> None:
+        if self.max_weight < 0:
+            raise NimbusInfoNCEError("max_weight must be non-negative.")
+        if self.weight_step < 1:
+            raise NimbusInfoNCEError("weight_step must be positive.")
+
+
+@dataclass(frozen=True)
+class NimbusInfoNCEModel:
+    schema_version: str
+    model_id: str
+    training_schema_version: str
+    feature_names: tuple[str, ...]
+    weights: tuple[float, ...]
+    negative_count: int
+    positive_context_index: int
+    training_record_count: int
+    source_corpus_sha256: str
+    label_distribution: dict[str, int]
+    mean_nce_loss_bits: float
+    attack_top1_accuracy: float
+    mean_estimated_leakage_bits: float
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        label_distribution: dict[str, JsonValue] = {label: count for label, count in self.label_distribution.items()}
+        return {
+            "schema_version": self.schema_version,
+            "model_id": self.model_id,
+            "training_schema_version": self.training_schema_version,
+            "feature_names": list(self.feature_names),
+            "weights": list(self.weights),
+            "negative_count": self.negative_count,
+            "positive_context_index": self.positive_context_index,
+            "training_record_count": self.training_record_count,
+            "source_corpus_sha256": self.source_corpus_sha256,
+            "label_distribution": label_distribution,
+            "mean_nce_loss_bits": self.mean_nce_loss_bits,
+            "attack_top1_accuracy": self.attack_top1_accuracy,
+            "mean_estimated_leakage_bits": self.mean_estimated_leakage_bits,
+        }
+
+
+@dataclass(frozen=True)
+class NimbusInfoNCETurnMetric:
+    example_id: str
+    scenario_name: str
+    turn_index: int
+    leakage_label: str
+    positive_probability: float
+    nce_loss_bits: float
+    estimated_leakage_bits: float
+    positive_rank: int
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "example_id": self.example_id,
+            "scenario_name": self.scenario_name,
+            "turn_index": self.turn_index,
+            "leakage_label": self.leakage_label,
+            "positive_probability": self.positive_probability,
+            "nce_loss_bits": self.nce_loss_bits,
+            "estimated_leakage_bits": self.estimated_leakage_bits,
+            "positive_rank": self.positive_rank,
+        }
+
+
+@dataclass(frozen=True)
+class NimbusInfoNCEEvalReport:
+    schema_version: str
+    model_id: str
+    record_count: int
+    attack_top1_accuracy: float
+    mean_nce_loss_bits: float
+    mean_estimated_leakage_bits: float
+    turn_metrics: tuple[NimbusInfoNCETurnMetric, ...]
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "schema_version": self.schema_version,
+            "model_id": self.model_id,
+            "record_count": self.record_count,
+            "attack_top1_accuracy": self.attack_top1_accuracy,
+            "mean_nce_loss_bits": self.mean_nce_loss_bits,
+            "mean_estimated_leakage_bits": self.mean_estimated_leakage_bits,
+            "turn_metrics": [metric.to_dict() for metric in self.turn_metrics],
+        }
+
+
+def train_nimbus_infonce_model(
+    records: tuple[NimbusTrainingTurnRecord, ...],
+    config: NimbusInfoNCERunConfig,
+) -> NimbusInfoNCEModel:
+    _validate_training_records(records)
+    best_weights = _select_weights(records, config)
+    model = _model_from_weights(records, best_weights)
+    _validate_model(model)
+    return model
+
+
+def evaluate_nimbus_infonce_model(
+    model: NimbusInfoNCEModel,
+    records: tuple[NimbusTrainingTurnRecord, ...],
+) -> NimbusInfoNCEEvalReport:
+    _validate_model(model)
+    _validate_training_records(records)
+    turn_metrics = tuple(_metric_for_record(model, record) for record in records)
+    return NimbusInfoNCEEvalReport(
+        schema_version=NIMBUS_INFONCE_EVAL_SCHEMA_VERSION,
+        model_id=model.model_id,
+        record_count=len(records),
+        attack_top1_accuracy=_attack_top1_accuracy(turn_metrics),
+        mean_nce_loss_bits=_mean(tuple(metric.nce_loss_bits for metric in turn_metrics)),
+        mean_estimated_leakage_bits=_mean(tuple(metric.estimated_leakage_bits for metric in turn_metrics)),
+        turn_metrics=turn_metrics,
+    )
+
+
+def save_nimbus_infonce_model(path: Path, model: NimbusInfoNCEModel) -> None:
+    _validate_model(model)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(model.to_dict(), allow_nan=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def load_nimbus_infonce_model(path: Path) -> NimbusInfoNCEModel:
+    decoded: object = json.loads(path.read_text(encoding="utf-8"))
+    model = _model_from_mapping(_as_mapping(decoded, str(path)))
+    _validate_model(model)
+    return model
+
+
+def save_nimbus_infonce_eval_report(path: Path, report: NimbusInfoNCEEvalReport) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(report.to_dict(), allow_nan=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def parse_train_args(argv: Sequence[str]) -> tuple[Path, Path, NimbusInfoNCERunConfig]:
+    parser = argparse.ArgumentParser(description="Train an offline lexical NIMBUS InfoNCE critic artifact.")
+    parser.add_argument("--input", required=True, type=Path, help="Path to nimbus-training-turn/v0 JSONL.")
+    parser.add_argument("--output", required=True, type=Path, help="Path for the trained model JSON artifact.")
+    parser.add_argument("--max-weight", type=int, required=False, default=4, help="Maximum integer feature weight.")
+    parser.add_argument("--weight-step", type=int, required=False, default=1, help="Integer feature weight step.")
+    args = parser.parse_args(argv)
+    return args.input, args.output, NimbusInfoNCERunConfig(max_weight=args.max_weight, weight_step=args.weight_step)
+
+
+def parse_eval_args(argv: Sequence[str]) -> tuple[Path, Path, Path]:
+    parser = argparse.ArgumentParser(description="Evaluate an offline lexical NIMBUS InfoNCE critic artifact.")
+    parser.add_argument("--input", required=True, type=Path, help="Path to nimbus-training-turn/v0 JSONL.")
+    parser.add_argument("--model", required=True, type=Path, help="Path to the trained model JSON artifact.")
+    parser.add_argument("--output", required=True, type=Path, help="Path for the JSON evaluation report.")
+    args = parser.parse_args(argv)
+    return args.input, args.model, args.output
+
+
+def main_train() -> None:
+    try:
+        input_path, output_path, config = parse_train_args(tuple(sys.argv[1:]))
+        records = read_nimbus_training_records_jsonl(input_path)
+        model = train_nimbus_infonce_model(records, config)
+        save_nimbus_infonce_model(output_path, model)
+    except (NimbusInfoNCEError, NimbusTrainingCorpusError) as exc:
+        sys.stderr.write(f"{exc}\n")
+        raise SystemExit(1) from exc
+
+
+def main_eval() -> None:
+    try:
+        input_path, model_path, output_path = parse_eval_args(tuple(sys.argv[1:]))
+        records = read_nimbus_training_records_jsonl(input_path)
+        model = load_nimbus_infonce_model(model_path)
+        report = evaluate_nimbus_infonce_model(model, records)
+        save_nimbus_infonce_eval_report(output_path, report)
+    except (NimbusInfoNCEError, NimbusTrainingCorpusError) as exc:
+        sys.stderr.write(f"{exc}\n")
+        raise SystemExit(1) from exc
+
+
+def _select_weights(
+    records: tuple[NimbusTrainingTurnRecord, ...],
+    config: NimbusInfoNCERunConfig,
+) -> tuple[float, ...]:
+    candidate_values = tuple(range(0, config.max_weight + 1, config.weight_step))
+    if len(candidate_values) == 0:
+        raise NimbusInfoNCEError("weight search space must not be empty.")
+    best_weights: tuple[float, ...] | None = None
+    best_loss: float | None = None
+    for weights in itertools.product(candidate_values, repeat=len(NIMBUS_INFONCE_FEATURE_NAMES)):
+        float_weights = tuple(float(weight) for weight in weights)
+        loss = _mean_nce_loss_bits(records, float_weights)
+        if _is_better_weight_candidate(loss, float_weights, best_loss, best_weights):
+            best_loss = loss
+            best_weights = float_weights
+    if best_weights is None:
+        raise NimbusInfoNCEError("failed to select InfoNCE weights.")
+    return best_weights
+
+
+def _is_better_weight_candidate(
+    loss: float,
+    weights: tuple[float, ...],
+    best_loss: float | None,
+    best_weights: tuple[float, ...] | None,
+) -> bool:
+    if best_loss is None or best_weights is None:
+        return True
+    if loss < best_loss:
+        return True
+    return loss == best_loss and sum(weights) < sum(best_weights)
+
+
+def _model_from_weights(
+    records: tuple[NimbusTrainingTurnRecord, ...],
+    weights: tuple[float, ...],
+) -> NimbusInfoNCEModel:
+    probe_model = NimbusInfoNCEModel(
+        schema_version=NIMBUS_INFONCE_MODEL_SCHEMA_VERSION,
+        model_id=NIMBUS_INFONCE_MODEL_ID,
+        training_schema_version=NIMBUS_TRAINING_SCHEMA_VERSION,
+        feature_names=NIMBUS_INFONCE_FEATURE_NAMES,
+        weights=weights,
+        negative_count=INFO_NCE_NEGATIVE_COUNT,
+        positive_context_index=0,
+        training_record_count=len(records),
+        source_corpus_sha256=_corpus_sha256(records),
+        label_distribution=_label_distribution(records),
+        mean_nce_loss_bits=0.0,
+        attack_top1_accuracy=0.0,
+        mean_estimated_leakage_bits=0.0,
+    )
+    report = evaluate_nimbus_infonce_model(probe_model, records)
+    return NimbusInfoNCEModel(
+        schema_version=NIMBUS_INFONCE_MODEL_SCHEMA_VERSION,
+        model_id=NIMBUS_INFONCE_MODEL_ID,
+        training_schema_version=NIMBUS_TRAINING_SCHEMA_VERSION,
+        feature_names=NIMBUS_INFONCE_FEATURE_NAMES,
+        weights=weights,
+        negative_count=INFO_NCE_NEGATIVE_COUNT,
+        positive_context_index=0,
+        training_record_count=len(records),
+        source_corpus_sha256=_corpus_sha256(records),
+        label_distribution=_label_distribution(records),
+        mean_nce_loss_bits=report.mean_nce_loss_bits,
+        attack_top1_accuracy=report.attack_top1_accuracy,
+        mean_estimated_leakage_bits=report.mean_estimated_leakage_bits,
+    )
+
+
+def _metric_for_record(model: NimbusInfoNCEModel, record: NimbusTrainingTurnRecord) -> NimbusInfoNCETurnMetric:
+    scores = _candidate_scores(model, record)
+    probability = _positive_probability(scores)
+    nce_loss_bits = -math.log2(probability)
+    estimated_leakage_bits = max(0.0, math.log2(len(scores)) - nce_loss_bits)
+    if estimated_leakage_bits < 1e-12:
+        estimated_leakage_bits = 0.0
+    return NimbusInfoNCETurnMetric(
+        example_id=record.example_id,
+        scenario_name=record.scenario_name,
+        turn_index=record.turn_index,
+        leakage_label=record.leakage_label.value,
+        positive_probability=probability,
+        nce_loss_bits=nce_loss_bits,
+        estimated_leakage_bits=estimated_leakage_bits,
+        positive_rank=_positive_rank(scores),
+    )
+
+
+def _candidate_scores(model: NimbusInfoNCEModel, record: NimbusTrainingTurnRecord) -> tuple[float, ...]:
+    contexts = (record.true_secret_context, *record.negative_secret_contexts)
+    return tuple(_score_context(model, record, context) for context in contexts)
+
+
+def _score_context(
+    model: NimbusInfoNCEModel,
+    record: NimbusTrainingTurnRecord,
+    context: NimbusSecretContext,
+) -> float:
+    features = _features_for_context(record, context)
+    return sum(weight * feature for weight, feature in zip(model.weights, features, strict=True))
+
+
+def _features_for_context(
+    record: NimbusTrainingTurnRecord,
+    context: NimbusSecretContext,
+) -> tuple[float, float, float]:
+    context_tokens = _tokens(context.context_text)
+    output_tokens = _tokens(record.output_text)
+    decoded_tokens = _decoded_output_tokens(record.output_text)
+    state_tokens = _tokens(" ".join(message.content for message in record.state_messages))
+    return (
+        float(len(output_tokens & context_tokens)),
+        float(len(decoded_tokens & context_tokens)),
+        float(len(state_tokens & context_tokens)),
+    )
+
+
+def _tokens(text: str) -> set[str]:
+    return set(_TOKEN_PATTERN.findall(text.lower()))
+
+
+def _decoded_output_tokens(text: str) -> set[str]:
+    decoded_texts: list[str] = []
+    for candidate in _BASE64_CANDIDATE_PATTERN.findall(text):
+        decoded = _decode_base64_candidate(candidate)
+        if decoded is not None:
+            decoded_texts.append(decoded)
+    return _tokens(" ".join(decoded_texts))
+
+
+def _decode_base64_candidate(candidate: str) -> str | None:
+    padded = candidate + ("=" * ((4 - len(candidate) % 4) % 4))
+    try:
+        decoded = base64.b64decode(padded.encode("ascii"), validate=True)
+        text = decoded.decode("utf-8")
+    except (binascii.Error, UnicodeDecodeError, ValueError):
+        return None
+    if not _looks_like_text(text):
+        return None
+    return text
+
+
+def _looks_like_text(text: str) -> bool:
+    if text == "":
+        return False
+    printable_count = sum(1 for character in text if character.isprintable())
+    return printable_count / len(text) >= 0.9
+
+
+def _positive_probability(scores: tuple[float, ...]) -> float:
+    max_score = max(scores)
+    exp_scores = tuple(math.exp(score - max_score) for score in scores)
+    denominator = sum(exp_scores)
+    if denominator <= 0.0:
+        raise NimbusInfoNCEError("softmax denominator must be positive.")
+    return exp_scores[0] / denominator
+
+
+def _positive_rank(scores: tuple[float, ...]) -> int:
+    positive_score = scores[0]
+    stronger_or_tied_count = sum(1 for score in scores[1:] if score >= positive_score)
+    return stronger_or_tied_count + 1
+
+
+def _mean_nce_loss_bits(records: tuple[NimbusTrainingTurnRecord, ...], weights: tuple[float, ...]) -> float:
+    model = NimbusInfoNCEModel(
+        schema_version=NIMBUS_INFONCE_MODEL_SCHEMA_VERSION,
+        model_id=NIMBUS_INFONCE_MODEL_ID,
+        training_schema_version=NIMBUS_TRAINING_SCHEMA_VERSION,
+        feature_names=NIMBUS_INFONCE_FEATURE_NAMES,
+        weights=weights,
+        negative_count=INFO_NCE_NEGATIVE_COUNT,
+        positive_context_index=0,
+        training_record_count=len(records),
+        source_corpus_sha256=_corpus_sha256(records),
+        label_distribution=_label_distribution(records),
+        mean_nce_loss_bits=0.0,
+        attack_top1_accuracy=0.0,
+        mean_estimated_leakage_bits=0.0,
+    )
+    losses = tuple(_metric_for_record(model, record).nce_loss_bits for record in records)
+    return _mean(losses)
+
+
+def _attack_top1_accuracy(metrics: tuple[NimbusInfoNCETurnMetric, ...]) -> float:
+    attack_metrics = tuple(metric for metric in metrics if metric.leakage_label != NimbusLeakageLabel.BENIGN.value)
+    if len(attack_metrics) == 0:
+        raise NimbusInfoNCEError("evaluation records must include at least one non-benign leakage example.")
+    correct_count = sum(1 for metric in attack_metrics if metric.positive_rank == 1)
+    return correct_count / len(attack_metrics)
+
+
+def _mean(values: tuple[float, ...]) -> float:
+    if len(values) == 0:
+        raise NimbusInfoNCEError("cannot compute mean of an empty sequence.")
+    return sum(values) / len(values)
+
+
+def _validate_training_records(records: tuple[NimbusTrainingTurnRecord, ...]) -> None:
+    if len(records) == 0:
+        raise NimbusInfoNCEError("records must not be empty.")
+    for record in records:
+        _validate_training_record(record)
+        if len(record.negative_secret_contexts) != INFO_NCE_NEGATIVE_COUNT:
+            raise NimbusInfoNCEError(f"{record.example_id}: expected {INFO_NCE_NEGATIVE_COUNT} negative contexts.")
+
+
+def _validate_training_record(record: NimbusTrainingTurnRecord) -> None:
+    try:
+        validate_nimbus_training_record(record)
+    except NimbusTrainingCorpusError as exc:
+        raise NimbusInfoNCEError(f"{record.example_id}: {exc}") from exc
+    _safe_public_identifier(record.example_id, "example_id")
+    _safe_public_identifier(record.scenario_name, "scenario_name")
+
+
+def _safe_public_identifier(value: str, field_name: str) -> str:
+    if _SAFE_PUBLIC_IDENTIFIER_PATTERN.fullmatch(value) is None:
+        raise NimbusInfoNCEError(f"{field_name} must be a safe public identifier.")
+    if any(value.startswith(prefix) for prefix in _CREDENTIAL_LIKE_PREFIXES):
+        raise NimbusInfoNCEError(f"{field_name} must not be credential-shaped.")
+    return value
+
+
+def _validate_model(model: NimbusInfoNCEModel) -> None:
+    if model.schema_version != NIMBUS_INFONCE_MODEL_SCHEMA_VERSION:
+        raise NimbusInfoNCEError(f"schema_version must be {NIMBUS_INFONCE_MODEL_SCHEMA_VERSION}.")
+    if model.model_id != NIMBUS_INFONCE_MODEL_ID:
+        raise NimbusInfoNCEError(f"model_id must be {NIMBUS_INFONCE_MODEL_ID}.")
+    if model.training_schema_version != NIMBUS_TRAINING_SCHEMA_VERSION:
+        raise NimbusInfoNCEError(f"training_schema_version must be {NIMBUS_TRAINING_SCHEMA_VERSION}.")
+    if model.feature_names != NIMBUS_INFONCE_FEATURE_NAMES:
+        raise NimbusInfoNCEError("feature_names do not match the v0 evaluator.")
+    if len(model.weights) != len(model.feature_names):
+        raise NimbusInfoNCEError("weights length must match feature_names length.")
+    if model.negative_count != INFO_NCE_NEGATIVE_COUNT:
+        raise NimbusInfoNCEError(f"negative_count must be {INFO_NCE_NEGATIVE_COUNT}.")
+    if model.positive_context_index != 0:
+        raise NimbusInfoNCEError("positive_context_index must be 0.")
+    if model.training_record_count < 1:
+        raise NimbusInfoNCEError("training_record_count must be positive.")
+    if not _looks_like_sha256(model.source_corpus_sha256):
+        raise NimbusInfoNCEError("source_corpus_sha256 must be a lowercase SHA-256 hex digest.")
+    if len(model.label_distribution) == 0:
+        raise NimbusInfoNCEError("label_distribution must not be empty.")
+    for label, count in model.label_distribution.items():
+        if label == "":
+            raise NimbusInfoNCEError("label_distribution labels must not be empty.")
+        if count < 1:
+            raise NimbusInfoNCEError("label_distribution counts must be positive.")
+    _validate_probability(model.attack_top1_accuracy, "attack_top1_accuracy")
+    _validate_non_negative_finite(model.mean_nce_loss_bits, "mean_nce_loss_bits")
+    _validate_non_negative_finite(model.mean_estimated_leakage_bits, "mean_estimated_leakage_bits")
+    for weight in model.weights:
+        _validate_non_negative_finite(weight, "weights entry")
+
+
+def _model_from_mapping(record: Mapping[str, object]) -> NimbusInfoNCEModel:
+    return NimbusInfoNCEModel(
+        schema_version=_required_string(record, "schema_version"),
+        model_id=_required_string(record, "model_id"),
+        training_schema_version=_required_string(record, "training_schema_version"),
+        feature_names=tuple(
+            _required_string_value(item, "feature_names item") for item in _required_sequence(record, "feature_names")
+        ),
+        weights=tuple(_required_float_value(item, "weights item") for item in _required_sequence(record, "weights")),
+        negative_count=_required_int(record, "negative_count"),
+        positive_context_index=_required_int(record, "positive_context_index"),
+        training_record_count=_required_int(record, "training_record_count"),
+        source_corpus_sha256=_required_string(record, "source_corpus_sha256"),
+        label_distribution=_label_distribution_from_mapping(_required_mapping(record, "label_distribution")),
+        mean_nce_loss_bits=_required_float(record, "mean_nce_loss_bits"),
+        attack_top1_accuracy=_required_float(record, "attack_top1_accuracy"),
+        mean_estimated_leakage_bits=_required_float(record, "mean_estimated_leakage_bits"),
+    )
+
+
+def _corpus_sha256(records: tuple[NimbusTrainingTurnRecord, ...]) -> str:
+    payload = json.dumps(
+        [record.to_dict() for record in records],
+        allow_nan=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _label_distribution(records: tuple[NimbusTrainingTurnRecord, ...]) -> dict[str, int]:
+    distribution: dict[str, int] = {}
+    for record in records:
+        label = record.leakage_label.value
+        distribution[label] = distribution.get(label, 0) + 1
+    return dict(sorted(distribution.items()))
+
+
+def _label_distribution_from_mapping(record: Mapping[str, object]) -> dict[str, int]:
+    distribution: dict[str, int] = {}
+    for label, raw_count in record.items():
+        if not isinstance(label, str):
+            raise NimbusInfoNCEError("label_distribution labels must be strings.")
+        if not isinstance(raw_count, int) or isinstance(raw_count, bool):
+            raise NimbusInfoNCEError("label_distribution counts must be integers.")
+        distribution[label] = raw_count
+    return distribution
+
+
+def _looks_like_sha256(value: str) -> bool:
+    return len(value) == 64 and all(character in "0123456789abcdef" for character in value)
+
+
+def _validate_probability(value: float, field_name: str) -> None:
+    if not math.isfinite(value) or value < 0.0 or value > 1.0:
+        raise NimbusInfoNCEError(f"{field_name} must be in [0.0, 1.0].")
+
+
+def _validate_non_negative_finite(value: float, field_name: str) -> None:
+    if not math.isfinite(value) or value < 0.0:
+        raise NimbusInfoNCEError(f"{field_name} must be finite and non-negative.")
+
+
+def _required_sequence(record: Mapping[str, object], field_name: str) -> tuple[object, ...]:
+    value = record.get(field_name)
+    if not isinstance(value, list):
+        raise NimbusInfoNCEError(f"{field_name} must be a list.")
+    return tuple(value)
+
+
+def _required_mapping(record: Mapping[str, object], field_name: str) -> Mapping[str, object]:
+    value = record.get(field_name)
+    return _as_mapping(value, field_name)
+
+
+def _required_string(record: Mapping[str, object], field_name: str) -> str:
+    return _required_string_value(record.get(field_name), field_name)
+
+
+def _required_string_value(value: object, field_name: str) -> str:
+    if not isinstance(value, str):
+        raise NimbusInfoNCEError(f"{field_name} must be a string.")
+    return value
+
+
+def _required_int(record: Mapping[str, object], field_name: str) -> int:
+    value = record.get(field_name)
+    if not isinstance(value, int) or isinstance(value, bool):
+        raise NimbusInfoNCEError(f"{field_name} must be an integer.")
+    return value
+
+
+def _required_float(record: Mapping[str, object], field_name: str) -> float:
+    return _required_float_value(record.get(field_name), field_name)
+
+
+def _required_float_value(value: object, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise NimbusInfoNCEError(f"{field_name} must be numeric.")
+    return float(value)
+
+
+def _as_mapping(value: object, context: str) -> Mapping[str, object]:
+    if not isinstance(value, dict):
+        raise NimbusInfoNCEError(f"{context} must be an object.")
+    return value

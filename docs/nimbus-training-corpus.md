@@ -47,10 +47,46 @@ encoded leak, and direct leak sessions using synthetic credential contexts only.
 It should be used to validate parsers, loaders, and training harness plumbing,
 not to claim model performance.
 
+## Train And Evaluate
+
+Train the first offline InfoNCE-shaped critic artifact:
+
+```bash
+uv run --extra dev aegis-nimbus-train-infonce \
+  --input data/nimbus_training/nimbus_training.generated.jsonl \
+  --output data/nimbus_training/nimbus_infonce_model.generated.json
+```
+
+Evaluate that artifact against a corpus:
+
+```bash
+uv run --extra dev aegis-nimbus-eval-infonce \
+  --input data/nimbus_training/nimbus_training.generated.jsonl \
+  --model data/nimbus_training/nimbus_infonce_model.generated.json \
+  --output data/nimbus_training/nimbus_infonce_eval.generated.json
+```
+
+The v0 trainer uses a small lexical scorer with grid-searched non-negative
+feature weights. It proves the InfoNCE objective, JSON artifact shape, evaluator
+metrics, and bit conversion:
+
+```text
+estimated_bits = max(0, log2(17) - nce_loss_bits)
+```
+
+This is not a paper-grade encoder. Ambiguous partial fragments can tie with
+negative contexts, and the evaluator counts tied positives conservatively rather
+than treating them as retrieval wins.
+
+The model artifact stores weights, schema metadata, label distribution, corpus
+digest, and aggregate metrics. It does not store raw `state_messages`,
+`output_text`, `context_text`, or credential-shaped values.
+
 ## Safety Rules
 
 - Do not commit generated `data/nimbus_training/` artifacts.
 - Do not store production credentials or real secret values in training rows.
+- Do not promote the v0 lexical artifact as the default runtime critic.
 - Keep the current output out of `state_messages`; previous outputs may appear
   there for multi-turn state.
 - Treat labels and target bits as controlled training metadata, not as runtime

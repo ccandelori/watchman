@@ -210,6 +210,11 @@ the pre-output conversation state, the current output, one true secret context,
 and 16 negative contexts for InfoNCE-style training. Generated corpus files
 belong under ignored `data/nimbus_training/` paths and must not be committed.
 
+`aegis-nimbus-train-infonce` and `aegis-nimbus-eval-infonce` train and evaluate
+the first offline lexical InfoNCE smoke critic against that corpus. This path
+proves the objective and artifact contract only; it does not replace
+`CanaryNimbusCritic` in the default runtime.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:
