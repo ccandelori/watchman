@@ -164,6 +164,7 @@ class StructuredTracePromptRecord:
     source_turn_index: int
     tool_call_name: str | None
     tool_argument_path: str | None
+    fallback_reason: str | None
 
     def to_dict(self) -> JsonObject:
         secret_char_span: list[JsonValue] | None = None
@@ -213,6 +214,7 @@ class StructuredTracePromptRecord:
             "source_turn_index": self.source_turn_index,
             "tool_call_name": self.tool_call_name,
             "tool_argument_path": self.tool_argument_path,
+            "fallback_reason": self.fallback_reason,
         }
 
 
@@ -259,6 +261,90 @@ def write_structured_prompt_jsonl(path: Path, records: tuple[StructuredTraceProm
         for record in records:
             output_file.write(json.dumps(record.to_dict(), sort_keys=True))
             output_file.write("\n")
+
+
+def _get_cift_metadata(turn: Mapping[str, object], context: str) -> Mapping[str, object] | None:
+    metadata = turn.get("metadata")
+    if metadata is None:
+        return None
+    metadata_record = _as_mapping(value=metadata, context=f"{context}.metadata")
+    cift = metadata_record.get("cift")
+    if cift is None:
+        return None
+    return _as_mapping(value=cift, context=f"{context}.metadata.cift")
+
+
+def _optional_string_value(value: object, context: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise TraceRecordAdapterError(f"{context} must be a string or null.")
+    if value == "":
+        raise TraceRecordAdapterError(f"{context} must not be empty.")
+    return value
+
+
+def _explicit_selected_choice_readout(
+    cift_metadata: Mapping[str, object],
+    message_segments: tuple[MessageSegment, ...],
+    offsets: tuple[TokenOffset, ...],
+    readout_token_count: int,
+    context: str,
+) -> SelectedChoiceReadout | None:
+    selected_choice = cift_metadata.get("selected_choice")
+    if selected_choice is None:
+        return None
+    selected_choice_record = _as_mapping(
+        value=selected_choice,
+        context=f"{context}.metadata.cift.selected_choice",
+    )
+    selected_fallback_reason = _optional_string_value(
+        value=selected_choice_record.get("fallback_reason"),
+        context=f"{context}.metadata.cift.selected_choice.fallback_reason",
+    )
+    if selected_fallback_reason is not None:
+        return None
+
+    user_segments = tuple(segment for segment in message_segments if segment.role == "user")
+    if len(user_segments) == 0:
+        raise TraceRecordAdapterError(f"{context}: explicit selected-choice metadata requires a user message.")
+    user_segment = user_segments[0]
+    selected_char_span = CharSpan(
+        start=user_segment.content_span.start
+        + _required_int(
+            record=selected_choice_record,
+            field_name="char_start",
+            context=f"{context}.metadata.cift.selected_choice",
+        ),
+        end=user_segment.content_span.start
+        + _required_int(
+            record=selected_choice_record,
+            field_name="char_end",
+            context=f"{context}.metadata.cift.selected_choice",
+        ),
+    )
+    selected_token_span = _token_span_for_char_span(
+        offsets=offsets,
+        char_span=selected_char_span,
+        context=context,
+    )
+    return SelectedChoiceReadout(
+        selected_choice_char_span=selected_char_span,
+        selected_choice_token_span=selected_token_span,
+        selected_choice_readout_token_indices=_readout_indices_for_char_span(
+            offsets=offsets,
+            char_span=selected_char_span,
+            lower_bound=selected_token_span.start,
+            readout_token_count=readout_token_count,
+            context=context,
+        ),
+    )
+
+
+def _has_explicit_selected_choice_metadata(cift_metadata: Mapping[str, object] | None) -> bool:
+    if cift_metadata is None:
+        return False
+    return cift_metadata.get("selected_choice") is not None
 
 
 def structured_prompt_records_from_trace_records(
@@ -380,12 +466,32 @@ def _convert_trace_record(
         tool_call_name = payload_readout.tool_call_name
         tool_argument_path = payload_readout.argument_path
 
-    selected_choice_readout = _selected_choice_readout(
-        message_segments=rendered.message_segments,
-        offsets=offsets,
-        readout_token_count=config.readout_token_count,
-        context=context,
-    )
+    cift_meta = _get_cift_metadata(turn=turn, context=context)
+    fallback_reason: str | None = None
+    selected_choice_readout = None
+
+    if cift_meta is not None:
+        fallback_reason = _optional_string_value(
+            value=cift_meta.get("fallback_reason"),
+            context=f"{context}.metadata.cift.fallback_reason",
+        )
+        selected_choice_readout = _explicit_selected_choice_readout(
+            cift_metadata=cift_meta,
+            message_segments=rendered.message_segments,
+            offsets=offsets,
+            readout_token_count=config.readout_token_count,
+            context=context,
+        )
+
+    if selected_choice_readout is None and not _has_explicit_selected_choice_metadata(cift_meta):
+        selected_choice_readout = _selected_choice_readout(
+            message_segments=rendered.message_segments,
+            offsets=offsets,
+            readout_token_count=config.readout_token_count,
+            context=context,
+        )
+    if selected_choice_readout is not None:
+        fallback_reason = None
 
     return StructuredTracePromptRecord(
         id=_required_string(record=turn, field_name="trace_id", context=context),
@@ -422,6 +528,7 @@ def _convert_trace_record(
         source_turn_index=_required_int(record=turn, field_name="turn_index", context=context),
         tool_call_name=tool_call_name,
         tool_argument_path=tool_argument_path,
+        fallback_reason=fallback_reason,
     )
 
 
@@ -688,9 +795,7 @@ def _readout_indices_for_char_span(
     context: str,
 ) -> tuple[int, ...]:
     indices = tuple(
-        index
-        for index in _token_indices_for_char_span(offsets=offsets, char_span=char_span)
-        if index >= lower_bound
+        index for index in _token_indices_for_char_span(offsets=offsets, char_span=char_span) if index >= lower_bound
     )
     if len(indices) == 0:
         raise TraceRecordAdapterError(f"{context}: no readout tokens remain after visibility floor {lower_bound}.")

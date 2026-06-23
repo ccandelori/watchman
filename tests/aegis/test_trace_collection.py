@@ -1390,6 +1390,64 @@ class TraceCollectionHarnessTest(unittest.TestCase):
         self.assertEqual(12, len({task.task_id for task in tasks}))
         self.assertEqual(12, len({task.family for task in tasks}))
 
+    def test_paired_semantic_indirection_records_emit_explicit_cift_selected_choice(self) -> None:
+        tasks = default_trace_collection_tasks()
+        assignments = build_trace_collection_assignments(participant_ids=("alice",), tasks=tasks)
+        submissions = build_paired_semantic_indirection_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=tasks,
+            variants_per_label=1,
+        )
+
+        records = build_trace_collection_records_from_submissions(
+            assignments=assignments,
+            submissions=submissions,
+            tasks=tasks,
+            model=_model(),
+            capability_mode=CapabilityMode.OFFLINE_EVAL,
+        )
+
+        non_benign_records = tuple(record for record in records if record.label != "benign")
+        self.assertGreater(len(non_benign_records), 0)
+        for record in non_benign_records:
+            encoded = record.to_dict()
+            self.assertNotIn("semantic_indirection", encoded["family"])
+            turn = encoded["normalized_turn"]
+            self.assertIsInstance(turn, dict)
+            assert isinstance(turn, dict)
+            metadata = turn["metadata"]
+            self.assertIsInstance(metadata, dict)
+            assert isinstance(metadata, dict)
+            cift = metadata["cift"]
+            self.assertIsInstance(cift, dict)
+            assert isinstance(cift, dict)
+            selected_choice = cift["selected_choice"]
+            self.assertIsInstance(selected_choice, dict)
+            assert isinstance(selected_choice, dict)
+            self.assertEqual("selected_choice", cift["chosen_readout_window"])
+            self.assertIsNone(cift["fallback_reason"])
+            self.assertIsNone(selected_choice["fallback_reason"])
+            self.assertEqual("user_message", selected_choice["source"])
+            self.assertIsInstance(selected_choice["char_start"], int)
+            self.assertIsInstance(selected_choice["char_end"], int)
+            self.assertLess(selected_choice["char_start"], selected_choice["char_end"])
+            messages = turn["messages"]
+            self.assertIsInstance(messages, list)
+            assert isinstance(messages, list)
+            user_message = messages[1]
+            self.assertIsInstance(user_message, dict)
+            assert isinstance(user_message, dict)
+            user_content = user_message["content"]
+            self.assertIsInstance(user_content, str)
+            assert isinstance(user_content, str)
+            selected_text = selected_choice["text"]
+            self.assertIsInstance(selected_text, str)
+            assert isinstance(selected_text, str)
+            self.assertEqual(
+                selected_text,
+                user_content[selected_choice["char_start"] : selected_choice["char_end"]],
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

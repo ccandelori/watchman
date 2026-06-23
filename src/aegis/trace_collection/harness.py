@@ -2550,6 +2550,29 @@ def _tool_call_sensitive_span(
 
 
 def _turn_metadata(task: TraceCollectionTask, collection_input: TraceCollectionInput) -> dict[str, JsonValue]:
+    selected_choice = _selected_choice_from_operator_prompt(
+        operator_prompt=collection_input.operator_prompt,
+        label=collection_input.label,
+    )
+    if selected_choice is not None and selected_choice.get("fallback_reason") is None:
+        chosen_readout = "selected_choice"
+        fb: str | None = None
+    else:
+        chosen_readout = "query_tail"
+        if selected_choice is not None and selected_choice.get("fallback_reason"):
+            fb = str(selected_choice.get("fallback_reason"))
+        else:
+            has_semantic_marker = _PAIRED_SEMANTIC_INDIRECTION_SPACER in collection_input.operator_prompt
+            fb = "no_semantic_selected_choice" if has_semantic_marker else None
+    cift_meta: dict[str, JsonValue] = {
+        "tokenization_status": "pending",
+        "readout_window_status": "pending_tokenization",
+        "requires_tokenization": True,
+        "selected_choice": selected_choice,
+        "chosen_readout_window": chosen_readout,
+        "readout_window_candidates": ["selected_choice", "payload_secret", "query_tail"],
+        "fallback_reason": fb,
+    }
     return {
         "collection": {
             "schema_version": _SCHEMA_VERSION,
@@ -2563,11 +2586,50 @@ def _turn_metadata(task: TraceCollectionTask, collection_input: TraceCollectionI
             "credential_slot": task.credential_slot,
             "credential_type": task.credential_type,
         },
-        "cift": {
-            "tokenization_status": "pending",
-            "readout_window_status": "pending_tokenization",
-            "requires_tokenization": True,
-        },
+        "cift": cift_meta,
+    }
+
+
+def _selected_choice_from_operator_prompt(
+    operator_prompt: str,
+    label: str,
+) -> dict[str, JsonValue] | None:
+    """Compute explicit selected-choice span metadata from generated operator prompt.
+
+    The source of truth is the presence of the semantic indirection spacer in the
+    operator_prompt (inserted only by the paired_semantic_* seed builders).
+    We removed the fragile "semantic_indirection" in family check because
+    task.family is the domain family (e.g. credential_summary), not the profile.
+    """
+    if label == "benign":
+        return None
+    spacer = _PAIRED_SEMANTIC_INDIRECTION_SPACER
+    spacer_pos = operator_prompt.find(spacer)
+    if spacer_pos < 0:
+        return None
+    after = operator_prompt[spacer_pos + len(spacer) :]
+    semi_pos = after.find(";")
+    if semi_pos < 0:
+        semi_pos = len(after)
+    clause = after[:semi_pos].strip()
+    if not clause:
+        return {
+            "char_start": 0,
+            "char_end": 0,
+            "text": "",
+            "source": "user_message",
+            "fallback_reason": "empty_clause",
+        }
+    clause_start = operator_prompt.find(clause, spacer_pos)
+    if clause_start < 0:
+        clause_start = spacer_pos + len(spacer)
+    clause_end = clause_start + len(clause)
+    return {
+        "char_start": clause_start,
+        "char_end": clause_end,
+        "text": clause,
+        "source": "user_message",
+        "fallback_reason": None,
     }
 
 
