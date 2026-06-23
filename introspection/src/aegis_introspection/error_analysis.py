@@ -11,6 +11,7 @@ from aegis_introspection.binary_tasks import (
     BinaryMethodName,
     BinaryTaskConfig,
     BinaryTaskDataset,
+    BinaryTaskDefinition,
     BinaryTaskError,
     EvaluationStrategy,
     activation_feature_tensor,
@@ -254,8 +255,46 @@ def evaluate_grouped_binary_error_analysis(
     artifact: ActivationArtifact,
     config: BinaryTaskConfig,
 ) -> BinaryErrorAnalysisReport:
+    return _evaluate_grouped_binary_error_analysis_for_definitions(
+        artifact=artifact,
+        config=config,
+        definitions=default_binary_task_definitions(),
+    )
+
+
+def evaluate_selected_grouped_binary_error_analysis(
+    artifact: ActivationArtifact,
+    config: BinaryTaskConfig,
+    task_names: tuple[str, ...],
+) -> BinaryErrorAnalysisReport:
+    if len(task_names) == 0:
+        raise BinaryTaskError("At least one binary error analysis task name is required.")
+    if len(set(task_names)) != len(task_names):
+        raise BinaryTaskError("Binary error analysis task names must be unique.")
+
+    definitions_by_name = {definition.name: definition for definition in default_binary_task_definitions()}
+    definitions: list[BinaryTaskDefinition] = []
+    for task_name in task_names:
+        definition = definitions_by_name.get(task_name)
+        if definition is None:
+            known_tasks = ", ".join(sorted(definitions_by_name))
+            raise BinaryTaskError(f"Unknown binary error analysis task '{task_name}'. Known tasks: {known_tasks}.")
+        definitions.append(definition)
+
+    return _evaluate_grouped_binary_error_analysis_for_definitions(
+        artifact=artifact,
+        config=config,
+        definitions=tuple(definitions),
+    )
+
+
+def _evaluate_grouped_binary_error_analysis_for_definitions(
+    artifact: ActivationArtifact,
+    config: BinaryTaskConfig,
+    definitions: tuple[BinaryTaskDefinition, ...],
+) -> BinaryErrorAnalysisReport:
     task_reports: list[BinaryTaskErrorAnalysis] = []
-    for definition in default_binary_task_definitions():
+    for definition in definitions:
         dataset = build_binary_task_dataset(artifact, definition)
         methods = (
             collect_grouped_activation_predictions(artifact, dataset, config),

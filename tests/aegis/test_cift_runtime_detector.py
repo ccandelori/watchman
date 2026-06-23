@@ -14,6 +14,9 @@ from aegis.detectors.cift_runtime import (
     CiftRuntimeDetector,
     CiftRuntimeDetectorError,
     CiftRuntimeLinearModel,
+    CiftRuntimeWindowSelector,
+    CiftRuntimeWindowSelectorConfig,
+    build_cift_window_selector_runtime_components,
     cift_feature_vector_from_turn,
     cift_runtime_model_to_dict,
     load_cift_runtime_model,
@@ -102,6 +105,254 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
         self.assertEqual(CapabilityStatus.DEGRADED, result.capability_status)
         self.assertEqual(Action.ALLOW, result.recommended_action)
         self.assertEqual("activation_feature_vector_missing", result.evidence["reason"])
+
+    def test_window_selector_uses_selected_choice_model_when_selected_choice_metadata_exists(self) -> None:
+        selected_model = _selector_model(
+            feature_key="selected_choice_window_layer_15",
+            model_bundle_id="selected-choice-bundle",
+            logistic_coefficients=(1.0, 1.0),
+        )
+        fallback_model = _selector_model(
+            feature_key="readout_window_layer_15",
+            model_bundle_id="fallback-bundle",
+            logistic_coefficients=(-1.0, -1.0),
+        )
+        detector = CiftRuntimeWindowSelector(
+            detector_name="cift_runtime",
+            selected_choice_model=selected_model,
+            fallback_model=fallback_model,
+        )
+        turn = _turn(
+            capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+            metadata={
+                "cift": {
+                    "selected_choice_readout_token_indices": [7, 8],
+                    "feature_vectors": {
+                        "selected_choice_window_layer_15": [2.0, 2.0],
+                        "readout_window_layer_15": [2.0, 2.0],
+                    },
+                }
+            },
+        )
+
+        result = detector.evaluate(turn, None)
+
+        self.assertEqual(CapabilityStatus.ACTIVE, result.capability_status)
+        self.assertEqual(Action.WARN, result.recommended_action)
+        self.assertEqual(0.7, result.confidence)
+        self.assertEqual("selected_choice", result.evidence["cift_window_family"])
+        self.assertEqual("selected_choice_metadata_present", result.evidence["cift_window_selection_reason"])
+        self.assertEqual("primary", result.evidence["cift_window_coverage"])
+        self.assertEqual("selected-choice-bundle", result.evidence["model_bundle_id"])
+
+    def test_window_selector_uses_fallback_model_when_selected_choice_metadata_is_absent(self) -> None:
+        selected_model = _selector_model(
+            feature_key="selected_choice_window_layer_15",
+            model_bundle_id="selected-choice-bundle",
+            logistic_coefficients=(-1.0, -1.0),
+        )
+        fallback_model = _selector_model(
+            feature_key="readout_window_layer_15",
+            model_bundle_id="fallback-bundle",
+            logistic_coefficients=(1.0, 1.0),
+        )
+        detector = CiftRuntimeWindowSelector(
+            detector_name="cift_runtime",
+            selected_choice_model=selected_model,
+            fallback_model=fallback_model,
+        )
+        turn = _turn(
+            capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+            metadata={
+                "cift": {
+                    "readout_token_indices": [3, 4],
+                    "feature_vectors": {
+                        "selected_choice_window_layer_15": [2.0, 2.0],
+                        "readout_window_layer_15": [2.0, 2.0],
+                    },
+                }
+            },
+        )
+
+        result = detector.evaluate(turn, None)
+
+        self.assertEqual(CapabilityStatus.DEGRADED, result.capability_status)
+        self.assertEqual(Action.WARN, result.recommended_action)
+        self.assertEqual(0.35, result.confidence)
+        self.assertEqual("payload_query_fallback", result.evidence["cift_window_family"])
+        self.assertEqual("selected_choice_metadata_absent", result.evidence["cift_window_selection_reason"])
+        self.assertEqual("degraded_fallback", result.evidence["cift_window_coverage"])
+        self.assertEqual("selected_choice_metadata_required_for_primary_cift", result.evidence["degradation_reason"])
+        self.assertEqual("fallback-bundle", result.evidence["model_bundle_id"])
+
+    def test_window_selector_degrades_when_selected_choice_metadata_exists_but_feature_is_missing(self) -> None:
+        selected_model = _selector_model(
+            feature_key="selected_choice_window_layer_15",
+            model_bundle_id="selected-choice-bundle",
+            logistic_coefficients=(1.0, 1.0),
+        )
+        fallback_model = _selector_model(
+            feature_key="readout_window_layer_15",
+            model_bundle_id="fallback-bundle",
+            logistic_coefficients=(1.0, 1.0),
+        )
+        detector = CiftRuntimeWindowSelector(
+            detector_name="cift_runtime",
+            selected_choice_model=selected_model,
+            fallback_model=fallback_model,
+        )
+        turn = _turn(
+            capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+            metadata={
+                "cift": {
+                    "selected_choice_readout_token_indices": [7, 8],
+                    "feature_vectors": {"readout_window_layer_15": [2.0, 2.0]},
+                }
+            },
+        )
+
+        result = detector.evaluate(turn, None)
+
+        self.assertEqual(CapabilityStatus.DEGRADED, result.capability_status)
+        self.assertEqual(Action.ALLOW, result.recommended_action)
+        self.assertEqual("activation_feature_vector_missing", result.evidence["reason"])
+        self.assertEqual("selected_choice", result.evidence["cift_window_family"])
+        self.assertEqual("selected-choice-bundle", result.evidence["model_bundle_id"])
+
+    def test_window_selector_rejects_malformed_selected_choice_indices(self) -> None:
+        malformed_values: tuple[tuple[object, str], ...] = (
+            ("not-a-list", "must be a list"),
+            ([], "must not be empty"),
+            ([True], "must be an integer"),
+            (["bad"], "must be an integer"),
+            ([-1], "must be non-negative"),
+        )
+        selected_model = _selector_model(
+            feature_key="selected_choice_window_layer_15",
+            model_bundle_id="selected-choice-bundle",
+            logistic_coefficients=(1.0, 1.0),
+        )
+        fallback_model = _selector_model(
+            feature_key="readout_window_layer_15",
+            model_bundle_id="fallback-bundle",
+            logistic_coefficients=(1.0, 1.0),
+        )
+        detector = CiftRuntimeWindowSelector(
+            detector_name="cift_runtime",
+            selected_choice_model=selected_model,
+            fallback_model=fallback_model,
+        )
+
+        for selected_choice_indices, message_fragment in malformed_values:
+            with self.subTest(selected_choice_indices=selected_choice_indices):
+                turn = _turn(
+                    capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+                    metadata={
+                        "cift": {
+                            "selected_choice_readout_token_indices": selected_choice_indices,
+                            "feature_vectors": {
+                                "selected_choice_window_layer_15": [2.0, 2.0],
+                                "readout_window_layer_15": [2.0, 2.0],
+                            },
+                        }
+                    },
+                )
+
+                with self.assertRaisesRegex(CiftRuntimeDetectorError, message_fragment):
+                    detector.evaluate(turn, None)
+
+    def test_window_selector_components_load_artifacts_and_plug_into_runtime(self) -> None:
+        extractor = FeatureMapExtractor(
+            feature_vectors={
+                ("trace-cift-runtime", "selected_choice_window_layer_15"): (2.0, 2.0),
+                ("trace-cift-runtime", "readout_window_layer_15"): (-2.0, -2.0),
+            }
+        )
+        selected_model = _selector_model(
+            feature_key="selected_choice_window_layer_15",
+            model_bundle_id="selected-choice-bundle",
+            logistic_coefficients=(1.0, 1.0),
+        )
+        fallback_model = _selector_model(
+            feature_key="readout_window_layer_15",
+            model_bundle_id="fallback-bundle",
+            logistic_coefficients=(1.0, 1.0),
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selected_model_path = root / "selected.json"
+            fallback_model_path = root / "fallback.json"
+            selected_model_path.write_text(json.dumps(cift_runtime_model_to_dict(selected_model)), encoding="utf-8")
+            fallback_model_path.write_text(json.dumps(cift_runtime_model_to_dict(fallback_model)), encoding="utf-8")
+            components = build_cift_window_selector_runtime_components(
+                CiftRuntimeWindowSelectorConfig(
+                    detector_name="cift_runtime",
+                    selected_choice_model_path=selected_model_path,
+                    fallback_model_path=fallback_model_path,
+                    feature_extractor=extractor,
+                    feature_source="test_feature_map",
+                )
+            )
+            runtime = AegisRuntime(
+                turn_annotators=components.turn_annotators,
+                pre_generation_detectors=components.pre_generation_detectors,
+                post_generation_detectors=(),
+                session_detectors=(),
+                policy_engine=SeverityPolicyEngine(),
+                audit_sink=InMemoryAuditSink(),
+                model_provider=MockModelProvider(default_content="ok"),
+            )
+
+            response = runtime.evaluate_turn(
+                _request_with_metadata(
+                    capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+                    metadata={"cift": {"selected_choice_readout_token_indices": [7, 8]}},
+                )
+            )
+
+        self.assertEqual(
+            [
+                ("trace-cift-runtime", "selected_choice_window_layer_15"),
+                ("trace-cift-runtime", "readout_window_layer_15"),
+            ],
+            extractor.calls,
+        )
+        self.assertEqual(2, len(components.turn_annotators))
+        self.assertEqual(1, len(components.pre_generation_detectors))
+        self.assertEqual(Action.WARN, response.policy_decision.final_action)
+        self.assertEqual(CapabilityStatus.ACTIVE, response.detector_results[0].capability_status)
+        self.assertEqual("selected_choice", response.detector_results[0].evidence["cift_window_family"])
+
+    def test_window_selector_component_builder_rejects_missing_artifact_path(self) -> None:
+        extractor = RecordingFeatureExtractor(feature_vector=(1.0, 2.0))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selected_model_path = root / "selected.json"
+            fallback_model_path = root / "missing.json"
+            selected_model_path.write_text(
+                json.dumps(
+                    cift_runtime_model_to_dict(
+                        _selector_model(
+                            feature_key="selected_choice_window_layer_15",
+                            model_bundle_id="selected-choice-bundle",
+                            logistic_coefficients=(1.0, 1.0),
+                        )
+                    )
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(CiftRuntimeDetectorError, "CIFT runtime model path does not exist"):
+                build_cift_window_selector_runtime_components(
+                    CiftRuntimeWindowSelectorConfig(
+                        detector_name="cift_runtime",
+                        selected_choice_model_path=selected_model_path,
+                        fallback_model_path=fallback_model_path,
+                        feature_extractor=extractor,
+                        feature_source="test_feature_map",
+                    )
+                )
 
     def test_offline_eval_mode_can_score_feature_vector(self) -> None:
         detector = CiftRuntimeDetector(detector_name="cift_runtime", model=_runtime_model(positive_class_index=1))
@@ -308,6 +559,38 @@ def _runtime_model(positive_class_index: int) -> CiftRuntimeLinearModel:
     )
 
 
+def _selector_model(
+    feature_key: str,
+    model_bundle_id: str,
+    logistic_coefficients: tuple[float, float],
+) -> CiftRuntimeLinearModel:
+    return CiftRuntimeLinearModel(
+        schema_version="aegis.cift_runtime_linear/v1",
+        model_bundle_id=model_bundle_id,
+        source_model_id="test-model",
+        training_dataset_id="test-dataset",
+        source_artifact_sha256="b" * 64,
+        evaluation_report_ids=("test-report",),
+        task_name="safe_secret_vs_exfiltration",
+        feature_key=feature_key,
+        feature_count=2,
+        label_names=("secret_present_safe", "exfiltration_intent"),
+        positive_label="exfiltration_intent",
+        positive_class_index=1,
+        class_indices=(0, 1),
+        decision_threshold=0.5,
+        score_semantics="test_probability",
+        confidence=0.7,
+        candidate_status="runtime_candidate",
+        scaler_mean=(0.0, 0.0),
+        scaler_scale=(1.0, 1.0),
+        logistic_coefficients=logistic_coefficients,
+        logistic_intercept=0.0,
+        negative_action=Action.ALLOW,
+        positive_action=Action.WARN,
+    )
+
+
 def _turn(capability_mode: CapabilityMode, metadata: dict[str, object]) -> NormalizedTurn:
     return NormalizedTurn(
         trace_id="trace-cift-runtime",
@@ -323,6 +606,10 @@ def _turn(capability_mode: CapabilityMode, metadata: dict[str, object]) -> Norma
 
 
 def _request(capability_mode: CapabilityMode) -> RuntimeRequest:
+    return _request_with_metadata(capability_mode=capability_mode, metadata={})
+
+
+def _request_with_metadata(capability_mode: CapabilityMode, metadata: dict[str, object]) -> RuntimeRequest:
     return RuntimeRequest(
         trace_id="trace-cift-runtime",
         session_id="session-cift-runtime",
@@ -332,7 +619,7 @@ def _request(capability_mode: CapabilityMode) -> RuntimeRequest:
         messages=(Message(role="user", content="hello"),),
         tool_calls=(),
         sensitive_spans=(),
-        metadata={},
+        metadata=metadata,
     )
 
 
@@ -357,6 +644,16 @@ class RecordingFeatureExtractor:
     def extract_feature_vector(self, turn: NormalizedTurn, feature_key: str) -> tuple[float, ...] | None:
         self.calls.append((turn.trace_id, feature_key))
         return self._feature_vector
+
+
+class FeatureMapExtractor:
+    def __init__(self, feature_vectors: dict[tuple[str, str], tuple[float, ...]]) -> None:
+        self.calls: list[tuple[str, str]] = []
+        self._feature_vectors = feature_vectors
+
+    def extract_feature_vector(self, turn: NormalizedTurn, feature_key: str) -> tuple[float, ...] | None:
+        self.calls.append((turn.trace_id, feature_key))
+        return self._feature_vectors.get((turn.trace_id, feature_key))
 
 
 def _model_from_temp_file(record: dict[str, object]) -> CiftRuntimeLinearModel:

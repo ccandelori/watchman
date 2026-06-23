@@ -1,23 +1,14 @@
+# ruff: noqa: E402
+
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
-import torch
+import pytest
 
-from introspection.scripts.analyze_binary_errors import AnalyzeBinaryErrorsScriptConfig, run_analysis
-from introspection.scripts.export_cift_detector_results import ExportCiftDetectorResultsConfig, run_export
-from introspection.scripts.export_runtime_turns import ExportRuntimeTurnsConfig, run_export as run_runtime_export
-from introspection.scripts.export_trained_cift_detector_results import (
-    ExportTrainedCiftDetectorResultsCliConfig,
-    run_export as run_trained_export,
-)
-from introspection.scripts.diagnose_cift_selector_window_scores import DiagnoseSelectorScoresConfig, run_diagnostics
-from introspection.scripts.summarize_cift_operating_points import SummarizeCiftOperatingPointsCliConfig, run_summary
-from introspection.scripts.summarize_policy_window_errors import (
-    SummarizePolicyWindowErrorsConfig,
-    run_summary as run_policy_window_summary,
-)
+torch = pytest.importorskip("torch")
+
 from aegis_introspection.calibrated_detector_export import (
     CalibratedDetectorExportConfig,
     export_calibrated_cift_detector_results,
@@ -31,6 +22,24 @@ from aegis_introspection.sealed_holdout import (
     assert_unsealed_tag_rows,
     path_is_sealed_holdout,
     tag_rows_are_sealed_holdout,
+)
+from introspection.scripts.analyze_binary_errors import AnalyzeBinaryErrorsScriptConfig, run_analysis
+from introspection.scripts.diagnose_cift_selector_window_scores import DiagnoseSelectorScoresConfig, run_diagnostics
+from introspection.scripts.export_cift_detector_results import ExportCiftDetectorResultsConfig, run_export
+from introspection.scripts.export_runtime_turns import ExportRuntimeTurnsConfig
+from introspection.scripts.export_runtime_turns import run_export as run_runtime_export
+from introspection.scripts.export_trained_cift_detector_results import (
+    ExportTrainedCiftDetectorResultsCliConfig,
+)
+from introspection.scripts.export_trained_cift_detector_results import (
+    run_export as run_trained_export,
+)
+from introspection.scripts.summarize_cift_operating_points import SummarizeCiftOperatingPointsCliConfig, run_summary
+from introspection.scripts.summarize_policy_window_errors import (
+    SummarizePolicyWindowErrorsConfig,
+)
+from introspection.scripts.summarize_policy_window_errors import (
+    run_summary as run_policy_window_summary,
 )
 
 
@@ -162,6 +171,7 @@ class SealedHoldoutTest(unittest.TestCase):
                         activation_feature_key="readout_window_layer_15",
                         word_ngram_range=(1, 2),
                         char_ngram_range=(3, 5),
+                        task_names=(),
                         allow_sealed_holdout=False,
                     )
                 )

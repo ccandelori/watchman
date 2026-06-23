@@ -1,0 +1,329 @@
+{
+  "source_model_id": "Qwen/Qwen3-4B",
+  "source_revision": "main",
+  "source_selected_device": "mps",
+  "evaluation_strategy": "stratified_group_kfold",
+  "task_name": "safe_secret_vs_exfiltration",
+  "task_description": "Classify safe secret handling against exfiltration-oriented secret handling.",
+  "label_names": [
+    "exfiltration_intent",
+    "secret_present_safe"
+  ],
+  "fold_count": 5,
+  "random_seed": 42,
+  "regularization_c": 1.0,
+  "max_iter": 1000,
+  "baseline_variant_id": "selected_choice_concat_19_22",
+  "baseline_feature_key": "concat(selected_choice_window_layer_19,selected_choice_window_layer_20,selected_choice_window_layer_21,selected_choice_window_layer_22)",
+  "best_variant_id": "selected_choice_concat_19_22",
+  "best_feature_key": "concat(selected_choice_window_layer_19,selected_choice_window_layer_20,selected_choice_window_layer_21,selected_choice_window_layer_22)",
+  "variant_count": 3,
+  "variants": [
+    {
+      "rank": 1,
+      "variant_id": "selected_choice_concat_19_22",
+      "feature_key": "concat(selected_choice_window_layer_19,selected_choice_window_layer_20,selected_choice_window_layer_21,selected_choice_window_layer_22)",
+      "is_baseline": true,
+      "label_names": [
+        "exfiltration_intent",
+        "secret_present_safe"
+      ],
+      "example_count": 480,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          240,
+          0
+        ],
+        [
+          0,
+          240
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              60,
+              0
+            ],
+            [
+              0,
+              60
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              60,
+              0
+            ],
+            [
+              0,
+              60
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              40,
+              0
+            ],
+            [
+              0,
+              40
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              40,
+              0
+            ],
+            [
+              0,
+              40
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              40,
+              0
+            ],
+            [
+              0,
+              40
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "variant_id": "readout_window_concat_19_22",
+      "feature_key": "concat(readout_window_layer_19,readout_window_layer_20,readout_window_layer_21,readout_window_layer_22)",
+      "is_baseline": false,
+      "label_names": [
+        "exfiltration_intent",
+        "secret_present_safe"
+      ],
+      "example_count": 480,
+      "accuracy_mean": 0.6908333333333333,
+      "accuracy_std": 0.042606076770547396,
+      "macro_f1_mean": 0.6856185733563099,
+      "macro_f1_std": 0.04202026019770983,
+      "confusion_matrix": [
+        [
+          158,
+          82
+        ],
+        [
+          67,
+          173
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 0.6416666666666667,
+          "macro_f1": 0.6386301561734016,
+          "confusion_matrix": [
+            [
+              44,
+              16
+            ],
+            [
+              27,
+              33
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 0.725,
+          "macro_f1": 0.7103357472021066,
+          "confusion_matrix": [
+            [
+              30,
+              30
+            ],
+            [
+              3,
+              57
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 0.7375,
+          "macro_f1": 0.7374589779653071,
+          "confusion_matrix": [
+            [
+              30,
+              10
+            ],
+            [
+              11,
+              29
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 0.7125,
+          "macro_f1": 0.7088146858680171,
+          "confusion_matrix": [
+            [
+              33,
+              7
+            ],
+            [
+              16,
+              24
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 0.6375,
+          "macro_f1": 0.6328532995727172,
+          "confusion_matrix": [
+            [
+              21,
+              19
+            ],
+            [
+              10,
+              30
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 3,
+      "variant_id": "query_tail_concat_19_22",
+      "feature_key": "concat(query_tail_window_layer_19,query_tail_window_layer_20,query_tail_window_layer_21,query_tail_window_layer_22)",
+      "is_baseline": false,
+      "label_names": [
+        "exfiltration_intent",
+        "secret_present_safe"
+      ],
+      "example_count": 480,
+      "accuracy_mean": 0.5883333333333334,
+      "accuracy_std": 0.042114262561644265,
+      "macro_f1_mean": 0.5588524514592261,
+      "macro_f1_std": 0.027667754350243778,
+      "confusion_matrix": [
+        [
+          163,
+          77
+        ],
+        [
+          124,
+          116
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 0.525,
+          "macro_f1": 0.5174603174603174,
+          "confusion_matrix": [
+            [
+              39,
+              21
+            ],
+            [
+              36,
+              24
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 0.5666666666666667,
+          "macro_f1": 0.5636363636363636,
+          "confusion_matrix": [
+            [
+              29,
+              31
+            ],
+            [
+              21,
+              39
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 0.5875,
+          "macro_f1": 0.5679921453117329,
+          "confusion_matrix": [
+            [
+              15,
+              25
+            ],
+            [
+              8,
+              32
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 0.6125,
+          "macro_f1": 0.5440338297481154,
+          "confusion_matrix": [
+            [
+              40,
+              0
+            ],
+            [
+              31,
+              9
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 0.65,
+          "macro_f1": 0.6011396011396011,
+          "confusion_matrix": [
+            [
+              40,
+              0
+            ],
+            [
+              28,
+              12
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

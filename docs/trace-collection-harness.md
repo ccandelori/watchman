@@ -190,6 +190,23 @@ the final code choice to prevent short word n-grams from spanning directly from
 `inside/outside Aegis` into the selected code. This is a hard stress test for
 semantic composition, not a preferred training corpus.
 
+Use the paired-semantic-indirection-v3 profile for the held-out selected-choice
+CIFT route:
+
+```bash
+uv run aegis-trace-seed-inputs \
+  --assignments data/trace_collection/assignments.jsonl \
+  --variants-per-label 20 \
+  --profile paired_semantic_indirection_v3 \
+  --output data/trace_collection/collection_inputs.paired_semantic_indirection_v3_720.jsonl
+```
+
+The v3 profile uses a separate code and frame vocabulary from earlier semantic
+indirection data. It is the current stress corpus for selected-choice readout
+geometry: the strongest CIFT runtime candidate uses the selected clause after
+the neutral option table, while payload/query readout is treated as degraded
+fallback.
+
 ## Validate Paired Inputs
 
 Before converting paired safe/exfiltration inputs into CIFT structured prompts,
@@ -320,18 +337,68 @@ python introspection/scripts/convert_trace_records_to_structured_prompts.py \
 
 The converter writes structured prompt rows accepted by
 `introspection/scripts/extract_activations.py --pooling readout_window`.
-Rows without a DP-HONEY secret span are skipped instead of receiving fake
+Benign rows without a DP-HONEY secret span are preserved with `null`
+`secret_char_span`, `secret_token_span`, `honeytoken_id`, and
+`honeytoken_sha256` fields. Secret-bearing labels still require real DP-HONEY
 secret spans. For the seeded 720-row corpus, this yields:
 
 ```text
+240 benign rows for calibration
 240 secret_present_safe rows
 240 exfiltration_intent rows
-240 benign rows skipped for separate calibration
 ```
 
-This skip is intentional. The current structured prompt contract is for
-secret-bearing CIFT readout windows; benign no-secret calibration should remain
-a separate artifact.
+This lets CIFT experiments calibrate on no-secret task prompts while preserving
+strict secret-span requirements for `secret_present_safe` and
+`exfiltration_intent` examples.
+
+## Build Mixed CIFT Runtime Turns
+
+After exporting runtime turns from structured prompts, build deterministic
+mixed-route fixtures when testing `CiftRuntimeWindowSelector`:
+
+```bash
+PYTHONPATH=introspection/src:src python \
+  introspection/scripts/build_mixed_cift_runtime_turns.py \
+  --input data/trace_collection/runtime_turns.paired_semantic_indirection_v3_720_secret_present_binary_query_tail.jsonl \
+  --output data/trace_collection/runtime_turns.paired_semantic_indirection_v3_720_secret_present_binary_mixed_selector.jsonl \
+  --fallback-modulus 2 \
+  --fallback-remainder 1
+```
+
+The mixer preserves all normal runtime fields, writes
+`metadata.eval.expected_cift_window_family`, and removes selected-choice
+geometry only from rows assigned to `payload_query_fallback`. With modulus 2 and
+remainder 1, each label/family gets a deterministic 50/50 split between
+`selected_choice` and degraded fallback rows. This makes selector benchmarks
+reproducible and prevents fallback coverage from being confused with primary
+selected-choice CIFT.
+
+## Verify Hidden-State Access
+
+Before extracting a whole corpus, run a one-prompt smoke test against the exact
+Transformers model path or model ID:
+
+```bash
+PYTHONDONTWRITEBYTECODE=1 PYTHONPATH=introspection/src \
+  /Users/sheep/Desktop/Gauntlet/Capstone/.venv-introspection/bin/python \
+  introspection/scripts/smoke_hidden_states.py \
+  --model-id Qwen/Qwen3-0.6B \
+  --revision main \
+  --device auto \
+  --dtype auto \
+  --layers 0,-1
+```
+
+The smoke test must print a non-empty `hidden_state_count` and layer shapes. If
+the candidate model is a local path, pass that path as `--model-id`. Use
+`--trust-remote-code` only for checkpoints that require custom model code.
+
+LM Studio API access is not enough for CIFT. CIFT needs a white-box backend that
+returns `output_hidden_states=True` from PyTorch/Transformers or an equivalent
+local model backend. The local `Qwen3.6-27B-MLX-4bit` LM Studio checkpoint is
+not currently a PyTorch/Transformers hidden-state source because its MLX
+quantization metadata does not map to a Hugging Face quantizer.
 
 ## Boundaries
 

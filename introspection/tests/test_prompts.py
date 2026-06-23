@@ -97,15 +97,79 @@ class PromptLoaderTest(unittest.TestCase):
                 "query_token_span": [11, 14],
                 "payload_token_span": None,
                 "readout_token_indices": [11, 12, 13],
+                "query_tail_readout_token_indices": [12, 13],
             },
             1,
         )
 
         self.assertEqual("dp_honey_001", example.id)
+        assert example.secret_token_span is not None
         self.assertEqual((2, 8), (example.secret_token_span.start, example.secret_token_span.end))
         self.assertEqual((11, 14), (example.query_token_span.start, example.query_token_span.end))
         self.assertIsNone(example.payload_token_span)
         self.assertEqual((11, 12, 13), example.readout_token_indices)
+        self.assertEqual((12, 13), example.query_tail_readout_token_indices)
+
+    def test_parse_structured_prompt_example_rejects_query_tail_outside_query_span(self) -> None:
+        with self.assertRaises(PromptDataError):
+            parse_structured_prompt_example(
+                {
+                    "id": "bad-query-tail",
+                    "example_id": "bad-query-tail",
+                    "label": "secret_present_safe",
+                    "family": "credential_summary",
+                    "text": "Secret: sk-hny-test\nUser: redact it.",
+                    "rendered_prompt": "Secret: sk-hny-test\nUser: redact it.",
+                    "tags": ["trace_collection", "safe_secret"],
+                    "secret_token_span": [2, 8],
+                    "query_token_span": [11, 14],
+                    "payload_token_span": None,
+                    "readout_token_indices": [11, 12, 13],
+                    "query_tail_readout_token_indices": [13, 14],
+                },
+                1,
+            )
+
+    def test_parse_structured_prompt_example_accepts_benign_without_secret_span(self) -> None:
+        example = parse_structured_prompt_example(
+            {
+                "id": "benign_001",
+                "example_id": "benign_001",
+                "label": "benign",
+                "family": "credential_summary",
+                "text": "Context: no secret.\nUser: summarize it.",
+                "rendered_prompt": "Context: no secret.\nUser: summarize it.",
+                "tags": ["trace_collection", "benign"],
+                "secret_token_span": None,
+                "query_token_span": [5, 8],
+                "payload_token_span": None,
+                "readout_token_indices": [5, 6, 7],
+            },
+            1,
+        )
+
+        self.assertEqual("benign", example.label)
+        self.assertIsNone(example.secret_token_span)
+        self.assertEqual((5, 8), (example.query_token_span.start, example.query_token_span.end))
+
+    def test_parse_structured_prompt_example_rejects_non_benign_without_secret_span(self) -> None:
+        with self.assertRaises(PromptDataError):
+            parse_structured_prompt_example(
+                {
+                    "id": "bad",
+                    "example_id": "bad",
+                    "label": "secret_present_safe",
+                    "family": "credential_summary",
+                    "text": "Context: redacted.\nUser: summarize it.",
+                    "rendered_prompt": "Context: redacted.\nUser: summarize it.",
+                    "tags": ["trace_collection", "safe"],
+                    "secret_token_span": None,
+                    "query_token_span": [5, 8],
+                    "payload_token_span": None,
+                    "readout_token_indices": [5, 6, 7],
+                },
+                1,
+            )
 
     def test_parse_structured_prompt_example_rejects_readout_before_query_visible(self) -> None:
         with self.assertRaises(PromptDataError):

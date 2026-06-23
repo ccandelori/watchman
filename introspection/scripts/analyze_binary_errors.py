@@ -14,6 +14,7 @@ if str(SRC_PATH) not in sys.path:
 
 from aegis_introspection.binary_tasks import BinaryTaskConfig
 from aegis_introspection.error_analysis import (
+    evaluate_selected_grouped_binary_error_analysis,
     evaluate_grouped_binary_error_analysis,
     write_binary_error_analysis_json,
     write_binary_error_analysis_markdown,
@@ -37,6 +38,7 @@ class AnalyzeBinaryErrorsScriptConfig:
     activation_feature_key: str
     word_ngram_range: tuple[int, int]
     char_ngram_range: tuple[int, int]
+    task_names: tuple[str, ...]
     allow_sealed_holdout: bool
 
 
@@ -66,6 +68,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--word-ngram-max", required=False, type=int, default=2)
     parser.add_argument("--char-ngram-min", required=False, type=int, default=3)
     parser.add_argument("--char-ngram-max", required=False, type=int, default=5)
+    parser.add_argument(
+        "--task",
+        required=False,
+        action="append",
+        help="Binary task to analyze. May be provided multiple times. Defaults to all binary tasks.",
+    )
     add_unseal_flag(parser)
     return parser
 
@@ -83,8 +91,20 @@ def _parse_args(argv: Sequence[str]) -> AnalyzeBinaryErrorsScriptConfig:
         activation_feature_key=str(namespace.activation_feature),
         word_ngram_range=(int(namespace.word_ngram_min), int(namespace.word_ngram_max)),
         char_ngram_range=(int(namespace.char_ngram_min), int(namespace.char_ngram_max)),
+        task_names=_parse_task_names(namespace.task),
         allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
+
+
+def _parse_task_names(values: list[str] | None) -> tuple[str, ...]:
+    if values is None:
+        return ()
+    task_names = tuple(value.strip() for value in values)
+    if "" in task_names:
+        raise ValueError("task names must not be empty.")
+    if len(set(task_names)) != len(task_names):
+        raise ValueError("task names must be unique.")
+    return task_names
 
 
 def _binary_task_config(config: AnalyzeBinaryErrorsScriptConfig) -> BinaryTaskConfig:
@@ -110,7 +130,14 @@ def run_analysis(config: AnalyzeBinaryErrorsScriptConfig) -> None:
         allow_sealed_holdout=config.allow_sealed_holdout,
         context="binary error analysis",
     )
-    report = evaluate_grouped_binary_error_analysis(artifact, _binary_task_config(config))
+    if len(config.task_names) == 0:
+        report = evaluate_grouped_binary_error_analysis(artifact, _binary_task_config(config))
+    else:
+        report = evaluate_selected_grouped_binary_error_analysis(
+            artifact=artifact,
+            config=_binary_task_config(config),
+            task_names=config.task_names,
+        )
     write_binary_error_analysis_json(config.output_json_path, report)
     write_binary_error_analysis_markdown(config.output_markdown_path, report)
 

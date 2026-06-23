@@ -144,6 +144,36 @@ self-hosted extractor cannot provide a vector, the turn remains unchanged and
 activation capture as a connector concern while preserving the runtime spine
 contract.
 
+`CiftRuntimeWindowSelector` is the runtime route for the current selected-choice
+CIFT candidate. When `metadata.cift.selected_choice_readout_token_indices` is
+present, the selector scores the selected-choice feature family and records
+`cift_window_coverage=primary`. When selected-choice geometry is absent, it
+scores the broader payload/query readout model as degraded fallback evidence,
+caps confidence, and records `cift_window_coverage=degraded_fallback`.
+
+`build_cift_window_selector_runtime_components` is the spine-native assembly
+helper for optional CIFT deployment. It loads selected-choice and fallback JSON
+artifacts, creates the required feature-vector annotators, and returns
+pre-generation detector components that plug directly into `AegisRuntime`.
+Callers still own the self-hosted extractor implementation; the runtime only
+sees feature vectors and detector results.
+
+## NIMBUS-Lite Session Detector
+
+`NimbusLeakageDetector` is the first runtime session detector for cumulative
+leakage. It reuses the exact and encoded canary detectors as per-turn signals,
+then updates a per-session leakage score:
+
+```text
+new_score = min(1.0, previous_score * decay + turn_signal_score)
+```
+
+The detector emits component `nimbus`, active/degraded capability status, a
+recommended action, and audit-safe evidence containing prior score, turn signal,
+current score, thresholds, and signal summaries. It does not replace text or
+encoded canary scanners; it composes with them as the cumulative leakage-budget
+stage.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:
@@ -154,5 +184,6 @@ Future branches should add real detectors behind the existing contract:
 - DP-HONEY runtime: register honeytokens and populate `sensitive_spans`.
 - Canary scanners: extend exact model-output scanning to tool arguments and
   streaming outputs.
-- NIMBUS ledger: emit cumulative session risk as a detector result.
+- Paper-faithful NIMBUS: replace or augment NIMBUS-lite with the paper's
+  learned multi-turn leakage critic and calibration.
 - Tool scanner: inspect normalized tool arguments before dispatch.

@@ -17,6 +17,7 @@ from aegis.trace_collection.harness import (
     build_paired_natural_seed_trace_collection_submissions,
     build_paired_prompt_work_items,
     build_paired_semantic_indirection_seed_trace_collection_submissions,
+    build_paired_semantic_indirection_v3_seed_trace_collection_submissions,
     build_pre_output_intent_seed_trace_collection_submissions,
     build_seed_trace_collection_submissions,
     build_trace_collection_assignments,
@@ -149,8 +150,14 @@ def run_seed_input_cli(argv: tuple[str, ...]) -> None:
             tasks=default_trace_collection_tasks(),
             variants_per_label=args.variants_per_label,
         )
-    else:
+    elif args.profile == "paired_semantic_indirection":
         submissions = build_paired_semantic_indirection_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=default_trace_collection_tasks(),
+            variants_per_label=args.variants_per_label,
+        )
+    else:
+        submissions = build_paired_semantic_indirection_v3_seed_trace_collection_submissions(
             assignments=assignments,
             tasks=default_trace_collection_tasks(),
             variants_per_label=args.variants_per_label,
@@ -308,6 +315,7 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
             "paired_adversarial",
             "paired_crossed_action",
             "paired_semantic_indirection",
+            "paired_semantic_indirection_v3",
         ),
         help="Seed input profile to generate.",
     )
@@ -337,11 +345,12 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
         and profile_value != "paired_adversarial"
         and profile_value != "paired_crossed_action"
         and profile_value != "paired_semantic_indirection"
+        and profile_value != "paired_semantic_indirection_v3"
     ):
         raise ValueError(
             "--profile must be 'standard', 'matched_hard', 'pre_output_intent', "
             "'paired_intent', 'paired_natural', 'paired_adversarial', 'paired_crossed_action', "
-            "or 'paired_semantic_indirection'."
+            "'paired_semantic_indirection', or 'paired_semantic_indirection_v3'."
         )
     return _SeedInputCliArgs(
         assignments_path=Path(assignments_value),

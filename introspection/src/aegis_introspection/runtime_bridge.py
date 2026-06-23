@@ -1,10 +1,10 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Mapping, TypeAlias, cast
+from typing import TypeAlias, cast
 
-from aegis_introspection.probe import JsonValue
-
+from aegis.core.contracts import JsonValue
 
 NormalizedTurnJson: TypeAlias = dict[str, JsonValue]
 
@@ -51,6 +51,21 @@ def structured_prompt_to_normalized_turn(
     payload_char_span = _optional_int_pair(record=record, field_name="payload_char_span")
     payload_token_span = _optional_int_pair(record=record, field_name="payload_token_span")
     readout_token_indices = _required_int_list(record=record, field_name="readout_token_indices")
+    query_tail_readout_token_indices = _optional_int_list(
+        record=record,
+        field_name="query_tail_readout_token_indices",
+    )
+    selected_choice_char_span = _optional_int_pair(record=record, field_name="selected_choice_char_span")
+    selected_choice_token_span = _optional_int_pair(record=record, field_name="selected_choice_token_span")
+    selected_choice_readout_token_indices = _optional_int_list(
+        record=record,
+        field_name="selected_choice_readout_token_indices",
+    )
+    _validate_selected_choice_geometry(
+        selected_choice_char_span=selected_choice_char_span,
+        selected_choice_token_span=selected_choice_token_span,
+        selected_choice_readout_token_indices=selected_choice_readout_token_indices,
+    )
 
     return {
         "trace_id": config.trace_id,
@@ -94,6 +109,10 @@ def structured_prompt_to_normalized_turn(
                 "payload_char_span": _optional_pair_json(payload_char_span),
                 "payload_token_span": _optional_pair_json(payload_token_span),
                 "readout_token_indices": readout_token_indices,
+                "query_tail_readout_token_indices": query_tail_readout_token_indices,
+                "selected_choice_char_span": _optional_pair_json(selected_choice_char_span),
+                "selected_choice_token_span": _optional_pair_json(selected_choice_token_span),
+                "selected_choice_readout_token_indices": selected_choice_readout_token_indices,
             },
             "policy_window": _policy_window_metadata(record=record),
             "bridge": {
@@ -136,6 +155,30 @@ def _reject_raw_secret_metadata(record: Mapping[str, object]) -> None:
     if len(present) > 0:
         fields = ", ".join(present)
         raise RuntimeBridgeError(f"Structured prompt record contains raw-secret metadata fields: {fields}.")
+
+
+def _validate_selected_choice_geometry(
+    selected_choice_char_span: tuple[int, int] | None,
+    selected_choice_token_span: tuple[int, int] | None,
+    selected_choice_readout_token_indices: list[JsonValue] | None,
+) -> None:
+    present = (
+        selected_choice_char_span is not None,
+        selected_choice_token_span is not None,
+        selected_choice_readout_token_indices is not None,
+    )
+    if any(present) and not all(present):
+        raise RuntimeBridgeError(
+            "Selected-choice geometry requires selected_choice_char_span, selected_choice_token_span, "
+            "and selected_choice_readout_token_indices."
+        )
+    if selected_choice_token_span is None or selected_choice_readout_token_indices is None:
+        return
+    token_indices = cast(list[int], selected_choice_readout_token_indices)
+    if min(token_indices) < selected_choice_token_span[0]:
+        raise RuntimeBridgeError("selected_choice_readout_token_indices must stay inside selected_choice_token_span.")
+    if max(token_indices) >= selected_choice_token_span[1]:
+        raise RuntimeBridgeError("selected_choice_readout_token_indices must stay inside selected_choice_token_span.")
 
 
 def _required_string(record: Mapping[str, object], field_name: str) -> str:

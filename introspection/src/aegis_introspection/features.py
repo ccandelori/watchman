@@ -12,10 +12,25 @@ from aegis_introspection.activations import (
     readout_window_activation,
 )
 
+PoolingMethod: TypeAlias = Literal[
+    "final_token",
+    "mean_pool",
+    "readout_window",
+    "query_tail_window",
+    "selected_choice_window",
+    "combined_readout_window",
+]
 
-PoolingMethod: TypeAlias = Literal["final_token", "mean_pool", "readout_window"]
-
-_VALID_POOLING_METHODS: frozenset[str] = frozenset(("final_token", "mean_pool", "readout_window"))
+_VALID_POOLING_METHODS: frozenset[str] = frozenset(
+    (
+        "final_token",
+        "mean_pool",
+        "readout_window",
+        "query_tail_window",
+        "selected_choice_window",
+        "combined_readout_window",
+    )
+)
 
 
 class FeatureConfigError(ValueError):
@@ -76,6 +91,8 @@ def extract_activation_features(
     layer_indices: tuple[int, ...],
     pooling_methods: tuple[PoolingMethod, ...],
     readout_token_indices: tuple[int, ...] | None,
+    query_tail_readout_token_indices: tuple[int, ...] | None,
+    selected_choice_readout_token_indices: tuple[int, ...] | None,
 ) -> tuple[ActivationFeature, ...]:
     layer_count = len(forward_pass.hidden_states)
     features: list[ActivationFeature] = []
@@ -91,6 +108,29 @@ def extract_activation_features(
                 if readout_token_indices is None:
                     raise FeatureConfigError("readout_token_indices are required for readout_window pooling.")
                 values = readout_window_activation(forward_pass, layer_index, readout_token_indices)
+            elif pooling_method == "query_tail_window":
+                if query_tail_readout_token_indices is None:
+                    raise FeatureConfigError(
+                        "query_tail_readout_token_indices are required for query_tail_window pooling."
+                    )
+                values = readout_window_activation(forward_pass, layer_index, query_tail_readout_token_indices)
+            elif pooling_method == "selected_choice_window":
+                if selected_choice_readout_token_indices is None:
+                    raise FeatureConfigError(
+                        "selected_choice_readout_token_indices are required for selected_choice_window pooling."
+                    )
+                values = readout_window_activation(forward_pass, layer_index, selected_choice_readout_token_indices)
+            elif pooling_method == "combined_readout_window":
+                if readout_token_indices is None:
+                    raise FeatureConfigError("readout_token_indices are required for combined_readout_window pooling.")
+                if selected_choice_readout_token_indices is None:
+                    raise FeatureConfigError(
+                        "selected_choice_readout_token_indices are required for combined_readout_window pooling."
+                    )
+                combined_indices = tuple(
+                    sorted(set(readout_token_indices).union(selected_choice_readout_token_indices))
+                )
+                values = readout_window_activation(forward_pass, layer_index, combined_indices)
             else:
                 raise FeatureConfigError(f"Unsupported pooling method '{pooling_method}'.")
 

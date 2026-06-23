@@ -15,6 +15,7 @@ def test_demo_scenarios_cover_allow_warn_and_escalate() -> None:
         "canary_leak_escalate": Action.ESCALATE,
         "encoded_canary_leak_escalate": Action.ESCALATE,
         "ledger_encoded_canary_leak_escalate": Action.ESCALATE,
+        "layered_cift_canary_nimbus_escalate": Action.ESCALATE,
     }
 
 
@@ -45,6 +46,10 @@ def test_render_demo_scenarios_outputs_compact_trace_without_raw_canary() -> Non
     assert "detector: encoded_canary score=1.000 action=escalate" in output
     assert "encoding=base64" in output
     assert "scenario: ledger_encoded_canary_leak_escalate" in output
+    assert "scenario: layered_cift_canary_nimbus_escalate" in output
+    assert "detector: cift_runtime" in output
+    assert "detector: nimbus" in output
+    assert "cumulative_leakage_budget_exhausted" in output
     assert "audit: written" in output
     assert "sk-hny-demoCanaryValue123" not in output
 

@@ -1,14 +1,7 @@
 from __future__ import annotations
 
+from aegis.core.action_severity import action_severity, highest_action
 from aegis.core.contracts import Action, DetectorResult, PolicyDecision
-
-_ACTION_SEVERITY: dict[Action, int] = {
-    Action.ALLOW: 0,
-    Action.WARN: 1,
-    Action.SANITIZE: 2,
-    Action.BLOCK: 3,
-    Action.ESCALATE: 4,
-}
 
 
 class SeverityPolicyEngine:
@@ -22,10 +15,10 @@ class SeverityPolicyEngine:
                 sanitized_output=None,
             )
 
-        highest_severity = max(_ACTION_SEVERITY[result.recommended_action] for result in detector_results)
-        final_action = next(action for action, severity in _ACTION_SEVERITY.items() if severity == highest_severity)
+        final_action = highest_action(tuple(result.recommended_action for result in detector_results))
+        highest_severity = action_severity(final_action)
         triggering_results = tuple(
-            result for result in detector_results if _ACTION_SEVERITY[result.recommended_action] == highest_severity
+            result for result in detector_results if action_severity(result.recommended_action) == highest_severity
         )
         if final_action == Action.ALLOW:
             triggered_detectors: tuple[str, ...] = ()

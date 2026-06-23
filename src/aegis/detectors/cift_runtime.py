@@ -22,6 +22,7 @@ from aegis.core.orchestrator import ModelResponse
 _SCHEMA_VERSION = "aegis.cift_runtime_linear/v1"
 _CIFT_METADATA_KEY = "cift"
 _FEATURE_VECTORS_KEY = "feature_vectors"
+_FALLBACK_CONFIDENCE_CAP = 0.35
 
 
 class CiftRuntimeDetectorError(ValueError):
@@ -61,6 +62,21 @@ class CiftRuntimePrediction:
     predicted_label: str
     recommended_action: Action
     operating_band: str
+
+
+@dataclass(frozen=True)
+class CiftRuntimeWindowSelectorConfig:
+    detector_name: str
+    selected_choice_model_path: Path
+    fallback_model_path: Path
+    feature_extractor: CiftFeatureExtractor
+    feature_source: str
+
+
+@dataclass(frozen=True)
+class CiftRuntimeComponents:
+    turn_annotators: tuple[CiftFeatureVectorAnnotator, ...]
+    pre_generation_detectors: tuple[CiftRuntimeWindowSelector, ...]
 
 
 class CiftFeatureExtractor(Protocol):
@@ -142,7 +158,44 @@ class CiftRuntimeDetector:
         )
 
 
+class CiftRuntimeWindowSelector:
+    def __init__(
+        self,
+        detector_name: str,
+        selected_choice_model: CiftRuntimeLinearModel,
+        fallback_model: CiftRuntimeLinearModel,
+    ) -> None:
+        self._selected_choice_model = selected_choice_model
+        self._fallback_model = fallback_model
+        self._selected_choice_detector = CiftRuntimeDetector(detector_name=detector_name, model=selected_choice_model)
+        self._fallback_detector = CiftRuntimeDetector(detector_name=detector_name, model=fallback_model)
+
+    def evaluate(self, turn: NormalizedTurn, model_response: ModelResponse | None) -> DetectorResult:
+        if _has_selected_choice_readout_indices(turn):
+            result = self._selected_choice_detector.evaluate(turn=turn, model_response=model_response)
+            return _result_with_window_selection_evidence(
+                result=result,
+                window_family="selected_choice",
+                selection_reason="selected_choice_metadata_present",
+                window_coverage="primary",
+                selected_choice_model=self._selected_choice_model,
+                fallback_model=self._fallback_model,
+            )
+        result = self._fallback_detector.evaluate(turn=turn, model_response=model_response)
+        selected_result = _result_with_window_selection_evidence(
+            result=result,
+            window_family="payload_query_fallback",
+            selection_reason="selected_choice_metadata_absent",
+            window_coverage="degraded_fallback",
+            selected_choice_model=self._selected_choice_model,
+            fallback_model=self._fallback_model,
+        )
+        return _degraded_fallback_result(selected_result)
+
+
 def load_cift_runtime_model(path: Path) -> CiftRuntimeLinearModel:
+    if not path.exists():
+        raise CiftRuntimeDetectorError(f"CIFT runtime model path does not exist: {path}")
     try:
         decoded: object = json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
@@ -152,6 +205,34 @@ def load_cift_runtime_model(path: Path) -> CiftRuntimeLinearModel:
     model = cift_runtime_model_from_mapping(cast(Mapping[str, object], decoded))
     validate_cift_runtime_model(model)
     return model
+
+
+def build_cift_window_selector_runtime_components(config: CiftRuntimeWindowSelectorConfig) -> CiftRuntimeComponents:
+    if config.detector_name == "":
+        raise CiftRuntimeDetectorError("detector_name must not be empty.")
+    if config.feature_source == "":
+        raise CiftRuntimeDetectorError("feature_source must not be empty.")
+    selected_choice_model = load_cift_runtime_model(config.selected_choice_model_path)
+    fallback_model = load_cift_runtime_model(config.fallback_model_path)
+    feature_keys = tuple(dict.fromkeys((selected_choice_model.feature_key, fallback_model.feature_key)))
+    turn_annotators = tuple(
+        CiftFeatureVectorAnnotator(
+            feature_key=feature_key,
+            extractor=config.feature_extractor,
+            source=config.feature_source,
+        )
+        for feature_key in feature_keys
+    )
+    return CiftRuntimeComponents(
+        turn_annotators=turn_annotators,
+        pre_generation_detectors=(
+            CiftRuntimeWindowSelector(
+                detector_name=config.detector_name,
+                selected_choice_model=selected_choice_model,
+                fallback_model=fallback_model,
+            ),
+        ),
+    )
 
 
 def cift_runtime_model_from_mapping(record: Mapping[str, object]) -> CiftRuntimeLinearModel:
@@ -429,6 +510,82 @@ def _sigmoid(value: float) -> float:
 
 def _negative_label(model: CiftRuntimeLinearModel) -> str:
     return next(label for label in model.label_names if label != model.positive_label)
+
+
+def _has_selected_choice_readout_indices(turn: NormalizedTurn) -> bool:
+    cift_metadata = turn.metadata.get(_CIFT_METADATA_KEY)
+    if cift_metadata is None:
+        return False
+    if not isinstance(cift_metadata, dict):
+        raise CiftRuntimeDetectorError("NormalizedTurn metadata.cift must be an object when present.")
+    token_indices = cift_metadata.get("selected_choice_readout_token_indices")
+    if token_indices is None:
+        return False
+    if not isinstance(token_indices, list):
+        raise CiftRuntimeDetectorError(
+            "NormalizedTurn metadata.cift.selected_choice_readout_token_indices must be a list when present."
+        )
+    if len(token_indices) == 0:
+        raise CiftRuntimeDetectorError(
+            "NormalizedTurn metadata.cift.selected_choice_readout_token_indices must not be empty when present."
+        )
+    for index, token_index in enumerate(token_indices):
+        if isinstance(token_index, bool) or not isinstance(token_index, int):
+            raise CiftRuntimeDetectorError(
+                f"NormalizedTurn metadata.cift.selected_choice_readout_token_indices item {index} must be an integer."
+            )
+        if token_index < 0:
+            raise CiftRuntimeDetectorError(
+                f"NormalizedTurn metadata.cift.selected_choice_readout_token_indices item {index} must be non-negative."
+            )
+    return True
+
+
+def _result_with_window_selection_evidence(
+    result: DetectorResult,
+    window_family: str,
+    selection_reason: str,
+    window_coverage: str,
+    selected_choice_model: CiftRuntimeLinearModel,
+    fallback_model: CiftRuntimeLinearModel,
+) -> DetectorResult:
+    evidence = dict(result.evidence)
+    evidence["cift_window_family"] = window_family
+    evidence["cift_window_selection_reason"] = selection_reason
+    evidence["cift_window_coverage"] = window_coverage
+    evidence["selected_choice_model_bundle_id"] = selected_choice_model.model_bundle_id
+    evidence["fallback_model_bundle_id"] = fallback_model.model_bundle_id
+    return DetectorResult(
+        detector_name=result.detector_name,
+        component=result.component,
+        score=result.score,
+        confidence=result.confidence,
+        recommended_action=result.recommended_action,
+        capability_required=result.capability_required,
+        capability_status=result.capability_status,
+        evidence=evidence,
+        latency_ms=result.latency_ms,
+    )
+
+
+def _degraded_fallback_result(result: DetectorResult) -> DetectorResult:
+    evidence = dict(result.evidence)
+    evidence["degradation_reason"] = "selected_choice_metadata_required_for_primary_cift"
+    if result.capability_status == CapabilityStatus.ACTIVE:
+        capability_status = CapabilityStatus.DEGRADED
+    else:
+        capability_status = result.capability_status
+    return DetectorResult(
+        detector_name=result.detector_name,
+        component=result.component,
+        score=result.score,
+        confidence=min(result.confidence, _FALLBACK_CONFIDENCE_CAP),
+        recommended_action=result.recommended_action,
+        capability_required=result.capability_required,
+        capability_status=capability_status,
+        evidence=evidence,
+        latency_ms=result.latency_ms,
+    )
 
 
 def _copied_cift_metadata(metadata: Mapping[str, JsonValue]) -> dict[str, JsonValue]:

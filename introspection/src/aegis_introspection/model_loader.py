@@ -1,8 +1,12 @@
 from dataclasses import dataclass
-from typing import cast
+from typing import Literal, TypeAlias, cast
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer, PreTrainedModel, PreTrainedTokenizerBase
+
+ModelDTypeName: TypeAlias = Literal["auto", "device", "float32", "float16", "bfloat16"]
+ModelLoadDType: TypeAlias = torch.dtype | Literal["auto"]
+_VALID_MODEL_DTYPES: frozenset[str] = frozenset(("auto", "device", "float32", "float16", "bfloat16"))
 
 
 class UnsupportedDeviceError(ValueError):
@@ -11,6 +15,10 @@ class UnsupportedDeviceError(ValueError):
 
 class DeviceUnavailableError(RuntimeError):
     """Raised when the requested device is supported but unavailable locally."""
+
+
+class UnsupportedModelDTypeError(ValueError):
+    """Raised when a model dtype selector is not supported."""
 
 
 @dataclass(frozen=True)
@@ -26,6 +34,8 @@ class ModelLoadConfig:
     revision: str
     requested_device: str
     local_files_only: bool
+    dtype_name: ModelDTypeName
+    trust_remote_code: bool
 
 
 @dataclass(frozen=True)
@@ -91,14 +101,37 @@ def select_device(requested_device: str) -> DeviceSelection:
     )
 
 
+def parse_model_dtype(raw_value: str) -> ModelDTypeName:
+    if raw_value not in _VALID_MODEL_DTYPES:
+        valid = ", ".join(sorted(_VALID_MODEL_DTYPES))
+        raise UnsupportedModelDTypeError(f"Unsupported model dtype '{raw_value}'. Expected one of: {valid}.")
+    return cast(ModelDTypeName, raw_value)
+
+
+def resolve_model_load_dtype(dtype_name: ModelDTypeName, device: DeviceSelection) -> ModelLoadDType:
+    if dtype_name == "auto":
+        return "auto"
+    if dtype_name == "device":
+        return device.torch_dtype
+    if dtype_name == "float32":
+        return torch.float32
+    if dtype_name == "float16":
+        return torch.float16
+    if dtype_name == "bfloat16":
+        return torch.bfloat16
+    raise UnsupportedModelDTypeError(f"Unsupported model dtype '{dtype_name}'.")
+
+
 def load_causal_lm(config: ModelLoadConfig) -> LoadedCausalLM:
     device = select_device(config.requested_device)
+    load_dtype = resolve_model_load_dtype(dtype_name=config.dtype_name, device=device)
     tokenizer = cast(
         PreTrainedTokenizerBase,
         AutoTokenizer.from_pretrained(
             config.model_id,
             revision=config.revision,
             local_files_only=config.local_files_only,
+            trust_remote_code=config.trust_remote_code,
         ),
     )
     model = cast(
@@ -107,7 +140,8 @@ def load_causal_lm(config: ModelLoadConfig) -> LoadedCausalLM:
             config.model_id,
             revision=config.revision,
             local_files_only=config.local_files_only,
-            dtype=device.torch_dtype,
+            trust_remote_code=config.trust_remote_code,
+            dtype=load_dtype,
         ),
     )
 

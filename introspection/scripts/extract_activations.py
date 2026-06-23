@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence, TypeAlias
+from typing import TypeAlias
 
 import torch
 
@@ -14,9 +15,9 @@ SRC_PATH = INTROSPECTION_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from aegis_introspection.activations import run_hidden_state_forward
-from aegis_introspection.artifacts import ActivationArtifact
-from aegis_introspection.features import (
+from aegis_introspection.activations import run_hidden_state_forward  # noqa: E402
+from aegis_introspection.artifacts import ActivationArtifact  # noqa: E402
+from aegis_introspection.features import (  # noqa: E402
     ActivationFeature,
     PoolingMethod,
     extract_activation_features,
@@ -24,15 +25,23 @@ from aegis_introspection.features import (
     parse_pooling_methods,
     stack_feature_rows,
 )
-from aegis_introspection.model_loader import ModelLoadConfig, load_causal_lm
-from aegis_introspection.prompts import (
+from aegis_introspection.model_loader import (  # noqa: E402
+    ModelDTypeName,
+    ModelLoadConfig,
+    load_causal_lm,
+    parse_model_dtype,
+)
+from aegis_introspection.prompts import (  # noqa: E402
     PromptExample,
     StructuredPromptExample,
     load_prompt_examples,
     load_structured_prompt_examples,
 )
-from aegis_introspection.sealed_holdout import add_unseal_flag, assert_unsealed_paths, assert_unsealed_tag_rows
-
+from aegis_introspection.sealed_holdout import (  # noqa: E402
+    add_unseal_flag,
+    assert_unsealed_paths,
+    assert_unsealed_tag_rows,
+)
 
 PromptExtractionExample: TypeAlias = PromptExample | StructuredPromptExample
 
@@ -45,6 +54,8 @@ class ExtractionScriptConfig:
     revision: str
     requested_device: str
     local_files_only: bool
+    dtype_name: ModelDTypeName
+    trust_remote_code: bool
     layer_indices: tuple[int, ...]
     pooling_methods: tuple[PoolingMethod, ...]
     allow_sealed_holdout: bool
@@ -61,6 +72,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-id", required=False, default="Qwen/Qwen3-0.6B")
     parser.add_argument("--revision", required=False, default="main")
     parser.add_argument("--device", required=False, default="auto")
+    parser.add_argument("--dtype", required=False, default="device")
+    parser.add_argument("--trust-remote-code", action="store_true")
     parser.add_argument("--layers", required=False, default="0,7,14,21,28")
     parser.add_argument("--pooling", required=False, default="final_token,mean_pool")
     parser.add_argument("--allow-download", action="store_true")
@@ -77,6 +90,8 @@ def _parse_args(argv: Sequence[str]) -> ExtractionScriptConfig:
         revision=str(namespace.revision),
         requested_device=str(namespace.device),
         local_files_only=not bool(namespace.allow_download),
+        dtype_name=parse_model_dtype(str(namespace.dtype)),
+        trust_remote_code=bool(namespace.trust_remote_code),
         layer_indices=parse_layer_indices(str(namespace.layers)),
         pooling_methods=parse_pooling_methods(str(namespace.pooling)),
         allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
@@ -89,6 +104,8 @@ def _build_model_config(config: ExtractionScriptConfig) -> ModelLoadConfig:
         revision=config.revision,
         requested_device=config.requested_device,
         local_files_only=config.local_files_only,
+        dtype_name=config.dtype_name,
+        trust_remote_code=config.trust_remote_code,
     )
 
 
@@ -104,6 +121,8 @@ def _save_artifact(
             "model_id": config.model_id,
             "revision": config.revision,
             "selected_device": selected_device,
+            "dtype": config.dtype_name,
+            "trust_remote_code": config.trust_remote_code,
             "layer_indices": config.layer_indices,
             "pooling_methods": config.pooling_methods,
         },
@@ -118,20 +137,49 @@ def _save_artifact(
 
 
 def _load_examples(config: ExtractionScriptConfig) -> tuple[PromptExtractionExample, ...]:
-    if "readout_window" in config.pooling_methods:
+    if _requires_structured_prompts(config.pooling_methods):
         return load_structured_prompt_examples(config.prompts_path)
     return load_prompt_examples(config.prompts_path)
+
+
+def _requires_structured_prompts(pooling_methods: tuple[PoolingMethod, ...]) -> bool:
+    structured_methods = frozenset(
+        ("readout_window", "query_tail_window", "selected_choice_window", "combined_readout_window")
+    )
+    return any(method in structured_methods for method in pooling_methods)
 
 
 def _readout_token_indices(
     example: PromptExtractionExample,
     pooling_methods: tuple[PoolingMethod, ...],
 ) -> tuple[int, ...] | None:
-    if "readout_window" not in pooling_methods:
+    if "readout_window" not in pooling_methods and "combined_readout_window" not in pooling_methods:
         return None
     if not isinstance(example, StructuredPromptExample):
         raise TypeError("readout_window pooling requires structured prompt examples.")
     return example.readout_token_indices
+
+
+def _selected_choice_readout_token_indices(
+    example: PromptExtractionExample,
+    pooling_methods: tuple[PoolingMethod, ...],
+) -> tuple[int, ...] | None:
+    if "selected_choice_window" not in pooling_methods and "combined_readout_window" not in pooling_methods:
+        return None
+    if not isinstance(example, StructuredPromptExample):
+        raise TypeError("selected_choice_window pooling requires structured prompt examples.")
+    return example.selected_choice_readout_token_indices
+
+
+def _query_tail_readout_token_indices(
+    example: PromptExtractionExample,
+    pooling_methods: tuple[PoolingMethod, ...],
+) -> tuple[int, ...] | None:
+    if "query_tail_window" not in pooling_methods:
+        return None
+    if not isinstance(example, StructuredPromptExample):
+        raise TypeError("query_tail_window pooling requires structured prompt examples.")
+    return example.query_tail_readout_token_indices
 
 
 def run_extraction(config: ExtractionScriptConfig) -> None:
@@ -158,6 +206,14 @@ def run_extraction(config: ExtractionScriptConfig) -> None:
                 layer_indices=config.layer_indices,
                 pooling_methods=config.pooling_methods,
                 readout_token_indices=_readout_token_indices(example=example, pooling_methods=config.pooling_methods),
+                query_tail_readout_token_indices=_query_tail_readout_token_indices(
+                    example=example,
+                    pooling_methods=config.pooling_methods,
+                ),
+                selected_choice_readout_token_indices=_selected_choice_readout_token_indices(
+                    example=example,
+                    pooling_methods=config.pooling_methods,
+                ),
             )
         )
 

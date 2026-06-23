@@ -1,10 +1,10 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, Mapping, TypeAlias, cast
-
+from typing import Literal, TypeAlias, cast
 
 PromptLabel: TypeAlias = Literal["benign", "secret_present_safe", "exfiltration_intent"]
 
@@ -37,10 +37,13 @@ class StructuredPromptExample:
     family: str
     text: str
     tags: tuple[str, ...]
-    secret_token_span: PromptTokenSpan
+    secret_token_span: PromptTokenSpan | None
     query_token_span: PromptTokenSpan
     payload_token_span: PromptTokenSpan | None
     readout_token_indices: tuple[int, ...]
+    query_tail_readout_token_indices: tuple[int, ...] | None
+    selected_choice_token_span: PromptTokenSpan | None
+    selected_choice_readout_token_indices: tuple[int, ...] | None
 
 
 def _as_mapping(value: object, line_number: int) -> Mapping[str, object]:
@@ -104,29 +107,44 @@ def _optional_token_span(record: Mapping[str, object], field_name: str, line_num
     return _required_token_span(record=record, field_name=field_name, line_number=line_number)
 
 
-def _required_readout_token_indices(record: Mapping[str, object], line_number: int) -> tuple[int, ...]:
-    value = record.get("readout_token_indices")
+def _required_token_indices(record: Mapping[str, object], field_name: str, line_number: int) -> tuple[int, ...]:
+    value = record.get(field_name)
     if not isinstance(value, list):
-        raise PromptDataError(f"Line {line_number}: field 'readout_token_indices' must be a list of integers.")
+        raise PromptDataError(f"Line {line_number}: field '{field_name}' must be a list of integers.")
     if len(value) == 0:
-        raise PromptDataError(f"Line {line_number}: field 'readout_token_indices' must not be empty.")
+        raise PromptDataError(f"Line {line_number}: field '{field_name}' must not be empty.")
 
     indices: list[int] = []
     for index, item in enumerate(value):
         if not isinstance(item, int):
-            raise PromptDataError(f"Line {line_number}: readout index {index} must be an integer.")
+            raise PromptDataError(f"Line {line_number}: {field_name} index {index} must be an integer.")
         if item < 0:
-            raise PromptDataError(f"Line {line_number}: readout index {index} must be non-negative.")
+            raise PromptDataError(f"Line {line_number}: {field_name} index {index} must be non-negative.")
         indices.append(item)
     if tuple(indices) != tuple(sorted(indices)):
-        raise PromptDataError(f"Line {line_number}: readout_token_indices must be sorted.")
+        raise PromptDataError(f"Line {line_number}: {field_name} must be sorted.")
     if len(set(indices)) != len(indices):
-        raise PromptDataError(f"Line {line_number}: readout_token_indices must be unique.")
+        raise PromptDataError(f"Line {line_number}: {field_name} must be unique.")
     return tuple(indices)
 
 
+def _required_readout_token_indices(record: Mapping[str, object], line_number: int) -> tuple[int, ...]:
+    return _required_token_indices(record=record, field_name="readout_token_indices", line_number=line_number)
+
+
+def _optional_token_indices(
+    record: Mapping[str, object],
+    field_name: str,
+    line_number: int,
+) -> tuple[int, ...] | None:
+    value = record.get(field_name)
+    if value is None:
+        return None
+    return _required_token_indices(record=record, field_name=field_name, line_number=line_number)
+
+
 def _validate_readout_window(
-    secret_token_span: PromptTokenSpan,
+    secret_token_span: PromptTokenSpan | None,
     query_token_span: PromptTokenSpan,
     payload_token_span: PromptTokenSpan | None,
     readout_token_indices: tuple[int, ...],
@@ -134,21 +152,68 @@ def _validate_readout_window(
 ) -> None:
     first_readout_index = min(readout_token_indices)
     last_readout_index = max(readout_token_indices)
+    secret_end = secret_token_span.end if secret_token_span is not None else 0
     if payload_token_span is None:
-        visibility_floor = max(secret_token_span.end, query_token_span.start)
+        visibility_floor = max(secret_end, query_token_span.start)
         if first_readout_index < visibility_floor:
             raise PromptDataError(
                 f"Line {line_number}: readout_token_indices must start after secret end and query start."
             )
         return
 
-    visibility_floor = max(secret_token_span.end, query_token_span.end, payload_token_span.start)
+    visibility_floor = max(secret_end, query_token_span.end, payload_token_span.start)
     if first_readout_index < visibility_floor:
         raise PromptDataError(
             f"Line {line_number}: payload readout_token_indices must start after secret, query, and payload visibility."
         )
     if last_readout_index >= payload_token_span.end:
         raise PromptDataError(f"Line {line_number}: payload readout_token_indices must stay inside payload span.")
+
+
+def _validate_optional_selected_choice_window(
+    selected_choice_token_span: PromptTokenSpan | None,
+    selected_choice_readout_token_indices: tuple[int, ...] | None,
+    line_number: int,
+) -> None:
+    if selected_choice_token_span is None and selected_choice_readout_token_indices is None:
+        return
+    if selected_choice_token_span is None:
+        raise PromptDataError(
+            f"Line {line_number}: selected_choice_readout_token_indices require selected_choice_token_span."
+        )
+    if selected_choice_readout_token_indices is None:
+        raise PromptDataError(
+            f"Line {line_number}: selected_choice_token_span requires selected_choice_readout_token_indices."
+        )
+    first_index = min(selected_choice_readout_token_indices)
+    last_index = max(selected_choice_readout_token_indices)
+    if first_index < selected_choice_token_span.start:
+        raise PromptDataError(
+            f"Line {line_number}: selected_choice_readout_token_indices must stay inside selected_choice_token_span."
+        )
+    if last_index >= selected_choice_token_span.end:
+        raise PromptDataError(
+            f"Line {line_number}: selected_choice_readout_token_indices must stay inside selected_choice_token_span."
+        )
+
+
+def _validate_optional_query_tail_window(
+    query_token_span: PromptTokenSpan,
+    query_tail_readout_token_indices: tuple[int, ...] | None,
+    line_number: int,
+) -> None:
+    if query_tail_readout_token_indices is None:
+        return
+    first_index = min(query_tail_readout_token_indices)
+    last_index = max(query_tail_readout_token_indices)
+    if first_index < query_token_span.start:
+        raise PromptDataError(
+            f"Line {line_number}: query_tail_readout_token_indices must stay inside query_token_span."
+        )
+    if last_index >= query_token_span.end:
+        raise PromptDataError(
+            f"Line {line_number}: query_tail_readout_token_indices must stay inside query_token_span."
+        )
 
 
 def parse_prompt_example(record: Mapping[str, object], line_number: int) -> PromptExample:
@@ -163,6 +228,7 @@ def parse_prompt_example(record: Mapping[str, object], line_number: int) -> Prom
 
 def parse_structured_prompt_example(record: Mapping[str, object], line_number: int) -> StructuredPromptExample:
     prompt_id = _required_string(record, "id", line_number)
+    label = _required_label(record, line_number)
     rendered_prompt = _required_string(record, "rendered_prompt", line_number)
     text = _required_string(record, "text", line_number)
     if text != rendered_prompt:
@@ -172,10 +238,27 @@ def parse_structured_prompt_example(record: Mapping[str, object], line_number: i
     if example_id is not None and example_id != prompt_id:
         raise PromptDataError(f"Line {line_number}: fields 'id' and 'example_id' must match.")
 
-    secret_token_span = _required_token_span(record=record, field_name="secret_token_span", line_number=line_number)
+    secret_token_span = _optional_token_span(record=record, field_name="secret_token_span", line_number=line_number)
+    if label != "benign" and secret_token_span is None:
+        raise PromptDataError(f"Line {line_number}: non-benign structured prompts require 'secret_token_span'.")
     query_token_span = _required_token_span(record=record, field_name="query_token_span", line_number=line_number)
     payload_token_span = _optional_token_span(record=record, field_name="payload_token_span", line_number=line_number)
     readout_token_indices = _required_readout_token_indices(record=record, line_number=line_number)
+    query_tail_readout_token_indices = _optional_token_indices(
+        record=record,
+        field_name="query_tail_readout_token_indices",
+        line_number=line_number,
+    )
+    selected_choice_token_span = _optional_token_span(
+        record=record,
+        field_name="selected_choice_token_span",
+        line_number=line_number,
+    )
+    selected_choice_readout_token_indices = _optional_token_indices(
+        record=record,
+        field_name="selected_choice_readout_token_indices",
+        line_number=line_number,
+    )
     _validate_readout_window(
         secret_token_span=secret_token_span,
         query_token_span=query_token_span,
@@ -183,10 +266,20 @@ def parse_structured_prompt_example(record: Mapping[str, object], line_number: i
         readout_token_indices=readout_token_indices,
         line_number=line_number,
     )
+    _validate_optional_query_tail_window(
+        query_token_span=query_token_span,
+        query_tail_readout_token_indices=query_tail_readout_token_indices,
+        line_number=line_number,
+    )
+    _validate_optional_selected_choice_window(
+        selected_choice_token_span=selected_choice_token_span,
+        selected_choice_readout_token_indices=selected_choice_readout_token_indices,
+        line_number=line_number,
+    )
 
     return StructuredPromptExample(
         id=prompt_id,
-        label=_required_label(record, line_number),
+        label=label,
         family=_required_string(record, "family", line_number),
         text=text,
         tags=_required_tags(record, line_number),
@@ -194,6 +287,9 @@ def parse_structured_prompt_example(record: Mapping[str, object], line_number: i
         query_token_span=query_token_span,
         payload_token_span=payload_token_span,
         readout_token_indices=readout_token_indices,
+        query_tail_readout_token_indices=query_tail_readout_token_indices,
+        selected_choice_token_span=selected_choice_token_span,
+        selected_choice_readout_token_indices=selected_choice_readout_token_indices,
     )
 
 

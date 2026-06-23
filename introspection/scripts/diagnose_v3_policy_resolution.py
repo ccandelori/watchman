@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Sequence, cast
+from typing import cast
 
 import torch
 from transformers import BatchEncoding
@@ -15,9 +16,15 @@ SRC_PATH = INTROSPECTION_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from aegis_introspection.artifacts import load_activation_artifact
-from aegis_introspection.model_loader import LoadedCausalLM, ModelLoadConfig, load_causal_lm
-from aegis_introspection.v3_policy_resolution import (
+from aegis_introspection.artifacts import load_activation_artifact  # noqa: E402
+from aegis_introspection.model_loader import (  # noqa: E402
+    LoadedCausalLM,
+    ModelDTypeName,
+    ModelLoadConfig,
+    load_causal_lm,
+    parse_model_dtype,
+)
+from aegis_introspection.v3_policy_resolution import (  # noqa: E402
     V3PolicyResolver,
     evaluate_v3_policy_resolution,
     write_v3_policy_resolution_json,
@@ -38,6 +45,8 @@ class DiagnoseV3PolicyResolutionScriptConfig:
     revision: str
     requested_device: str
     local_files_only: bool
+    dtype_name: ModelDTypeName
+    trust_remote_code: bool
     max_new_tokens: int
     max_examples: int | None
 
@@ -102,6 +111,8 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--model-id", required=False, default="Qwen/Qwen3-0.6B")
     parser.add_argument("--revision", required=False, default="main")
     parser.add_argument("--device", required=False, default="auto")
+    parser.add_argument("--dtype", required=False, default="device")
+    parser.add_argument("--trust-remote-code", action="store_true")
     parser.add_argument("--allow-download", action="store_true")
     parser.add_argument("--max-new-tokens", required=False, type=int, default=32)
     parser.add_argument("--max-examples", required=False, type=int, default=None)
@@ -118,6 +129,8 @@ def _parse_args(argv: Sequence[str]) -> DiagnoseV3PolicyResolutionScriptConfig:
         revision=str(namespace.revision),
         requested_device=str(namespace.device),
         local_files_only=not bool(namespace.allow_download),
+        dtype_name=parse_model_dtype(str(namespace.dtype)),
+        trust_remote_code=bool(namespace.trust_remote_code),
         max_new_tokens=int(namespace.max_new_tokens),
         max_examples=cast(int | None, namespace.max_examples),
     )
@@ -129,6 +142,8 @@ def _model_config(config: DiagnoseV3PolicyResolutionScriptConfig) -> ModelLoadCo
         revision=config.revision,
         requested_device=config.requested_device,
         local_files_only=config.local_files_only,
+        dtype_name=config.dtype_name,
+        trust_remote_code=config.trust_remote_code,
     )
 
 

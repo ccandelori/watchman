@@ -872,14 +872,10 @@ class TraceCollectionHarnessTest(unittest.TestCase):
             rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
 
         safe_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
         )
         exfiltration_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
         )
         self.assertEqual(len(default_trace_collection_tasks()) * 3 * 2, len(rows))
         self.assertEqual(safe_row["tool_calls"][0]["name"], exfiltration_row["tool_calls"][0]["name"])
@@ -913,14 +909,10 @@ class TraceCollectionHarnessTest(unittest.TestCase):
             rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
 
         safe_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
         )
         exfiltration_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
         )
         self.assertEqual(len(default_trace_collection_tasks()) * 3 * 2, len(rows))
         self.assertEqual(safe_row["tool_calls"][0]["name"], exfiltration_row["tool_calls"][0]["name"])
@@ -955,14 +947,10 @@ class TraceCollectionHarnessTest(unittest.TestCase):
             rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
 
         safe_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
         )
         exfiltration_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
         )
         self.assertEqual(len(default_trace_collection_tasks()) * 3 * 2, len(rows))
         self.assertEqual(safe_row["tool_calls"][0], exfiltration_row["tool_calls"][0])
@@ -999,14 +987,10 @@ class TraceCollectionHarnessTest(unittest.TestCase):
             rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
 
         safe_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
         )
         exfiltration_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
         )
         self.assertEqual(len(default_trace_collection_tasks()) * 3 * 2, len(rows))
         self.assertEqual(safe_row["tool_calls"][0], exfiltration_row["tool_calls"][0])
@@ -1040,14 +1024,10 @@ class TraceCollectionHarnessTest(unittest.TestCase):
             rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
 
         safe_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
         )
         exfiltration_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
         )
         self.assertEqual(len(default_trace_collection_tasks()) * 3 * 2, len(rows))
         self.assertEqual(safe_row["tool_calls"][0], exfiltration_row["tool_calls"][0])
@@ -1083,14 +1063,10 @@ class TraceCollectionHarnessTest(unittest.TestCase):
             rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
 
         safe_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
         )
         exfiltration_row = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
         )
         submissions = build_paired_crossed_action_seed_trace_collection_submissions(
             assignments=assignments,
@@ -1144,24 +1120,16 @@ class TraceCollectionHarnessTest(unittest.TestCase):
             rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
 
         safe_v000 = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
         )
         exfiltration_v000 = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+            row for row in rows if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
         )
         safe_v001 = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v001"
+            row for row in rows if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v001"
         )
         exfiltration_v001 = next(
-            row
-            for row in rows
-            if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v001"
+            row for row in rows if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v001"
         )
         submissions = build_paired_semantic_indirection_seed_trace_collection_submissions(
             assignments=assignments,
@@ -1190,6 +1158,88 @@ class TraceCollectionHarnessTest(unittest.TestCase):
         self.assertIn("Select route bravo", exfiltration_v000["operator_prompt"])
         self.assertIn("Select route bravo", safe_v001["operator_prompt"])
         self.assertEqual(0, report.failed_pair_count)
+
+    def test_seed_input_cli_writes_paired_semantic_indirection_v3_collection_inputs(self) -> None:
+        assignments = build_trace_collection_assignments(
+            participant_ids=("alice",),
+            tasks=default_trace_collection_tasks(),
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            directory_path = Path(directory)
+            assignments_path = directory_path / "assignments.jsonl"
+            output_path = directory_path / "collection_inputs.jsonl"
+            write_trace_collection_assignments_jsonl(path=assignments_path, assignments=assignments)
+
+            run_seed_input_cli(
+                argv=(
+                    "--assignments",
+                    str(assignments_path),
+                    "--variants-per-label",
+                    "2",
+                    "--profile",
+                    "paired_semantic_indirection_v3",
+                    "--output",
+                    str(output_path),
+                )
+            )
+            rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
+
+        safe_v000 = next(
+            row for row in rows if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v000"
+        )
+        exfiltration_v000 = next(
+            row for row in rows if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v000"
+        )
+        safe_v001 = next(
+            row for row in rows if row["assignment_id"].endswith("secret_present_safe") and row["variant_id"] == "v001"
+        )
+        exfiltration_v001 = next(
+            row for row in rows if row["assignment_id"].endswith("exfiltration_intent") and row["variant_id"] == "v001"
+        )
+        legacy_codes = {
+            "alpha",
+            "bravo",
+            "cobalt",
+            "delta",
+            "ember",
+            "frost",
+            "garnet",
+            "harbor",
+            "iris",
+            "juniper",
+            "keystone",
+            "lantern",
+            "marble",
+            "nickel",
+            "opal",
+            "prairie",
+            "quartz",
+            "raven",
+            "summit",
+            "timber",
+        }
+        v3_tokens = _prompt_token_set(" ".join(str(row["operator_prompt"]) for row in rows))
+
+        self.assertEqual(len(default_trace_collection_tasks()) * 3 * 2, len(rows))
+        self.assertTrue(legacy_codes.isdisjoint(v3_tokens))
+        self.assertEqual(safe_v000["tool_calls"][0], exfiltration_v000["tool_calls"][0])
+        self.assertEqual(safe_v001["tool_calls"][0], exfiltration_v001["tool_calls"][0])
+        self.assertEqual(
+            _prompt_token_counter(safe_v000["operator_prompt"]),
+            _prompt_token_counter(exfiltration_v000["operator_prompt"]),
+        )
+        self.assertEqual(
+            _prompt_token_counter(safe_v001["operator_prompt"]),
+            _prompt_token_counter(exfiltration_v001["operator_prompt"]),
+        )
+        self.assertIn("Confirm symbol atlas", safe_v000["operator_prompt"])
+        self.assertIn("Confirm symbol briar", exfiltration_v000["operator_prompt"])
+        self.assertIn("Confirm symbol briar", safe_v001["operator_prompt"])
+        self.assertIn("Confirm symbol atlas", exfiltration_v001["operator_prompt"])
+        self.assertIn("ignore symbol", safe_v000["operator_prompt"])
+        self.assertIn("keep credential authority inside aegis", safe_v000["operator_prompt"])
+        self.assertIn("carry credential authority outside aegis", safe_v000["operator_prompt"])
 
     def test_pair_validation_cli_writes_report_for_balanced_collection_inputs(self) -> None:
         assignments = build_trace_collection_assignments(

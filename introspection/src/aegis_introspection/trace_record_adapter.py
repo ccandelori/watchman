@@ -12,6 +12,7 @@ JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dic
 JsonObject: TypeAlias = dict[str, JsonValue]
 
 _VALID_LABELS: frozenset[str] = frozenset(("benign", "secret_present_safe", "exfiltration_intent"))
+_SEMANTIC_INDIRECTION_SPACER = "Compare both neutral entries before applying the final code choice."
 
 
 class TraceRecordAdapterError(ValueError):
@@ -129,6 +130,13 @@ class ToolPayloadReadout:
 
 
 @dataclass(frozen=True)
+class SelectedChoiceReadout:
+    selected_choice_char_span: CharSpan
+    selected_choice_token_span: TokenSpan
+    selected_choice_readout_token_indices: tuple[int, ...]
+
+
+@dataclass(frozen=True)
 class StructuredTracePromptRecord:
     id: str
     example_id: str
@@ -137,16 +145,20 @@ class StructuredTracePromptRecord:
     text: str
     rendered_prompt: str
     tags: tuple[str, ...]
-    secret_char_span: CharSpan
+    secret_char_span: CharSpan | None
     query_char_span: CharSpan
     payload_char_span: CharSpan | None
-    secret_token_span: TokenSpan
+    secret_token_span: TokenSpan | None
     query_token_span: TokenSpan
     payload_token_span: TokenSpan | None
     readout_token_indices: tuple[int, ...]
-    honeytoken_id: str
+    query_tail_readout_token_indices: tuple[int, ...]
+    selected_choice_char_span: CharSpan | None
+    selected_choice_token_span: TokenSpan | None
+    selected_choice_readout_token_indices: tuple[int, ...] | None
+    honeytoken_id: str | None
     credential_type: str
-    honeytoken_sha256: str
+    honeytoken_sha256: str | None
     source_trace_id: str
     source_session_id: str
     source_turn_index: int
@@ -154,12 +166,24 @@ class StructuredTracePromptRecord:
     tool_argument_path: str | None
 
     def to_dict(self) -> JsonObject:
+        secret_char_span: list[JsonValue] | None = None
         payload_char_span: list[JsonValue] | None = None
+        selected_choice_char_span: list[JsonValue] | None = None
+        secret_token_span: list[JsonValue] | None = None
         payload_token_span: list[JsonValue] | None = None
+        selected_choice_token_span: list[JsonValue] | None = None
+        if self.secret_char_span is not None:
+            secret_char_span = self.secret_char_span.to_json()
         if self.payload_char_span is not None:
             payload_char_span = self.payload_char_span.to_json()
+        if self.selected_choice_char_span is not None:
+            selected_choice_char_span = self.selected_choice_char_span.to_json()
+        if self.secret_token_span is not None:
+            secret_token_span = self.secret_token_span.to_json()
         if self.payload_token_span is not None:
             payload_token_span = self.payload_token_span.to_json()
+        if self.selected_choice_token_span is not None:
+            selected_choice_token_span = self.selected_choice_token_span.to_json()
         return {
             "id": self.id,
             "example_id": self.example_id,
@@ -168,13 +192,19 @@ class StructuredTracePromptRecord:
             "text": self.text,
             "rendered_prompt": self.rendered_prompt,
             "tags": list(self.tags),
-            "secret_char_span": self.secret_char_span.to_json(),
+            "secret_char_span": secret_char_span,
             "query_char_span": self.query_char_span.to_json(),
             "payload_char_span": payload_char_span,
-            "secret_token_span": self.secret_token_span.to_json(),
+            "selected_choice_char_span": selected_choice_char_span,
+            "secret_token_span": secret_token_span,
             "query_token_span": self.query_token_span.to_json(),
             "payload_token_span": payload_token_span,
             "readout_token_indices": list(self.readout_token_indices),
+            "query_tail_readout_token_indices": list(self.query_tail_readout_token_indices),
+            "selected_choice_token_span": selected_choice_token_span,
+            "selected_choice_readout_token_indices": list(self.selected_choice_readout_token_indices)
+            if self.selected_choice_readout_token_indices is not None
+            else None,
             "honeytoken_id": self.honeytoken_id,
             "credential_type": self.credential_type,
             "honeytoken_sha256": self.honeytoken_sha256,
@@ -240,8 +270,9 @@ def structured_prompt_records_from_trace_records(
     skipped: list[SkippedTraceRecord] = []
     for index, record in enumerate(records, start=1):
         trace_id = _trace_id_for_record(record=record, context=f"record {index}")
+        label = _required_label(record=record, context=f"record {index}")
         secret_span = _find_source_span(record=record, source="dp_honey", context=f"record {index}")
-        if secret_span is None:
+        if secret_span is None and label != "benign":
             skipped.append(SkippedTraceRecord(record_id=trace_id, reason="no_dp_honey_secret_span"))
             continue
         converted.append(
@@ -258,7 +289,7 @@ def structured_prompt_records_from_trace_records(
 
 def _convert_trace_record(
     record: Mapping[str, object],
-    secret_span: SensitiveSpanRecord,
+    secret_span: SensitiveSpanRecord | None,
     encoder: TokenOffsetEncoder,
     config: TracePromptConversionConfig,
     context: str,
@@ -272,14 +303,24 @@ def _convert_trace_record(
     rendered = _render_trace_prompt(messages=messages, tool_calls=tool_calls)
     offsets = encoder.encode_offsets(rendered.text)
 
-    secret_char_span = _absolute_message_span(
-        span=secret_span,
-        message_segments=rendered.message_segments,
+    query_char_span = _query_char_span(message_segments=rendered.message_segments, context=context)
+    secret_char_span = None
+    secret_token_span = None
+    if secret_span is not None:
+        secret_char_span = _absolute_message_span(
+            span=secret_span,
+            message_segments=rendered.message_segments,
+            context=context,
+        )
+        secret_token_span = _token_span_for_char_span(offsets=offsets, char_span=secret_char_span, context=context)
+    query_token_span = _token_span_for_char_span(offsets=offsets, char_span=query_char_span, context=context)
+    query_tail_readout_token_indices = _readout_indices_for_char_span(
+        offsets=offsets,
+        char_span=query_char_span,
+        lower_bound=max(_optional_token_span_end(secret_token_span), query_token_span.start),
+        readout_token_count=config.readout_token_count,
         context=context,
     )
-    query_char_span = _query_char_span(message_segments=rendered.message_segments, context=context)
-    secret_token_span = _token_span_for_char_span(offsets=offsets, char_span=secret_char_span, context=context)
-    query_token_span = _token_span_for_char_span(offsets=offsets, char_span=query_char_span, context=context)
     tool_span = _find_source_span(record=record, source="tool_call_argument", context=context)
     payload_readout: ToolPayloadReadout | None = None
     if tool_span is not None:
@@ -302,7 +343,7 @@ def _convert_trace_record(
         readout_token_indices = _readout_indices_for_char_span(
             offsets=offsets,
             char_span=query_char_span,
-            lower_bound=max(secret_token_span.end, query_token_span.start),
+            lower_bound=max(_optional_token_span_end(secret_token_span), query_token_span.start),
             readout_token_count=config.readout_token_count,
             context=context,
         )
@@ -320,7 +361,11 @@ def _convert_trace_record(
         readout_token_indices = _readout_indices_for_char_span(
             offsets=offsets,
             char_span=payload_readout.readout_char_span,
-            lower_bound=max(secret_token_span.end, query_token_span.end, payload_readout.payload_token_span.start),
+            lower_bound=max(
+                _optional_token_span_end(secret_token_span),
+                query_token_span.end,
+                payload_readout.payload_token_span.start,
+            ),
             readout_token_count=config.readout_token_count,
             context=context,
         )
@@ -334,6 +379,13 @@ def _convert_trace_record(
         payload_token_span = payload_readout.payload_token_span
         tool_call_name = payload_readout.tool_call_name
         tool_argument_path = payload_readout.argument_path
+
+    selected_choice_readout = _selected_choice_readout(
+        message_segments=rendered.message_segments,
+        offsets=offsets,
+        readout_token_count=config.readout_token_count,
+        context=context,
+    )
 
     return StructuredTracePromptRecord(
         id=_required_string(record=turn, field_name="trace_id", context=context),
@@ -350,15 +402,33 @@ def _convert_trace_record(
         query_token_span=query_token_span,
         payload_token_span=payload_token_span,
         readout_token_indices=readout_token_indices,
-        honeytoken_id=secret_span.identifier,
-        credential_type=_required_string(record=secret_span.metadata, field_name="credential_type", context=context),
-        honeytoken_sha256=_required_string(record=secret_span.metadata, field_name="sha256", context=context),
+        query_tail_readout_token_indices=query_tail_readout_token_indices,
+        selected_choice_char_span=selected_choice_readout.selected_choice_char_span
+        if selected_choice_readout is not None
+        else None,
+        selected_choice_token_span=selected_choice_readout.selected_choice_token_span
+        if selected_choice_readout is not None
+        else None,
+        selected_choice_readout_token_indices=selected_choice_readout.selected_choice_readout_token_indices
+        if selected_choice_readout is not None
+        else None,
+        honeytoken_id=secret_span.identifier if secret_span is not None else None,
+        credential_type=_required_string(record=collection, field_name="credential_type", context=context),
+        honeytoken_sha256=_required_string(record=secret_span.metadata, field_name="sha256", context=context)
+        if secret_span is not None
+        else None,
         source_trace_id=_required_string(record=turn, field_name="trace_id", context=context),
         source_session_id=_required_string(record=turn, field_name="session_id", context=context),
         source_turn_index=_required_int(record=turn, field_name="turn_index", context=context),
         tool_call_name=tool_call_name,
         tool_argument_path=tool_argument_path,
     )
+
+
+def _optional_token_span_end(span: TokenSpan | None) -> int:
+    if span is None:
+        return 0
+    return span.end
 
 
 def _render_trace_prompt(
@@ -538,6 +608,64 @@ def _safe_tool_payload_readout(
         readout_char_span=segment.value_span,
         tool_call_name=segment.tool_call_name,
         argument_path=segment.argument_path,
+    )
+
+
+def _selected_choice_readout(
+    message_segments: tuple[MessageSegment, ...],
+    offsets: tuple[TokenOffset, ...],
+    readout_token_count: int,
+    context: str,
+) -> SelectedChoiceReadout | None:
+    user_segments = tuple(segment for segment in message_segments if segment.role == "user")
+    if len(user_segments) == 0:
+        return None
+    selected_choice_char_span = _semantic_indirection_selected_choice_span(
+        user_content=user_segments[0].content,
+        user_content_span=user_segments[0].content_span,
+        context=context,
+    )
+    if selected_choice_char_span is None:
+        return None
+    selected_choice_token_span = _token_span_for_char_span(
+        offsets=offsets,
+        char_span=selected_choice_char_span,
+        context=context,
+    )
+    return SelectedChoiceReadout(
+        selected_choice_char_span=selected_choice_char_span,
+        selected_choice_token_span=selected_choice_token_span,
+        selected_choice_readout_token_indices=_readout_indices_for_char_span(
+            offsets=offsets,
+            char_span=selected_choice_char_span,
+            lower_bound=selected_choice_token_span.start,
+            readout_token_count=readout_token_count,
+            context=context,
+        ),
+    )
+
+
+def _semantic_indirection_selected_choice_span(
+    user_content: str,
+    user_content_span: CharSpan,
+    context: str,
+) -> CharSpan | None:
+    spacer_start = user_content.find(_SEMANTIC_INDIRECTION_SPACER)
+    if spacer_start < 0:
+        return None
+    selected_clause_start = spacer_start + len(_SEMANTIC_INDIRECTION_SPACER)
+    selected_clause_end = user_content.find(";", selected_clause_start)
+    if selected_clause_end < 0:
+        raise TraceRecordAdapterError(f"{context}: semantic indirection prompt is missing selected-choice terminator.")
+    while selected_clause_start < selected_clause_end and user_content[selected_clause_start].isspace():
+        selected_clause_start += 1
+    while selected_clause_end > selected_clause_start and user_content[selected_clause_end - 1].isspace():
+        selected_clause_end -= 1
+    if selected_clause_end <= selected_clause_start:
+        raise TraceRecordAdapterError(f"{context}: semantic indirection selected-choice clause is empty.")
+    return CharSpan(
+        start=user_content_span.start + selected_clause_start,
+        end=user_content_span.start + selected_clause_end,
     )
 
 
