@@ -24,6 +24,41 @@ should eventually emit structured evidence that a gateway policy engine can
 combine with honeytoken evidence, post-output leakage scans, and cumulative
 conversation risk.
 
+## Runtime Promotion Boundary
+
+Watchman runtime code lives under `src/aegis`. This research package must not be
+imported by runtime modules. CIFT work crosses into runtime only through:
+
+1. a documented corpus and report under `introspection/data/reports/`;
+2. an exported runtime-safe JSON artifact containing model metadata, scaler
+   values, coefficients, thresholds, and artifact identifiers;
+3. small committed fixtures under `tests/aegis/fixtures/` when integration tests
+   need stable examples; and
+4. runtime-native adapters that consume `NormalizedTurn.metadata`, feature
+   vectors, and detector artifacts without importing `aegis_introspection`.
+
+Activation tensors, notebooks, pickles, local trace corpora, and ablation
+scratch files remain research artifacts. Do not promote them by copying them
+into `src/aegis`.
+
+## Current CIFT Data Path
+
+The next CIFT checkpoint should use proxy-shaped trace records from the paired
+semantic-indirection v3 profile. The critical field is explicit selected-choice
+metadata emitted at trace-generation time and preserved through conversion:
+
+```text
+TraceCollectionRecord.normalized_turn.metadata["cift"]["selected_choice"]
+  -> structured prompt selected-choice spans
+  -> selected-choice readout token indices
+  -> readout-window activation features
+  -> grouped probe and text-baseline comparison
+```
+
+This replaces earlier prose-derived selected-choice parsing. Fallback
+payload/query windows are useful diagnostics, but they are degraded coverage and
+must be reported separately from primary selected-choice CIFT.
+
 The paper-specific CIFT target is narrower than generic activation probing:
 monitor readout positions that occur after both secret context and the current
 query or payload, rather than hidden states at static credential positions. The

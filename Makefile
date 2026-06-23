@@ -1,6 +1,6 @@
-.PHONY: quality test lint format-check typecheck boundaries
+.PHONY: quality test lint format-check typecheck boundaries artifacts
 
-quality: lint format-check typecheck boundaries test
+quality: lint format-check typecheck boundaries artifacts test
 
 test:
 	uv run --extra dev pytest
@@ -16,3 +16,6 @@ typecheck:
 
 boundaries:
 	uv run python scripts/check_import_boundaries.py
+
+artifacts:
+	uv run python scripts/check_artifact_boundaries.py

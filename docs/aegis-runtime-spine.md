@@ -158,21 +158,30 @@ pre-generation detector components that plug directly into `AegisRuntime`.
 Callers still own the self-hosted extractor implementation; the runtime only
 sees feature vectors and detector results.
 
-## NIMBUS-Lite Session Detector
+## NIMBUS Session Detectors
 
-`NimbusLeakageDetector` is the first runtime session detector for cumulative
-leakage. It reuses the exact and encoded canary detectors as per-turn signals,
-then updates a per-session leakage score:
+`NimbusDetector` is the runtime-native cumulative leakage contract. It resolves
+a secret context handle from sensitive spans or metadata, asks a pluggable
+critic for per-turn estimated leakage bits, stores per-session state, and emits
+component `nimbus` as an ordinary `DetectorResult`. The result carries budget
+fraction, cumulative leakage bits, threshold metadata, and active/degraded/
+unavailable capability status without copying the secret handle into evidence.
+
+`BaselineNimbusCritic` and `InMemoryNimbusStateStore` are intentionally small
+default implementations for tests, demos, and the mock proxy. They establish the
+contract that a future paper-faithful critic can satisfy without changing the
+runtime spine.
+
+`NimbusLeakageDetector` remains the canary-signal accumulator. It reuses the
+exact and encoded canary detectors as per-turn signals, then updates a
+per-session leakage score:
 
 ```text
 new_score = min(1.0, previous_score * decay + turn_signal_score)
 ```
 
-The detector emits component `nimbus`, active/degraded capability status, a
-recommended action, and audit-safe evidence containing prior score, turn signal,
-current score, thresholds, and signal summaries. It does not replace text or
-encoded canary scanners; it composes with them as the cumulative leakage-budget
-stage.
+Both NIMBUS paths preserve the same boundary: they emit cumulative session risk
+as detector evidence, and policy still owns the final action.
 
 ## Follow-Up Integration
 
@@ -184,6 +193,6 @@ Future branches should add real detectors behind the existing contract:
 - DP-HONEY runtime: register honeytokens and populate `sensitive_spans`.
 - Canary scanners: extend exact model-output scanning to tool arguments and
   streaming outputs.
-- Paper-faithful NIMBUS: replace or augment NIMBUS-lite with the paper's
-  learned multi-turn leakage critic and calibration.
+- Paper-faithful NIMBUS: replace or augment the baseline critic with the
+  paper's learned multi-turn leakage critic and calibration.
 - Tool scanner: inspect normalized tool arguments before dispatch.

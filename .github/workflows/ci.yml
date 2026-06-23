@@ -52,5 +52,8 @@ jobs:
       - name: Import boundaries
         run: uv run python scripts/check_import_boundaries.py
 
+      - name: Artifact boundaries
+        run: uv run python scripts/check_artifact_boundaries.py
+
       - name: Tests with coverage
         run: uv run pytest

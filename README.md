@@ -163,10 +163,11 @@ make quality
 It runs:
 
 ```bash
-uv run --extra dev ruff check src/aegis tests/aegis scripts
-uv run --extra dev ruff format --check src/aegis tests/aegis scripts
-uv run --extra dev mypy src/aegis scripts
+uv run --extra dev ruff check src/aegis src/detect tests/aegis tests/dp_honey scripts
+uv run --extra dev ruff format --check src/aegis src/detect tests/aegis tests/dp_honey scripts
+uv run --extra dev mypy src/aegis src/detect scripts
 uv run python scripts/check_import_boundaries.py
+uv run python scripts/check_artifact_boundaries.py
 uv run --extra dev pytest
 ```
 
@@ -187,6 +188,7 @@ src/aegis/replay/      Offline replay harnesses for fixtures and demos
 src/aegis/sdk/         SDK entrypoint for embedding the runtime
 tests/aegis/           Runtime spine tests
 scripts/               Repository quality and architecture checks
+introspection/         Research notebooks, activation experiments, and CIFT reports
 docs/                  Project and setup documentation
 ```
 
@@ -212,6 +214,8 @@ New runtime work must preserve the spine boundaries:
   `DetectorResult` values; policy still owns the final action.
 - Real credentials cross runtime boundaries as handles, spans, hashes, or
   evidence, not raw production secrets.
+- Generated trace data, local worktrees, OCR assets, pycache files, and raw
+  model or activation artifacts should not be committed into runtime paths.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before adding detector, policy, proxy, or
 adapter code.

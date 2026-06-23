@@ -4,10 +4,13 @@
 
 .venv/
 .venv-introspection/
+.worktrees/
 *.egg-info/
 models/
 data/trace_collection/
+introspection/data/trace_collection/
 introspection/data/activations/*.pt
+*.traineddata
 
 __pycache__/
 *.py[cod]
