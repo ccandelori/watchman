@@ -33,6 +33,17 @@ def test_http_chat_completion_returns_aegis_block_and_audit_event() -> None:
     assert payload["aegis"]["trace_id"] == "trace-http-1"
     assert "policy_decision" in payload["aegis"]
     assert "detector_results" in payload["aegis"]
+    assert [stage["stage"] for stage in payload["aegis"]["runtime_trace"]["stages"]] == [
+        "normalize",
+        "dp_honey",
+        "cift",
+        "provider_egress_guard",
+        "provider",
+        "canary",
+        "nimbus",
+        "policy",
+        "audit",
+    ]
     assert audit_response.status_code == 200
     assert audit_response.json()["events"][0]["trace_id"] == "trace-http-1"
 

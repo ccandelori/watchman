@@ -28,6 +28,7 @@ chat request
   -> NormalizedTurn
   -> turn annotators
   -> ActivationUnavailableDetector
+  -> ProviderEgressGuardDetector
   -> MockModelProvider
   -> NoopCanaryDetector
   -> SeverityPolicyEngine
@@ -42,6 +43,32 @@ omitting the signal.
 `NoopCanaryDetector` is the first DP-HONEY boundary. It records that no canary
 registry is configured yet and keeps future canary detection separate from
 honeytoken injection.
+
+`ProviderEgressGuardDetector` is the first pre-provider safety invariant. It
+runs before the model provider and blocks generation when a non-honeytoken
+`SensitiveSpan` is still present in the outbound turn. Evidence contains only
+span kind, source, identifier, optional hash, role, and counts. It does not copy
+raw sensitive values into detector evidence. DP-HONEY honeytokens are allowed to
+cross the model boundary because they are deliberate decoys used to detect
+downstream leakage; raw production credentials are not.
+
+If any pre-generation detector recommends `block` or stronger, `AegisRuntime`
+skips provider generation, applies policy to the pre-generation evidence, and
+still writes an audit event. This makes pre-output detectors enforceable instead
+of merely advisory.
+
+The development HTTP proxy includes a narrow raw-credential scanner for common
+credential prefixes (`ghp_`, `sk_live_`, `sk-`, `AKIA`, `ya29.`, `hny_`). Values
+that were minted by DP-HONEY are recognized by hash and remain allowed
+honeytokens. Other credential-shaped values are marked as non-honeytoken
+`SensitiveSpan`s so the provider egress guard blocks before generation.
+Serialized audit output redacts non-honeytoken sensitive spans from message
+content.
+
+User-supplied metadata is also validated at ingress. Credential-shaped strings
+in metadata, including development controls such as `mock_response`, are
+rejected before runtime construction because metadata is both provider-adjacent
+and audit-visible.
 
 ## DP-HONEY-Lite Honeytoken Registration
 
@@ -203,6 +230,49 @@ detectors and NIMBUS critic evidence.
 writes redteam-shaped JSONL for fast local NIMBUS regression checks. The output
 is intentionally metadata-only and is not a substitute for external black-box
 redteam runs.
+
+## Runtime Trace
+
+The development proxy returns a compact ordered trace in every chat response:
+
+```json
+{
+  "schema_version": "aegis.runtime_trace/v1",
+  "stages": [
+    {"stage": "normalize", "status": "ok"},
+    {"stage": "dp_honey", "status": "active", "canary_count": 1},
+    {"stage": "cift", "status": "unavailable", "detectors": ["activation_unavailable"]},
+    {"stage": "provider_egress_guard", "status": "active", "detectors": ["provider_egress_guard"]},
+    {"stage": "provider", "status": "completed", "provider": "mock", "model_id": "mock-model"},
+    {"stage": "canary", "status": "active", "detectors": ["text_canary", "encoded_canary"]},
+    {"stage": "nimbus", "status": "active", "detectors": ["nimbus"]},
+    {"stage": "policy", "status": "decided", "final_action": "allow"},
+    {"stage": "audit", "status": "written"}
+  ]
+}
+```
+
+The trace is a summary contract for humans, redteam tooling, and dashboards. It
+is intentionally additive to `DetectorResult` and `PolicyDecision`; those remain
+the authoritative detector and enforcement contracts. Trace stages must not
+include raw secrets, raw canaries, model output, activation vectors, or restored
+credential material.
+
+## Gateway Smoke
+
+`aegis-proxy-smoke` is the first runnable gateway affordance for contributors
+and external redteam tooling. Against a running development proxy it checks:
+
+- `GET /health`
+- a benign chat request that should allow
+- an encoded DP-HONEY leak request that should block or escalate
+- `GET /audit/recent`
+
+The command writes a JSON summary and exits nonzero on contract failure:
+
+```bash
+uv run aegis-proxy-smoke --url http://127.0.0.1:8000 --timeout 5
+```
 
 ## Follow-Up Integration
 
