@@ -1,13 +1,14 @@
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import pytest
 
 from aegis.core.contracts import (
     Action,
     CapabilityStatus,
+    JsonValue,
     NormalizedTurn,
     SensitiveSpan,
 )
@@ -16,56 +17,16 @@ from aegis.detectors.canary import CanaryRecord, canary_sha256
 from aegis.detectors.nimbus import (
     CanaryNimbusCritic,
     CanaryNimbusCriticConfig,
+    InMemoryNimbusStateStore,
     NimbusConfig,
     NimbusCriticInput,
     NimbusCriticScore,
     NimbusDetector,
+    NimbusDetectorError,
     NimbusState,
     NimbusStateUpdate,
     resolve_secret_context_handle,
 )
-
-# ---------------------------------------------------------------------------
-# In-memory implementation (for tests)
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class InMemoryNimbusStateStore:
-    max_turns: int
-    _store: dict[str, NimbusState] = field(default_factory=dict)
-
-    def get_or_create(self, session_id: str, secret_context_handle: str | None) -> NimbusState:
-        if session_id not in self._store:
-            self._store[session_id] = NimbusState(
-                session_id=session_id,
-                turn_count=0,
-                cumulative_estimated_leakage_bits=0.0,
-                last_turn_estimated_leakage_bits=0.0,
-                secret_context_handle=secret_context_handle,
-                recent_turn_scores=(),
-            )
-        return self._store[session_id]
-
-    def update(self, session_id: str, update: NimbusStateUpdate) -> NimbusState:
-        state = self._store[session_id]
-        new_scores = (*state.recent_turn_scores, update.turn_estimated_leakage_bits)
-        if len(new_scores) > self.max_turns:
-            new_scores = new_scores[-self.max_turns :]
-        new_state = NimbusState(
-            session_id=state.session_id,
-            turn_count=state.turn_count + 1,
-            cumulative_estimated_leakage_bits=update.new_cumulative_bits,
-            last_turn_estimated_leakage_bits=update.turn_estimated_leakage_bits,
-            secret_context_handle=state.secret_context_handle,
-            recent_turn_scores=new_scores,
-        )
-        self._store[session_id] = new_state
-        return new_state
-
-    def destroy(self, session_id: str) -> None:
-        self._store.pop(session_id, None)
-
 
 # ---------------------------------------------------------------------------
 # Mock critic
@@ -107,7 +68,7 @@ def _make_turn(
     session_id: str = "sess1",
     turn_index: int = 0,
     sensitive_spans: tuple[SensitiveSpan, ...] = (),
-    metadata: dict | None = None,
+    metadata: dict[str, JsonValue] | None = None,
 ) -> NormalizedTurn:
     from aegis.core.contracts import CapabilityMode, ModelInfo
 
@@ -135,7 +96,7 @@ def _make_response(text: str = "hello") -> ModelResponse:
 # ---------------------------------------------------------------------------
 
 
-def test_config_validation_rejects_non_finite():
+def test_config_validation_rejects_non_finite() -> None:
     with pytest.raises(ValueError):
         NimbusConfig(
             budget_bits=float("inf"),
@@ -147,12 +108,74 @@ def test_config_validation_rejects_non_finite():
         )
 
 
-def test_config_validation_threshold_order():
+def test_config_validation_threshold_order() -> None:
     with pytest.raises(ValueError):
         NimbusConfig(10.0, 0.9, 0.8, 0.7, 10, "v0")
 
 
-def test_resolve_priority_credential_over_honeytoken():
+def test_state_validation_rejects_invalid_values() -> None:
+    with pytest.raises(NimbusDetectorError, match="session_id"):
+        NimbusState(
+            session_id="",
+            turn_count=0,
+            cumulative_estimated_leakage_bits=0.0,
+            last_turn_estimated_leakage_bits=0.0,
+            secret_context_handle=None,
+            recent_turn_scores=(),
+        )
+    with pytest.raises(NimbusDetectorError, match="turn_count"):
+        NimbusState(
+            session_id="sess1",
+            turn_count=-1,
+            cumulative_estimated_leakage_bits=0.0,
+            last_turn_estimated_leakage_bits=0.0,
+            secret_context_handle=None,
+            recent_turn_scores=(),
+        )
+    with pytest.raises(NimbusDetectorError, match="recent_turn_scores"):
+        NimbusState(
+            session_id="sess1",
+            turn_count=0,
+            cumulative_estimated_leakage_bits=0.0,
+            last_turn_estimated_leakage_bits=0.0,
+            secret_context_handle=None,
+            recent_turn_scores=(-0.1,),
+        )
+
+
+def test_state_update_validation_rejects_invalid_values() -> None:
+    with pytest.raises(NimbusDetectorError, match="turn_estimated_leakage_bits"):
+        NimbusStateUpdate(turn_estimated_leakage_bits=-0.1, new_cumulative_bits=0.0)
+    with pytest.raises(NimbusDetectorError, match="new_cumulative_bits"):
+        NimbusStateUpdate(turn_estimated_leakage_bits=0.0, new_cumulative_bits=float("inf"))
+
+
+def test_state_store_update_requires_initialized_session() -> None:
+    store = InMemoryNimbusStateStore(max_turns=5)
+
+    with pytest.raises(NimbusDetectorError, match="no NIMBUS state exists"):
+        store.update(
+            session_id="missing-session",
+            update=NimbusStateUpdate(turn_estimated_leakage_bits=0.1, new_cumulative_bits=0.1),
+        )
+
+
+def test_state_store_rejects_decreasing_cumulative_leakage() -> None:
+    store = InMemoryNimbusStateStore(max_turns=5)
+    store.get_or_create(session_id="sess1", secret_context_handle="hny_sess1_repo_pat")
+    store.update(
+        session_id="sess1",
+        update=NimbusStateUpdate(turn_estimated_leakage_bits=0.4, new_cumulative_bits=0.4),
+    )
+
+    with pytest.raises(NimbusDetectorError, match="must not decrease"):
+        store.update(
+            session_id="sess1",
+            update=NimbusStateUpdate(turn_estimated_leakage_bits=0.0, new_cumulative_bits=0.3),
+        )
+
+
+def test_resolve_priority_credential_over_honeytoken() -> None:
     spans = (
         _make_span("honeytoken", "h1"),
         _make_span("credential", "c1"),
@@ -161,7 +184,7 @@ def test_resolve_priority_credential_over_honeytoken():
     assert resolve_secret_context_handle(turn) == "c1"
 
 
-def test_nimbus_unavailable_no_secret_handle():
+def test_nimbus_unavailable_no_secret_handle() -> None:
     store = InMemoryNimbusStateStore(max_turns=5)
     critic = MockNimbusCritic()
     detector = NimbusDetector(
@@ -176,7 +199,7 @@ def test_nimbus_unavailable_no_secret_handle():
     assert result.evidence["capability_reason"] == "no_secret_context_handle"
 
 
-def test_nimbus_cumulative_increases():
+def test_nimbus_cumulative_increases() -> None:
     store = InMemoryNimbusStateStore(max_turns=5)
     critic = MockNimbusCritic(fixed_score=1.0)
     detector = NimbusDetector(
@@ -193,7 +216,7 @@ def test_nimbus_cumulative_increases():
     assert len(store._store["sess1"].recent_turn_scores) == 2
 
 
-def test_nimbus_threshold_actions():
+def test_nimbus_threshold_actions() -> None:
     store = InMemoryNimbusStateStore(max_turns=5)
     critic = MockNimbusCritic(fixed_score=3.0)
     detector = NimbusDetector(
@@ -210,7 +233,7 @@ def test_nimbus_threshold_actions():
     assert r2.recommended_action == Action.SANITIZE
 
 
-def test_canary_nimbus_critic_scores_exact_registered_canary():
+def test_canary_nimbus_critic_scores_exact_registered_canary() -> None:
     critic = _canary_critic()
     record = _canary_record(value="ghp_registeredCanary1234567890")
     critic.register_canary_records(session_id="sess1", records=(record,))
@@ -225,7 +248,7 @@ def test_canary_nimbus_critic_scores_exact_registered_canary():
     assert record.value not in str(score.evidence)
 
 
-def test_canary_nimbus_critic_scores_base64_registered_canary():
+def test_canary_nimbus_critic_scores_base64_registered_canary() -> None:
     critic = _canary_critic()
     record = _canary_record(value="sk-liveRegisteredCanary1234567890")
     critic.register_canary_records(session_id="sess1", records=(record,))
@@ -240,7 +263,7 @@ def test_canary_nimbus_critic_scores_base64_registered_canary():
     assert record.value not in str(score.evidence)
 
 
-def test_canary_nimbus_critic_scores_partial_registered_canary():
+def test_canary_nimbus_critic_scores_partial_registered_canary() -> None:
     critic = _canary_critic()
     record = _canary_record(value="ghp_partialRegisteredCanary1234567890")
     critic.register_canary_records(session_id="sess1", records=(record,))
@@ -254,7 +277,7 @@ def test_canary_nimbus_critic_scores_partial_registered_canary():
     assert record.value not in str(score.evidence)
 
 
-def test_canary_nimbus_critic_sums_partial_leakage_by_match_ratio():
+def test_canary_nimbus_critic_sums_partial_leakage_by_match_ratio() -> None:
     critic = CanaryNimbusCritic(
         CanaryNimbusCriticConfig(
             exact_match_leakage_bits=1.0,
@@ -280,9 +303,7 @@ def test_canary_nimbus_critic_sums_partial_leakage_by_match_ratio():
     assert isinstance(encoded_signal, dict)
     matches = encoded_signal["matches"]
     assert isinstance(matches, list)
-    partial_ratios = tuple(
-        float(match["fragment_ratio"]) for match in matches if isinstance(match, dict) and match.get("exact") is False
-    )
+    partial_ratios = _partial_fragment_ratios(matches)
     assert len(partial_ratios) == 2
     assert score.estimated_leakage_bits == pytest.approx(sum(partial_ratios) * 0.4)
     assert score.estimated_leakage_bits < len(partial_ratios) * max(partial_ratios) * 0.4
@@ -291,7 +312,45 @@ def test_canary_nimbus_critic_sums_partial_leakage_by_match_ratio():
     assert record_two.value not in str(score.evidence)
 
 
-def test_canary_nimbus_critic_ignores_unregistered_credential_shaped_text():
+def test_nimbus_accumulates_multiple_canary_slots_in_one_session() -> None:
+    config = NimbusConfig(
+        budget_bits=10.0,
+        warn_threshold=0.3,
+        sanitize_threshold=0.6,
+        block_threshold=0.9,
+        max_turns=5,
+        critic_version="canary-test-v0",
+    )
+    critic = _canary_critic()
+    store = InMemoryNimbusStateStore(max_turns=5)
+    detector = NimbusDetector(config, critic, store)
+    repo_record = _canary_record_with_id(
+        canary_id="hny_sess1_repo_pat",
+        value="ghp_Ra7mQx2Lp9VzT4Kd8HnC6WsY",
+    )
+    billing_record = _canary_record_with_id(
+        canary_id="hny_sess1_billing_key",
+        value="hny_billing_Zb3Yp8Nt1Gc5Qr0Lm7Sv2DaF",
+    )
+    critic.register_canary_records(session_id="sess1", records=(repo_record, billing_record))
+
+    first = detector.evaluate(
+        turn=_make_turn(sensitive_spans=(_make_span("honeytoken", repo_record.canary_id),)),
+        model_response=_make_response(f"repo={repo_record.value}"),
+    )
+    second = detector.evaluate(
+        turn=_make_turn(turn_index=1, sensitive_spans=(_make_span("honeytoken", billing_record.canary_id),)),
+        model_response=_make_response(f"billing={billing_record.value}"),
+    )
+
+    assert first.evidence["turn_estimated_leakage_bits"] == 1.0
+    assert second.evidence["turn_estimated_leakage_bits"] == 1.0
+    assert second.evidence["cumulative_estimated_leakage_bits"] == 2.0
+    assert repo_record.value not in str(second.evidence)
+    assert billing_record.value not in str(second.evidence)
+
+
+def test_canary_nimbus_critic_ignores_unregistered_credential_shaped_text() -> None:
     critic = _canary_critic()
     registered = _canary_record(value="ghp_registeredCanary1234567890")
     critic.register_canary_records(session_id="sess1", records=(registered,))
@@ -304,7 +363,7 @@ def test_canary_nimbus_critic_ignores_unregistered_credential_shaped_text():
     assert score.evidence["partial_match_count"] == 0
 
 
-def test_canary_nimbus_critic_returns_zero_without_registered_records():
+def test_canary_nimbus_critic_returns_zero_without_registered_records() -> None:
     critic = _canary_critic()
 
     score = critic.score_turn(_critic_input(output_text="leaked=ghp_unregisteredLookingToken1234567890"))
@@ -313,7 +372,7 @@ def test_canary_nimbus_critic_returns_zero_without_registered_records():
     assert score.evidence["reason"] == "no_registered_canaries_for_session"
 
 
-def test_bounded_recent_turn_scores():
+def test_bounded_recent_turn_scores() -> None:
     store = InMemoryNimbusStateStore(max_turns=2)
     critic = MockNimbusCritic(fixed_score=1.0)
     detector = NimbusDetector(
@@ -331,7 +390,7 @@ def test_bounded_recent_turn_scores():
     assert state.turn_count == 5
 
 
-def test_critic_rejects_invalid_score():
+def test_critic_rejects_invalid_score() -> None:
     with pytest.raises(ValueError):
         NimbusCriticScore(estimated_leakage_bits=-1.0, confidence=0.5, evidence={})
 
@@ -364,6 +423,18 @@ def _canary_record_with_id(value: str, canary_id: str) -> CanaryRecord:
         source="test",
         metadata={"slot_name": "repo_pat"},
     )
+
+
+def _partial_fragment_ratios(matches: list[JsonValue]) -> tuple[float, ...]:
+    ratios: list[float] = []
+    for match in matches:
+        if not isinstance(match, dict) or match.get("exact") is not False:
+            continue
+        fragment_ratio = match.get("fragment_ratio")
+        if isinstance(fragment_ratio, bool) or not isinstance(fragment_ratio, int | float):
+            continue
+        ratios.append(float(fragment_ratio))
+    return tuple(ratios)
 
 
 def _critic_input(output_text: str) -> NimbusCriticInput:
