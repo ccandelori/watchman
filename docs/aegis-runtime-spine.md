@@ -204,6 +204,12 @@ writes redteam-shaped JSONL for fast local NIMBUS regression checks. The output
 is intentionally metadata-only and is not a substitute for external black-box
 redteam runs.
 
+`aegis-nimbus-training-corpus` writes a small synthetic `nimbus-training-turn/v0`
+JSONL corpus for future paper-faithful NIMBUS critic work. Each row includes
+the pre-output conversation state, the current output, one true secret context,
+and 16 negative contexts for InfoNCE-style training. Generated corpus files
+belong under ignored `data/nimbus_training/` paths and must not be committed.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:
