@@ -37,8 +37,8 @@ The first runtime spine is implemented and CI-enforced:
   runtime/import boundary while preparing self-hosted activation features.
 - A CIFT window selector that treats selected-choice readout geometry as
   primary coverage and payload/query readout as degraded fallback evidence.
-- `NimbusLeakageDetector`, a session detector that accumulates exact or encoded
-  canary leakage signals into a per-session leakage budget.
+- A runtime-native `NimbusDetector` with a canary-aware critic that estimates
+  exact, encoded, and partial canary leakage bits into a per-session budget.
 - A mock OpenAI-compatible proxy surface for `/health`,
   `/v1/chat/completions`, and `/audit/recent`.
 - Mandatory CI gates for linting, formatting, strict typing, import-boundary
@@ -154,17 +154,30 @@ placeholders in chat messages:
 ```
 
 The development proxy replaces placeholders with fake honeytokens, attaches
-`SensitiveSpan` metadata, runs canary detectors when canaries exist, and returns
-the detector outputs in the `aegis` block. Use `POST /test/reset` with a JSON
-body such as `{"session_id": "session-local-1"}` between redteam runs to clear
-recent audit events and reset that NIMBUS session. This route is a local
-development/testing affordance, not a production API.
+`SensitiveSpan` metadata, runs canary detectors when canaries exist, feeds the
+same planted-canary registry to the NIMBUS critic, and returns the detector
+outputs in the `aegis` block. Use `POST /test/reset` with a JSON body such as
+`{"session_id": "session-local-1"}` between redteam runs to clear recent audit
+events and reset that NIMBUS session. This route is a local development/testing
+affordance, not a production API.
 
 Fetch recent audit events:
 
 ```bash
 curl -s http://127.0.0.1:8000/audit/recent
 ```
+
+Summarize NIMBUS behavior from external redteam JSONL results:
+
+```bash
+uv run aegis-nimbus-report --input ../watchman-redteam/results/aegis-local.jsonl
+```
+
+The report reads detector and policy metadata only. It distinguishes immediate
+public canary detectors from NIMBUS critic evidence, so partial leakage can be
+understood even when `encoded_canary` does not trigger on a single turn. See
+[docs/nimbus-redteam-eval.md](docs/nimbus-redteam-eval.md) for the full
+black-box redteam evaluation loop.
 
 Generate controlled trace-collection assignments for human operators:
 
@@ -283,6 +296,9 @@ New runtime work must preserve the spine boundaries:
 - DP-HONEY injection/registration and canary detection remain separate stages.
 - NIMBUS-style detectors emit cumulative session risk as ordinary
   `DetectorResult` values; policy still owns the final action.
+- The canonical NIMBUS runtime path is `NimbusDetector` plus a `NimbusCritic`.
+  `CanaryNimbusCritic` is the deterministic local critic for proxy and redteam
+  positive controls; paper-faithful critics should satisfy the same interface.
 - Real credentials cross runtime boundaries as handles, spans, hashes, or
   evidence, not raw production secrets.
 - Generated trace data, local worktrees, OCR assets, pycache files, and raw

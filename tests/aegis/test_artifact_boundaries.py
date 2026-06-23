@@ -26,14 +26,18 @@ def test_generated_trace_and_worktree_paths_are_rejected() -> None:
         (
             PurePosixPath(".worktrees/trace-collection-harness/README.md"),
             PurePosixPath("data/trace_collection/records.generated.jsonl"),
+            PurePosixPath("data/redteam_results/aegis-local.jsonl"),
             PurePosixPath("introspection/data/trace_collection/structured_prompts.generated.jsonl"),
+            PurePosixPath("results/redteam/aegis-local.jsonl"),
         )
     )
 
     assert {str(violation.path) for violation in violations} == {
         ".worktrees/trace-collection-harness/README.md",
         "data/trace_collection/records.generated.jsonl",
+        "data/redteam_results/aegis-local.jsonl",
         "introspection/data/trace_collection/structured_prompts.generated.jsonl",
+        "results/redteam/aegis-local.jsonl",
     }
 
 

@@ -8,16 +8,18 @@ from typing import Protocol
 from aegis.core.action_severity import highest_action
 from aegis.core.contracts import (
     Action,
+    CapabilityMode,
     CapabilityStatus,
     DetectorComponent,
     DetectorResult,
     JsonValue,
     Message,
+    ModelInfo,
     NormalizedTurn,
     SensitiveSpan,
 )
 from aegis.core.orchestrator import ModelResponse
-from aegis.detectors.canary import EncodedCanaryDetector, InMemoryCanaryRegistry, TextCanaryDetector
+from aegis.detectors.canary import CanaryRecord, EncodedCanaryDetector, InMemoryCanaryRegistry, TextCanaryDetector
 
 
 class NimbusDetectorError(ValueError):
@@ -85,6 +87,7 @@ class NimbusCriticInput:
 class NimbusCriticScore:
     estimated_leakage_bits: float
     confidence: float
+    evidence: dict[str, JsonValue]
 
     def __post_init__(self) -> None:
         _validate_non_negative_finite(self.estimated_leakage_bits, "estimated_leakage_bits")
@@ -120,6 +123,65 @@ class BaselineNimbusCritic:
         return NimbusCriticScore(
             estimated_leakage_bits=self.fixed_estimated_leakage_bits,
             confidence=self.fixed_confidence,
+            evidence={
+                "critic_kind": "baseline",
+                "critic_version": "fixed",
+                "estimated_leakage_bits": self.fixed_estimated_leakage_bits,
+            },
+        )
+
+
+@dataclass(frozen=True)
+class CanaryNimbusCriticConfig:
+    exact_match_leakage_bits: float
+    encoded_match_leakage_bits: float
+    partial_match_leakage_bits: float
+    partial_match_threshold: float
+    confidence: float
+
+    def __post_init__(self) -> None:
+        _validate_non_negative_finite(self.exact_match_leakage_bits, "exact_match_leakage_bits")
+        _validate_non_negative_finite(self.encoded_match_leakage_bits, "encoded_match_leakage_bits")
+        _validate_non_negative_finite(self.partial_match_leakage_bits, "partial_match_leakage_bits")
+        _validate_probability(self.partial_match_threshold, "partial_match_threshold")
+        _validate_probability(self.confidence, "confidence")
+
+
+class CanaryNimbusCritic:
+    def __init__(self, config: CanaryNimbusCriticConfig) -> None:
+        self._config = config
+        self._records_by_session_id: dict[str, tuple[CanaryRecord, ...]] = {}
+
+    def register_canary_records(self, session_id: str, records: tuple[CanaryRecord, ...]) -> None:
+        if session_id == "":
+            raise NimbusDetectorError("session_id must not be empty.")
+        if len(records) == 0:
+            return
+        records_by_id = {record.canary_id: record for record in self._records_by_session_id.get(session_id, ())}
+        for record in records:
+            records_by_id[record.canary_id] = record
+        self._records_by_session_id[session_id] = tuple(records_by_id.values())
+
+    def destroy_session(self, session_id: str) -> None:
+        self._records_by_session_id.pop(session_id, None)
+
+    def score_turn(self, critic_input: NimbusCriticInput) -> NimbusCriticScore:
+        records = self._records_by_session_id.get(critic_input.session_id, ())
+        if len(records) == 0:
+            return NimbusCriticScore(
+                estimated_leakage_bits=0.0,
+                confidence=self._config.confidence,
+                evidence={
+                    "critic_kind": "canary",
+                    "reason": "no_registered_canaries_for_session",
+                    "registered_canary_count": 0,
+                },
+            )
+
+        return _canary_nimbus_score(
+            critic_input=critic_input,
+            records=records,
+            config=self._config,
         )
 
 
@@ -251,6 +313,7 @@ class NimbusDetector:
                 "sanitize_threshold": self._config.sanitize_threshold,
                 "block_threshold": self._config.block_threshold,
                 "critic_version": self._config.critic_version,
+                "critic_evidence": critic_score.evidence,
             },
             latency_ms=_elapsed_ms(started_at),
         )
@@ -260,6 +323,8 @@ class NimbusDetector:
 
 
 class NimbusLeakageDetector:
+    """Legacy canary-signal accumulator kept for demos and compatibility tests."""
+
     def __init__(
         self,
         detector_name: str,
@@ -365,6 +430,109 @@ def resolve_secret_context_handle(turn: NormalizedTurn) -> str | None:
     if isinstance(metadata_handle, str) and metadata_handle != "":
         return metadata_handle
     return None
+
+
+def _canary_nimbus_score(
+    critic_input: NimbusCriticInput,
+    records: tuple[CanaryRecord, ...],
+    config: CanaryNimbusCriticConfig,
+) -> NimbusCriticScore:
+    registry = InMemoryCanaryRegistry(records=records)
+    turn = _turn_for_critic_input(critic_input)
+    response = ModelResponse(output_text=critic_input.output_text, metadata={})
+    exact_result = TextCanaryDetector(detector_name="nimbus_exact_signal", registry=registry).evaluate(
+        turn=turn,
+        model_response=response,
+    )
+    encoded_result = EncodedCanaryDetector(
+        detector_name="nimbus_encoded_signal",
+        registry=registry,
+        partial_match_threshold=config.partial_match_threshold,
+    ).evaluate(turn=turn, model_response=response)
+
+    exact_matches = _matches_from_result(exact_result)
+    encoded_matches = _matches_from_result(encoded_result)
+    exact_match_count = len(exact_matches)
+    encoded_exact_matches = tuple(match for match in encoded_matches if match.get("exact") is True)
+    partial_matches = tuple(match for match in encoded_matches if match.get("exact") is False)
+    encoded_match_count = len(encoded_exact_matches)
+    partial_match_count = len(partial_matches)
+    partial_fragment_ratios = _fragment_ratios(partial_matches)
+    max_partial_fragment_ratio = _max_fragment_ratio(partial_fragment_ratios)
+    partial_estimated_leakage_bits = sum(
+        fragment_ratio * config.partial_match_leakage_bits for fragment_ratio in partial_fragment_ratios
+    )
+    matched_canary_ids = _matched_canary_ids(exact_matches + encoded_matches)
+    estimated_leakage_bits = (
+        exact_match_count * config.exact_match_leakage_bits
+        + encoded_match_count * config.encoded_match_leakage_bits
+        + partial_estimated_leakage_bits
+    )
+
+    evidence: dict[str, JsonValue] = {
+        "critic_kind": "canary",
+        "registered_canary_count": len(records),
+        "exact_match_count": exact_match_count,
+        "encoded_match_count": encoded_match_count,
+        "partial_match_count": partial_match_count,
+        "max_partial_fragment_ratio": max_partial_fragment_ratio,
+        "partial_estimated_leakage_bits": partial_estimated_leakage_bits,
+        "matched_canary_ids": list(matched_canary_ids),
+        "estimated_leakage_bits": estimated_leakage_bits,
+        "partial_match_threshold": config.partial_match_threshold,
+        "exact_signal": _signal_summary(exact_result),
+        "encoded_signal": _signal_summary(encoded_result),
+    }
+    return NimbusCriticScore(
+        estimated_leakage_bits=estimated_leakage_bits,
+        confidence=config.confidence,
+        evidence=evidence,
+    )
+
+
+def _turn_for_critic_input(critic_input: NimbusCriticInput) -> NormalizedTurn:
+    return NormalizedTurn(
+        trace_id=f"nimbus-critic-{critic_input.session_id}-{critic_input.turn_index}",
+        session_id=critic_input.session_id,
+        turn_index=critic_input.turn_index,
+        capability_mode=CapabilityMode.OFFLINE_EVAL,
+        model=ModelInfo(provider="nimbus", model_id="canary-critic", revision=None, selected_device=None),
+        messages=critic_input.messages,
+        tool_calls=(),
+        sensitive_spans=critic_input.sensitive_spans,
+        metadata={},
+    )
+
+
+def _matches_from_result(result: DetectorResult) -> tuple[dict[str, JsonValue], ...]:
+    matches = result.evidence.get("matches")
+    if not isinstance(matches, list):
+        return ()
+    values: list[dict[str, JsonValue]] = []
+    for match in matches:
+        if isinstance(match, dict):
+            values.append(match)
+    return tuple(values)
+
+
+def _fragment_ratios(matches: tuple[dict[str, JsonValue], ...]) -> tuple[float, ...]:
+    ratios = tuple(match.get("fragment_ratio") for match in matches)
+    return tuple(float(ratio) for ratio in ratios if isinstance(ratio, int | float))
+
+
+def _max_fragment_ratio(ratios: tuple[float, ...]) -> float:
+    if len(ratios) == 0:
+        return 0.0
+    return max(ratios)
+
+
+def _matched_canary_ids(matches: tuple[dict[str, JsonValue], ...]) -> tuple[str, ...]:
+    ids: list[str] = []
+    for match in matches:
+        canary_id = match.get("canary_id")
+        if isinstance(canary_id, str) and canary_id not in ids:
+            ids.append(canary_id)
+    return tuple(ids)
 
 
 def _handle_from_sensitive_spans(spans: tuple[SensitiveSpan, ...], kind: str) -> str | None:

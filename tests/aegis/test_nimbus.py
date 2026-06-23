@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 from dataclasses import dataclass, field
 
 import pytest
@@ -11,7 +12,10 @@ from aegis.core.contracts import (
     SensitiveSpan,
 )
 from aegis.core.orchestrator import ModelResponse
+from aegis.detectors.canary import CanaryRecord, canary_sha256
 from aegis.detectors.nimbus import (
+    CanaryNimbusCritic,
+    CanaryNimbusCriticConfig,
     NimbusConfig,
     NimbusCriticInput,
     NimbusCriticScore,
@@ -77,6 +81,7 @@ class MockNimbusCritic:
         return NimbusCriticScore(
             estimated_leakage_bits=self.fixed_score,
             confidence=self.fixed_confidence,
+            evidence={"critic_kind": "mock", "fixed_score": self.fixed_score},
         )
 
 
@@ -205,6 +210,109 @@ def test_nimbus_threshold_actions():
     assert r2.recommended_action == Action.SANITIZE
 
 
+def test_canary_nimbus_critic_scores_exact_registered_canary():
+    critic = _canary_critic()
+    record = _canary_record(value="ghp_registeredCanary1234567890")
+    critic.register_canary_records(session_id="sess1", records=(record,))
+
+    score = critic.score_turn(_critic_input(output_text=f"leaked={record.value}"))
+
+    assert score.estimated_leakage_bits == 1.0
+    assert score.confidence == 0.8
+    assert score.evidence["exact_match_count"] == 1
+    assert score.evidence["encoded_match_count"] == 0
+    assert score.evidence["partial_match_count"] == 0
+    assert record.value not in str(score.evidence)
+
+
+def test_canary_nimbus_critic_scores_base64_registered_canary():
+    critic = _canary_critic()
+    record = _canary_record(value="sk-liveRegisteredCanary1234567890")
+    critic.register_canary_records(session_id="sess1", records=(record,))
+    encoded = base64.b64encode(record.value.encode("utf-8")).decode("utf-8")
+
+    score = critic.score_turn(_critic_input(output_text=f"encoded={encoded}"))
+
+    assert score.estimated_leakage_bits == 0.8
+    assert score.evidence["exact_match_count"] == 0
+    assert score.evidence["encoded_match_count"] == 1
+    assert score.evidence["partial_match_count"] == 0
+    assert record.value not in str(score.evidence)
+
+
+def test_canary_nimbus_critic_scores_partial_registered_canary():
+    critic = _canary_critic()
+    record = _canary_record(value="ghp_partialRegisteredCanary1234567890")
+    critic.register_canary_records(session_id="sess1", records=(record,))
+
+    score = critic.score_turn(_critic_input(output_text=f"prefix={record.value[:18]}"))
+
+    assert 0.0 < score.estimated_leakage_bits < 1.0
+    assert score.evidence["exact_match_count"] == 0
+    assert score.evidence["encoded_match_count"] == 0
+    assert score.evidence["partial_match_count"] == 1
+    assert record.value not in str(score.evidence)
+
+
+def test_canary_nimbus_critic_sums_partial_leakage_by_match_ratio():
+    critic = CanaryNimbusCritic(
+        CanaryNimbusCriticConfig(
+            exact_match_leakage_bits=1.0,
+            encoded_match_leakage_bits=0.8,
+            partial_match_leakage_bits=0.4,
+            partial_match_threshold=0.2,
+            confidence=0.8,
+        )
+    )
+    record_one = _canary_record_with_id(
+        canary_id="hny_sess1_repo_pat",
+        value="ghp_AAAAAABBBBBBCCCCCCDDDDDD111111",
+    )
+    record_two = _canary_record_with_id(
+        canary_id="hny_sess1_billing_key",
+        value="hny_live_zzzzzzYYYYYYXXXXXXWWWWWW222222",
+    )
+    critic.register_canary_records(session_id="sess1", records=(record_one, record_two))
+
+    score = critic.score_turn(_critic_input(output_text=f"fragments={record_one.value[:22]} {record_two.value[:14]}"))
+
+    encoded_signal = score.evidence["encoded_signal"]
+    assert isinstance(encoded_signal, dict)
+    matches = encoded_signal["matches"]
+    assert isinstance(matches, list)
+    partial_ratios = tuple(
+        float(match["fragment_ratio"]) for match in matches if isinstance(match, dict) and match.get("exact") is False
+    )
+    assert len(partial_ratios) == 2
+    assert score.estimated_leakage_bits == pytest.approx(sum(partial_ratios) * 0.4)
+    assert score.estimated_leakage_bits < len(partial_ratios) * max(partial_ratios) * 0.4
+    assert score.evidence["partial_estimated_leakage_bits"] == pytest.approx(score.estimated_leakage_bits)
+    assert record_one.value not in str(score.evidence)
+    assert record_two.value not in str(score.evidence)
+
+
+def test_canary_nimbus_critic_ignores_unregistered_credential_shaped_text():
+    critic = _canary_critic()
+    registered = _canary_record(value="ghp_registeredCanary1234567890")
+    critic.register_canary_records(session_id="sess1", records=(registered,))
+
+    score = critic.score_turn(_critic_input(output_text="leaked=ghp_unregisteredLookingToken1234567890"))
+
+    assert score.estimated_leakage_bits == 0.0
+    assert score.evidence["exact_match_count"] == 0
+    assert score.evidence["encoded_match_count"] == 0
+    assert score.evidence["partial_match_count"] == 0
+
+
+def test_canary_nimbus_critic_returns_zero_without_registered_records():
+    critic = _canary_critic()
+
+    score = critic.score_turn(_critic_input(output_text="leaked=ghp_unregisteredLookingToken1234567890"))
+
+    assert score.estimated_leakage_bits == 0.0
+    assert score.evidence["reason"] == "no_registered_canaries_for_session"
+
+
 def test_bounded_recent_turn_scores():
     store = InMemoryNimbusStateStore(max_turns=2)
     critic = MockNimbusCritic(fixed_score=1.0)
@@ -225,7 +333,53 @@ def test_bounded_recent_turn_scores():
 
 def test_critic_rejects_invalid_score():
     with pytest.raises(ValueError):
-        NimbusCriticScore(estimated_leakage_bits=-1.0, confidence=0.5)
+        NimbusCriticScore(estimated_leakage_bits=-1.0, confidence=0.5, evidence={})
 
     with pytest.raises(ValueError):
-        NimbusCriticScore(estimated_leakage_bits=1.0, confidence=1.5)
+        NimbusCriticScore(estimated_leakage_bits=1.0, confidence=1.5, evidence={})
+
+
+def _canary_critic() -> CanaryNimbusCritic:
+    return CanaryNimbusCritic(
+        CanaryNimbusCriticConfig(
+            exact_match_leakage_bits=1.0,
+            encoded_match_leakage_bits=0.8,
+            partial_match_leakage_bits=0.4,
+            partial_match_threshold=0.4,
+            confidence=0.8,
+        )
+    )
+
+
+def _canary_record(value: str) -> CanaryRecord:
+    return _canary_record_with_id(value=value, canary_id="hny_sess1_repo_pat")
+
+
+def _canary_record_with_id(value: str, canary_id: str) -> CanaryRecord:
+    return CanaryRecord(
+        canary_id=canary_id,
+        credential_type="github_pat",
+        value=value,
+        sha256=canary_sha256(value),
+        source="test",
+        metadata={"slot_name": "repo_pat"},
+    )
+
+
+def _critic_input(output_text: str) -> NimbusCriticInput:
+    return NimbusCriticInput(
+        session_id="sess1",
+        turn_index=1,
+        output_text=output_text,
+        secret_context_handle="hny_sess1_repo_pat",
+        messages=(),
+        sensitive_spans=(),
+        prior_state=NimbusState(
+            session_id="sess1",
+            turn_count=0,
+            cumulative_estimated_leakage_bits=0.0,
+            last_turn_estimated_leakage_bits=0.0,
+            secret_context_handle="hny_sess1_repo_pat",
+            recent_turn_scores=(),
+        ),
+    )
