@@ -12,6 +12,7 @@ from aegis.sdk.runtime import evaluate_turn
 class SdkRuntimeTest(unittest.TestCase):
     def test_evaluate_turn_uses_shared_runtime_orchestrator(self) -> None:
         runtime = AegisRuntime(
+            turn_annotators=(),
             pre_generation_detectors=(ActivationUnavailableDetector(),),
             post_generation_detectors=(),
             session_detectors=(),

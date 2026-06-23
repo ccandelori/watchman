@@ -1,11 +1,14 @@
 from __future__ import annotations
 
+from collections.abc import Mapping
 from pathlib import Path
-from typing import Mapping, TypedDict, cast
+from typing import NotRequired, TypedDict, cast
 
 import torch
 
 from aegis_introspection.features import PoolingMethod
+
+_SEALED_HOLDOUT_TAG = "sealed_holdout"
 
 
 class ActivationArtifactError(ValueError):
@@ -16,6 +19,8 @@ class ActivationArtifactMetadata(TypedDict):
     model_id: str
     revision: str
     selected_device: str
+    dtype: NotRequired[str]
+    trust_remote_code: NotRequired[bool]
     layer_indices: tuple[int, ...]
     pooling_methods: tuple[PoolingMethod, ...]
 
@@ -80,6 +85,8 @@ def _metadata(value: object) -> ActivationArtifactMetadata:
     selected_device = mapping.get("selected_device")
     layer_indices = mapping.get("layer_indices")
     pooling_methods = mapping.get("pooling_methods")
+    dtype = mapping.get("dtype")
+    trust_remote_code = mapping.get("trust_remote_code")
 
     if not isinstance(model_id, str):
         raise ActivationArtifactError("Expected metadata field 'model_id' to be a string.")
@@ -91,14 +98,23 @@ def _metadata(value: object) -> ActivationArtifactMetadata:
         raise ActivationArtifactError("Expected metadata field 'layer_indices' to be a tuple of integers.")
     if not isinstance(pooling_methods, tuple) or not all(isinstance(item, str) for item in pooling_methods):
         raise ActivationArtifactError("Expected metadata field 'pooling_methods' to be a tuple of strings.")
+    if dtype is not None and not isinstance(dtype, str):
+        raise ActivationArtifactError("Expected metadata field 'dtype' to be a string when present.")
+    if trust_remote_code is not None and not isinstance(trust_remote_code, bool):
+        raise ActivationArtifactError("Expected metadata field 'trust_remote_code' to be a boolean when present.")
 
-    return {
+    metadata: ActivationArtifactMetadata = {
         "model_id": model_id,
         "revision": revision,
         "selected_device": selected_device,
         "layer_indices": layer_indices,
         "pooling_methods": cast(tuple[PoolingMethod, ...], pooling_methods),
     }
+    if dtype is not None:
+        metadata["dtype"] = dtype
+    if trust_remote_code is not None:
+        metadata["trust_remote_code"] = trust_remote_code
+    return metadata
 
 
 def validate_activation_artifact(value: object) -> ActivationArtifact:
@@ -133,5 +149,19 @@ def validate_activation_artifact(value: object) -> ActivationArtifact:
 
 
 def load_activation_artifact(path: Path) -> ActivationArtifact:
+    artifact = load_activation_artifact_allowing_sealed_holdout(path)
+    _reject_sealed_artifact(artifact=artifact, path=path)
+    return artifact
+
+
+def load_activation_artifact_allowing_sealed_holdout(path: Path) -> ActivationArtifact:
     loaded = torch.load(path, map_location="cpu", weights_only=False)
     return validate_activation_artifact(loaded)
+
+
+def _reject_sealed_artifact(artifact: ActivationArtifact, path: Path) -> None:
+    if any(_SEALED_HOLDOUT_TAG in row_tags for row_tags in artifact["tags"]):
+        raise ActivationArtifactError(
+            f"Refusing to load sealed holdout activation artifact '{path}'. "
+            "Use an explicit sealed-holdout loader only after recording the unseal decision."
+        )

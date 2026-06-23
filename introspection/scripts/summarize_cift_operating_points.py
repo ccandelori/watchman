@@ -19,6 +19,7 @@ from aegis_introspection.cift_operating_points import (
     write_cift_operating_point_json,
     write_cift_operating_point_markdown,
 )
+from aegis_introspection.sealed_holdout import add_unseal_flag, assert_unsealed_paths
 
 
 @dataclass(frozen=True)
@@ -27,6 +28,7 @@ class SummarizeCiftOperatingPointsCliConfig:
     output_json_path: Path
     output_markdown_path: Path
     thresholds: tuple[float, ...]
+    allow_sealed_holdout: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -62,6 +64,7 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--thresholds", required=False, default="0.05:0.95:0.05")
+    add_unseal_flag(parser)
     return parser
 
 
@@ -72,6 +75,7 @@ def _parse_args(argv: Sequence[str]) -> SummarizeCiftOperatingPointsCliConfig:
         output_json_path=Path(namespace.output_json),
         output_markdown_path=Path(namespace.output_markdown),
         thresholds=_parse_thresholds(str(namespace.thresholds)),
+        allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
 
 
@@ -95,6 +99,11 @@ def _parse_thresholds(value: str) -> tuple[float, ...]:
 
 
 def run_summary(config: SummarizeCiftOperatingPointsCliConfig) -> None:
+    assert_unsealed_paths(
+        paths=(config.calibration_report_path, config.output_json_path, config.output_markdown_path),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="CIFT operating-point summary",
+    )
     calibration_report = load_cift_calibration_report_json(config.calibration_report_path)
     report = build_cift_operating_point_report(
         report=calibration_report,

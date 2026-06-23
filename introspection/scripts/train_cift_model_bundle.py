@@ -14,6 +14,10 @@ if str(SRC_PATH) not in sys.path:
 
 from aegis_introspection.cift_model_bundle import CandidateStatus
 from aegis_introspection.cift_model_training import CiftModelTrainingConfig, train_cift_model_bundle
+from aegis_introspection.sealed_holdout import (
+    add_unseal_flag,
+    assert_unsealed_paths,
+)
 
 
 @dataclass(frozen=True)
@@ -32,6 +36,7 @@ class TrainCiftModelBundleCliConfig:
     score_semantics: str
     candidate_status: CandidateStatus
     created_at: str
+    allow_sealed_holdout: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -80,6 +85,7 @@ def _build_parser() -> argparse.ArgumentParser:
         default="offline_research_candidate",
     )
     parser.add_argument("--created-at", required=False, default="2026-06-21T00:00:00Z")
+    add_unseal_flag(parser)
     return parser
 
 
@@ -100,6 +106,7 @@ def _parse_args(argv: Sequence[str]) -> TrainCiftModelBundleCliConfig:
         score_semantics=str(namespace.score_semantics),
         candidate_status=_candidate_status(str(namespace.candidate_status)),
         created_at=str(namespace.created_at),
+        allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
 
 
@@ -134,10 +141,16 @@ def _training_config(config: TrainCiftModelBundleCliConfig) -> CiftModelTraining
         score_semantics=config.score_semantics,
         candidate_status=config.candidate_status,
         created_at=config.created_at,
+        allow_sealed_holdout=config.allow_sealed_holdout,
     )
 
 
 def run_training(config: TrainCiftModelBundleCliConfig) -> None:
+    assert_unsealed_paths(
+        paths=(config.artifact_path, config.output_bundle_path),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="CIFT model bundle training",
+    )
     report = train_cift_model_bundle(_training_config(config))
     print(f"Wrote CIFT model bundle to {report.output_bundle_path}")
     print(f"Task: {report.task_name}")

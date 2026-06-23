@@ -12,6 +12,7 @@ from aegis_introspection.detector_result_bridge import (
     calibrated_cift_prediction_to_detector_result,
 )
 from aegis_introspection.probe import JsonValue
+from aegis_introspection.sealed_holdout import assert_unsealed_jsonl_tags, assert_unsealed_paths
 
 
 class CalibratedDetectorExportError(ValueError):
@@ -29,9 +30,20 @@ class CalibratedDetectorExportConfig:
     positive_action: RecommendedAction
     negative_action: RecommendedAction
     confidence: float
+    allow_sealed_holdout: bool
 
 
 def export_calibrated_cift_detector_results(config: CalibratedDetectorExportConfig) -> int:
+    assert_unsealed_paths(
+        paths=(config.runtime_turns_path, config.calibration_report_path, config.output_path),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="calibrated CIFT DetectorResult export",
+    )
+    assert_unsealed_jsonl_tags(
+        path=config.runtime_turns_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="calibrated CIFT DetectorResult export",
+    )
     turns_by_example_id = load_runtime_turns_by_example_id(config.runtime_turns_path)
     report = load_cift_calibration_report_json(config.calibration_report_path)
     detector_config = calibrated_detector_bridge_config(report=report, config=config)

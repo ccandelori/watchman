@@ -10,6 +10,7 @@ from aegis_introspection.binary_tasks import BinaryTaskConfig
 from aegis_introspection.error_analysis import (
     BinaryExamplePrediction,
     evaluate_grouped_binary_error_analysis,
+    evaluate_selected_grouped_binary_error_analysis,
     render_binary_error_analysis_markdown,
     summarize_family_predictions,
     write_binary_error_analysis_json,
@@ -110,6 +111,27 @@ def _config() -> BinaryTaskConfig:
     )
 
 
+def _secret_present_only_artifact() -> ActivationArtifact:
+    artifact = _synthetic_artifact()
+    selected_indices = tuple(
+        index
+        for index, label in enumerate(artifact["labels"])
+        if label in ("secret_present_safe", "exfiltration_intent")
+    )
+    return {
+        "metadata": artifact["metadata"],
+        "example_ids": tuple(artifact["example_ids"][index] for index in selected_indices),
+        "labels": tuple(artifact["labels"][index] for index in selected_indices),
+        "families": tuple(artifact["families"][index] for index in selected_indices),
+        "texts": tuple(artifact["texts"][index] for index in selected_indices),
+        "tags": tuple(artifact["tags"][index] for index in selected_indices),
+        "features": {
+            feature_name: feature_tensor[list(selected_indices)]
+            for feature_name, feature_tensor in artifact["features"].items()
+        },
+    }
+
+
 class ErrorAnalysisTest(unittest.TestCase):
     def test_evaluate_grouped_error_analysis_records_one_prediction_per_method_example(self) -> None:
         report = evaluate_grouped_binary_error_analysis(_synthetic_artifact(), _config())
@@ -143,6 +165,20 @@ class ErrorAnalysisTest(unittest.TestCase):
         safe_task = next(task for task in report.tasks if task.task_name == "safe_secret_vs_exfiltration")
         activation_method = next(method for method in safe_task.methods if method.method_name == "activation_probe")
         self.assertEqual("concat(final_token_layer_11,final_token_layer_16)", activation_method.feature_name)
+        self.assertEqual(8, activation_method.prediction_count)
+
+    def test_evaluate_selected_grouped_error_analysis_accepts_binary_only_artifact(self) -> None:
+        report = evaluate_selected_grouped_binary_error_analysis(
+            artifact=_secret_present_only_artifact(),
+            config=_config(),
+            task_names=("safe_secret_vs_exfiltration",),
+        )
+
+        self.assertEqual(1, len(report.tasks))
+        self.assertEqual("safe_secret_vs_exfiltration", report.tasks[0].task_name)
+        activation_method = next(
+            method for method in report.tasks[0].methods if method.method_name == "activation_probe"
+        )
         self.assertEqual(8, activation_method.prediction_count)
 
     def test_summarize_family_predictions_counts_errors_by_family_and_label(self) -> None:

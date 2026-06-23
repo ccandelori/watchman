@@ -20,6 +20,7 @@ from aegis_introspection.cift_selector_diagnostics import (
     write_selector_diagnostic_markdown,
 )
 from aegis_introspection.policy_window_error_slices import ErrorSliceDimension, load_prompt_policy_metadata
+from aegis_introspection.sealed_holdout import add_unseal_flag, assert_unsealed_jsonl_tags, assert_unsealed_paths
 
 
 _DEFAULT_DIMENSIONS: tuple[ErrorSliceDimension, ...] = (
@@ -62,6 +63,7 @@ class DiagnoseSelectorScoresConfig:
     dimensions: tuple[ErrorSliceDimension, ...]
     thresholds: tuple[float, ...]
     near_threshold_radius: float
+    allow_sealed_holdout: bool
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -114,6 +116,7 @@ def _build_parser() -> argparse.ArgumentParser:
         type=float,
     )
     parser.add_argument("--near-threshold-radius", required=False, type=float, default=0.10)
+    add_unseal_flag(parser)
     return parser
 
 
@@ -129,10 +132,26 @@ def _parse_args(argv: Sequence[str]) -> DiagnoseSelectorScoresConfig:
         dimensions=cast(tuple[ErrorSliceDimension, ...], dimensions),
         thresholds=thresholds,
         near_threshold_radius=float(namespace.near_threshold_radius),
+        allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
     )
 
 
 def run_diagnostics(config: DiagnoseSelectorScoresConfig) -> None:
+    assert_unsealed_paths(
+        paths=(
+            config.prompts_path,
+            config.calibration_report_path,
+            config.output_json_path,
+            config.output_markdown_path,
+        ),
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="CIFT selector score diagnostics",
+    )
+    assert_unsealed_jsonl_tags(
+        path=config.prompts_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="CIFT selector score diagnostics",
+    )
     calibration_report = load_cift_calibration_report_json(config.calibration_report_path)
     metadata_by_id = load_prompt_policy_metadata(config.prompts_path)
     diagnostic_report = build_selector_diagnostic_report(
