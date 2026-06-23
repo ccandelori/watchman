@@ -65,11 +65,32 @@ class NimbusState:
     secret_context_handle: str | None
     recent_turn_scores: tuple[float, ...]
 
+    def __post_init__(self) -> None:
+        _validate_session_id(self.session_id)
+        if self.turn_count < 0:
+            raise NimbusDetectorError("turn_count must be non-negative.")
+        _validate_non_negative_finite(
+            self.cumulative_estimated_leakage_bits,
+            "cumulative_estimated_leakage_bits",
+        )
+        _validate_non_negative_finite(
+            self.last_turn_estimated_leakage_bits,
+            "last_turn_estimated_leakage_bits",
+        )
+        if self.secret_context_handle == "":
+            raise NimbusDetectorError("secret_context_handle must not be empty when provided.")
+        for score in self.recent_turn_scores:
+            _validate_non_negative_finite(score, "recent_turn_scores entry")
+
 
 @dataclass(frozen=True)
 class NimbusStateUpdate:
     turn_estimated_leakage_bits: float
     new_cumulative_bits: float
+
+    def __post_init__(self) -> None:
+        _validate_non_negative_finite(self.turn_estimated_leakage_bits, "turn_estimated_leakage_bits")
+        _validate_non_negative_finite(self.new_cumulative_bits, "new_cumulative_bits")
 
 
 @dataclass(frozen=True)
@@ -195,6 +216,7 @@ class InMemoryNimbusStateStore:
             raise NimbusDetectorError("max_turns must be positive.")
 
     def get_or_create(self, session_id: str, secret_context_handle: str | None) -> NimbusState:
+        _validate_session_id(session_id)
         state = self._store.get(session_id)
         if state is not None:
             return state
@@ -210,7 +232,12 @@ class InMemoryNimbusStateStore:
         return state
 
     def update(self, session_id: str, update: NimbusStateUpdate) -> NimbusState:
-        state = self._store[session_id]
+        _validate_session_id(session_id)
+        state = self._store.get(session_id)
+        if state is None:
+            raise NimbusDetectorError(f"no NIMBUS state exists for session_id '{session_id}'.")
+        if update.new_cumulative_bits < state.cumulative_estimated_leakage_bits:
+            raise NimbusDetectorError("new_cumulative_bits must not decrease existing cumulative leakage.")
         recent_turn_scores = (*state.recent_turn_scores, update.turn_estimated_leakage_bits)
         if len(recent_turn_scores) > self.max_turns:
             recent_turn_scores = recent_turn_scores[-self.max_turns :]
@@ -226,6 +253,7 @@ class InMemoryNimbusStateStore:
         return updated_state
 
     def destroy(self, session_id: str) -> None:
+        _validate_session_id(session_id)
         self._store.pop(session_id, None)
 
 
@@ -639,6 +667,11 @@ def _validate_positive_finite(value: float, field_name: str) -> None:
 def _validate_non_negative_finite(value: float, field_name: str) -> None:
     if not isfinite(value) or value < 0.0:
         raise NimbusDetectorError(f"{field_name} must be a finite non-negative value.")
+
+
+def _validate_session_id(session_id: str) -> None:
+    if session_id == "":
+        raise NimbusDetectorError("session_id must not be empty.")
 
 
 def _elapsed_ms(started_at: float) -> float:

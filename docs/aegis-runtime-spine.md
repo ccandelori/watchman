@@ -174,7 +174,10 @@ raw canary values into normalized turns or audit evidence.
 
 `BaselineNimbusCritic` and `InMemoryNimbusStateStore` are intentionally small
 implementations for tests and demos. They establish the contract that a future
-paper-faithful critic can satisfy without changing the runtime spine.
+paper-faithful critic can satisfy without changing the runtime spine. The
+in-memory store validates non-negative, monotonic leakage state, and NIMBUS
+accumulates by session even when a session contains multiple planted canary
+slots.
 
 `NimbusLeakageDetector` is legacy compatibility and demo code. It reuses the
 exact and encoded canary detectors as per-turn signals, then updates a
