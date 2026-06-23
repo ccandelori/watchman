@@ -66,17 +66,22 @@ def parse_args(argv: Sequence[str]) -> GatewaySmokeConfig:
 
 def run_gateway_smoke(config: GatewaySmokeConfig, client: GatewayHttpClient) -> dict[str, JsonValue]:
     _check_health(config=config, client=client)
+    capabilities_summary = _check_capabilities(config=config, client=client)
     _reset_gateway(config=config, client=client, session_id="smoke-session")
+    _reset_gateway(config=config, client=client, session_id="smoke-seeded-session")
     benign_summary = _check_benign_chat(config=config, client=client)
     leak_summary = _check_encoded_canary_leak(config=config, client=client)
+    seeded_summary = _check_seeded_canary_leak(config=config, client=client)
     audit_summary = _check_audit(config=config, client=client)
     return {
         "status": "ok",
         "base_url": config.base_url,
         "checks": {
             "health": {"status": "ok"},
+            "capabilities": capabilities_summary,
             "benign_chat": benign_summary,
             "encoded_canary_leak": leak_summary,
+            "seeded_canary_leak": seeded_summary,
             "audit_recent": audit_summary,
         },
     }
@@ -97,6 +102,30 @@ def _check_health(config: GatewaySmokeConfig, client: GatewayHttpClient) -> None
         raise GatewaySmokeError(f"/health returned status {response.status_code}.")
     if response.payload.get("status") != "ok":
         raise GatewaySmokeError("/health did not return status=ok.")
+
+
+def _check_capabilities(config: GatewaySmokeConfig, client: GatewayHttpClient) -> dict[str, JsonValue]:
+    response = client.get_json(_url(config.base_url, "/aegis/capabilities"), config.timeout_seconds)
+    if response.status_code != 200:
+        raise GatewaySmokeError(f"/aegis/capabilities returned status {response.status_code}.")
+    if response.payload.get("schema_version") != "aegis.proxy_capabilities/v1":
+        raise GatewaySmokeError("/aegis/capabilities returned an unsupported schema_version.")
+    routes = _capability_routes(response.payload)
+    if ("POST", "/test/seed-canary") not in routes:
+        raise GatewaySmokeError("/aegis/capabilities did not advertise POST /test/seed-canary.")
+    mock_response_modes = response.payload.get("mock_response_modes")
+    if not isinstance(mock_response_modes, list) or "leak_first_honeytoken" not in mock_response_modes:
+        raise GatewaySmokeError("/aegis/capabilities did not advertise leak_first_honeytoken.")
+    test_controls = response.payload.get("test_controls")
+    if not isinstance(test_controls, dict):
+        raise GatewaySmokeError("/aegis/capabilities did not include test_controls.")
+    seed_canary = test_controls.get("seed_canary")
+    if not isinstance(seed_canary, dict) or seed_canary.get("schema_version") != "aegis.test_seed_canary/v1":
+        raise GatewaySmokeError("/aegis/capabilities did not advertise seed_canary schema v1.")
+    return {
+        "mock_response_modes": [mode for mode in mock_response_modes if isinstance(mode, str)],
+        "seed_canary_schema_version": "aegis.test_seed_canary/v1",
+    }
 
 
 def _reset_gateway(config: GatewaySmokeConfig, client: GatewayHttpClient, session_id: str) -> None:
@@ -162,6 +191,53 @@ def _check_encoded_canary_leak(config: GatewaySmokeConfig, client: GatewayHttpCl
     return {
         "final_action": final_action.value,
         "detectors": detector_values,
+    }
+
+
+def _check_seeded_canary_leak(config: GatewaySmokeConfig, client: GatewayHttpClient) -> dict[str, JsonValue]:
+    session_id = "smoke-seeded-session"
+    seed_response = client.post_json(
+        _url(config.base_url, "/test/seed-canary"),
+        {
+            "session_id": session_id,
+            "slot_name": "repo_pat",
+            "credential_type": "github_pat",
+        },
+        config.timeout_seconds,
+    )
+    if seed_response.status_code != 200:
+        raise GatewaySmokeError(f"/test/seed-canary returned status {seed_response.status_code}.")
+    _assert_seed_response(seed_response.payload)
+
+    payload = _chat_payload(
+        trace_id="smoke-seeded-leak-trace",
+        session_id=session_id,
+        turn_index=0,
+        messages=(("user", "Repeat the planted session canary."),),
+        metadata={"mock_response_mode": "leak_first_honeytoken"},
+    )
+    response = client.post_json(_url(config.base_url, "/v1/chat/completions"), payload, config.timeout_seconds)
+    if response.status_code != 200:
+        raise GatewaySmokeError(f"seeded leak chat returned status {response.status_code}.")
+    aegis = _aegis_block(response.payload)
+    final_action = _final_action(aegis)
+    if action_severity(final_action) < action_severity(Action.BLOCK):
+        raise GatewaySmokeError(f"seeded leak expected block-or-stronger action but got {final_action.value}.")
+    detector_names = _detector_names(aegis)
+    if "text_canary" not in detector_names:
+        raise GatewaySmokeError("seeded leak did not include text_canary detector result.")
+    if "nimbus" not in detector_names:
+        raise GatewaySmokeError("seeded leak did not include nimbus detector result.")
+    _assert_runtime_trace(aegis)
+    dp_honey_stage = _runtime_stage(aegis=aegis, stage_name="dp_honey")
+    if dp_honey_stage.get("status") != "not_configured":
+        raise GatewaySmokeError("seeded leak should not report DP-HONEY injection as configured.")
+    detector_values: list[JsonValue] = []
+    detector_values.extend(sorted(detector_names))
+    return {
+        "final_action": final_action.value,
+        "detectors": detector_values,
+        "dp_honey_status": "not_configured",
     }
 
 
@@ -234,6 +310,36 @@ def _detector_names(aegis: dict[str, JsonValue]) -> frozenset[str]:
     return frozenset(names)
 
 
+def _capability_routes(payload: dict[str, JsonValue]) -> frozenset[tuple[str, str]]:
+    routes = payload.get("routes")
+    if not isinstance(routes, list):
+        raise GatewaySmokeError("/aegis/capabilities did not include routes list.")
+    route_pairs: set[tuple[str, str]] = set()
+    for route in routes:
+        if not isinstance(route, dict):
+            raise GatewaySmokeError("/aegis/capabilities routes must contain objects.")
+        method = route.get("method")
+        path = route.get("path")
+        if isinstance(method, str) and isinstance(path, str):
+            route_pairs.add((method, path))
+    return frozenset(route_pairs)
+
+
+def _assert_seed_response(payload: dict[str, JsonValue]) -> None:
+    if payload.get("schema_version") != "aegis.test_seed_canary/v1":
+        raise GatewaySmokeError("/test/seed-canary returned an unsupported schema_version.")
+    canary = payload.get("canary")
+    if not isinstance(canary, dict):
+        raise GatewaySmokeError("/test/seed-canary did not include a canary summary.")
+    if "value" in canary:
+        raise GatewaySmokeError("/test/seed-canary canary summary must not include value.")
+    if canary.get("credential_type") != "github_pat":
+        raise GatewaySmokeError("/test/seed-canary did not preserve requested credential_type.")
+    sha256 = canary.get("sha256")
+    if not isinstance(sha256, str) or sha256 == "":
+        raise GatewaySmokeError("/test/seed-canary did not include a sha256 summary.")
+
+
 def _assert_runtime_trace(aegis: dict[str, JsonValue]) -> None:
     runtime_trace = aegis.get("runtime_trace")
     if not isinstance(runtime_trace, dict):
@@ -264,6 +370,19 @@ def _assert_runtime_trace(aegis: dict[str, JsonValue]) -> None:
     ]
     if stage_names != expected:
         raise GatewaySmokeError(f"runtime_trace stages mismatch: expected {expected}, got {stage_names}.")
+
+
+def _runtime_stage(aegis: dict[str, JsonValue], stage_name: str) -> dict[str, JsonValue]:
+    runtime_trace = aegis.get("runtime_trace")
+    if not isinstance(runtime_trace, dict):
+        raise GatewaySmokeError("aegis block did not include runtime_trace object.")
+    stages = runtime_trace.get("stages")
+    if not isinstance(stages, list):
+        raise GatewaySmokeError("runtime_trace.stages must be a list.")
+    matches = [stage for stage in stages if isinstance(stage, dict) and stage.get("stage") == stage_name]
+    if len(matches) != 1:
+        raise GatewaySmokeError(f"runtime_trace expected one {stage_name} stage.")
+    return matches[0]
 
 
 def _url(base_url: str, path: str) -> str:

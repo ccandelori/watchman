@@ -50,24 +50,49 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
     client = FakeSmokeClient(
         {
             ("GET", f"{base_url}/health"): (HttpJsonResponse(status_code=200, payload={"status": "ok"}),),
-            ("POST", f"{base_url}/test/reset"): (HttpJsonResponse(status_code=200, payload={"status": "reset"}),),
+            ("GET", f"{base_url}/aegis/capabilities"): (
+                HttpJsonResponse(status_code=200, payload=_capabilities_response(include_seed_route=True)),
+            ),
+            ("POST", f"{base_url}/test/reset"): (
+                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
+                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
+            ),
             ("POST", f"{base_url}/v1/chat/completions"): (
                 HttpJsonResponse(
                     status_code=200,
-                    payload=_chat_response(final_action="allow", detector_names=("activation_unavailable",)),
+                    payload=_chat_response(
+                        final_action="allow",
+                        detector_names=("activation_unavailable",),
+                        dp_honey_status="not_configured",
+                        canary_count=0,
+                    ),
                 ),
                 HttpJsonResponse(
                     status_code=200,
                     payload=_chat_response(
                         final_action="escalate",
                         detector_names=("encoded_canary", "nimbus", "provider_egress_guard"),
+                        dp_honey_status="active",
+                        canary_count=1,
                     ),
                 ),
+                HttpJsonResponse(
+                    status_code=200,
+                    payload=_chat_response(
+                        final_action="escalate",
+                        detector_names=("text_canary", "nimbus", "provider_egress_guard"),
+                        dp_honey_status="not_configured",
+                        canary_count=0,
+                    ),
+                ),
+            ),
+            ("POST", f"{base_url}/test/seed-canary"): (
+                HttpJsonResponse(status_code=200, payload=_seed_canary_response()),
             ),
             ("GET", f"{base_url}/audit/recent"): (
                 HttpJsonResponse(
                     status_code=200,
-                    payload={"events": [{"trace_id": "smoke-leak-trace"}]},
+                    payload={"events": [{"trace_id": "smoke-seeded-leak-trace"}]},
                 ),
             ),
         }
@@ -77,12 +102,19 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
 
     assert report["status"] == "ok"
     assert client.requests[0] == ("GET", f"{base_url}/health", None)
-    assert client.requests[1][0:2] == ("POST", f"{base_url}/test/reset")
-    benign_request = client.requests[2][2]
-    leak_request = client.requests[3][2]
+    assert client.requests[1] == ("GET", f"{base_url}/aegis/capabilities", None)
+    assert client.requests[2][0:2] == ("POST", f"{base_url}/test/reset")
+    assert client.requests[3][0:2] == ("POST", f"{base_url}/test/reset")
+    benign_request = client.requests[4][2]
+    leak_request = client.requests[5][2]
+    seed_request = client.requests[6][2]
+    seeded_leak_request = client.requests[7][2]
     assert isinstance(benign_request, dict)
     assert isinstance(leak_request, dict)
+    assert isinstance(seed_request, dict)
+    assert isinstance(seeded_leak_request, dict)
     assert benign_request["metadata"] != leak_request["metadata"]
+    assert seed_request["session_id"] == seeded_leak_request["metadata"]["session_id"]
 
 
 def test_gateway_smoke_rejects_unhealthy_health_payload() -> None:
@@ -102,15 +134,31 @@ def test_gateway_smoke_rejects_missing_encoded_canary_result() -> None:
     client = FakeSmokeClient(
         {
             ("GET", f"{base_url}/health"): (HttpJsonResponse(status_code=200, payload={"status": "ok"}),),
-            ("POST", f"{base_url}/test/reset"): (HttpJsonResponse(status_code=200, payload={"status": "reset"}),),
+            ("GET", f"{base_url}/aegis/capabilities"): (
+                HttpJsonResponse(status_code=200, payload=_capabilities_response(include_seed_route=True)),
+            ),
+            ("POST", f"{base_url}/test/reset"): (
+                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
+                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
+            ),
             ("POST", f"{base_url}/v1/chat/completions"): (
                 HttpJsonResponse(
                     status_code=200,
-                    payload=_chat_response(final_action="allow", detector_names=("activation_unavailable",)),
+                    payload=_chat_response(
+                        final_action="allow",
+                        detector_names=("activation_unavailable",),
+                        dp_honey_status="not_configured",
+                        canary_count=0,
+                    ),
                 ),
                 HttpJsonResponse(
                     status_code=200,
-                    payload=_chat_response(final_action="allow", detector_names=("activation_unavailable",)),
+                    payload=_chat_response(
+                        final_action="allow",
+                        detector_names=("activation_unavailable",),
+                        dp_honey_status="active",
+                        canary_count=1,
+                    ),
                 ),
             ),
         }
@@ -120,7 +168,58 @@ def test_gateway_smoke_rejects_missing_encoded_canary_result() -> None:
         run_gateway_smoke(GatewaySmokeConfig(base_url=base_url, timeout_seconds=1.0), client)
 
 
-def _chat_response(final_action: str, detector_names: tuple[str, ...]) -> dict[str, JsonValue]:
+def _capabilities_response(include_seed_route: bool) -> dict[str, JsonValue]:
+    routes: list[JsonValue] = [
+        {"method": "GET", "path": "/health"},
+        {"method": "GET", "path": "/aegis/capabilities"},
+        {"method": "POST", "path": "/v1/chat/completions"},
+        {"method": "GET", "path": "/audit/recent"},
+        {"method": "POST", "path": "/test/reset"},
+    ]
+    test_controls: dict[str, JsonValue] = {}
+    if include_seed_route:
+        routes.append({"method": "POST", "path": "/test/seed-canary"})
+        test_controls = {
+            "seed_canary": {
+                "enabled": True,
+                "route": "/test/seed-canary",
+                "schema_version": "aegis.test_seed_canary/v1",
+                "supported_credential_types": ["github_pat"],
+            }
+        }
+    return {
+        "schema_version": "aegis.proxy_capabilities/v1",
+        "provider": {"name": "mock", "mock_controls_enabled": True},
+        "routes": routes,
+        "mock_response_modes": ["default", "leak_first_honeytoken", "base64_first_honeytoken"],
+        "test_controls": test_controls,
+    }
+
+
+def _seed_canary_response() -> dict[str, JsonValue]:
+    return {
+        "schema_version": "aegis.test_seed_canary/v1",
+        "status": "seeded",
+        "created": True,
+        "session_id": "smoke-seeded-session",
+        "canary": {
+            "canary_id": "hny_smoke-seeded-session_repo_pat",
+            "slot_name": "repo_pat",
+            "credential_type": "github_pat",
+            "sha256": "abc123",
+            "source": "test_seed_canary",
+            "metadata": {"slot_name": "repo_pat"},
+        },
+        "mock_response_modes": ["leak_first_honeytoken"],
+    }
+
+
+def _chat_response(
+    final_action: str,
+    detector_names: tuple[str, ...],
+    dp_honey_status: str,
+    canary_count: int,
+) -> dict[str, JsonValue]:
     return {
         "id": "chatcmpl-smoke",
         "object": "chat.completion",
@@ -128,7 +227,7 @@ def _chat_response(final_action: str, detector_names: tuple[str, ...]) -> dict[s
         "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"}, "finish_reason": "stop"}],
         "aegis": {
             "trace_id": "smoke-trace",
-            "runtime_trace": _runtime_trace(),
+            "runtime_trace": _runtime_trace(dp_honey_status=dp_honey_status, canary_count=canary_count),
             "policy_decision": {
                 "final_action": final_action,
                 "reason": "test",
@@ -154,12 +253,12 @@ def _chat_response(final_action: str, detector_names: tuple[str, ...]) -> dict[s
     }
 
 
-def _runtime_trace() -> dict[str, JsonValue]:
+def _runtime_trace(dp_honey_status: str, canary_count: int) -> dict[str, JsonValue]:
     return {
         "schema_version": "aegis.runtime_trace/v1",
         "stages": [
             {"stage": "normalize", "status": "ok"},
-            {"stage": "dp_honey", "status": "active", "canary_count": 1},
+            {"stage": "dp_honey", "status": dp_honey_status, "canary_count": canary_count},
             {"stage": "cift", "status": "unavailable", "detectors": ["activation_unavailable"]},
             {"stage": "provider_egress_guard", "status": "active", "detectors": ["provider_egress_guard"]},
             {"stage": "provider", "status": "completed", "provider": "mock", "model_id": "mock-model"},
