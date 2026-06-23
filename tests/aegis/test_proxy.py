@@ -1,6 +1,6 @@
 import unittest
 
-from aegis.proxy.mock_app import create_default_proxy
+from aegis.proxy.mock_app import ProxyRequestError, _runtime_request_from_chat_body, create_default_proxy
 
 
 class MockProxyAppTest(unittest.TestCase):
@@ -76,6 +76,32 @@ class MockProxyAppTest(unittest.TestCase):
 
         self.assertEqual(400, status)
         self.assertIn("unsupported mock_response_mode", payload["error"])
+
+    def test_chat_body_uses_configured_non_mock_provider_name(self) -> None:
+        proxy_request = _runtime_request_from_chat_body(
+            body={
+                "model": "provider-model",
+                "messages": [{"role": "user", "content": "hello"}],
+                "metadata": {"trace_id": "trace-provider", "session_id": "session-provider"},
+            },
+            provider_name="openai_compatible",
+            mock_controls_enabled=False,
+        )
+
+        self.assertEqual("openai_compatible", proxy_request.runtime_request.model.provider)
+        self.assertEqual("provider-model", proxy_request.runtime_request.model.model_id)
+
+    def test_chat_body_rejects_mock_controls_for_non_mock_provider(self) -> None:
+        with self.assertRaisesRegex(ProxyRequestError, "only supported by the mock provider"):
+            _runtime_request_from_chat_body(
+                body={
+                    "model": "provider-model",
+                    "messages": [{"role": "user", "content": "hello"}],
+                    "metadata": {"mock_response_mode": "echo_last_user"},
+                },
+                provider_name="openai_compatible",
+                mock_controls_enabled=False,
+            )
 
     def test_chat_completions_route_rejects_credential_shaped_metadata(self) -> None:
         proxy = create_default_proxy()

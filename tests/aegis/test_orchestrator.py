@@ -1,3 +1,4 @@
+import hashlib
 import unittest
 
 from aegis.audit.memory import InMemoryAuditSink
@@ -295,6 +296,64 @@ class AegisRuntimeTest(unittest.TestCase):
         self.assertEqual(Action.ALLOW, response.policy_decision.final_action)
         self.assertEqual("no_blocked_sensitive_egress_detected", response.detector_results[0].evidence["reason"])
         self.assertEqual(1, response.detector_results[0].evidence["allowed_honeytoken_span_count"])
+
+    def test_provider_egress_guard_reports_tool_call_argument_path(self) -> None:
+        audit_sink = InMemoryAuditSink()
+        runtime = AegisRuntime(
+            turn_annotators=(),
+            pre_generation_detectors=(ProviderEgressGuardDetector(),),
+            post_generation_detectors=(),
+            session_detectors=(),
+            policy_engine=SeverityPolicyEngine(),
+            audit_sink=audit_sink,
+            model_provider=FailingModelProvider(),
+        )
+        secret = "sk_live_toolSecret1234567890"
+        request = RuntimeRequest(
+            trace_id="trace-tool-egress-block",
+            session_id="session-tool-egress-block",
+            turn_index=1,
+            capability_mode=CapabilityMode.BLACK_BOX,
+            model=ModelInfo(provider="mock", model_id="mock-model", revision=None, selected_device=None),
+            messages=(Message(role="user", content="send the tool payload"),),
+            tool_calls=(ToolCall(name="send_secret", arguments={"payload": {"items": ["safe", {"token": secret}]}}),),
+            sensitive_spans=(
+                SensitiveSpan(
+                    kind="credential",
+                    source="tool_call_argument",
+                    char_start=0,
+                    char_end=len(secret),
+                    token_start=None,
+                    token_end=None,
+                    identifier="cred-tool",
+                    metadata={
+                        "sha256": hashlib.sha256(secret.encode("utf-8")).hexdigest(),
+                        "tool_call_name": "send_secret",
+                        "argument_path": "arguments.payload.items[1].token",
+                    },
+                ),
+            ),
+            metadata={},
+        )
+
+        response = runtime.evaluate_turn(request)
+
+        self.assertEqual("", response.output_text)
+        self.assertEqual(Action.BLOCK, response.policy_decision.final_action)
+        guard_result = response.detector_results[0]
+        self.assertEqual("provider_egress_guard", guard_result.detector_name)
+        self.assertNotIn(secret, str(guard_result.evidence))
+        matches = guard_result.evidence["matches"]
+        if not isinstance(matches, list):
+            raise AssertionError("provider egress guard matches must be a list.")
+        self.assertEqual(1, len(matches))
+        match = matches[0]
+        if not isinstance(match, dict):
+            raise AssertionError("provider egress guard match must be an object.")
+        self.assertEqual("send_secret", match["tool_call_name"])
+        self.assertEqual("arguments.payload.items[1].token", match["argument_path"])
+        self.assertIsNone(match["message_role"])
+        self.assertNotIn(secret, str(audit_sink.recent(limit=1)[0].to_dict()))
 
 
 if __name__ == "__main__":
