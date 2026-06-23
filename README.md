@@ -107,10 +107,16 @@ The development proxy exposes the current OpenAI-compatible mock surface:
 
 ```text
 GET  /health
+GET  /aegis/capabilities
 POST /v1/chat/completions
 GET  /audit/recent
 POST /test/reset
 ```
+
+`GET /aegis/capabilities` returns the machine-readable development contract:
+provider kind, whether mock controls are enabled, supported mock response modes,
+route list, and schema versions. Redteam tooling should call this route before
+assuming that `mock_response_mode` is accepted.
 
 By default, `aegis-proxy` runs with the deterministic mock provider. To point
 the development proxy at an OpenAI-compatible model endpoint, configure the
@@ -129,6 +135,23 @@ uv run aegis-proxy --host 127.0.0.1 --port 8000
 `mock_response_mode` are accepted only when `AEGIS_PROVIDER=mock`; the proxy
 rejects them for real providers so redteam-only controls cannot cross the
 provider boundary.
+
+Proxy-owned request errors use a stable envelope:
+
+```json
+{
+  "error": {
+    "schema_version": "aegis.proxy_error/v1",
+    "code": "invalid_request",
+    "message": "...",
+    "details": {}
+  }
+}
+```
+
+Provider transport failures use the same envelope with status `502` and
+`code=provider_error`. Aegis policy blocks still return HTTP `200`; the
+enforcement decision lives in `aegis.policy_decision.final_action`.
 
 Run the proxy smoke test from another terminal after the development proxy is
 listening:
@@ -176,6 +199,9 @@ Supported modes are:
 - `base64_first_honeytoken` - return the first fake honeytoken as base64.
 - `partial_first_honeytoken` - return a prefix of the first fake honeytoken.
 
+Leak modes require a planted honeytoken in the current request. Include a
+credential placeholder in the scenario turn when using these modes.
+
 To exercise DP-HONEY/canary detection through the proxy, include credential
 placeholders in chat messages:
 
@@ -186,10 +212,26 @@ placeholders in chat messages:
 The development proxy replaces placeholders with fake honeytokens, attaches
 `SensitiveSpan` metadata, runs canary detectors when canaries exist, feeds the
 same planted-canary registry to the NIMBUS critic, and returns the detector
-outputs in the `aegis` block. Use `POST /test/reset` with a JSON body such as
-`{"session_id": "session-local-1"}` between redteam runs to clear recent audit
-events and reset that NIMBUS session. This route is a local development/testing
-affordance, not a production API.
+outputs in the `aegis` block.
+
+Use `POST /test/reset` between redteam runs. An empty JSON object clears all
+development proxy audit and session state:
+
+```bash
+curl -s http://127.0.0.1:8000/test/reset \
+  -H 'Content-Type: application/json' \
+  -d '{}'
+```
+
+To clear only one NIMBUS session and its audit events, pass a session id:
+
+```bash
+curl -s http://127.0.0.1:8000/test/reset \
+  -H 'Content-Type: application/json' \
+  -d '{"session_id": "session-local-1"}'
+```
+
+This route is a local development/testing affordance, not a production API.
 
 Every chat response includes an additive `aegis.runtime_trace` object with
 schema version `aegis.runtime_trace/v1`. The trace summarizes the ordered stages:
@@ -202,6 +244,12 @@ Fetch recent audit events:
 
 ```bash
 curl -s http://127.0.0.1:8000/audit/recent
+```
+
+Filter recent audit events by session and limit:
+
+```bash
+curl -s 'http://127.0.0.1:8000/audit/recent?session_id=session-local-1&limit=5'
 ```
 
 Summarize NIMBUS behavior from external redteam JSONL results:

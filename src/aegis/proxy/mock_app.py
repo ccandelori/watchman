@@ -36,9 +36,14 @@ from aegis.detectors.nimbus import (
 )
 from aegis.policy.engine import SeverityPolicyEngine
 from aegis.providers.mock import SUPPORTED_MOCK_RESPONSE_MODES
+from aegis.providers.openai_compatible import OpenAICompatibleProviderError
 from aegis.proxy.config import provider_config_from_env
 
 _RAW_CREDENTIAL_PATTERN = re.compile(r"(?:AKIA|ghp_|ya29\.|sk_live_|sk-|hny_)[A-Za-z0-9._-]{8,}")
+_PROXY_ERROR_SCHEMA_VERSION = "aegis.proxy_error/v1"
+_CAPABILITIES_SCHEMA_VERSION = "aegis.proxy_capabilities/v1"
+_AEGIS_RESPONSE_SCHEMA_VERSION = "aegis.chat_response/v1"
+_RESERVED_METADATA_PREFIXES = ("aegis_", "cift_", "dp_honey_", "nimbus_")
 
 
 class ProxyRequestError(ValueError):
@@ -71,33 +76,107 @@ class MockProxyApp:
     def handle(self, method: str, path: str, body: dict[str, JsonValue]) -> tuple[int, dict[str, JsonValue]]:
         if method == "GET" and path == "/health":
             return 200, {"status": "ok"}
+        if method == "GET" and path == "/aegis/capabilities":
+            return 200, self._capabilities()
         if method == "GET" and path == "/audit/recent":
-            return 200, {"events": [event.to_dict() for event in self._audit_sink.recent(limit=20)]}
+            try:
+                return 200, self._handle_audit_recent(body)
+            except ProxyRequestError as exc:
+                return 400, proxy_error_payload(code="invalid_request", message=str(exc), details={})
         if method == "POST" and path == "/test/reset":
             try:
                 return 200, self._handle_test_reset(body)
             except ProxyRequestError as exc:
-                return 400, {"error": str(exc)}
+                return 400, proxy_error_payload(code="invalid_request", message=str(exc), details={})
         if method == "POST" and path == "/v1/chat/completions":
             try:
                 return 200, self._handle_chat_completions(body)
             except ProxyRequestError as exc:
-                return 400, {"error": str(exc)}
-        return 404, {"error": f"No route for {method} {path}."}
+                return 400, proxy_error_payload(code="invalid_request", message=str(exc), details={})
+            except OpenAICompatibleProviderError as exc:
+                return 502, proxy_error_payload(code="provider_error", message=str(exc), details={})
+        return 404, proxy_error_payload(
+            code="route_not_found",
+            message=f"No route for {method} {path}.",
+            details={"method": method, "path": path},
+        )
 
     def destroy_session(self, session_id: str) -> None:
         self._nimbus_detector.destroy_session(session_id)
         self._nimbus_critic.destroy_session(session_id)
 
+    def destroy_all_sessions(self) -> None:
+        self._nimbus_detector.clear()
+        self._nimbus_critic.clear()
+
+    def _capabilities(self) -> dict[str, JsonValue]:
+        routes: list[JsonValue] = [
+            {"method": "GET", "path": "/health"},
+            {"method": "GET", "path": "/aegis/capabilities"},
+            {"method": "POST", "path": "/v1/chat/completions"},
+            {"method": "GET", "path": "/audit/recent"},
+            {"method": "POST", "path": "/test/reset"},
+        ]
+        mock_response_modes: list[JsonValue] = []
+        if self._mock_controls_enabled:
+            mock_response_modes = list(sorted(SUPPORTED_MOCK_RESPONSE_MODES))
+        detectors: list[JsonValue] = [
+            "activation_unavailable",
+            "provider_egress_guard",
+            "text_canary",
+            "encoded_canary",
+            "nimbus",
+        ]
+        return {
+            "schema_version": _CAPABILITIES_SCHEMA_VERSION,
+            "contract": {
+                "chat_response_schema_version": _AEGIS_RESPONSE_SCHEMA_VERSION,
+                "runtime_trace_schema_version": "aegis.runtime_trace/v1",
+                "error_schema_version": _PROXY_ERROR_SCHEMA_VERSION,
+            },
+            "provider": {
+                "name": self._provider_name,
+                "mock_controls_enabled": self._mock_controls_enabled,
+            },
+            "routes": routes,
+            "mock_response_modes": mock_response_modes,
+            "detectors": detectors,
+            "audit": {
+                "recent_default_limit": 20,
+                "recent_supports_session_id": True,
+            },
+        }
+
+    def _handle_audit_recent(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        limit = _metadata_positive_int(body, "limit", 20)
+        session_id = _optional_metadata_string(body, "session_id")
+        return {
+            "schema_version": "aegis.audit_recent/v1",
+            "limit": limit,
+            "session_id": session_id,
+            "events": [event.to_dict() for event in self._audit_sink.recent(limit=limit, session_id=session_id)],
+        }
+
     def _handle_test_reset(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
         session_id = _optional_metadata_string(body, "session_id")
         if session_id is not None:
             self.destroy_session(session_id)
+            self._audit_sink.clear_session(session_id)
+            return {
+                "schema_version": "aegis.test_reset/v1",
+                "status": "reset",
+                "scope": "session",
+                "audit_events_cleared": True,
+                "session_id": session_id,
+            }
+        self.destroy_all_sessions()
         self._audit_sink.clear()
         return {
+            "schema_version": "aegis.test_reset/v1",
             "status": "reset",
+            "scope": "all",
             "audit_events_cleared": True,
-            "session_id": session_id,
+            "session_id": None,
         }
 
     def _handle_chat_completions(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
@@ -125,6 +204,7 @@ class MockProxyApp:
                 }
             ],
             "aegis": {
+                "schema_version": _AEGIS_RESPONSE_SCHEMA_VERSION,
                 "trace_id": request.trace_id,
                 "runtime_trace": _runtime_trace(request=request, response=response),
                 "policy_decision": response.policy_decision.to_dict(),
@@ -163,6 +243,8 @@ def _runtime_request_from_chat_body(
     trace_id = _metadata_string(metadata, "trace_id", f"trace-{uuid4().hex}")
     session_id = _metadata_string(metadata, "session_id", f"session-{uuid4().hex}")
     turn_index = _metadata_int(metadata, "turn_index", 1)
+    if turn_index < 0:
+        raise ProxyRequestError("metadata field 'turn_index' must be non-negative.")
 
     injection = inject_honeytokens(
         messages=messages,
@@ -218,7 +300,19 @@ def _metadata_from_raw(value: object) -> dict[str, JsonValue]:
             raise ProxyRequestError("metadata keys must be strings.")
         metadata[key] = item
     _validate_no_raw_credentials_in_metadata(metadata)
+    _validate_no_reserved_metadata_keys(metadata)
     return metadata
+
+
+def proxy_error_payload(code: str, message: str, details: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    return {
+        "error": {
+            "schema_version": _PROXY_ERROR_SCHEMA_VERSION,
+            "code": code,
+            "message": message,
+            "details": details,
+        }
+    }
 
 
 def _validate_no_raw_credentials_in_metadata(metadata: dict[str, JsonValue]) -> None:
@@ -226,6 +320,30 @@ def _validate_no_raw_credentials_in_metadata(metadata: dict[str, JsonValue]) -> 
     if len(paths) > 0:
         joined_paths = ", ".join(paths)
         raise ProxyRequestError(f"metadata contains credential-shaped value(s) at {joined_paths}.")
+
+
+def _validate_no_reserved_metadata_keys(metadata: dict[str, JsonValue]) -> None:
+    paths = _reserved_metadata_paths(metadata, path="metadata")
+    if len(paths) > 0:
+        joined_paths = ", ".join(paths)
+        raise ProxyRequestError(f"metadata contains Aegis-reserved key(s) at {joined_paths}.")
+
+
+def _reserved_metadata_paths(value: JsonValue, path: str) -> tuple[str, ...]:
+    if isinstance(value, list):
+        paths: list[str] = []
+        for index, item in enumerate(value):
+            paths.extend(_reserved_metadata_paths(item, path=f"{path}[{index}]"))
+        return tuple(paths)
+    if not isinstance(value, dict):
+        return ()
+    paths = []
+    for key, item in value.items():
+        key_path = f"{path}.{key}"
+        if any(key.startswith(prefix) for prefix in _RESERVED_METADATA_PREFIXES):
+            paths.append(key_path)
+        paths.extend(_reserved_metadata_paths(item, path=key_path))
+    return tuple(paths)
 
 
 def _credential_shaped_metadata_paths(value: JsonValue, path: str) -> tuple[str, ...]:
@@ -344,6 +462,13 @@ def _metadata_int(metadata: Mapping[str, JsonValue], key: str, default: int) -> 
         return default
     if not isinstance(value, int):
         raise ProxyRequestError(f"metadata field '{key}' must be an integer.")
+    return value
+
+
+def _metadata_positive_int(metadata: Mapping[str, JsonValue], key: str, default: int) -> int:
+    value = _metadata_int(metadata, key, default)
+    if value <= 0:
+        raise ProxyRequestError(f"metadata field '{key}' must be positive.")
     return value
 
 
