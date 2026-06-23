@@ -245,7 +245,11 @@ def _audit_safe_message_content(
     message_index: int,
     sensitive_spans: tuple[SensitiveSpan, ...],
 ) -> str:
-    blocked_spans = tuple(span for span in sensitive_spans if span.kind not in _AUDIT_ALLOWED_SENSITIVE_SPAN_KINDS)
+    blocked_spans = tuple(
+        span
+        for span in sensitive_spans
+        if span.kind not in _AUDIT_ALLOWED_SENSITIVE_SPAN_KINDS or span.metadata.get("audit_redact") is True
+    )
     if len(blocked_spans) == 0:
         return message.content
     content = message.content

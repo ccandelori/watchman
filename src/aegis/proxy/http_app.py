@@ -50,6 +50,13 @@ def create_http_app(proxy: MockProxyApp) -> FastAPI:
             return body
         return _proxy_response(proxy, method="POST", path="/test/reset", body=body)
 
+    @app.post("/test/seed-canary")
+    async def test_seed_canary(request: Request) -> JSONResponse:
+        body = await _request_json_object(request)
+        if isinstance(body, JSONResponse):
+            return body
+        return _proxy_response(proxy, method="POST", path="/test/seed-canary", body=body)
+
     @app.exception_handler(StarletteHTTPException)
     async def http_exception_handler(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         return _http_exception_response(request=request, exc=exc)
