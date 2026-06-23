@@ -93,9 +93,11 @@ class NimbusInfoNCETurnMetric:
     scenario_name: str
     turn_index: int
     leakage_label: str
+    target_turn_leakage_bits: float
     positive_probability: float
     nce_loss_bits: float
     estimated_leakage_bits: float
+    absolute_error_bits: float
     positive_rank: int
 
     def to_dict(self) -> dict[str, JsonValue]:
@@ -104,10 +106,32 @@ class NimbusInfoNCETurnMetric:
             "scenario_name": self.scenario_name,
             "turn_index": self.turn_index,
             "leakage_label": self.leakage_label,
+            "target_turn_leakage_bits": self.target_turn_leakage_bits,
             "positive_probability": self.positive_probability,
             "nce_loss_bits": self.nce_loss_bits,
             "estimated_leakage_bits": self.estimated_leakage_bits,
+            "absolute_error_bits": self.absolute_error_bits,
             "positive_rank": self.positive_rank,
+        }
+
+
+@dataclass(frozen=True)
+class NimbusInfoNCELabelMetric:
+    leakage_label: str
+    count: int
+    top1_accuracy: float
+    mean_target_turn_leakage_bits: float
+    mean_estimated_leakage_bits: float
+    mean_absolute_error_bits: float
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "leakage_label": self.leakage_label,
+            "count": self.count,
+            "top1_accuracy": self.top1_accuracy,
+            "mean_target_turn_leakage_bits": self.mean_target_turn_leakage_bits,
+            "mean_estimated_leakage_bits": self.mean_estimated_leakage_bits,
+            "mean_absolute_error_bits": self.mean_absolute_error_bits,
         }
 
 
@@ -119,6 +143,8 @@ class NimbusInfoNCEEvalReport:
     attack_top1_accuracy: float
     mean_nce_loss_bits: float
     mean_estimated_leakage_bits: float
+    mean_absolute_error_bits: float
+    label_metrics: tuple[NimbusInfoNCELabelMetric, ...]
     turn_metrics: tuple[NimbusInfoNCETurnMetric, ...]
 
     def to_dict(self) -> dict[str, JsonValue]:
@@ -129,6 +155,8 @@ class NimbusInfoNCEEvalReport:
             "attack_top1_accuracy": self.attack_top1_accuracy,
             "mean_nce_loss_bits": self.mean_nce_loss_bits,
             "mean_estimated_leakage_bits": self.mean_estimated_leakage_bits,
+            "mean_absolute_error_bits": self.mean_absolute_error_bits,
+            "label_metrics": [metric.to_dict() for metric in self.label_metrics],
             "turn_metrics": [metric.to_dict() for metric in self.turn_metrics],
         }
 
@@ -158,6 +186,8 @@ def evaluate_nimbus_infonce_model(
         attack_top1_accuracy=_attack_top1_accuracy(turn_metrics),
         mean_nce_loss_bits=_mean(tuple(metric.nce_loss_bits for metric in turn_metrics)),
         mean_estimated_leakage_bits=_mean(tuple(metric.estimated_leakage_bits for metric in turn_metrics)),
+        mean_absolute_error_bits=_mean(tuple(metric.absolute_error_bits for metric in turn_metrics)),
+        label_metrics=_label_metrics(turn_metrics),
         turn_metrics=turn_metrics,
     )
 
@@ -304,9 +334,11 @@ def _metric_for_record(model: NimbusInfoNCEModel, record: NimbusTrainingTurnReco
         scenario_name=record.scenario_name,
         turn_index=record.turn_index,
         leakage_label=record.leakage_label.value,
+        target_turn_leakage_bits=record.target_turn_leakage_bits,
         positive_probability=probability,
         nce_loss_bits=nce_loss_bits,
         estimated_leakage_bits=estimated_leakage_bits,
+        absolute_error_bits=abs(estimated_leakage_bits - record.target_turn_leakage_bits),
         positive_rank=_positive_rank(scores),
     )
 
@@ -413,6 +445,31 @@ def _attack_top1_accuracy(metrics: tuple[NimbusInfoNCETurnMetric, ...]) -> float
         raise NimbusInfoNCEError("evaluation records must include at least one non-benign leakage example.")
     correct_count = sum(1 for metric in attack_metrics if metric.positive_rank == 1)
     return correct_count / len(attack_metrics)
+
+
+def _label_metrics(metrics: tuple[NimbusInfoNCETurnMetric, ...]) -> tuple[NimbusInfoNCELabelMetric, ...]:
+    labels = tuple(sorted({metric.leakage_label for metric in metrics}))
+    grouped_metrics: list[NimbusInfoNCELabelMetric] = []
+    for label in labels:
+        label_turns = tuple(metric for metric in metrics if metric.leakage_label == label)
+        grouped_metrics.append(
+            NimbusInfoNCELabelMetric(
+                leakage_label=label,
+                count=len(label_turns),
+                top1_accuracy=_top1_accuracy(label_turns),
+                mean_target_turn_leakage_bits=_mean(tuple(metric.target_turn_leakage_bits for metric in label_turns)),
+                mean_estimated_leakage_bits=_mean(tuple(metric.estimated_leakage_bits for metric in label_turns)),
+                mean_absolute_error_bits=_mean(tuple(metric.absolute_error_bits for metric in label_turns)),
+            )
+        )
+    return tuple(grouped_metrics)
+
+
+def _top1_accuracy(metrics: tuple[NimbusInfoNCETurnMetric, ...]) -> float:
+    if len(metrics) == 0:
+        raise NimbusInfoNCEError("cannot compute top1 accuracy for an empty metric group.")
+    correct_count = sum(1 for metric in metrics if metric.positive_rank == 1)
+    return correct_count / len(metrics)
 
 
 def _mean(values: tuple[float, ...]) -> float:

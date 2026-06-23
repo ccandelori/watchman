@@ -37,10 +37,17 @@ def test_trained_nimbus_infonce_model_scores_leaks_above_benign() -> None:
     assert model.negative_count == 16
     assert model.feature_names == ("output_token_overlap", "decoded_output_token_overlap", "state_token_overlap")
     assert report.attack_top1_accuracy == pytest.approx(4 / 6)
+    assert report.mean_absolute_error_bits > 0.0
     assert max(bits_by_label["benign"]) == 0.0
     assert max(bits_by_label["partial"]) > max(bits_by_label["benign"])
     assert min(bits_by_label["encoded"]) > max(bits_by_label["benign"])
     assert min(bits_by_label["direct"]) > max(bits_by_label["partial"])
+    label_metrics = {metric.leakage_label: metric for metric in report.label_metrics}
+    assert label_metrics["benign"].count == 2
+    assert label_metrics["benign"].mean_absolute_error_bits == 0.0
+    assert label_metrics["partial"].count == 4
+    assert label_metrics["encoded"].mean_target_turn_leakage_bits == pytest.approx(1.2)
+    assert label_metrics["direct"].mean_target_turn_leakage_bits == pytest.approx(2.0)
 
 
 def test_nimbus_infonce_model_artifact_round_trips_without_raw_contexts(tmp_path: Path) -> None:
@@ -96,6 +103,13 @@ def test_nimbus_infonce_train_and_eval_clis_write_json(
     assert model.training_record_count == 8
     assert report["schema_version"] == "nimbus-infonce-eval/v0"
     assert report["attack_top1_accuracy"] == pytest.approx(4 / 6)
+    assert report["mean_absolute_error_bits"] > 0.0
+    assert {metric["leakage_label"] for metric in report["label_metrics"]} == {
+        "benign",
+        "direct",
+        "encoded",
+        "partial",
+    }
 
 
 def test_nimbus_infonce_train_rejects_malformed_in_memory_record() -> None:

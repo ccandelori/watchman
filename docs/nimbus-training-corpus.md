@@ -82,6 +82,17 @@ The model artifact stores weights, schema metadata, label distribution, corpus
 digest, and aggregate metrics. It does not store raw `state_messages`,
 `output_text`, `context_text`, or credential-shaped values.
 
+The evaluation artifact includes overall and per-label retrieval/calibration
+metrics:
+
+- conservative top-1 accuracy, where tied positives do not count as wins
+- mean estimated leakage bits
+- mean target leakage bits from the synthetic labels
+- mean absolute error in bits
+
+These metrics are useful for regression comparisons across corpus and critic
+changes. They are not runtime evidence and should not be mixed into audit logs.
+
 ## Safety Rules
 
 - Do not commit generated `data/nimbus_training/` artifacts.
