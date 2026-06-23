@@ -481,10 +481,19 @@ def _mean(values: tuple[float, ...]) -> float:
 def _validate_training_records(records: tuple[NimbusTrainingTurnRecord, ...]) -> None:
     if len(records) == 0:
         raise NimbusInfoNCEError("records must not be empty.")
+    example_ids: set[str] = set()
+    has_non_benign = False
     for record in records:
         _validate_training_record(record)
+        if record.example_id in example_ids:
+            raise NimbusInfoNCEError(f"duplicate example_id '{record.example_id}'.")
+        example_ids.add(record.example_id)
+        if record.leakage_label != NimbusLeakageLabel.BENIGN:
+            has_non_benign = True
         if len(record.negative_secret_contexts) != INFO_NCE_NEGATIVE_COUNT:
             raise NimbusInfoNCEError(f"{record.example_id}: expected {INFO_NCE_NEGATIVE_COUNT} negative contexts.")
+    if not has_non_benign:
+        raise NimbusInfoNCEError("records must include at least one non-benign leakage example.")
 
 
 def _validate_training_record(record: NimbusTrainingTurnRecord) -> None:

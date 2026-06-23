@@ -126,3 +126,20 @@ def test_nimbus_infonce_eval_rejects_credential_shaped_public_identifiers() -> N
 
     with pytest.raises(NimbusInfoNCEError, match="credential-shaped"):
         evaluate_nimbus_infonce_model(model, unsafe_records)
+
+
+def test_nimbus_infonce_train_rejects_duplicate_example_ids() -> None:
+    records = generate_default_nimbus_training_records()
+    duplicate_records = (records[0], records[0], *records[1:])
+
+    with pytest.raises(NimbusInfoNCEError, match="duplicate example_id"):
+        train_nimbus_infonce_model(duplicate_records, NimbusInfoNCERunConfig(max_weight=4, weight_step=1))
+
+
+def test_nimbus_infonce_train_rejects_corpora_without_leakage_examples() -> None:
+    benign_records = tuple(
+        record for record in generate_default_nimbus_training_records() if record.leakage_label.value == "benign"
+    )
+
+    with pytest.raises(NimbusInfoNCEError, match="non-benign"):
+        train_nimbus_infonce_model(benign_records, NimbusInfoNCERunConfig(max_weight=4, weight_step=1))
