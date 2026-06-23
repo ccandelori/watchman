@@ -204,6 +204,26 @@ writes redteam-shaped JSONL for fast local NIMBUS regression checks. The output
 is intentionally metadata-only and is not a substitute for external black-box
 redteam runs.
 
+`aegis-nimbus-training-corpus` writes a small synthetic `nimbus-training-turn/v0`
+JSONL corpus for future paper-faithful NIMBUS critic work. Each row includes
+the pre-output conversation state, the current output, one true secret context,
+and 16 negative contexts for InfoNCE-style training. Generated corpus files
+belong under ignored `data/nimbus_training/` paths and must not be committed.
+
+`aegis-nimbus-train-infonce` and `aegis-nimbus-eval-infonce` train and evaluate
+the first offline lexical InfoNCE smoke critic against that corpus. This path
+proves the objective and artifact contract only; it does not replace
+`CanaryNimbusCritic` in the default runtime.
+
+`LearnedNimbusInfoNCECritic` is the runtime adapter boundary for learned NIMBUS
+experiments. It implements the existing `NimbusCritic` shape, requires an
+injected resolver for true and negative secret contexts, and emits only safe
+aggregate evidence. The default development proxy remains on the deterministic
+`CanaryNimbusCritic` until a learned artifact is calibrated and explicitly
+configured. Offline `nimbus-infonce-model/v0` artifacts must be converted
+explicitly into the runtime model shape before use; the runtime adapter does not
+import corpus rows or trainer code.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:

@@ -187,6 +187,33 @@ understood even when `encoded_canary` does not trigger on a single turn. See
 [docs/nimbus-redteam-eval.md](docs/nimbus-redteam-eval.md) for the full
 black-box redteam evaluation loop.
 
+Generate the small synthetic NIMBUS InfoNCE training-corpus bootstrap:
+
+```bash
+uv run aegis-nimbus-training-corpus \
+  --output data/nimbus_training/nimbus_training.generated.jsonl
+```
+
+Train and evaluate the first offline lexical InfoNCE smoke critic:
+
+```bash
+uv run aegis-nimbus-train-infonce \
+  --input data/nimbus_training/nimbus_training.generated.jsonl \
+  --output data/nimbus_training/nimbus_infonce_model.generated.json
+
+uv run aegis-nimbus-eval-infonce \
+  --input data/nimbus_training/nimbus_training.generated.jsonl \
+  --model data/nimbus_training/nimbus_infonce_model.generated.json \
+  --output data/nimbus_training/nimbus_infonce_eval.generated.json
+```
+
+This workflow writes paper-shaped turn records with conversation state, current
+output, one true secret context, and 16 negative contexts, then trains a small
+JSON artifact that proves the InfoNCE objective and evaluator plumbing.
+Generated `data/nimbus_training/` artifacts are ignored and must not be
+committed. See [docs/nimbus-training-corpus.md](docs/nimbus-training-corpus.md)
+for the contract and safety rules.
+
 Generate controlled trace-collection assignments for human operators:
 
 ```bash

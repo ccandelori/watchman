@@ -25,6 +25,7 @@ def test_generated_trace_and_worktree_paths_are_rejected() -> None:
     violations = artifact_boundary_violations(
         (
             PurePosixPath(".worktrees/trace-collection-harness/README.md"),
+            PurePosixPath("data/nimbus_training/corpus.generated.jsonl"),
             PurePosixPath("data/trace_collection/records.generated.jsonl"),
             PurePosixPath("data/redteam_results/aegis-local.jsonl"),
             PurePosixPath("introspection/data/trace_collection/structured_prompts.generated.jsonl"),
@@ -34,6 +35,7 @@ def test_generated_trace_and_worktree_paths_are_rejected() -> None:
 
     assert {str(violation.path) for violation in violations} == {
         ".worktrees/trace-collection-harness/README.md",
+        "data/nimbus_training/corpus.generated.jsonl",
         "data/trace_collection/records.generated.jsonl",
         "data/redteam_results/aegis-local.jsonl",
         "introspection/data/trace_collection/structured_prompts.generated.jsonl",
