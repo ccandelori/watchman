@@ -167,6 +167,18 @@ Fetch recent audit events:
 curl -s http://127.0.0.1:8000/audit/recent
 ```
 
+Summarize NIMBUS behavior from external redteam JSONL results:
+
+```bash
+uv run aegis-nimbus-report --input ../watchman-redteam/results/aegis-local.jsonl
+```
+
+The report reads detector and policy metadata only. It distinguishes immediate
+public canary detectors from NIMBUS critic evidence, so partial leakage can be
+understood even when `encoded_canary` does not trigger on a single turn. See
+[docs/nimbus-redteam-eval.md](docs/nimbus-redteam-eval.md) for the full
+black-box redteam evaluation loop.
+
 Generate controlled trace-collection assignments for human operators:
 
 ```bash

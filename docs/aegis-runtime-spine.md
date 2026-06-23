@@ -189,6 +189,13 @@ than adding another session-detector class. The boundary stays the same:
 NIMBUS emits cumulative session risk as detector evidence, and policy still
 owns the final action.
 
+`aegis-nimbus-report` summarizes NIMBUS behavior from external redteam JSONL
+results without importing the redteam package. It reads detector and policy
+metadata, extracts per-turn leakage bits and budget fractions, and renders
+scenario-level action progressions. See `docs/nimbus-redteam-eval.md` for the
+runtime/redteam evaluation loop and the distinction between public canary
+detectors and NIMBUS critic evidence.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:

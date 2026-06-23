@@ -8,7 +8,9 @@ from pathlib import Path, PurePosixPath
 GENERATED_PREFIXES: tuple[PurePosixPath, ...] = (
     PurePosixPath(".worktrees"),
     PurePosixPath("data/trace_collection"),
+    PurePosixPath("data/redteam_results"),
     PurePosixPath("introspection/data/trace_collection"),
+    PurePosixPath("results/redteam"),
 )
 
 RUNTIME_PREFIXES: tuple[PurePosixPath, ...] = (
