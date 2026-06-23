@@ -167,12 +167,16 @@ component `nimbus` as an ordinary `DetectorResult`. The result carries budget
 fraction, cumulative leakage bits, threshold metadata, and active/degraded/
 unavailable capability status without copying the secret handle into evidence.
 
-`BaselineNimbusCritic` and `InMemoryNimbusStateStore` are intentionally small
-default implementations for tests, demos, and the mock proxy. They establish the
-contract that a future paper-faithful critic can satisfy without changing the
-runtime spine.
+`CanaryNimbusCritic` is the deterministic runtime critic used by the development
+proxy. It keeps planted canary records in memory, scans model output for exact,
+encoded, and partial leakage, and returns estimated leakage bits without writing
+raw canary values into normalized turns or audit evidence.
 
-`NimbusLeakageDetector` remains the canary-signal accumulator. It reuses the
+`BaselineNimbusCritic` and `InMemoryNimbusStateStore` are intentionally small
+implementations for tests and demos. They establish the contract that a future
+paper-faithful critic can satisfy without changing the runtime spine.
+
+`NimbusLeakageDetector` is legacy compatibility and demo code. It reuses the
 exact and encoded canary detectors as per-turn signals, then updates a
 per-session leakage score:
 
@@ -180,8 +184,10 @@ per-session leakage score:
 new_score = min(1.0, previous_score * decay + turn_signal_score)
 ```
 
-Both NIMBUS paths preserve the same boundary: they emit cumulative session risk
-as detector evidence, and policy still owns the final action.
+New runtime work should extend `NimbusDetector` through a `NimbusCritic` rather
+than adding another session-detector class. The boundary stays the same:
+NIMBUS emits cumulative session risk as detector evidence, and policy still
+owns the final action.
 
 ## Follow-Up Integration
 

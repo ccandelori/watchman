@@ -16,7 +16,13 @@ from aegis.detectors.canary import (
     NoopCanaryDetector,
     TextCanaryDetector,
 )
-from aegis.detectors.nimbus import BaselineNimbusCritic, InMemoryNimbusStateStore, NimbusConfig, NimbusDetector
+from aegis.detectors.nimbus import (
+    CanaryNimbusCritic,
+    CanaryNimbusCriticConfig,
+    InMemoryNimbusStateStore,
+    NimbusConfig,
+    NimbusDetector,
+)
 from aegis.policy.engine import SeverityPolicyEngine
 from aegis.providers.mock import SUPPORTED_MOCK_RESPONSE_MODES, MockModelProvider
 
@@ -36,10 +42,12 @@ class MockProxyApp:
         self,
         audit_sink: InMemoryAuditSink,
         nimbus_detector: NimbusDetector,
+        nimbus_critic: CanaryNimbusCritic,
         model_provider: ModelProvider,
     ) -> None:
         self._audit_sink = audit_sink
         self._nimbus_detector = nimbus_detector
+        self._nimbus_critic = nimbus_critic
         self._model_provider = model_provider
 
     def handle(self, method: str, path: str, body: dict[str, JsonValue]) -> tuple[int, dict[str, JsonValue]]:
@@ -61,6 +69,7 @@ class MockProxyApp:
 
     def destroy_session(self, session_id: str) -> None:
         self._nimbus_detector.destroy_session(session_id)
+        self._nimbus_critic.destroy_session(session_id)
 
     def _handle_test_reset(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
         session_id = _optional_metadata_string(body, "session_id")
@@ -76,6 +85,10 @@ class MockProxyApp:
     def _handle_chat_completions(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
         proxy_request = _runtime_request_from_chat_body(body)
         request = proxy_request.runtime_request
+        self._nimbus_critic.register_canary_records(
+            session_id=request.session_id,
+            records=proxy_request.canary_records,
+        )
         runtime = self._runtime_for_canary_records(proxy_request.canary_records)
         response = runtime.evaluate_turn(request)
         return {
@@ -238,20 +251,30 @@ def _post_generation_detectors(canary_records: tuple[CanaryRecord, ...]) -> tupl
 
 def create_default_proxy() -> MockProxyApp:
     audit_sink = InMemoryAuditSink()
+    nimbus_critic = CanaryNimbusCritic(
+        CanaryNimbusCriticConfig(
+            exact_match_leakage_bits=1.0,
+            encoded_match_leakage_bits=1.0,
+            partial_match_leakage_bits=0.8,
+            partial_match_threshold=0.4,
+            confidence=0.8,
+        )
+    )
     nimbus_detector = NimbusDetector(
         NimbusConfig(
-            budget_bits=10.0,
-            warn_threshold=0.5,
-            sanitize_threshold=0.7,
+            budget_bits=1.0,
+            warn_threshold=0.3,
+            sanitize_threshold=0.6,
             block_threshold=0.9,
             max_turns=20,
-            critic_version="baseline-v0",
+            critic_version="canary-v0",
         ),
-        BaselineNimbusCritic(fixed_estimated_leakage_bits=0.0, fixed_confidence=0.5),
+        nimbus_critic,
         InMemoryNimbusStateStore(max_turns=20),
     )
     return MockProxyApp(
         audit_sink=audit_sink,
         nimbus_detector=nimbus_detector,
+        nimbus_critic=nimbus_critic,
         model_provider=MockModelProvider(default_content="Aegis mock response."),
     )
