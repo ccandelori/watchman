@@ -1,5 +1,19 @@
 """Runtime integration tests for NIMBUS."""
 
+from aegis.core.contracts import (
+    Action,
+    CapabilityMode,
+    Message,
+    ModelInfo,
+    NormalizedTurn,
+)
+from aegis.core.orchestrator import ModelResponse
+from aegis.detectors.nimbus import (
+    BaselineNimbusCritic,
+    InMemoryNimbusStateStore,
+    NimbusConfig,
+    NimbusDetector,
+)
 from aegis.proxy.mock_app import create_default_proxy
 
 
@@ -70,3 +84,64 @@ def test_nimbus_active_with_metadata_handle():
     # Ensure the actual secret handle is not leaked in evidence
     for result in nimbus_audit_results:
         assert "secret-xyz" not in str(result.get("evidence", {}))
+
+
+def test_nimbus_multi_turn_escalation():
+    """Test that NIMBUS correctly accumulates leakage across multiple turns
+    and escalates advisory actions (warn -> sanitize -> block)."""
+    # Custom small-budget configuration for focused test
+    config = NimbusConfig(
+        budget_bits=1.0,
+        warn_threshold=0.3,
+        sanitize_threshold=0.5,
+        block_threshold=0.7,
+        max_turns=20,
+        critic_version="test-escalation-v0",
+    )
+
+    # Higher fixed score so we reach block in a small number of turns
+    critic = BaselineNimbusCritic(fixed_estimated_leakage_bits=0.3, fixed_confidence=0.7)
+    store = InMemoryNimbusStateStore(max_turns=20)
+    detector = NimbusDetector(config, critic, store)
+
+    session_id = "multi-turn-session"
+    secret_handle = "secret-multi-turn"
+
+    actions = []
+    cumulatives = []
+
+    for turn_idx in range(6):  # Enough turns to hit block
+        model = ModelInfo(provider="mock", model_id="test", revision="v0", selected_device=None)
+
+        turn = NormalizedTurn(
+            trace_id=f"t{turn_idx}",
+            session_id=session_id,
+            turn_index=turn_idx,
+            capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+            model=model,
+            messages=(Message(role="user", content="test"),),
+            tool_calls=(),
+            sensitive_spans=(),
+            metadata={"secret_context_handle": secret_handle},
+        )
+
+        response = ModelResponse(output_text="response", metadata={})
+
+        result = detector.evaluate(turn, response)
+
+        actions.append(result.recommended_action)
+        cumulatives.append(result.evidence["cumulative_estimated_leakage_bits"])
+
+        # Secret handle must never appear in evidence
+        assert secret_handle not in str(result.evidence)
+
+    # Cumulative should be strictly increasing
+    assert all(cumulatives[i] < cumulatives[i + 1] for i in range(len(cumulatives) - 1))
+
+    # Action escalation
+    assert Action.WARN in actions
+    assert Action.SANITIZE in actions
+    assert Action.BLOCK in actions
+
+    # Final action should be BLOCK
+    assert actions[-1] == Action.BLOCK

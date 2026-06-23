@@ -21,7 +21,6 @@ from aegis.detectors.nimbus import (
     resolve_secret_context_handle,
 )
 
-
 # ---------------------------------------------------------------------------
 # In-memory implementation (for tests)
 # ---------------------------------------------------------------------------
@@ -47,7 +46,7 @@ class InMemoryNimbusStateStore:
 
     def update(self, session_id: str, update: NimbusStateUpdate) -> NimbusState:
         state = self._store[session_id]
-        new_scores = state.recent_turn_scores + (update.turn_estimated_leakage_bits,)
+        new_scores = (*state.recent_turn_scores, update.turn_estimated_leakage_bits)
         if len(new_scores) > self.max_turns:
             new_scores = new_scores[-self.max_turns :]
         new_state = NimbusState(
@@ -228,5 +227,4 @@ def test_critic_rejects_invalid_score():
 
     with pytest.raises(ValueError):
         NimbusCriticScore(estimated_leakage_bits=1.0, confidence=1.5)
-
 
