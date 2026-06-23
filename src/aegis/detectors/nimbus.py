@@ -17,6 +17,7 @@ from aegis.core.contracts import (
     SensitiveSpan,
 )
 from aegis.core.orchestrator import ModelResponse
+from aegis.core.sensitive_context import first_sensitive_span_handle, metadata_secret_context_handle
 from aegis.detectors.canary import EncodedCanaryDetector, InMemoryCanaryRegistry, TextCanaryDetector
 
 
@@ -355,28 +356,13 @@ class NimbusLeakageDetector:
 
 
 def resolve_secret_context_handle(turn: NormalizedTurn) -> str | None:
-    credential_handle = _handle_from_sensitive_spans(turn.sensitive_spans, "credential")
+    credential_handle = first_sensitive_span_handle(turn.sensitive_spans, ("credential",))
     if credential_handle is not None:
         return credential_handle
-    honeytoken_handle = _handle_from_sensitive_spans(turn.sensitive_spans, "honeytoken")
+    honeytoken_handle = first_sensitive_span_handle(turn.sensitive_spans, ("honeytoken",))
     if honeytoken_handle is not None:
         return honeytoken_handle
-    metadata_handle = turn.metadata.get("secret_context_handle")
-    if isinstance(metadata_handle, str) and metadata_handle != "":
-        return metadata_handle
-    return None
-
-
-def _handle_from_sensitive_spans(spans: tuple[SensitiveSpan, ...], kind: str) -> str | None:
-    for span in spans:
-        if span.kind != kind:
-            continue
-        metadata_handle = span.metadata.get("handle")
-        if isinstance(metadata_handle, str) and metadata_handle != "":
-            return metadata_handle
-        if span.identifier is not None and span.identifier != "":
-            return span.identifier
-    return None
+    return metadata_secret_context_handle(turn.metadata)
 
 
 def _nimbus_unavailable_result(turn: NormalizedTurn, reason: str, started_at: float) -> DetectorResult:

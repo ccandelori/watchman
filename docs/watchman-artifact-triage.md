@@ -26,10 +26,10 @@ Promotion rule: research-history files should stay under `Research/`,
 `introspection/`, or `docs/` and should not introduce runtime imports or CI
 dependencies.
 
-## Runtime-Candidate Work
+## Promoted Runtime Contract Work
 
-These files look like runtime or test work, but they are not promoted by this
-triage pass:
+These files are eligible for this branch because they add runtime-safe leakage
+trace primitives and contract tests:
 
 - `src/aegis/audit/leakage_trace.py`
 - `src/aegis/core/leakage.py`
@@ -38,12 +38,19 @@ triage pass:
 - `tests/aegis/test_nimbus_critic_contract.py`
 - `tests/aegis/test_nimbus_session_destruction.py`
 
-Promotion rule: runtime-candidate files need a focused follow-up PR with
-contract tests, import-boundary checks, and audit-safety review. They should
-not be swept into roadmap or CIFT branches by accident.
+Promotion rule: runtime files must be staged intentionally with their contract
+tests. They should not be swept into unrelated CIFT or documentation-only
+branches by accident.
+
+## Generated Experiment Outputs
+
+The current selected-choice CIFT evaluation generated local JSONL, `.pt`, and
+model bundle artifacts under ignored paths. Only compact reports under
+`introspection/data/reports/` are eligible for review.
 
 ## Current Decision
 
-Only the roadmap plan, boundary docs, and quality-gate code are eligible for
-this branch. Research data, local corpora, and runtime-candidate experiments
-remain outside the staged change set until they receive their own plan or PR.
+The roadmap plan, boundary docs, leakage/NIMBUS contract files, focused CIFT
+metadata tests, and compact CIFT reports are eligible for this branch. Research
+PDFs, local corpora, and raw activation or model artifacts remain outside the
+staged change set until they receive their own plan or PR.
