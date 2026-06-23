@@ -95,6 +95,77 @@ Run the built-in demo scenarios:
 uv run python scripts/run_demo.py
 ```
 
+Run the development HTTP proxy:
+
+```bash
+uv run aegis-proxy --host 127.0.0.1 --port 8000
+```
+
+The development proxy exposes the current OpenAI-compatible mock surface:
+
+```text
+GET  /health
+POST /v1/chat/completions
+GET  /audit/recent
+POST /test/reset
+```
+
+Send one local chat request:
+
+```bash
+curl -s http://127.0.0.1:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "mock-model",
+    "messages": [{"role": "user", "content": "hello"}],
+    "metadata": {"trace_id": "trace-local-1", "session_id": "session-local-1"}
+  }'
+```
+
+Redteam scenarios should target the HTTP surface first. For pre-server tests,
+use the mock proxy only inside Aegis unit tests. The separate redteam repo
+should treat Aegis as a black-box HTTP target and inspect the assistant response
+plus the `aegis` detector/policy block.
+
+The development proxy supports deterministic mock response controls through
+request metadata:
+
+```json
+{
+  "metadata": {
+    "mock_response_mode": "leak_first_honeytoken"
+  }
+}
+```
+
+Supported modes are:
+
+- `default` - return the default benign mock response.
+- `echo_last_user` - return the last user message.
+- `leak_first_honeytoken` - return the first fake honeytoken visible in the prompt.
+- `base64_first_honeytoken` - return the first fake honeytoken as base64.
+- `partial_first_honeytoken` - return a prefix of the first fake honeytoken.
+
+To exercise DP-HONEY/canary detection through the proxy, include credential
+placeholders in chat messages:
+
+```text
+{{CREDENTIAL:repo_pat:github_pat}}
+```
+
+The development proxy replaces placeholders with fake honeytokens, attaches
+`SensitiveSpan` metadata, runs canary detectors when canaries exist, and returns
+the detector outputs in the `aegis` block. Use `POST /test/reset` with a JSON
+body such as `{"session_id": "session-local-1"}` between redteam runs to clear
+recent audit events and reset that NIMBUS session. This route is a local
+development/testing affordance, not a production API.
+
+Fetch recent audit events:
+
+```bash
+curl -s http://127.0.0.1:8000/audit/recent
+```
+
 Generate controlled trace-collection assignments for human operators:
 
 ```bash
