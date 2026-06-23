@@ -43,7 +43,17 @@ _RAW_CREDENTIAL_PATTERN = re.compile(r"(?:AKIA|ghp_|ya29\.|sk_live_|sk-|hny_)[A-
 _PROXY_ERROR_SCHEMA_VERSION = "aegis.proxy_error/v1"
 _CAPABILITIES_SCHEMA_VERSION = "aegis.proxy_capabilities/v1"
 _AEGIS_RESPONSE_SCHEMA_VERSION = "aegis.chat_response/v1"
+_TEST_SEED_CANARY_SCHEMA_VERSION = "aegis.test_seed_canary/v1"
 _RESERVED_METADATA_PREFIXES = ("aegis_", "cift_", "dp_honey_", "nimbus_")
+_TEST_SEEDED_CANARY_SOURCE = "test_seed_canary"
+_SUPPORTED_TEST_SEED_CREDENTIAL_TYPES = (
+    "aws_access_key",
+    "github_pat",
+    "oauth_token",
+    "openai_key",
+    "stripe_key",
+)
+_TEST_SEED_CANARY_FIELDS = frozenset(("session_id", "slot_name", "credential_type"))
 
 
 class ProxyRequestError(ValueError):
@@ -72,6 +82,7 @@ class MockProxyApp:
         self._model_provider = model_provider
         self._provider_name = provider_name
         self._mock_controls_enabled = mock_controls_enabled
+        self._seeded_canaries_by_session_id: dict[str, tuple[CanaryRecord, ...]] = {}
 
     def handle(self, method: str, path: str, body: dict[str, JsonValue]) -> tuple[int, dict[str, JsonValue]]:
         if method == "GET" and path == "/health":
@@ -86,6 +97,11 @@ class MockProxyApp:
         if method == "POST" and path == "/test/reset":
             try:
                 return 200, self._handle_test_reset(body)
+            except ProxyRequestError as exc:
+                return 400, proxy_error_payload(code="invalid_request", message=str(exc), details={})
+        if method == "POST" and path == "/test/seed-canary" and self._mock_controls_enabled:
+            try:
+                return 200, self._handle_test_seed_canary(body)
             except ProxyRequestError as exc:
                 return 400, proxy_error_payload(code="invalid_request", message=str(exc), details={})
         if method == "POST" and path == "/v1/chat/completions":
@@ -104,10 +120,12 @@ class MockProxyApp:
     def destroy_session(self, session_id: str) -> None:
         self._nimbus_detector.destroy_session(session_id)
         self._nimbus_critic.destroy_session(session_id)
+        self._seeded_canaries_by_session_id.pop(session_id, None)
 
     def destroy_all_sessions(self) -> None:
         self._nimbus_detector.clear()
         self._nimbus_critic.clear()
+        self._seeded_canaries_by_session_id.clear()
 
     def _capabilities(self) -> dict[str, JsonValue]:
         routes: list[JsonValue] = [
@@ -118,8 +136,18 @@ class MockProxyApp:
             {"method": "POST", "path": "/test/reset"},
         ]
         mock_response_modes: list[JsonValue] = []
+        test_controls: dict[str, JsonValue] = {}
         if self._mock_controls_enabled:
+            routes.append({"method": "POST", "path": "/test/seed-canary"})
             mock_response_modes = list(sorted(SUPPORTED_MOCK_RESPONSE_MODES))
+            test_controls = {
+                "seed_canary": {
+                    "enabled": True,
+                    "route": "/test/seed-canary",
+                    "schema_version": _TEST_SEED_CANARY_SCHEMA_VERSION,
+                    "supported_credential_types": list(_SUPPORTED_TEST_SEED_CREDENTIAL_TYPES),
+                }
+            }
         detectors: list[JsonValue] = [
             "activation_unavailable",
             "provider_egress_guard",
@@ -145,6 +173,7 @@ class MockProxyApp:
                 "recent_default_limit": 20,
                 "recent_supports_session_id": True,
             },
+            "test_controls": test_controls,
         }
 
     def _handle_audit_recent(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
@@ -179,11 +208,60 @@ class MockProxyApp:
             "session_id": None,
         }
 
+    def _handle_test_seed_canary(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
+        _validate_test_seed_canary_body(body)
+        session_id = _body_string(body, "session_id")
+        slot_name = _body_string(body, "slot_name")
+        credential_type = _body_string(body, "credential_type")
+        if credential_type not in _SUPPORTED_TEST_SEED_CREDENTIAL_TYPES:
+            supported_types = ", ".join(_SUPPORTED_TEST_SEED_CREDENTIAL_TYPES)
+            raise ProxyRequestError(
+                f"unsupported credential_type '{credential_type}'. Supported types: {supported_types}."
+            )
+
+        existing_record = _existing_seeded_canary(
+            records=self._seeded_canaries_by_session_id.get(session_id, ()),
+            slot_name=slot_name,
+        )
+        if existing_record is not None:
+            if existing_record.credential_type != credential_type:
+                raise ProxyRequestError(
+                    "a canary is already seeded for this session_id and slot_name with a different credential_type."
+                )
+            return {
+                "schema_version": _TEST_SEED_CANARY_SCHEMA_VERSION,
+                "status": "seeded",
+                "created": False,
+                "session_id": session_id,
+                "canary": _canary_record_public_summary(existing_record),
+                "mock_response_modes": list(sorted(SUPPORTED_MOCK_RESPONSE_MODES)),
+            }
+        record = _seeded_canary_record(
+            session_id=session_id,
+            slot_name=slot_name,
+            credential_type=credential_type,
+        )
+        seeded_records = _merge_canary_records(
+            self._seeded_canaries_by_session_id.get(session_id, ()),
+            (record,),
+        )
+        self._seeded_canaries_by_session_id[session_id] = seeded_records
+        self._nimbus_critic.register_canary_records(session_id=session_id, records=(record,))
+        return {
+            "schema_version": _TEST_SEED_CANARY_SCHEMA_VERSION,
+            "status": "seeded",
+            "created": True,
+            "session_id": session_id,
+            "canary": _canary_record_public_summary(record),
+            "mock_response_modes": list(sorted(SUPPORTED_MOCK_RESPONSE_MODES)),
+        }
+
     def _handle_chat_completions(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
         proxy_request = _runtime_request_from_chat_body(
             body=body,
             provider_name=self._provider_name,
             mock_controls_enabled=self._mock_controls_enabled,
+            seeded_canary_records_by_session_id=self._seeded_canaries_by_session_id,
         )
         request = proxy_request.runtime_request
         self._nimbus_critic.register_canary_records(
@@ -228,6 +306,7 @@ def _runtime_request_from_chat_body(
     body: dict[str, JsonValue],
     provider_name: str,
     mock_controls_enabled: bool,
+    seeded_canary_records_by_session_id: Mapping[str, tuple[CanaryRecord, ...]],
 ) -> ProxyRuntimeRequest:
     model = body.get("model")
     if not isinstance(model, str) or model == "":
@@ -255,11 +334,21 @@ def _runtime_request_from_chat_body(
         ),
         turn_index=turn_index,
     )
-    raw_credential_spans = _raw_credential_spans(
+    seeded_canary_records = _records_not_present(
+        records=seeded_canary_records_by_session_id.get(session_id, ()),
+        existing_records=injection.canary_records,
+    )
+    seeded_messages, seeded_spans = _append_seeded_canary_messages(
         messages=injection.messages,
-        canary_records=injection.canary_records,
+        canary_records=seeded_canary_records,
+    )
+    canary_records = _merge_canary_records(injection.canary_records, seeded_canary_records)
+    raw_credential_spans = _raw_credential_spans(
+        messages=seeded_messages,
+        canary_records=canary_records,
     )
     metadata = _metadata_with_dp_honey_summary(metadata, injection.canary_records)
+    metadata = _metadata_with_test_seed_summary(metadata, seeded_canary_records)
 
     return ProxyRuntimeRequest(
         runtime_request=RuntimeRequest(
@@ -268,12 +357,12 @@ def _runtime_request_from_chat_body(
             turn_index=turn_index,
             capability_mode=CapabilityMode.BLACK_BOX,
             model=ModelInfo(provider=provider_name, model_id=model, revision=None, selected_device=None),
-            messages=injection.messages,
+            messages=seeded_messages,
             tool_calls=(),
-            sensitive_spans=injection.sensitive_spans + raw_credential_spans,
+            sensitive_spans=injection.sensitive_spans + seeded_spans + raw_credential_spans,
             metadata=metadata,
         ),
-        canary_records=injection.canary_records,
+        canary_records=canary_records,
     )
 
 
@@ -313,6 +402,122 @@ def proxy_error_payload(code: str, message: str, details: dict[str, JsonValue]) 
             "details": details,
         }
     }
+
+
+def _validate_test_seed_canary_body(body: dict[str, JsonValue]) -> None:
+    extra_fields = tuple(sorted(key for key in body if key not in _TEST_SEED_CANARY_FIELDS))
+    if len(extra_fields) > 0:
+        joined_fields = ", ".join(extra_fields)
+        raise ProxyRequestError(f"unsupported field(s) for test canary seeding: {joined_fields}.")
+    paths = _credential_shaped_metadata_paths(body, path="body")
+    if len(paths) > 0:
+        joined_paths = ", ".join(paths)
+        raise ProxyRequestError(f"request body contains credential-shaped value(s) at {joined_paths}.")
+
+
+def _body_string(body: Mapping[str, JsonValue], key: str) -> str:
+    value = body.get(key)
+    if not isinstance(value, str) or value == "":
+        raise ProxyRequestError(f"field '{key}' must be a non-empty string.")
+    return value
+
+
+def _existing_seeded_canary(records: tuple[CanaryRecord, ...], slot_name: str) -> CanaryRecord | None:
+    for record in records:
+        if record.metadata.get("slot_name") == slot_name:
+            return record
+    return None
+
+
+def _seeded_canary_record(session_id: str, slot_name: str, credential_type: str) -> CanaryRecord:
+    ledger = HoneytokenLedger(
+        session_id=session_id,
+        generator=default_honeytoken_generator,
+        source=_TEST_SEEDED_CANARY_SOURCE,
+    )
+    ledger.plant(slot_name=slot_name, credential_type=credential_type, turn_index=0)
+    records = ledger.canary_records()
+    if len(records) != 1:
+        raise ProxyRequestError("test canary seeding failed to create exactly one canary.")
+    return records[0]
+
+
+def _canary_record_public_summary(record: CanaryRecord) -> dict[str, JsonValue]:
+    return {
+        "canary_id": record.canary_id,
+        "slot_name": _canary_slot_name(record),
+        "credential_type": record.credential_type,
+        "sha256": record.sha256,
+        "source": record.source,
+        "metadata": {"slot_name": _canary_slot_name(record)},
+    }
+
+
+def _records_not_present(
+    records: tuple[CanaryRecord, ...],
+    existing_records: tuple[CanaryRecord, ...],
+) -> tuple[CanaryRecord, ...]:
+    existing_ids = frozenset(record.canary_id for record in existing_records)
+    return tuple(record for record in records if record.canary_id not in existing_ids)
+
+
+def _merge_canary_records(
+    left_records: tuple[CanaryRecord, ...],
+    right_records: tuple[CanaryRecord, ...],
+) -> tuple[CanaryRecord, ...]:
+    records_by_id = {record.canary_id: record for record in left_records}
+    for record in right_records:
+        records_by_id[record.canary_id] = record
+    return tuple(records_by_id.values())
+
+
+def _append_seeded_canary_messages(
+    messages: tuple[Message, ...],
+    canary_records: tuple[CanaryRecord, ...],
+) -> tuple[tuple[Message, ...], tuple[SensitiveSpan, ...]]:
+    if len(canary_records) == 0:
+        return messages, ()
+    appended_messages = list(messages)
+    spans: list[SensitiveSpan] = []
+    for record in canary_records:
+        prefix = "Aegis test seed canary: "
+        content = f"{prefix}{record.value}"
+        message_index = len(appended_messages)
+        appended_messages.append(Message(role="system", content=content))
+        spans.append(
+            SensitiveSpan(
+                kind="honeytoken",
+                source=record.source,
+                char_start=len(prefix),
+                char_end=len(content),
+                token_start=None,
+                token_end=None,
+                identifier=record.canary_id,
+                metadata={
+                    "slot_name": _canary_slot_name(record),
+                    "credential_type": record.credential_type,
+                    "sha256": record.sha256,
+                    "turn_planted": _canary_turn_planted(record),
+                    "message_index": message_index,
+                    "audit_redact": True,
+                },
+            )
+        )
+    return tuple(appended_messages), tuple(spans)
+
+
+def _canary_slot_name(record: CanaryRecord) -> str:
+    slot_name = record.metadata.get("slot_name")
+    if not isinstance(slot_name, str) or slot_name == "":
+        raise ProxyRequestError(f"canary record '{record.canary_id}' is missing metadata.slot_name.")
+    return slot_name
+
+
+def _canary_turn_planted(record: CanaryRecord) -> int:
+    turn_planted = record.metadata.get("turn_planted")
+    if isinstance(turn_planted, int) and turn_planted >= 0:
+        return turn_planted
+    return 0
 
 
 def _validate_no_raw_credentials_in_metadata(metadata: dict[str, JsonValue]) -> None:
@@ -399,6 +604,18 @@ def _metadata_with_dp_honey_summary(
     updated = dict(metadata)
     updated["dp_honey_canary_count"] = len(canary_records)
     updated["dp_honey_canary_ids"] = [record.canary_id for record in canary_records]
+    return updated
+
+
+def _metadata_with_test_seed_summary(
+    metadata: dict[str, JsonValue],
+    canary_records: tuple[CanaryRecord, ...],
+) -> dict[str, JsonValue]:
+    if len(canary_records) == 0:
+        return metadata
+    updated = dict(metadata)
+    updated["test_seed_canary_count"] = len(canary_records)
+    updated["test_seed_canary_ids"] = [record.canary_id for record in canary_records]
     return updated
 
 

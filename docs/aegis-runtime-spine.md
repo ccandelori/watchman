@@ -80,7 +80,9 @@ that were minted by DP-HONEY are recognized by hash and remain allowed
 honeytokens. Other credential-shaped values are marked as non-honeytoken
 `SensitiveSpan`s so the provider egress guard blocks before generation.
 Serialized audit output redacts non-honeytoken sensitive spans from message
-content.
+content. Individual spans may also request audit redaction with
+`metadata.audit_redact=true`; the mock seed-canary route uses that flag for
+internal test-seed messages.
 
 User-supplied metadata is also validated at ingress. Credential-shaped strings
 in metadata, including development controls such as `mock_response`, are
@@ -121,13 +123,14 @@ GET  /aegis/capabilities
 POST /v1/chat/completions
 GET  /audit/recent
 POST /test/reset
+POST /test/seed-canary   # mock provider only
 ```
 
 `/aegis/capabilities` returns schema version
 `aegis.proxy_capabilities/v1`. It reports the provider name, whether mock
 controls are enabled, supported mock response modes, route names, detector
 names, and the current response/error schema versions. Redteam tools should use
-this route to decide whether mock-only probes are available.
+this route to decide whether mock-only probes and test controls are available.
 
 Proxy-owned request and provider errors use schema version
 `aegis.proxy_error/v1`:
@@ -154,6 +157,28 @@ It returns newest-first events and schema version `aegis.audit_recent/v1`.
 in-memory audit and NIMBUS/canary session state. A body with `session_id`
 clears only that NIMBUS/canary session and that session's audit events. The
 response uses schema version `aegis.test_reset/v1`.
+
+`POST /test/seed-canary` is mock-provider-only. It creates one server-generated,
+session-scoped canary for external redteam setup:
+
+```json
+{
+  "session_id": "session-redteam-1",
+  "slot_name": "repo_pat",
+  "credential_type": "github_pat"
+}
+```
+
+The response uses schema version `aegis.test_seed_canary/v1` and returns a safe
+summary containing `canary_id`, `slot_name`, `credential_type`, `sha256`, and
+`source`; it does not return the generated canary value. The route is
+idempotent for the same `session_id` and `slot_name` and rejects a repeated slot
+with a different credential type. Seeded test canaries are merged into matching
+mock chat turns as internal honeytoken spans so the existing mock leak modes,
+canary detectors, and NIMBUS critic can run without requiring the current user
+turn to contain a placeholder. These seeds are redteam fixtures, not DP-HONEY
+injection: seeded-only turns do not set `dp_honey_canary_count`, and
+`/test/reset` clears the seed state.
 
 ## DP-HONEY-Lite Honeytoken Registration
 

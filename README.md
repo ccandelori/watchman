@@ -111,12 +111,14 @@ GET  /aegis/capabilities
 POST /v1/chat/completions
 GET  /audit/recent
 POST /test/reset
+POST /test/seed-canary   # mock provider only
 ```
 
 `GET /aegis/capabilities` returns the machine-readable development contract:
 provider kind, whether mock controls are enabled, supported mock response modes,
-route list, and schema versions. Redteam tooling should call this route before
-assuming that `mock_response_mode` is accepted.
+route list, schema versions, and mock-only test controls. Redteam tooling
+should call this route before assuming that `mock_response_mode` or
+`/test/seed-canary` is accepted.
 
 By default, `aegis-proxy` runs with the deterministic mock provider. To point
 the development proxy at an OpenAI-compatible model endpoint, configure the
@@ -199,8 +201,9 @@ Supported modes are:
 - `base64_first_honeytoken` - return the first fake honeytoken as base64.
 - `partial_first_honeytoken` - return a prefix of the first fake honeytoken.
 
-Leak modes require a planted honeytoken in the current request. Include a
-credential placeholder in the scenario turn when using these modes.
+Leak modes require a planted honeytoken visible to the current mock turn.
+Use either a credential placeholder in the scenario turn or the mock-only
+`POST /test/seed-canary` route for session-scoped setup.
 
 To exercise DP-HONEY/canary detection through the proxy, include credential
 placeholders in chat messages:
@@ -213,6 +216,27 @@ The development proxy replaces placeholders with fake honeytokens, attaches
 `SensitiveSpan` metadata, runs canary detectors when canaries exist, feeds the
 same planted-canary registry to the NIMBUS critic, and returns the detector
 outputs in the `aegis` block.
+
+To seed a session canary without putting a placeholder in the user turn, use the
+mock-only test route:
+
+```bash
+curl -s http://127.0.0.1:8000/test/seed-canary \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "session_id": "session-local-1",
+    "slot_name": "repo_pat",
+    "credential_type": "github_pat"
+  }'
+```
+
+The seed response uses schema version `aegis.test_seed_canary/v1` and returns
+only safe identifiers, credential type, source, and SHA-256. It never returns
+the generated canary value. Repeating the same `session_id` and `slot_name` is
+idempotent; using the same slot with a different credential type is rejected.
+Seeded canaries are a redteam/dev fixture, not DP-HONEY injection. Seeded-only
+turns activate canary/NIMBUS detection while the runtime trace still reports the
+DP-HONEY stage as not configured.
 
 Use `POST /test/reset` between redteam runs. An empty JSON object clears all
 development proxy audit and session state:
