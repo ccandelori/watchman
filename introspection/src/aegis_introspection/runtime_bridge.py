@@ -61,6 +61,7 @@ def structured_prompt_to_normalized_turn(
         record=record,
         field_name="selected_choice_readout_token_indices",
     )
+    fallback_reason = _optional_string(record=record, field_name="fallback_reason")
     _validate_selected_choice_geometry(
         selected_choice_char_span=selected_choice_char_span,
         selected_choice_token_span=selected_choice_token_span,
@@ -113,6 +114,7 @@ def structured_prompt_to_normalized_turn(
                 "selected_choice_char_span": _optional_pair_json(selected_choice_char_span),
                 "selected_choice_token_span": _optional_pair_json(selected_choice_token_span),
                 "selected_choice_readout_token_indices": selected_choice_readout_token_indices,
+                "fallback_reason": fallback_reason,
             },
             "policy_window": _policy_window_metadata(record=record),
             "bridge": {

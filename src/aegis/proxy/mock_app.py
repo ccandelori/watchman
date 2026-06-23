@@ -8,6 +8,7 @@ from aegis.core.contracts import CapabilityMode, JsonValue, Message, ModelInfo
 from aegis.core.orchestrator import AegisRuntime, RuntimeRequest
 from aegis.detectors.activation import ActivationUnavailableDetector
 from aegis.detectors.canary import NoopCanaryDetector
+from aegis.detectors.nimbus import BaselineNimbusCritic, InMemoryNimbusStateStore, NimbusConfig, NimbusDetector
 from aegis.policy.engine import SeverityPolicyEngine
 from aegis.providers.mock import MockModelProvider
 
@@ -17,9 +18,10 @@ class ProxyRequestError(ValueError):
 
 
 class MockProxyApp:
-    def __init__(self, runtime: AegisRuntime, audit_sink: InMemoryAuditSink) -> None:
+    def __init__(self, runtime: AegisRuntime, audit_sink: InMemoryAuditSink, nimbus_detector: NimbusDetector) -> None:
         self._runtime = runtime
         self._audit_sink = audit_sink
+        self._nimbus_detector = nimbus_detector
 
     def handle(self, method: str, path: str, body: dict[str, JsonValue]) -> tuple[int, dict[str, JsonValue]]:
         if method == "GET" and path == "/health":
@@ -32,6 +34,9 @@ class MockProxyApp:
             except ProxyRequestError as exc:
                 return 400, {"error": str(exc)}
         return 404, {"error": f"No route for {method} {path}."}
+
+    def destroy_session(self, session_id: str) -> None:
+        self._nimbus_detector.destroy_session(session_id)
 
     def _handle_chat_completions(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
         request = _runtime_request_from_chat_body(body)
@@ -128,13 +133,25 @@ def _metadata_int(metadata: Mapping[str, JsonValue], key: str, default: int) -> 
 
 def create_default_proxy() -> MockProxyApp:
     audit_sink = InMemoryAuditSink()
+    nimbus_detector = NimbusDetector(
+        NimbusConfig(
+            budget_bits=10.0,
+            warn_threshold=0.5,
+            sanitize_threshold=0.7,
+            block_threshold=0.9,
+            max_turns=20,
+            critic_version="baseline-v0",
+        ),
+        BaselineNimbusCritic(fixed_estimated_leakage_bits=0.0, fixed_confidence=0.5),
+        InMemoryNimbusStateStore(max_turns=20),
+    )
     runtime = AegisRuntime(
         turn_annotators=(),
         pre_generation_detectors=(ActivationUnavailableDetector(),),
         post_generation_detectors=(NoopCanaryDetector(),),
-        session_detectors=(),
+        session_detectors=(nimbus_detector,),
         policy_engine=SeverityPolicyEngine(),
         audit_sink=audit_sink,
         model_provider=MockModelProvider(default_content="Aegis mock response."),
     )
-    return MockProxyApp(runtime=runtime, audit_sink=audit_sink)
+    return MockProxyApp(runtime=runtime, audit_sink=audit_sink, nimbus_detector=nimbus_detector)

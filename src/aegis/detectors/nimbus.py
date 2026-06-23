@@ -1,10 +1,21 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from math import isfinite
+from typing import Protocol
 
 from aegis.core.action_severity import highest_action
-from aegis.core.contracts import Action, CapabilityStatus, DetectorComponent, DetectorResult, JsonValue, NormalizedTurn
+from aegis.core.contracts import (
+    Action,
+    CapabilityStatus,
+    DetectorComponent,
+    DetectorResult,
+    JsonValue,
+    Message,
+    NormalizedTurn,
+    SensitiveSpan,
+)
 from aegis.core.orchestrator import ModelResponse
 from aegis.detectors.canary import EncodedCanaryDetector, InMemoryCanaryRegistry, TextCanaryDetector
 
@@ -17,6 +28,235 @@ class NimbusDetectorError(ValueError):
 class NimbusLeakageState:
     session_id: str
     score: float
+
+
+@dataclass(frozen=True)
+class NimbusConfig:
+    budget_bits: float
+    warn_threshold: float
+    sanitize_threshold: float
+    block_threshold: float
+    max_turns: int
+    critic_version: str
+
+    def __post_init__(self) -> None:
+        _validate_positive_finite(self.budget_bits, "budget_bits")
+        _validate_probability(self.warn_threshold, "warn_threshold")
+        _validate_probability(self.sanitize_threshold, "sanitize_threshold")
+        _validate_probability(self.block_threshold, "block_threshold")
+        if not self.warn_threshold <= self.sanitize_threshold <= self.block_threshold:
+            raise NimbusDetectorError(
+                "thresholds must satisfy warn_threshold <= sanitize_threshold <= block_threshold."
+            )
+        if self.max_turns < 1:
+            raise NimbusDetectorError("max_turns must be positive.")
+        if self.critic_version == "":
+            raise NimbusDetectorError("critic_version must not be empty.")
+
+
+@dataclass(frozen=True)
+class NimbusState:
+    session_id: str
+    turn_count: int
+    cumulative_estimated_leakage_bits: float
+    last_turn_estimated_leakage_bits: float
+    secret_context_handle: str | None
+    recent_turn_scores: tuple[float, ...]
+
+
+@dataclass(frozen=True)
+class NimbusStateUpdate:
+    turn_estimated_leakage_bits: float
+    new_cumulative_bits: float
+
+
+@dataclass(frozen=True)
+class NimbusCriticInput:
+    session_id: str
+    turn_index: int
+    output_text: str
+    secret_context_handle: str
+    messages: tuple[Message, ...]
+    sensitive_spans: tuple[SensitiveSpan, ...]
+    prior_state: NimbusState
+
+
+@dataclass(frozen=True)
+class NimbusCriticScore:
+    estimated_leakage_bits: float
+    confidence: float
+
+    def __post_init__(self) -> None:
+        _validate_non_negative_finite(self.estimated_leakage_bits, "estimated_leakage_bits")
+        _validate_probability(self.confidence, "confidence")
+
+
+class NimbusCritic(Protocol):
+    def score_turn(self, critic_input: NimbusCriticInput) -> NimbusCriticScore:
+        """Estimate leakage bits for one model response."""
+
+
+class NimbusStateStore(Protocol):
+    def get_or_create(self, session_id: str, secret_context_handle: str | None) -> NimbusState:
+        """Load or initialize NIMBUS state for a session."""
+
+    def update(self, session_id: str, update: NimbusStateUpdate) -> NimbusState:
+        """Persist one NIMBUS state update."""
+
+    def destroy(self, session_id: str) -> None:
+        """Remove NIMBUS state for a completed session."""
+
+
+@dataclass(frozen=True)
+class BaselineNimbusCritic:
+    fixed_estimated_leakage_bits: float = 0.0
+    fixed_confidence: float = 0.5
+
+    def __post_init__(self) -> None:
+        _validate_non_negative_finite(self.fixed_estimated_leakage_bits, "fixed_estimated_leakage_bits")
+        _validate_probability(self.fixed_confidence, "fixed_confidence")
+
+    def score_turn(self, critic_input: NimbusCriticInput) -> NimbusCriticScore:
+        return NimbusCriticScore(
+            estimated_leakage_bits=self.fixed_estimated_leakage_bits,
+            confidence=self.fixed_confidence,
+        )
+
+
+@dataclass
+class InMemoryNimbusStateStore:
+    max_turns: int
+    _store: dict[str, NimbusState] = field(default_factory=dict)
+
+    def __post_init__(self) -> None:
+        if self.max_turns < 1:
+            raise NimbusDetectorError("max_turns must be positive.")
+
+    def get_or_create(self, session_id: str, secret_context_handle: str | None) -> NimbusState:
+        state = self._store.get(session_id)
+        if state is not None:
+            return state
+        state = NimbusState(
+            session_id=session_id,
+            turn_count=0,
+            cumulative_estimated_leakage_bits=0.0,
+            last_turn_estimated_leakage_bits=0.0,
+            secret_context_handle=secret_context_handle,
+            recent_turn_scores=(),
+        )
+        self._store[session_id] = state
+        return state
+
+    def update(self, session_id: str, update: NimbusStateUpdate) -> NimbusState:
+        state = self._store[session_id]
+        recent_turn_scores = (*state.recent_turn_scores, update.turn_estimated_leakage_bits)
+        if len(recent_turn_scores) > self.max_turns:
+            recent_turn_scores = recent_turn_scores[-self.max_turns :]
+        updated_state = NimbusState(
+            session_id=state.session_id,
+            turn_count=state.turn_count + 1,
+            cumulative_estimated_leakage_bits=update.new_cumulative_bits,
+            last_turn_estimated_leakage_bits=update.turn_estimated_leakage_bits,
+            secret_context_handle=state.secret_context_handle,
+            recent_turn_scores=recent_turn_scores,
+        )
+        self._store[session_id] = updated_state
+        return updated_state
+
+    def destroy(self, session_id: str) -> None:
+        self._store.pop(session_id, None)
+
+
+class NimbusDetector:
+    def __init__(self, config: NimbusConfig, critic: NimbusCritic, state_store: NimbusStateStore) -> None:
+        self._config = config
+        self._critic = critic
+        self._state_store = state_store
+
+    def evaluate(self, turn: NormalizedTurn, model_response: ModelResponse | None) -> DetectorResult:
+        started_at = time.perf_counter()
+        secret_context_handle = resolve_secret_context_handle(turn)
+        if secret_context_handle is None:
+            return _nimbus_unavailable_result(
+                turn=turn,
+                reason="no_secret_context_handle",
+                started_at=started_at,
+            )
+        if model_response is None:
+            return DetectorResult(
+                detector_name="nimbus",
+                component=DetectorComponent.NIMBUS,
+                score=0.0,
+                confidence=0.0,
+                recommended_action=Action.ALLOW,
+                capability_required="model_response",
+                capability_status=CapabilityStatus.DEGRADED,
+                evidence={
+                    "capability_reason": "model_response_required",
+                    "turn_index": turn.turn_index,
+                    "critic_version": self._config.critic_version,
+                },
+                latency_ms=_elapsed_ms(started_at),
+            )
+
+        prior_state = self._state_store.get_or_create(
+            session_id=turn.session_id,
+            secret_context_handle=secret_context_handle,
+        )
+        critic_score = self._critic.score_turn(
+            NimbusCriticInput(
+                session_id=turn.session_id,
+                turn_index=turn.turn_index,
+                output_text=model_response.output_text,
+                secret_context_handle=secret_context_handle,
+                messages=turn.messages,
+                sensitive_spans=turn.sensitive_spans,
+                prior_state=prior_state,
+            )
+        )
+        if not isinstance(critic_score, NimbusCriticScore):
+            raise NimbusDetectorError("critic.score_turn must return NimbusCriticScore.")
+        new_cumulative_bits = prior_state.cumulative_estimated_leakage_bits + critic_score.estimated_leakage_bits
+        updated_state = self._state_store.update(
+            session_id=turn.session_id,
+            update=NimbusStateUpdate(
+                turn_estimated_leakage_bits=critic_score.estimated_leakage_bits,
+                new_cumulative_bits=new_cumulative_bits,
+            ),
+        )
+        budget_fraction = min(1.0, updated_state.cumulative_estimated_leakage_bits / self._config.budget_bits)
+        recommended_action = _budget_action(
+            budget_fraction=budget_fraction,
+            warn_threshold=self._config.warn_threshold,
+            sanitize_threshold=self._config.sanitize_threshold,
+            block_threshold=self._config.block_threshold,
+        )
+        return DetectorResult(
+            detector_name="nimbus",
+            component=DetectorComponent.NIMBUS,
+            score=budget_fraction,
+            confidence=critic_score.confidence,
+            recommended_action=recommended_action,
+            capability_required=None,
+            capability_status=CapabilityStatus.ACTIVE,
+            evidence={
+                "reason": _budget_reason(recommended_action),
+                "turn_index": turn.turn_index,
+                "turn_count": updated_state.turn_count,
+                "turn_estimated_leakage_bits": critic_score.estimated_leakage_bits,
+                "cumulative_estimated_leakage_bits": updated_state.cumulative_estimated_leakage_bits,
+                "budget_bits": self._config.budget_bits,
+                "budget_fraction": budget_fraction,
+                "warn_threshold": self._config.warn_threshold,
+                "sanitize_threshold": self._config.sanitize_threshold,
+                "block_threshold": self._config.block_threshold,
+                "critic_version": self._config.critic_version,
+            },
+            latency_ms=_elapsed_ms(started_at),
+        )
+
+    def destroy_session(self, session_id: str) -> None:
+        self._state_store.destroy(session_id)
 
 
 class NimbusLeakageDetector:
@@ -114,6 +354,73 @@ class NimbusLeakageDetector:
         return self._scores_by_session_id.get(session_id, 0.0)
 
 
+def resolve_secret_context_handle(turn: NormalizedTurn) -> str | None:
+    credential_handle = _handle_from_sensitive_spans(turn.sensitive_spans, "credential")
+    if credential_handle is not None:
+        return credential_handle
+    honeytoken_handle = _handle_from_sensitive_spans(turn.sensitive_spans, "honeytoken")
+    if honeytoken_handle is not None:
+        return honeytoken_handle
+    metadata_handle = turn.metadata.get("secret_context_handle")
+    if isinstance(metadata_handle, str) and metadata_handle != "":
+        return metadata_handle
+    return None
+
+
+def _handle_from_sensitive_spans(spans: tuple[SensitiveSpan, ...], kind: str) -> str | None:
+    for span in spans:
+        if span.kind != kind:
+            continue
+        metadata_handle = span.metadata.get("handle")
+        if isinstance(metadata_handle, str) and metadata_handle != "":
+            return metadata_handle
+        if span.identifier is not None and span.identifier != "":
+            return span.identifier
+    return None
+
+
+def _nimbus_unavailable_result(turn: NormalizedTurn, reason: str, started_at: float) -> DetectorResult:
+    return DetectorResult(
+        detector_name="nimbus",
+        component=DetectorComponent.NIMBUS,
+        score=0.0,
+        confidence=0.0,
+        recommended_action=Action.ALLOW,
+        capability_required="secret_context_handle",
+        capability_status=CapabilityStatus.UNAVAILABLE,
+        evidence={
+            "capability_reason": reason,
+            "turn_index": turn.turn_index,
+        },
+        latency_ms=_elapsed_ms(started_at),
+    )
+
+
+def _budget_action(
+    budget_fraction: float,
+    warn_threshold: float,
+    sanitize_threshold: float,
+    block_threshold: float,
+) -> Action:
+    if budget_fraction >= block_threshold:
+        return Action.BLOCK
+    if budget_fraction >= sanitize_threshold:
+        return Action.SANITIZE
+    if budget_fraction >= warn_threshold:
+        return Action.WARN
+    return Action.ALLOW
+
+
+def _budget_reason(action: Action) -> str:
+    if action == Action.BLOCK:
+        return "nimbus_leakage_budget_block"
+    if action == Action.SANITIZE:
+        return "nimbus_leakage_budget_sanitize"
+    if action == Action.WARN:
+        return "nimbus_leakage_budget_warning"
+    return "nimbus_leakage_budget_available"
+
+
 def _recommended_action(
     signal_action: Action,
     updated_score: float,
@@ -152,8 +459,18 @@ def _signal_summary(result: DetectorResult) -> dict[str, JsonValue]:
 
 
 def _validate_probability(value: float, field_name: str) -> None:
-    if value < 0.0 or value > 1.0:
+    if not isfinite(value) or value < 0.0 or value > 1.0:
         raise NimbusDetectorError(f"{field_name} must be in [0.0, 1.0].")
+
+
+def _validate_positive_finite(value: float, field_name: str) -> None:
+    if not isfinite(value) or value <= 0.0:
+        raise NimbusDetectorError(f"{field_name} must be a finite positive value.")
+
+
+def _validate_non_negative_finite(value: float, field_name: str) -> None:
+    if not isfinite(value) or value < 0.0:
+        raise NimbusDetectorError(f"{field_name} must be a finite non-negative value.")
 
 
 def _elapsed_ms(started_at: float) -> float:

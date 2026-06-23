@@ -25,14 +25,13 @@ from aegis.detectors.nimbus import (
 # In-memory implementation (for tests)
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class InMemoryNimbusStateStore:
     max_turns: int
     _store: dict[str, NimbusState] = field(default_factory=dict)
 
-    def get_or_create(
-        self, session_id: str, secret_context_handle: str | None
-    ) -> NimbusState:
+    def get_or_create(self, session_id: str, secret_context_handle: str | None) -> NimbusState:
         if session_id not in self._store:
             self._store[session_id] = NimbusState(
                 session_id=session_id,
@@ -68,6 +67,7 @@ class InMemoryNimbusStateStore:
 # Mock critic
 # ---------------------------------------------------------------------------
 
+
 @dataclass
 class MockNimbusCritic:
     fixed_score: float = 0.5
@@ -83,6 +83,7 @@ class MockNimbusCritic:
 # ---------------------------------------------------------------------------
 # Test helpers (contract-compliant)
 # ---------------------------------------------------------------------------
+
 
 def _make_span(kind: str, handle: str) -> SensitiveSpan:
     return SensitiveSpan(
@@ -127,6 +128,7 @@ def _make_response(text: str = "hello") -> ModelResponse:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
+
 
 def test_config_validation_rejects_non_finite():
     with pytest.raises(ValueError):
@@ -227,4 +229,3 @@ def test_critic_rejects_invalid_score():
 
     with pytest.raises(ValueError):
         NimbusCriticScore(estimated_leakage_bits=1.0, confidence=1.5)
-
