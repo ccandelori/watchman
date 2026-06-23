@@ -199,6 +199,11 @@ scenario-level action progressions. See `docs/nimbus-redteam-eval.md` for the
 runtime/redteam evaluation loop and the distinction between public canary
 detectors and NIMBUS critic evidence.
 
+`aegis-nimbus-fixtures` runs a small in-process mock-proxy fixture suite and
+writes redteam-shaped JSONL for fast local NIMBUS regression checks. The output
+is intentionally metadata-only and is not a substitute for external black-box
+redteam runs.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:

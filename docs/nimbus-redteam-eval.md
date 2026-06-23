@@ -95,6 +95,23 @@ uv run --extra dev aegis-nimbus-report \
   --format json
 ```
 
+## Internal Fixture Loop
+
+When the external redteam runner is not available, Aegis can generate a small
+in-process fixture JSONL through the same mock proxy and report parser:
+
+```bash
+uv run --extra dev aegis-nimbus-fixtures \
+  --output /tmp/aegis-nimbus-fixtures.jsonl
+
+uv run --extra dev aegis-nimbus-report \
+  --input /tmp/aegis-nimbus-fixtures.jsonl
+```
+
+This fixture loop is for fast regression checks of current runtime behavior. It
+does not replace black-box redteam validation because it does not exercise HTTP
+transport, external scenario loading, or redteam expectation scoring.
+
 ## Reading the Report
 
 The report shows one row per scenario:
