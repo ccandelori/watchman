@@ -215,6 +215,13 @@ the first offline lexical InfoNCE smoke critic against that corpus. This path
 proves the objective and artifact contract only; it does not replace
 `CanaryNimbusCritic` in the default runtime.
 
+`LearnedNimbusInfoNCECritic` is the runtime adapter boundary for learned NIMBUS
+experiments. It implements the existing `NimbusCritic` shape, requires an
+injected resolver for true and negative secret contexts, and emits only safe
+aggregate evidence. The default development proxy remains on the deterministic
+`CanaryNimbusCritic` until a learned artifact is calibrated and explicitly
+configured.
+
 ## Follow-Up Integration
 
 Future branches should add real detectors behind the existing contract:
