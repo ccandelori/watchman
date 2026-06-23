@@ -162,8 +162,9 @@ listening:
 uv run aegis-proxy-smoke --url http://127.0.0.1:8000 --timeout 5
 ```
 
-The smoke command checks health, a benign chat turn, an encoded DP-HONEY leak
-turn, and audit readback. It exits nonzero if the gateway contract is broken.
+The smoke command checks health, capability discovery, a benign chat turn, an
+encoded DP-HONEY leak turn, a seeded no-placeholder canary leak turn, and audit
+readback. It exits nonzero if the gateway contract is broken.
 
 Send one local chat request:
 

@@ -374,8 +374,10 @@ credential material.
 and external redteam tooling. Against a running development proxy it checks:
 
 - `GET /health`
+- `GET /aegis/capabilities`
 - a benign chat request that should allow
 - an encoded DP-HONEY leak request that should block or escalate
+- a seeded no-placeholder canary leak request that should block or escalate
 - `GET /audit/recent`
 
 The command writes a JSON summary and exits nonzero on contract failure:
