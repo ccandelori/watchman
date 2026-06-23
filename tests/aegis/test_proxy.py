@@ -29,6 +29,22 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual(200, status)
         self.assertEqual("chat.completion", payload["object"])
         self.assertEqual("assistant", payload["choices"][0]["message"]["role"])
+        runtime_trace = payload["aegis"]["runtime_trace"]
+        self.assertEqual("aegis.runtime_trace/v1", runtime_trace["schema_version"])
+        self.assertEqual(
+            [
+                "normalize",
+                "dp_honey",
+                "cift",
+                "provider_egress_guard",
+                "provider",
+                "canary",
+                "nimbus",
+                "policy",
+                "audit",
+            ],
+            [stage["stage"] for stage in runtime_trace["stages"]],
+        )
         self.assertEqual(200, audit_status)
         self.assertEqual(1, len(audit_payload["events"]))
         self.assertEqual("trace-1", audit_payload["events"][0]["trace_id"])
@@ -61,6 +77,28 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual(400, status)
         self.assertIn("unsupported mock_response_mode", payload["error"])
 
+    def test_chat_completions_route_rejects_credential_shaped_metadata(self) -> None:
+        proxy = create_default_proxy()
+        raw_secret = "sk_live_metaSecret1234567890"
+
+        status, payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "hello"}],
+                "metadata": {"mock_response": raw_secret},
+            },
+        )
+        audit_status, audit_payload = proxy.handle(method="GET", path="/audit/recent", body={})
+
+        self.assertEqual(400, status)
+        self.assertIn("credential-shaped", payload["error"])
+        self.assertIn("metadata.mock_response", payload["error"])
+        self.assertNotIn(raw_secret, str(payload))
+        self.assertEqual(200, audit_status)
+        self.assertEqual([], audit_payload["events"])
+
     def test_chat_completions_route_detects_planted_canary_direct_leak(self) -> None:
         proxy = create_default_proxy()
 
@@ -85,6 +123,12 @@ class MockProxyAppTest(unittest.TestCase):
         leaked_output = payload["choices"][0]["message"]["content"]
         self.assertIn("ghp_", leaked_output)
         self.assertEqual("escalate", payload["aegis"]["policy_decision"]["final_action"])
+        runtime_trace = payload["aegis"]["runtime_trace"]
+        dp_honey_stage = _single_runtime_stage(runtime_trace, "dp_honey")
+        provider_stage = _single_runtime_stage(runtime_trace, "provider")
+        self.assertEqual("active", dp_honey_stage["status"])
+        self.assertEqual(1, dp_honey_stage["canary_count"])
+        self.assertEqual("completed", provider_stage["status"])
         text_results = [
             result for result in payload["aegis"]["detector_results"] if result["detector_name"] == "text_canary"
         ]
@@ -101,7 +145,39 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual(1, len(normalized_turn["sensitive_spans"]))
         self.assertEqual(1, normalized_turn["metadata"]["dp_honey_canary_count"])
 
-    def test_chat_completions_route_does_not_leak_unplanted_credential_shaped_text(self) -> None:
+    def test_chat_completions_route_blocks_raw_credential_before_provider_and_redacts_audit(self) -> None:
+        proxy = create_default_proxy()
+        raw_secret = "sk_live_rawSecret1234567890"
+
+        status, payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": f"please echo {raw_secret}"}],
+                "metadata": {
+                    "session_id": "session-raw-egress",
+                    "trace_id": "trace-raw-egress",
+                    "mock_response_mode": "echo_last_user",
+                },
+            },
+        )
+        audit_status, audit_payload = proxy.handle(method="GET", path="/audit/recent", body={})
+
+        self.assertEqual(200, status)
+        self.assertEqual("", payload["choices"][0]["message"]["content"])
+        self.assertEqual("block", payload["aegis"]["policy_decision"]["final_action"])
+        self.assertEqual(("provider_egress_guard",), tuple(payload["aegis"]["policy_decision"]["triggered_detectors"]))
+        self.assertEqual("skipped", _single_runtime_stage(payload["aegis"]["runtime_trace"], "provider")["status"])
+        guard_result = _single_detector_result(payload, "provider_egress_guard")
+        self.assertEqual("blocked_sensitive_value_before_provider_egress", guard_result["evidence"]["reason"])
+        self.assertNotIn(raw_secret, str(payload))
+        self.assertEqual(200, audit_status)
+        self.assertNotIn(raw_secret, str(audit_payload))
+        audit_message = audit_payload["events"][0]["normalized_turn"]["messages"][0]["content"]
+        self.assertIn("[REDACTED_SENSITIVE]", audit_message)
+
+    def test_chat_completions_route_blocks_unplanted_credential_shaped_text_before_provider(self) -> None:
         proxy = create_default_proxy()
 
         status, payload = proxy.handle(
@@ -122,13 +198,13 @@ class MockProxyAppTest(unittest.TestCase):
         )
 
         self.assertEqual(200, status)
-        self.assertEqual("Aegis mock response.", payload["choices"][0]["message"]["content"])
-        self.assertEqual("allow", payload["aegis"]["policy_decision"]["final_action"])
-        nimbus_results = [
-            result for result in payload["aegis"]["detector_results"] if result["detector_name"] == "nimbus"
-        ]
-        self.assertEqual(1, len(nimbus_results))
-        self.assertEqual("unavailable", nimbus_results[0]["capability_status"])
+        self.assertEqual("", payload["choices"][0]["message"]["content"])
+        self.assertEqual("block", payload["aegis"]["policy_decision"]["final_action"])
+        self.assertEqual(("provider_egress_guard",), tuple(payload["aegis"]["policy_decision"]["triggered_detectors"]))
+        self.assertEqual("skipped", _single_runtime_stage(payload["aegis"]["runtime_trace"], "provider")["status"])
+        guard_result = _single_detector_result(payload, "provider_egress_guard")
+        self.assertEqual("blocked_sensitive_value_before_provider_egress", guard_result["evidence"]["reason"])
+        self.assertNotIn("ghp_realLookingToken1234567890", str(payload))
 
     def test_chat_completions_route_detects_planted_canary_encoded_leak(self) -> None:
         proxy = create_default_proxy()
@@ -279,6 +355,16 @@ def _single_detector_result(payload: dict[str, object], detector_name: str) -> d
     ]
     if len(matches) != 1:
         raise AssertionError(f"expected one detector result for {detector_name}, got {len(matches)}.")
+    return matches[0]
+
+
+def _single_runtime_stage(runtime_trace: dict[str, object], stage_name: str) -> dict[str, object]:
+    stages = runtime_trace["stages"]
+    if not isinstance(stages, list):
+        raise AssertionError("runtime_trace.stages must be a list.")
+    matches = [stage for stage in stages if isinstance(stage, dict) and stage.get("stage") == stage_name]
+    if len(matches) != 1:
+        raise AssertionError(f"expected one runtime stage named {stage_name}.")
     return matches[0]
 
 

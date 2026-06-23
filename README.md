@@ -54,6 +54,7 @@ chat request
   -> NormalizedTurn
   -> turn annotators
   -> pre-generation detectors
+  -> provider egress guard
   -> model provider
   -> post-generation detectors
   -> session detectors
@@ -110,6 +111,16 @@ GET  /audit/recent
 POST /test/reset
 ```
 
+Run the proxy smoke test from another terminal after the development proxy is
+listening:
+
+```bash
+uv run aegis-proxy-smoke --url http://127.0.0.1:8000 --timeout 5
+```
+
+The smoke command checks health, a benign chat turn, an encoded DP-HONEY leak
+turn, and audit readback. It exits nonzero if the gateway contract is broken.
+
 Send one local chat request:
 
 ```bash
@@ -125,7 +136,7 @@ curl -s http://127.0.0.1:8000/v1/chat/completions \
 Redteam scenarios should target the HTTP surface first. For pre-server tests,
 use the mock proxy only inside Aegis unit tests. The separate redteam repo
 should treat Aegis as a black-box HTTP target and inspect the assistant response
-plus the `aegis` detector/policy block.
+plus the `aegis` detector/policy/trace block.
 
 The development proxy supports deterministic mock response controls through
 request metadata:
@@ -160,6 +171,13 @@ outputs in the `aegis` block. Use `POST /test/reset` with a JSON body such as
 `{"session_id": "session-local-1"}` between redteam runs to clear recent audit
 events and reset that NIMBUS session. This route is a local development/testing
 affordance, not a production API.
+
+Every chat response includes an additive `aegis.runtime_trace` object with
+schema version `aegis.runtime_trace/v1`. The trace summarizes the ordered stages:
+normalize, DP-HONEY, CIFT, provider egress guard, provider, canary, NIMBUS,
+policy, and audit. It contains detector names, statuses, provider/model
+identifiers, counts, and actions only; it does not include raw secrets, canary
+values, feature vectors, or model output.
 
 Fetch recent audit events:
 

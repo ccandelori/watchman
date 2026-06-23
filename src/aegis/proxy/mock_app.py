@@ -1,13 +1,22 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from uuid import uuid4
 
 from aegis.audit.memory import InMemoryAuditSink
 from aegis.canaries.ledger import HoneytokenLedger, default_honeytoken_generator, inject_honeytokens
-from aegis.core.contracts import CapabilityMode, JsonValue, Message, ModelInfo
-from aegis.core.orchestrator import AegisRuntime, Detector, ModelProvider, RuntimeRequest
+from aegis.core.contracts import (
+    CapabilityMode,
+    DetectorComponent,
+    DetectorResult,
+    JsonValue,
+    Message,
+    ModelInfo,
+    SensitiveSpan,
+)
+from aegis.core.orchestrator import AegisRuntime, AegisRuntimeResponse, Detector, ModelProvider, RuntimeRequest
 from aegis.detectors.activation import ActivationUnavailableDetector
 from aegis.detectors.canary import (
     CanaryRecord,
@@ -15,7 +24,9 @@ from aegis.detectors.canary import (
     InMemoryCanaryRegistry,
     NoopCanaryDetector,
     TextCanaryDetector,
+    canary_sha256,
 )
+from aegis.detectors.egress import ProviderEgressGuardDetector
 from aegis.detectors.nimbus import (
     CanaryNimbusCritic,
     CanaryNimbusCriticConfig,
@@ -25,6 +36,8 @@ from aegis.detectors.nimbus import (
 )
 from aegis.policy.engine import SeverityPolicyEngine
 from aegis.providers.mock import SUPPORTED_MOCK_RESPONSE_MODES, MockModelProvider
+
+_RAW_CREDENTIAL_PATTERN = re.compile(r"(?:AKIA|ghp_|ya29\.|sk_live_|sk-|hny_)[A-Za-z0-9._-]{8,}")
 
 
 class ProxyRequestError(ValueError):
@@ -104,6 +117,7 @@ class MockProxyApp:
             ],
             "aegis": {
                 "trace_id": request.trace_id,
+                "runtime_trace": _runtime_trace(request=request, response=response),
                 "policy_decision": response.policy_decision.to_dict(),
                 "detector_results": [result.to_dict() for result in response.detector_results],
             },
@@ -112,7 +126,7 @@ class MockProxyApp:
     def _runtime_for_canary_records(self, canary_records: tuple[CanaryRecord, ...]) -> AegisRuntime:
         return AegisRuntime(
             turn_annotators=(),
-            pre_generation_detectors=(ActivationUnavailableDetector(),),
+            pre_generation_detectors=(ActivationUnavailableDetector(), ProviderEgressGuardDetector()),
             post_generation_detectors=_post_generation_detectors(canary_records),
             session_detectors=(self._nimbus_detector,),
             policy_engine=SeverityPolicyEngine(),
@@ -146,6 +160,10 @@ def _runtime_request_from_chat_body(body: dict[str, JsonValue]) -> ProxyRuntimeR
         ),
         turn_index=turn_index,
     )
+    raw_credential_spans = _raw_credential_spans(
+        messages=injection.messages,
+        canary_records=injection.canary_records,
+    )
     metadata = _metadata_with_dp_honey_summary(metadata, injection.canary_records)
 
     return ProxyRuntimeRequest(
@@ -157,7 +175,7 @@ def _runtime_request_from_chat_body(body: dict[str, JsonValue]) -> ProxyRuntimeR
             model=ModelInfo(provider="mock", model_id=model, revision=None, selected_device=None),
             messages=injection.messages,
             tool_calls=(),
-            sensitive_spans=injection.sensitive_spans,
+            sensitive_spans=injection.sensitive_spans + raw_credential_spans,
             metadata=metadata,
         ),
         canary_records=injection.canary_records,
@@ -186,7 +204,33 @@ def _metadata_from_raw(value: object) -> dict[str, JsonValue]:
         if not isinstance(key, str):
             raise ProxyRequestError("metadata keys must be strings.")
         metadata[key] = item
+    _validate_no_raw_credentials_in_metadata(metadata)
     return metadata
+
+
+def _validate_no_raw_credentials_in_metadata(metadata: dict[str, JsonValue]) -> None:
+    paths = _credential_shaped_metadata_paths(metadata, path="metadata")
+    if len(paths) > 0:
+        joined_paths = ", ".join(paths)
+        raise ProxyRequestError(f"metadata contains credential-shaped value(s) at {joined_paths}.")
+
+
+def _credential_shaped_metadata_paths(value: JsonValue, path: str) -> tuple[str, ...]:
+    if isinstance(value, str):
+        if _RAW_CREDENTIAL_PATTERN.search(value):
+            return (path,)
+        return ()
+    if isinstance(value, list):
+        paths: list[str] = []
+        for index, item in enumerate(value):
+            paths.extend(_credential_shaped_metadata_paths(item, path=f"{path}[{index}]"))
+        return tuple(paths)
+    if isinstance(value, dict):
+        paths = []
+        for key, item in value.items():
+            paths.extend(_credential_shaped_metadata_paths(item, path=f"{path}.{key}"))
+        return tuple(paths)
+    return ()
 
 
 def _validate_mock_response_mode(metadata: Mapping[str, JsonValue]) -> None:
@@ -210,6 +254,42 @@ def _metadata_with_dp_honey_summary(
     updated["dp_honey_canary_count"] = len(canary_records)
     updated["dp_honey_canary_ids"] = [record.canary_id for record in canary_records]
     return updated
+
+
+def _raw_credential_spans(
+    messages: tuple[Message, ...],
+    canary_records: tuple[CanaryRecord, ...],
+) -> tuple[SensitiveSpan, ...]:
+    canary_hashes = frozenset(record.sha256 for record in canary_records)
+    spans: list[SensitiveSpan] = []
+    for message_index, message in enumerate(messages):
+        for match in _RAW_CREDENTIAL_PATTERN.finditer(message.content):
+            candidate = match.group(0)
+            candidate_sha256 = canary_sha256(candidate)
+            if candidate_sha256 in canary_hashes:
+                continue
+            spans.append(
+                _raw_credential_span(
+                    char_start=match.start(),
+                    char_end=match.end(),
+                    sha256=candidate_sha256,
+                    message_index=message_index,
+                )
+            )
+    return tuple(spans)
+
+
+def _raw_credential_span(char_start: int, char_end: int, sha256: str, message_index: int) -> SensitiveSpan:
+    return SensitiveSpan(
+        kind="credential",
+        source="proxy_raw_credential_scanner",
+        char_start=char_start,
+        char_end=char_end,
+        token_start=None,
+        token_end=None,
+        identifier=None,
+        metadata={"sha256": sha256, "message_index": message_index},
+    )
 
 
 def _metadata_string(metadata: Mapping[str, JsonValue], key: str, default: str) -> str:
@@ -247,6 +327,103 @@ def _post_generation_detectors(canary_records: tuple[CanaryRecord, ...]) -> tupl
         TextCanaryDetector(detector_name="text_canary", registry=registry),
         EncodedCanaryDetector(detector_name="encoded_canary", registry=registry, partial_match_threshold=0.75),
     )
+
+
+def _runtime_trace(request: RuntimeRequest, response: AegisRuntimeResponse) -> dict[str, JsonValue]:
+    detector_results = response.detector_results
+    policy_decision = response.policy_decision
+    model_response_metadata = response.model_response_metadata
+    stages: list[JsonValue] = [
+        {"stage": "normalize", "status": "ok"},
+        _dp_honey_stage(request),
+        _detector_stage(
+            stage="cift",
+            component=DetectorComponent.CIFT,
+            detector_results=detector_results,
+        ),
+        _detector_stage(
+            stage="provider_egress_guard",
+            component=DetectorComponent.TOOL_SCANNER,
+            detector_results=detector_results,
+        ),
+        _provider_stage(request=request, model_response_metadata=model_response_metadata),
+        _canary_stage(detector_results),
+        _detector_stage(
+            stage="nimbus",
+            component=DetectorComponent.NIMBUS,
+            detector_results=detector_results,
+        ),
+        {
+            "stage": "policy",
+            "status": "decided",
+            "final_action": policy_decision.final_action.value,
+        },
+        {"stage": "audit", "status": "written"},
+    ]
+    return {"schema_version": "aegis.runtime_trace/v1", "stages": stages}
+
+
+def _dp_honey_stage(request: RuntimeRequest) -> dict[str, JsonValue]:
+    canary_count = request.metadata.get("dp_honey_canary_count")
+    if not isinstance(canary_count, int):
+        canary_count = 0
+    return {
+        "stage": "dp_honey",
+        "status": "active" if canary_count > 0 else "not_configured",
+        "canary_count": canary_count,
+    }
+
+
+def _provider_stage(request: RuntimeRequest, model_response_metadata: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    provider = model_response_metadata.get("provider")
+    if not isinstance(provider, str) or provider == "":
+        provider = request.model.provider
+    status = "skipped" if provider == "skipped" else "completed"
+    stage: dict[str, JsonValue] = {
+        "stage": "provider",
+        "status": status,
+        "provider": provider,
+        "model_id": request.model.model_id,
+    }
+    reason = model_response_metadata.get("reason")
+    if isinstance(reason, str) and reason != "":
+        stage["reason"] = reason
+    return stage
+
+
+def _canary_stage(detector_results: tuple[DetectorResult, ...]) -> dict[str, JsonValue]:
+    detector_names = _detector_names_for_component(DetectorComponent.TEXT_CANARY, detector_results)
+    if len(detector_names) > 0:
+        return {"stage": "canary", "status": "active", "detectors": list(detector_names)}
+    noop_names = tuple(result.detector_name for result in detector_results if result.detector_name == "noop_canary")
+    if len(noop_names) > 0:
+        return {"stage": "canary", "status": "degraded", "detectors": list(noop_names)}
+    return {"stage": "canary", "status": "not_configured", "detectors": []}
+
+
+def _detector_stage(
+    stage: str,
+    component: DetectorComponent,
+    detector_results: tuple[DetectorResult, ...],
+) -> dict[str, JsonValue]:
+    detector_names = _detector_names_for_component(component, detector_results)
+    if len(detector_names) == 0:
+        return {"stage": stage, "status": "not_configured", "detectors": []}
+    statuses = {result.capability_status.value for result in detector_results if result.component == component}
+    if "active" in statuses:
+        status = "active"
+    elif "degraded" in statuses:
+        status = "degraded"
+    else:
+        status = "unavailable"
+    return {"stage": stage, "status": status, "detectors": list(detector_names)}
+
+
+def _detector_names_for_component(
+    component: DetectorComponent,
+    detector_results: tuple[DetectorResult, ...],
+) -> tuple[str, ...]:
+    return tuple(result.detector_name for result in detector_results if result.component == component)
 
 
 def create_default_proxy() -> MockProxyApp:
