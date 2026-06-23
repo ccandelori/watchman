@@ -12,6 +12,7 @@ from aegis.core.contracts import (
     Message,
     NormalizedTurn,
     SensitiveSpan,
+    ToolCall,
 )
 from aegis.core.orchestrator import ModelResponse
 
@@ -25,6 +26,8 @@ class EgressGuardMatch:
     identifier: str | None
     sha256: str | None
     message_role: str | None
+    tool_call_name: str | None
+    argument_path: str | None
 
     def to_dict(self) -> dict[str, JsonValue]:
         return {
@@ -33,6 +36,8 @@ class EgressGuardMatch:
             "identifier": self.identifier,
             "sha256": self.sha256,
             "message_role": self.message_role,
+            "tool_call_name": self.tool_call_name,
+            "argument_path": self.argument_path,
         }
 
 
@@ -80,7 +85,10 @@ def _blocked_egress_matches(turn: NormalizedTurn) -> tuple[EgressGuardMatch, ...
     for span in turn.sensitive_spans:
         if span.kind in _ALLOWED_PROVIDER_EGRESS_KINDS:
             continue
-        span_matches = _matches_for_span(span=span, messages=turn.messages)
+        span_matches = _matches_for_span(span=span, messages=turn.messages) + _matches_for_tool_span(
+            span=span,
+            tool_calls=turn.tool_calls,
+        )
         if len(span_matches) == 0:
             matches.append(
                 EgressGuardMatch(
@@ -89,6 +97,8 @@ def _blocked_egress_matches(turn: NormalizedTurn) -> tuple[EgressGuardMatch, ...
                     identifier=span.identifier,
                     sha256=_span_sha256(span),
                     message_role=None,
+                    tool_call_name=_tool_call_name(span),
+                    argument_path=_argument_path(span),
                 )
             )
             continue
@@ -119,9 +129,133 @@ def _matches_for_span(span: SensitiveSpan, messages: tuple[Message, ...]) -> tup
                 identifier=span.identifier,
                 sha256=expected_sha256,
                 message_role=message.role,
+                tool_call_name=None,
+                argument_path=None,
             )
         )
     return tuple(matches)
+
+
+def _matches_for_tool_span(span: SensitiveSpan, tool_calls: tuple[ToolCall, ...]) -> tuple[EgressGuardMatch, ...]:
+    tool_call_name = _tool_call_name(span)
+    argument_path = _argument_path(span)
+    if tool_call_name is None or argument_path is None:
+        return ()
+
+    expected_sha256 = _span_sha256(span)
+    matches: list[EgressGuardMatch] = []
+    for tool_call in tool_calls:
+        if tool_call.name != tool_call_name:
+            continue
+        value = _argument_path_value(arguments=tool_call.arguments, argument_path=argument_path)
+        if not isinstance(value, str):
+            continue
+        candidate = _span_candidate_from_value(span=span, value=value)
+        if candidate == "":
+            continue
+        if expected_sha256 is not None and _sha256(candidate) != expected_sha256:
+            continue
+        matches.append(
+            EgressGuardMatch(
+                span_kind=span.kind,
+                span_source=span.source,
+                identifier=span.identifier,
+                sha256=expected_sha256,
+                message_role=None,
+                tool_call_name=tool_call_name,
+                argument_path=argument_path,
+            )
+        )
+    return tuple(matches)
+
+
+def _argument_path_value(arguments: dict[str, JsonValue], argument_path: str) -> JsonValue:
+    segments = _argument_path_segments(argument_path)
+    value: JsonValue = arguments
+    for segment in segments:
+        if isinstance(segment, str):
+            if not isinstance(value, dict) or segment not in value:
+                return None
+            value = value[segment]
+            continue
+        if not isinstance(value, list) or segment < 0 or segment >= len(value):
+            return None
+        value = value[segment]
+    return value
+
+
+def _argument_path_segments(argument_path: str) -> tuple[str | int, ...]:
+    prefix = "arguments."
+    if not argument_path.startswith(prefix):
+        return ()
+    tail = argument_path[len(prefix) :]
+    if tail == "":
+        return ()
+
+    segments: list[str | int] = []
+    token = ""
+    index_token = ""
+    reading_index = False
+    needs_separator = False
+    for char in tail:
+        if reading_index:
+            if char == "]":
+                if index_token == "" or not index_token.isdigit():
+                    return ()
+                segments.append(int(index_token))
+                index_token = ""
+                reading_index = False
+                needs_separator = True
+                continue
+            index_token += char
+            continue
+
+        if char == ".":
+            if token == "" and not needs_separator:
+                return ()
+            if token != "":
+                segments.append(token)
+            token = ""
+            needs_separator = False
+            continue
+        if char == "[":
+            if token != "":
+                segments.append(token)
+                token = ""
+            needs_separator = False
+            reading_index = True
+            continue
+        if needs_separator:
+            return ()
+        token += char
+
+    if reading_index:
+        return ()
+    if token != "":
+        segments.append(token)
+    return tuple(segments)
+
+
+def _span_candidate_from_value(span: SensitiveSpan, value: str) -> str:
+    if span.char_start is None or span.char_end is None:
+        return value
+    if span.char_start < 0 or span.char_end <= span.char_start or span.char_end > len(value):
+        return ""
+    return value[span.char_start : span.char_end]
+
+
+def _tool_call_name(span: SensitiveSpan) -> str | None:
+    value = span.metadata.get("tool_call_name")
+    if isinstance(value, str) and value != "":
+        return value
+    return None
+
+
+def _argument_path(span: SensitiveSpan) -> str | None:
+    value = span.metadata.get("argument_path")
+    if isinstance(value, str) and value != "":
+        return value
+    return None
 
 
 def _span_sha256(span: SensitiveSpan) -> str | None:

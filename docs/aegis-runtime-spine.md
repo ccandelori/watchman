@@ -2,8 +2,8 @@
 
 The runtime spine is the shared boundary between proxy, SDK, detectors, policy,
 audit, dashboard, and evaluation work. The initial implementation is deliberately
-small: it proves the typed pipeline with a mock provider and leaves detector
-substance to follow-up branches.
+small: it proves the typed pipeline with a configurable provider boundary and
+leaves detector substance to follow-up branches.
 
 ## Boundary Contracts
 
@@ -22,6 +22,8 @@ records `AuditEvent` objects containing the normalized turn, detector results,
 policy decision, and runtime metadata.
 
 ## Initial Pipeline
+
+The default development pipeline uses the deterministic mock provider:
 
 ```text
 chat request
@@ -47,10 +49,25 @@ honeytoken injection.
 `ProviderEgressGuardDetector` is the first pre-provider safety invariant. It
 runs before the model provider and blocks generation when a non-honeytoken
 `SensitiveSpan` is still present in the outbound turn. Evidence contains only
-span kind, source, identifier, optional hash, role, and counts. It does not copy
-raw sensitive values into detector evidence. DP-HONEY honeytokens are allowed to
-cross the model boundary because they are deliberate decoys used to detect
-downstream leakage; raw production credentials are not.
+span kind, source, identifier, optional hash, message role, tool-call name,
+argument path, and counts. It does not copy raw sensitive values into detector
+evidence. DP-HONEY honeytokens are allowed to cross the model boundary because
+they are deliberate decoys used to detect downstream leakage; raw production
+credentials are not.
+
+Tool-call egress manifests use `SensitiveSpan.metadata.tool_call_name` and
+`SensitiveSpan.metadata.argument_path`. The argument path dialect starts at the
+tool-call argument object and supports nested dictionaries and list indexes, for
+example:
+
+```text
+arguments.token
+arguments.payload.items[1]
+arguments.payload.items[1].token
+```
+
+This lets the guard prove which tool argument carried a blocked sensitive value
+without copying the argument value into evidence or audit output.
 
 If any pre-generation detector recommends `block` or stronger, `AegisRuntime`
 skips provider generation, applies policy to the pre-generation evidence, and
@@ -69,6 +86,24 @@ User-supplied metadata is also validated at ingress. Credential-shaped strings
 in metadata, including development controls such as `mock_response`, are
 rejected before runtime construction because metadata is both provider-adjacent
 and audit-visible.
+
+## Provider Configuration
+
+`aegis.proxy.config.provider_config_from_env` is the proxy-owned provider
+boundary. It currently supports:
+
+- `AEGIS_PROVIDER=mock` for the deterministic local provider. This is the
+  default and is the only mode that accepts development mock controls in request
+  metadata.
+- `AEGIS_PROVIDER=openai_compatible` for an HTTP chat-completions provider. It
+  requires `AEGIS_OPENAI_BASE_URL` and `AEGIS_OPENAI_API_KEY`; it may also use
+  `AEGIS_OPENAI_MODEL` and `AEGIS_OPENAI_TIMEOUT_SECONDS`.
+
+The OpenAI-compatible adapter posts normalized messages to
+`/v1/chat/completions` and returns only provider metadata that is safe for the
+runtime trace: provider kind, redacted base URL, and model ID. It rejects
+mock-only request metadata before building the runtime request so redteam
+controls cannot accidentally reach a real model provider.
 
 ## DP-HONEY-Lite Honeytoken Registration
 

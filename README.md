@@ -39,8 +39,9 @@ The first runtime spine is implemented and CI-enforced:
   primary coverage and payload/query readout as degraded fallback evidence.
 - A runtime-native `NimbusDetector` with a canary-aware critic that estimates
   exact, encoded, and partial canary leakage bits into a per-session budget.
-- A mock OpenAI-compatible proxy surface for `/health`,
-  `/v1/chat/completions`, and `/audit/recent`.
+- A development OpenAI-compatible proxy surface for `/health`,
+  `/v1/chat/completions`, and `/audit/recent`, with a mock provider by
+  default and an OpenAI-compatible HTTP provider adapter behind env config.
 - Mandatory CI gates for linting, formatting, strict typing, import-boundary
   checks, and tests with coverage.
 
@@ -110,6 +111,24 @@ POST /v1/chat/completions
 GET  /audit/recent
 POST /test/reset
 ```
+
+By default, `aegis-proxy` runs with the deterministic mock provider. To point
+the development proxy at an OpenAI-compatible model endpoint, configure the
+provider explicitly:
+
+```bash
+AEGIS_PROVIDER=openai_compatible \
+AEGIS_OPENAI_BASE_URL=https://api.openai.com \
+AEGIS_OPENAI_API_KEY="$OPENAI_API_KEY" \
+AEGIS_OPENAI_MODEL=gpt-4.1-mini \
+uv run aegis-proxy --host 127.0.0.1 --port 8000
+```
+
+`AEGIS_OPENAI_BASE_URL` may be the service root, `/v1`, or the full
+`/v1/chat/completions` endpoint. Mock controls such as `mock_response` and
+`mock_response_mode` are accepted only when `AEGIS_PROVIDER=mock`; the proxy
+rejects them for real providers so redteam-only controls cannot cross the
+provider boundary.
 
 Run the proxy smoke test from another terminal after the development proxy is
 listening:
@@ -320,6 +339,10 @@ New runtime work must preserve the spine boundaries:
   payload/query readout is degraded fallback coverage and must be labeled as
   such in detector evidence.
 - DP-HONEY injection/registration and canary detection remain separate stages.
+- Tool-call sensitive spans should carry `metadata.tool_call_name` and
+  `metadata.argument_path` using the `arguments.payload.items[1]` path dialect.
+  The provider egress guard may report those handles as evidence, but never raw
+  argument values.
 - NIMBUS-style detectors emit cumulative session risk as ordinary
   `DetectorResult` values; policy still owns the final action.
 - The canonical NIMBUS runtime path is `NimbusDetector` plus a `NimbusCritic`.

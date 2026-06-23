@@ -35,7 +35,8 @@ from aegis.detectors.nimbus import (
     NimbusDetector,
 )
 from aegis.policy.engine import SeverityPolicyEngine
-from aegis.providers.mock import SUPPORTED_MOCK_RESPONSE_MODES, MockModelProvider
+from aegis.providers.mock import SUPPORTED_MOCK_RESPONSE_MODES
+from aegis.proxy.config import provider_config_from_env
 
 _RAW_CREDENTIAL_PATTERN = re.compile(r"(?:AKIA|ghp_|ya29\.|sk_live_|sk-|hny_)[A-Za-z0-9._-]{8,}")
 
@@ -57,11 +58,15 @@ class MockProxyApp:
         nimbus_detector: NimbusDetector,
         nimbus_critic: CanaryNimbusCritic,
         model_provider: ModelProvider,
+        provider_name: str,
+        mock_controls_enabled: bool,
     ) -> None:
         self._audit_sink = audit_sink
         self._nimbus_detector = nimbus_detector
         self._nimbus_critic = nimbus_critic
         self._model_provider = model_provider
+        self._provider_name = provider_name
+        self._mock_controls_enabled = mock_controls_enabled
 
     def handle(self, method: str, path: str, body: dict[str, JsonValue]) -> tuple[int, dict[str, JsonValue]]:
         if method == "GET" and path == "/health":
@@ -96,7 +101,11 @@ class MockProxyApp:
         }
 
     def _handle_chat_completions(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
-        proxy_request = _runtime_request_from_chat_body(body)
+        proxy_request = _runtime_request_from_chat_body(
+            body=body,
+            provider_name=self._provider_name,
+            mock_controls_enabled=self._mock_controls_enabled,
+        )
         request = proxy_request.runtime_request
         self._nimbus_critic.register_canary_records(
             session_id=request.session_id,
@@ -135,7 +144,11 @@ class MockProxyApp:
         )
 
 
-def _runtime_request_from_chat_body(body: dict[str, JsonValue]) -> ProxyRuntimeRequest:
+def _runtime_request_from_chat_body(
+    body: dict[str, JsonValue],
+    provider_name: str,
+    mock_controls_enabled: bool,
+) -> ProxyRuntimeRequest:
     model = body.get("model")
     if not isinstance(model, str) or model == "":
         raise ProxyRequestError("field 'model' must be a non-empty string.")
@@ -146,7 +159,7 @@ def _runtime_request_from_chat_body(body: dict[str, JsonValue]) -> ProxyRuntimeR
 
     messages = tuple(_message_from_raw(item) for item in raw_messages)
     metadata = _metadata_from_raw(body.get("metadata"))
-    _validate_mock_response_mode(metadata)
+    _validate_provider_metadata(metadata=metadata, mock_controls_enabled=mock_controls_enabled)
     trace_id = _metadata_string(metadata, "trace_id", f"trace-{uuid4().hex}")
     session_id = _metadata_string(metadata, "session_id", f"session-{uuid4().hex}")
     turn_index = _metadata_int(metadata, "turn_index", 1)
@@ -172,7 +185,7 @@ def _runtime_request_from_chat_body(body: dict[str, JsonValue]) -> ProxyRuntimeR
             session_id=session_id,
             turn_index=turn_index,
             capability_mode=CapabilityMode.BLACK_BOX,
-            model=ModelInfo(provider="mock", model_id=model, revision=None, selected_device=None),
+            model=ModelInfo(provider=provider_name, model_id=model, revision=None, selected_device=None),
             messages=injection.messages,
             tool_calls=(),
             sensitive_spans=injection.sensitive_spans + raw_credential_spans,
@@ -231,6 +244,21 @@ def _credential_shaped_metadata_paths(value: JsonValue, path: str) -> tuple[str,
             paths.extend(_credential_shaped_metadata_paths(item, path=f"{path}.{key}"))
         return tuple(paths)
     return ()
+
+
+def _validate_provider_metadata(metadata: Mapping[str, JsonValue], mock_controls_enabled: bool) -> None:
+    if not mock_controls_enabled:
+        _reject_mock_controls(metadata)
+        return
+    _validate_mock_response_mode(metadata)
+
+
+def _reject_mock_controls(metadata: Mapping[str, JsonValue]) -> None:
+    blocked_keys = tuple(key for key in ("mock_response", "mock_response_mode") if key in metadata)
+    if len(blocked_keys) == 0:
+        return
+    joined_keys = ", ".join(blocked_keys)
+    raise ProxyRequestError(f"metadata field(s) {joined_keys} are only supported by the mock provider.")
 
 
 def _validate_mock_response_mode(metadata: Mapping[str, JsonValue]) -> None:
@@ -428,6 +456,7 @@ def _detector_names_for_component(
 
 def create_default_proxy() -> MockProxyApp:
     audit_sink = InMemoryAuditSink()
+    provider_config = provider_config_from_env()
     nimbus_critic = CanaryNimbusCritic(
         CanaryNimbusCriticConfig(
             exact_match_leakage_bits=1.0,
@@ -453,5 +482,7 @@ def create_default_proxy() -> MockProxyApp:
         audit_sink=audit_sink,
         nimbus_detector=nimbus_detector,
         nimbus_critic=nimbus_critic,
-        model_provider=MockModelProvider(default_content="Aegis mock response."),
+        model_provider=provider_config.model_provider,
+        provider_name=provider_config.provider_name,
+        mock_controls_enabled=provider_config.mock_controls_enabled,
     )
