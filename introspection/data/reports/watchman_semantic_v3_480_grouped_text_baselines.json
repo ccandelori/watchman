@@ -1,0 +1,45 @@
+{
+  "task_name": "safe_secret_vs_exfiltration",
+  "evaluation_strategy": "stratified_group_kfold",
+  "fold_count": 5,
+  "methods": [
+    {
+      "method_name": "word_tfidf",
+      "feature_name": "word_tfidf_1_2",
+      "example_count": 480,
+      "macro_f1_mean": 0.49084866587108156,
+      "macro_f1_std": 0.03459353569704145,
+      "accuracy_mean": 0.4925,
+      "accuracy_std": 0.03539460096932551,
+      "confusion_matrix": [
+        [
+          112,
+          128
+        ],
+        [
+          117,
+          123
+        ]
+      ]
+    },
+    {
+      "method_name": "char_tfidf",
+      "feature_name": "char_wb_tfidf_3_5",
+      "example_count": 480,
+      "macro_f1_mean": 0.4955165143131904,
+      "macro_f1_std": 0.04107684453400514,
+      "accuracy_mean": 0.4966666666666667,
+      "accuracy_std": 0.042278836313219416,
+      "confusion_matrix": [
+        [
+          121,
+          119
+        ],
+        [
+          124,
+          116
+        ]
+      ]
+    }
+  ]
+}

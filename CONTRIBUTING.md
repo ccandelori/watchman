@@ -67,3 +67,35 @@ The normal CIFT promotion path is:
 Generated trace data, local worktrees, OCR assets, pycache files, and raw model
 or activation artifacts are not valid runtime PR contents. The artifact-boundary
 gate enforces the high-risk cases for tracked files.
+
+## Parallel Work Lanes
+
+Parallel work is welcome only when each lane owns a clear boundary. A pull
+request should identify which of these surfaces it touches:
+
+- runtime contracts and orchestration
+- DP-HONEY injection, canary registry, or canary detection
+- CIFT feature extraction, artifact promotion, or runtime scoring
+- NIMBUS critic, session state, or cumulative leakage scoring
+- proxy, SDK, audit, dashboard, or evaluation harness
+
+Contributor branches should avoid mixing unrelated lanes. If a branch must
+cross lanes, the PR description should name the crossing explicitly and include
+tests at the boundary. For example, a CIFT promotion may update an
+introspection report, a runtime-safe artifact fixture, and a detector adapter
+test, but it should not also change policy semantics unless the policy change
+is the point of the PR.
+
+Research outputs are not runtime dependencies. CIFT `.pt` files, training
+pickles, generated trace JSONL files, and large local corpora stay untracked.
+Promoted runtime state should be small, typed, reviewable, and loaded through a
+runtime adapter without importing `aegis_introspection`.
+
+Every detector lane must cover all capability modes it claims to support:
+
+- active evidence when the required capability is present
+- degraded evidence when configured but missing recoverable runtime input
+- unavailable evidence when the runtime mode or missing required context cannot
+  support the detector
+
+No detector should disappear silently.

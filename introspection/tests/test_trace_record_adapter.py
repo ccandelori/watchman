@@ -10,6 +10,14 @@ from aegis_introspection.trace_record_adapter import (
     structured_prompt_records_from_trace_records,
 )
 
+from aegis.core.contracts import CapabilityMode, ModelInfo
+from aegis.trace_collection.harness import (
+    build_paired_semantic_indirection_v3_seed_trace_collection_submissions,
+    build_trace_collection_assignments,
+    build_trace_collection_records_from_submissions,
+)
+from aegis.trace_collection.tasks import default_trace_collection_tasks
+
 
 class WhitespaceOffsetEncoder:
     def encode_offsets(self, text: str) -> tuple[TokenOffset, ...]:
@@ -31,6 +39,10 @@ class WhitespaceOffsetEncoder:
 def _secret_span(content: str, secret_value: str) -> tuple[int, int]:
     start = content.index(secret_value)
     return (start, start + len(secret_value))
+
+
+def _model() -> ModelInfo:
+    return ModelInfo(provider="mock", model_id="mock-model", revision=None, selected_device=None)
 
 
 def _safe_secret_record() -> dict[str, object]:
@@ -377,6 +389,65 @@ class TraceRecordAdapterTest(unittest.TestCase):
         self.assertEqual("Select route alpha", rendered_prompt[selected_start:selected_end])
         parsed = parse_structured_prompt_example(prompt_record, 1)
 
+        self.assertIsNotNone(parsed.selected_choice_token_span)
+        self.assertIsNotNone(parsed.selected_choice_readout_token_indices)
+        assert parsed.selected_choice_readout_token_indices is not None
+        self.assertGreaterEqual(len(parsed.selected_choice_readout_token_indices), 1)
+        self.assertLessEqual(len(parsed.selected_choice_readout_token_indices), 4)
+
+    def test_semantic_indirection_v3_trace_uses_explicit_selected_choice_metadata(self) -> None:
+        tasks = default_trace_collection_tasks()
+        assignments = build_trace_collection_assignments(participant_ids=("alice",), tasks=tasks)
+        submissions = build_paired_semantic_indirection_v3_seed_trace_collection_submissions(
+            assignments=assignments,
+            tasks=tasks,
+            variants_per_label=1,
+        )
+        records = build_trace_collection_records_from_submissions(
+            assignments=assignments,
+            submissions=submissions,
+            tasks=tasks,
+            model=_model(),
+            capability_mode=CapabilityMode.OFFLINE_EVAL,
+        )
+        source_record = next(record for record in records if record.label != "benign")
+        source_encoded = source_record.to_dict()
+        turn = source_encoded["normalized_turn"]
+        self.assertIsInstance(turn, dict)
+        assert isinstance(turn, dict)
+        metadata = turn["metadata"]
+        self.assertIsInstance(metadata, dict)
+        assert isinstance(metadata, dict)
+        cift = metadata["cift"]
+        self.assertIsInstance(cift, dict)
+        assert isinstance(cift, dict)
+        selected_choice = cift["selected_choice"]
+        self.assertIsInstance(selected_choice, dict)
+        assert isinstance(selected_choice, dict)
+        selected_text = selected_choice["text"]
+        self.assertIsInstance(selected_text, str)
+        assert isinstance(selected_text, str)
+
+        encoder: TokenOffsetEncoder = WhitespaceOffsetEncoder()
+        result = structured_prompt_records_from_trace_records(
+            records=(source_encoded,),
+            encoder=encoder,
+            config=TracePromptConversionConfig(readout_token_count=4),
+        )
+
+        self.assertEqual(1, len(result.records))
+        self.assertEqual(0, len(result.skipped_records))
+        prompt_record = result.records[0].to_dict()
+        rendered_prompt = str(prompt_record["rendered_prompt"])
+        selected_choice_char_span = prompt_record["selected_choice_char_span"]
+        self.assertIsInstance(selected_choice_char_span, list)
+        assert isinstance(selected_choice_char_span, list)
+        selected_start = selected_choice_char_span[0]
+        selected_end = selected_choice_char_span[1]
+        self.assertEqual(selected_text, rendered_prompt[selected_start:selected_end])
+        parsed = parse_structured_prompt_example(prompt_record, 1)
+
+        self.assertIsNone(parsed.fallback_reason)
         self.assertIsNotNone(parsed.selected_choice_token_span)
         self.assertIsNotNone(parsed.selected_choice_readout_token_indices)
         assert parsed.selected_choice_readout_token_indices is not None

@@ -216,6 +216,12 @@ New runtime work must preserve the spine boundaries:
   evidence, not raw production secrets.
 - Generated trace data, local worktrees, OCR assets, pycache files, and raw
   model or activation artifacts should not be committed into runtime paths.
+- Parallel branches should name the lane they own: runtime spine, DP-HONEY,
+  CIFT, NIMBUS, proxy/SDK, audit, dashboard, or eval. Cross-lane changes need
+  explicit adapter tests and should be called out in the pull request.
+- Research artifacts become runtime inputs only after promotion into small,
+  typed, reviewable artifacts or fixtures. Runtime code should not import
+  `aegis_introspection` or load training pickles directly.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before adding detector, policy, proxy, or
 adapter code.

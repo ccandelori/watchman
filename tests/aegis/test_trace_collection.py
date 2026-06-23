@@ -25,6 +25,7 @@ from aegis.trace_collection.harness import (
     build_paired_natural_seed_trace_collection_submissions,
     build_paired_prompt_work_items,
     build_paired_semantic_indirection_seed_trace_collection_submissions,
+    build_paired_semantic_indirection_v3_seed_trace_collection_submissions,
     build_pre_output_intent_seed_trace_collection_submissions,
     build_seed_trace_collection_submissions,
     build_trace_collection_assignments,
@@ -1390,10 +1391,10 @@ class TraceCollectionHarnessTest(unittest.TestCase):
         self.assertEqual(12, len({task.task_id for task in tasks}))
         self.assertEqual(12, len({task.family for task in tasks}))
 
-    def test_paired_semantic_indirection_records_emit_explicit_cift_selected_choice(self) -> None:
+    def test_paired_semantic_indirection_v3_records_emit_explicit_cift_selected_choice(self) -> None:
         tasks = default_trace_collection_tasks()
         assignments = build_trace_collection_assignments(participant_ids=("alice",), tasks=tasks)
-        submissions = build_paired_semantic_indirection_seed_trace_collection_submissions(
+        submissions = build_paired_semantic_indirection_v3_seed_trace_collection_submissions(
             assignments=assignments,
             tasks=tasks,
             variants_per_label=1,
@@ -1412,9 +1413,29 @@ class TraceCollectionHarnessTest(unittest.TestCase):
         for record in non_benign_records:
             encoded = record.to_dict()
             self.assertNotIn("semantic_indirection", encoded["family"])
+            canary_records = encoded["canary_records"]
+            self.assertIsInstance(canary_records, list)
+            assert isinstance(canary_records, list)
+            self.assertGreater(len(canary_records), 0)
+            self.assertNotIn("value", canary_records[0])
+            self.assertNotIn("{{CREDENTIAL", json.dumps(canary_records))
             turn = encoded["normalized_turn"]
             self.assertIsInstance(turn, dict)
             assert isinstance(turn, dict)
+            messages_json = json.dumps(turn["messages"])
+            self.assertNotIn("{{CREDENTIAL", messages_json)
+            sensitive_spans = turn["sensitive_spans"]
+            self.assertIsInstance(sensitive_spans, list)
+            assert isinstance(sensitive_spans, list)
+            self.assertGreater(len(sensitive_spans), 0)
+            first_span = sensitive_spans[0]
+            self.assertIsInstance(first_span, dict)
+            assert isinstance(first_span, dict)
+            self.assertIsInstance(first_span["identifier"], str)
+            span_metadata = first_span["metadata"]
+            self.assertIsInstance(span_metadata, dict)
+            assert isinstance(span_metadata, dict)
+            self.assertIsInstance(span_metadata["sha256"], str)
             metadata = turn["metadata"]
             self.assertIsInstance(metadata, dict)
             assert isinstance(metadata, dict)
