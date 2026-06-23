@@ -130,6 +130,9 @@ class NimbusStateStore(Protocol):
     def destroy(self, session_id: str) -> None:
         """Remove NIMBUS state for a completed session."""
 
+    def clear(self) -> None:
+        """Remove all NIMBUS session state."""
+
 
 @dataclass(frozen=True)
 class BaselineNimbusCritic:
@@ -185,6 +188,9 @@ class CanaryNimbusCritic:
 
     def destroy_session(self, session_id: str) -> None:
         self._records_by_session_id.pop(session_id, None)
+
+    def clear(self) -> None:
+        self._records_by_session_id.clear()
 
     def score_turn(self, critic_input: NimbusCriticInput) -> NimbusCriticScore:
         records = self._records_by_session_id.get(critic_input.session_id, ())
@@ -255,6 +261,9 @@ class InMemoryNimbusStateStore:
     def destroy(self, session_id: str) -> None:
         _validate_session_id(session_id)
         self._store.pop(session_id, None)
+
+    def clear(self) -> None:
+        self._store.clear()
 
 
 class NimbusDetector:
@@ -348,6 +357,9 @@ class NimbusDetector:
 
     def destroy_session(self, session_id: str) -> None:
         self._state_store.destroy(session_id)
+
+    def clear(self) -> None:
+        self._state_store.clear()
 
 
 class NimbusLeakageDetector:

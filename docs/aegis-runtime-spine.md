@@ -87,6 +87,11 @@ in metadata, including development controls such as `mock_response`, are
 rejected before runtime construction because metadata is both provider-adjacent
 and audit-visible.
 
+Client metadata may not use Aegis-owned prefixes such as `aegis_`, `cift_`,
+`dp_honey_`, or `nimbus_`. Those keys are reserved for runtime-derived state.
+Rejecting them at ingress prevents a black-box client from spoofing trace or
+detector state such as `dp_honey_canary_count`.
+
 ## Provider Configuration
 
 `aegis.proxy.config.provider_config_from_env` is the proxy-owned provider
@@ -104,6 +109,51 @@ The OpenAI-compatible adapter posts normalized messages to
 runtime trace: provider kind, redacted base URL, and model ID. It rejects
 mock-only request metadata before building the runtime request so redteam
 controls cannot accidentally reach a real model provider.
+
+## HTTP Redteam Contract V1
+
+The development proxy exposes a small black-box contract for external redteam
+tools:
+
+```text
+GET  /health
+GET  /aegis/capabilities
+POST /v1/chat/completions
+GET  /audit/recent
+POST /test/reset
+```
+
+`/aegis/capabilities` returns schema version
+`aegis.proxy_capabilities/v1`. It reports the provider name, whether mock
+controls are enabled, supported mock response modes, route names, detector
+names, and the current response/error schema versions. Redteam tools should use
+this route to decide whether mock-only probes are available.
+
+Proxy-owned request and provider errors use schema version
+`aegis.proxy_error/v1`:
+
+```json
+{
+  "error": {
+    "schema_version": "aegis.proxy_error/v1",
+    "code": "invalid_request",
+    "message": "...",
+    "details": {}
+  }
+}
+```
+
+Transport and validation errors use non-2xx HTTP status codes. Aegis policy
+decisions, including `block` and `escalate`, remain successful chat responses
+with HTTP `200`; clients must read `aegis.policy_decision.final_action`.
+
+`GET /audit/recent` accepts optional `session_id` and `limit` query parameters.
+It returns newest-first events and schema version `aegis.audit_recent/v1`.
+
+`POST /test/reset` is development-only. An empty JSON object clears all
+in-memory audit and NIMBUS/canary session state. A body with `session_id`
+clears only that NIMBUS/canary session and that session's audit events. The
+response uses schema version `aegis.test_reset/v1`.
 
 ## DP-HONEY-Lite Honeytoken Registration
 
