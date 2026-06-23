@@ -173,6 +173,14 @@ Summarize NIMBUS behavior from external redteam JSONL results:
 uv run aegis-nimbus-report --input ../watchman-redteam/results/aegis-local.jsonl
 ```
 
+Generate a local in-process NIMBUS fixture JSONL when the external redteam
+runner is not available:
+
+```bash
+uv run aegis-nimbus-fixtures --output /tmp/aegis-nimbus-fixtures.jsonl
+uv run aegis-nimbus-report --input /tmp/aegis-nimbus-fixtures.jsonl
+```
+
 The report reads detector and policy metadata only. It distinguishes immediate
 public canary detectors from NIMBUS critic evidence, so partial leakage can be
 understood even when `encoded_canary` does not trigger on a single turn. See
