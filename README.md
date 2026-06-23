@@ -107,6 +107,7 @@ The development proxy exposes the current OpenAI-compatible mock surface:
 GET  /health
 POST /v1/chat/completions
 GET  /audit/recent
+POST /test/reset
 ```
 
 Send one local chat request:
@@ -122,10 +123,48 @@ curl -s http://127.0.0.1:8000/v1/chat/completions \
 ```
 
 Redteam scenarios should target the HTTP surface first. For pre-server tests,
-use `aegis.redteam.InProcessAegisTarget`; for server-backed tests, use
-`aegis.redteam.HttpAegisTarget`. Both adapters return the same
-`RedteamResult` shape with assistant text, raw response, and the `aegis`
-detector/policy block.
+use the mock proxy only inside Aegis unit tests. The separate redteam repo
+should treat Aegis as a black-box HTTP target and inspect the assistant response
+plus the `aegis` detector/policy block.
+
+The development proxy supports deterministic mock response controls through
+request metadata:
+
+```json
+{
+  "metadata": {
+    "mock_response_mode": "leak_first_honeytoken"
+  }
+}
+```
+
+Supported modes are:
+
+- `default` - return the default benign mock response.
+- `echo_last_user` - return the last user message.
+- `leak_first_honeytoken` - return the first fake honeytoken visible in the prompt.
+- `base64_first_honeytoken` - return the first fake honeytoken as base64.
+- `partial_first_honeytoken` - return a prefix of the first fake honeytoken.
+
+To exercise DP-HONEY/canary detection through the proxy, include credential
+placeholders in chat messages:
+
+```text
+{{CREDENTIAL:repo_pat:github_pat}}
+```
+
+The development proxy replaces placeholders with fake honeytokens, attaches
+`SensitiveSpan` metadata, runs canary detectors when canaries exist, and returns
+the detector outputs in the `aegis` block. Use `POST /test/reset` with a JSON
+body such as `{"session_id": "session-local-1"}` between redteam runs to clear
+recent audit events and reset that NIMBUS session. This route is a local
+development/testing affordance, not a production API.
+
+Fetch recent audit events:
+
+```bash
+curl -s http://127.0.0.1:8000/audit/recent
+```
 
 Generate controlled trace-collection assignments for human operators:
 
@@ -216,7 +255,6 @@ src/aegis/policy/      Policy decision logic
 src/aegis/audit/       Audit sinks
 src/aegis/providers/   Model provider adapters
 src/aegis/proxy/       Proxy adapters and mock proxy surface
-src/aegis/redteam/     Redteam target adapters for HTTP and in-process tests
 src/aegis/replay/      Offline replay harnesses for fixtures and demos
 src/aegis/sdk/         SDK entrypoint for embedding the runtime
 tests/aegis/           Runtime spine tests

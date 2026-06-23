@@ -26,24 +26,37 @@ def create_http_app(proxy: MockProxyApp) -> FastAPI:
 
     @app.post("/v1/chat/completions")
     async def chat_completions(request: Request) -> JSONResponse:
-        try:
-            raw_body = await request.json()
-        except JSONDecodeError:
-            return JSONResponse(status_code=400, content={"error": "Request body must be valid JSON."})
-        if not isinstance(raw_body, dict):
-            return JSONResponse(status_code=400, content={"error": "Request body must be a JSON object."})
-        body = cast(dict[str, JsonValue], raw_body)
+        body = await _request_json_object(request)
+        if isinstance(body, JSONResponse):
+            return body
         return _proxy_response(proxy, method="POST", path="/v1/chat/completions", body=body)
 
     @app.get("/audit/recent")
     def audit_recent() -> JSONResponse:
         return _proxy_response(proxy, method="GET", path="/audit/recent", body={})
 
+    @app.post("/test/reset")
+    async def test_reset(request: Request) -> JSONResponse:
+        body = await _request_json_object(request)
+        if isinstance(body, JSONResponse):
+            return body
+        return _proxy_response(proxy, method="POST", path="/test/reset", body=body)
+
     return app
 
 
 def create_default_http_app() -> FastAPI:
     return create_http_app(create_default_proxy())
+
+
+async def _request_json_object(request: Request) -> dict[str, JsonValue] | JSONResponse:
+    try:
+        raw_body = await request.json()
+    except JSONDecodeError:
+        return JSONResponse(status_code=400, content={"error": "Request body must be valid JSON."})
+    if not isinstance(raw_body, dict):
+        return JSONResponse(status_code=400, content={"error": "Request body must be a JSON object."})
+    return cast(dict[str, JsonValue], raw_body)
 
 
 def _proxy_response(proxy: MockProxyApp, method: str, path: str, body: dict[str, JsonValue]) -> JSONResponse:

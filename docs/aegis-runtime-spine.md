@@ -187,6 +187,10 @@ as detector evidence, and policy still owns the final action.
 
 Future branches should add real detectors behind the existing contract:
 
+- Redteam harness: keep scenario runners, scoring, and generated campaign
+  artifacts in a separate repository that targets Aegis through the HTTP proxy.
+  The Aegis repo owns the development target contract, deterministic mock
+  controls, audit readback, and reset affordances.
 - CIFT provider implementation: implement the caller-supplied extractor that
   converts self-hosted activation capture into the feature vectors consumed by
   `CiftFeatureVectorAnnotator`.
