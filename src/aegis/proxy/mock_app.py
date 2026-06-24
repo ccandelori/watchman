@@ -11,6 +11,7 @@ from aegis.detectors.activation import ActivationUnavailableDetector
 from aegis.detectors.canary import (
     CanaryDetectorError,
     CanaryRecord,
+    EncodedCanaryDetector,
     InMemoryCanaryRegistry,
     TextCanaryDetector,
     ToolCallCanaryDetector,
@@ -355,7 +356,14 @@ def create_default_proxy() -> MockProxyApp:
             ActivationUnavailableDetector(),
             ToolCallCanaryDetector(detector_name="tool_call_canary", registry=canary_registry),
         ),
-        post_generation_detectors=(TextCanaryDetector(detector_name="text_canary", registry=canary_registry),),
+        post_generation_detectors=(
+            TextCanaryDetector(detector_name="text_canary", registry=canary_registry),
+            EncodedCanaryDetector(
+                detector_name="encoded_canary",
+                registry=canary_registry,
+                partial_match_threshold=0.8,
+            ),
+        ),
         session_detectors=(
             NimbusDetector(
                 config=NimbusConfig(

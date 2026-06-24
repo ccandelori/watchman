@@ -1,3 +1,4 @@
+import base64
 import unittest
 
 from aegis.audit.memory import InMemoryAuditSink
@@ -237,6 +238,32 @@ class MockProxyAppTest(unittest.TestCase):
         policy = chat_payload["aegis"]["policy_decision"]
         self.assertEqual("escalate", policy["final_action"])
         self.assertIn("tool_call_canary", policy["triggered_detectors"])
+        self.assertNotIn(private_marker, str(chat_payload))
+
+    def test_seed_canary_route_registers_encoded_output_scanner_without_returning_value(self) -> None:
+        proxy = create_default_proxy()
+        private_marker = "redacted-marker-141421356"
+        encoded_marker = base64.b64encode(private_marker.encode("utf-8")).decode("utf-8")
+
+        proxy.handle(
+            method="POST",
+            path="/test/seed-canary",
+            body={"canary_id": "hny_test_encoded", "credential_type": "api_key", "value": private_marker},
+        )
+        chat_status, chat_payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "send status"}],
+                "metadata": {"mock_response": f"encoded value {encoded_marker}"},
+            },
+        )
+
+        self.assertEqual(200, chat_status)
+        policy = chat_payload["aegis"]["policy_decision"]
+        self.assertEqual("escalate", policy["final_action"])
+        self.assertIn("encoded_canary", policy["triggered_detectors"])
         self.assertNotIn(private_marker, str(chat_payload))
 
     def test_seed_canary_route_rejects_invalid_seed_without_echoing_value(self) -> None:

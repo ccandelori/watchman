@@ -31,6 +31,7 @@ chat request
   -> ToolCallCanaryDetector
   -> MockModelProvider
   -> TextCanaryDetector
+  -> EncodedCanaryDetector
   -> NimbusDetector
   -> SeverityPolicyEngine
   -> InMemoryAuditSink
@@ -41,10 +42,10 @@ chat request
 activation monitoring is unavailable in black-box/mock mode instead of silently
 omitting the signal.
 
-`TextCanaryDetector` and `ToolCallCanaryDetector` are backed by the mock proxy's
-in-memory test canary registry. With an empty registry they allow; after
-`/test/seed-canary` they escalate on registered canary egress in model output or
-normalized tool-call arguments.
+`TextCanaryDetector`, `EncodedCanaryDetector`, and `ToolCallCanaryDetector` are
+backed by the mock proxy's in-memory test canary registry. With an empty registry
+they allow; after `/test/seed-canary` they escalate on registered canary egress in
+model output, encoded/obfuscated model output, or normalized tool-call arguments.
 
 `NimbusDetector` is the default stateful session-stage NIMBUS shell. In the mock
 proxy it runs with a deterministic baseline critic and emits unavailable evidence
