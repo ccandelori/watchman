@@ -30,6 +30,7 @@ chat request
   -> ActivationUnavailableDetector
   -> MockModelProvider
   -> NoopCanaryDetector
+  -> NimbusDetector
   -> SeverityPolicyEngine
   -> InMemoryAuditSink
   -> OpenAI-compatible mock response
@@ -42,6 +43,34 @@ omitting the signal.
 `NoopCanaryDetector` is the first DP-HONEY boundary. It records that no canary
 registry is configured yet and keeps future canary detection separate from
 honeytoken injection.
+
+`NimbusDetector` is the default stateful session-stage NIMBUS shell. In the mock
+proxy it runs with a deterministic baseline critic and emits unavailable evidence
+when no protected-context handle is present, without leaking raw handles.
+
+## Mock Proxy Response and Audit Contract
+
+`/v1/chat/completions` accepts only JSON-object request bodies. Invalid request
+shape returns a sanitized `400` error; unexpected runtime failures return a
+sanitized `500` error with a trace handle when one was supplied. The OpenAI-style
+response includes a stable `aegis.proxy.chat_completion/v1` envelope:
+
+```text
+payload["aegis"]["schema_version"]
+payload["aegis"]["trace_id"]
+payload["aegis"]["session_id"]
+payload["aegis"]["turn_index"]
+payload["aegis"]["capability_mode"]
+payload["aegis"]["detector_count"]
+payload["aegis"]["detector_results"]
+payload["aegis"]["policy_decision"]
+```
+
+`/audit/recent` is a projection, not raw `AuditEvent.to_dict()`. It exposes
+trace/session/turn handles, turn summary counts and roles, whitelisted sensitive
+span metadata, detector results, policy decision, and timing. It must not echo
+raw normalized message content, arbitrary metadata values, raw tool arguments, or
+raw request bodies.
 
 ## DP-HONEY-Lite Honeytoken Registration
 

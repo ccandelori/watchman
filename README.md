@@ -146,8 +146,19 @@ status, payload = proxy.handle(
 
 print(status)
 print(payload["choices"][0]["message"]["content"])
+print(payload["aegis"]["schema_version"])
+print(payload["aegis"]["trace_id"])
+print(payload["aegis"]["session_id"])
 print(payload["aegis"]["policy_decision"])
 ```
+
+`/v1/chat/completions` accepts only JSON-object request bodies and returns a
+stable `payload["aegis"]` envelope containing `schema_version`, `trace_id`,
+`session_id`, `turn_index`, `capability_mode`, `detector_count`, detector
+results, and the final policy decision. `/audit/recent` returns a safe audit
+projection: trace/session/turn handles, a turn summary, detector results, policy
+decision, and whitelisted span metadata. It does not echo raw message content,
+arbitrary metadata values, tool-call arguments, or raw request bodies.
 
 ## Quality Gates
 
