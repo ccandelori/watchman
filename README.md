@@ -153,7 +153,10 @@ Proxy-owned request errors use a stable envelope:
 
 Provider transport failures use the same envelope with status `502` and
 `code=provider_error`. Aegis policy blocks still return HTTP `200`; the
-enforcement decision lives in `aegis.policy_decision.final_action`.
+enforcement decision lives in `aegis.policy_decision.final_action`. When policy
+returns `sanitize`, `block`, or `escalate`, the proxy does not return raw model
+output in `choices`; it returns sanitized output when available or the fixed
+`[aegis output withheld]` message.
 
 Run the proxy smoke test from another terminal after the development proxy is
 listening:
@@ -392,13 +395,35 @@ status, payload = proxy.handle(
         "model": "mock-model",
         "messages": [{"role": "user", "content": "hello"}],
         "metadata": {"trace_id": "trace-1", "session_id": "session-1"},
+        "tool_calls": [
+            {"name": "send_slack_message", "arguments": {"channel": "#ir", "text": "status only"}}
+        ],
     },
 )
 
 print(status)
 print(payload["choices"][0]["message"]["content"])
+print(payload["aegis"]["schema_version"])
+print(payload["aegis"]["trace_id"])
+print(payload["aegis"]["session_id"])
 print(payload["aegis"]["policy_decision"])
 ```
+
+`/v1/chat/completions` accepts only JSON-object request bodies and returns a
+stable `payload["aegis"]` envelope containing `schema_version`, `trace_id`,
+`session_id`, `turn_index`, `capability_mode`, `detector_count`, detector
+results, and the final policy decision. Optional `tool_calls` are normalized into
+runtime `ToolCall` contracts for detector use. `/audit/recent` returns a safe
+audit projection: trace/session/turn handles, a turn summary, detector results,
+policy decision, and whitelisted span metadata. It does not echo raw message
+content, arbitrary metadata values, tool-call arguments, or raw request bodies.
+When the final policy action is `sanitize`, `block`, or `escalate`, the proxy
+must not deliver raw model output in `choices`; it returns sanitized output when
+available or a fixed withheld-output message.
+For local redteam harnesses, `POST /test/seed-canary` registers a supplied
+canary value without returning it, then the mock proxy scans exact and encoded
+model output plus normalized tool-call arguments. `POST /test/reset` clears audit
+history and seeded canaries.
 
 ## Quality Gates
 

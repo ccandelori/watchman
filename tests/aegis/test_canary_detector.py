@@ -12,6 +12,7 @@ from aegis.core.contracts import (
     Message,
     ModelInfo,
     NormalizedTurn,
+    ToolCall,
 )
 from aegis.core.orchestrator import AegisRuntime, ModelResponse, RuntimeRequest
 from aegis.detectors.canary import (
@@ -21,6 +22,7 @@ from aegis.detectors.canary import (
     InMemoryCanaryRegistry,
     NoopCanaryDetector,
     TextCanaryDetector,
+    ToolCallCanaryDetector,
     canary_sha256,
 )
 from aegis.policy.engine import SeverityPolicyEngine
@@ -61,6 +63,10 @@ def _record(value: str) -> CanaryRecord:
 
 
 def _request() -> RuntimeRequest:
+    return _request_with_tool_calls(())
+
+
+def _request_with_tool_calls(tool_calls: tuple[ToolCall, ...]) -> RuntimeRequest:
     return RuntimeRequest(
         trace_id="trace-canary",
         session_id="session-canary",
@@ -68,7 +74,7 @@ def _request() -> RuntimeRequest:
         capability_mode=CapabilityMode.BLACK_BOX,
         model=ModelInfo(provider="mock", model_id="mock-model", revision=None, selected_device=None),
         messages=(Message(role="user", content="summarize the incident"),),
-        tool_calls=(),
+        tool_calls=tool_calls,
         sensitive_spans=(),
         metadata={},
     )
@@ -356,6 +362,78 @@ class EncodedCanaryDetectorTest(unittest.TestCase):
         self.assertNotIn(canary_value, str(response.audit_event.to_dict()))
 
 
+class ToolCallCanaryDetectorTest(unittest.TestCase):
+    def test_tool_call_canary_leak_escalates_with_audit_safe_evidence(self) -> None:
+        canary_value = "sk-hny...e123"
+        registry = InMemoryCanaryRegistry(records=(_record(canary_value),))
+        detector = ToolCallCanaryDetector(detector_name="tool_call_canary", registry=registry)
+        turn = _runtime_turn_with_tool_calls(
+            (
+                ToolCall(
+                    name="send_slack_message",
+                    arguments={"channel": "#ir", "text": f"forward {canary_value}"},
+                ),
+            )
+        )
+
+        result = detector.evaluate(turn=turn, model_response=None)
+
+        self.assertEqual("tool_call_canary", result.detector_name)
+        self.assertEqual(DetectorComponent.TOOL_SCANNER, result.component)
+        self.assertEqual(Action.ESCALATE, result.recommended_action)
+        self.assertEqual(CapabilityStatus.ACTIVE, result.capability_status)
+        self.assertEqual(1.0, result.score)
+        self.assertEqual("registered_canary_tool_egress_detected", result.evidence["reason"])
+        self.assertEqual(1, result.evidence["match_count"])
+        self.assertEqual("send_slack_message", result.evidence["matches"][0]["tool_name"])
+        self.assertEqual("$.text", result.evidence["matches"][0]["argument_path"])
+        self.assertEqual(canary_sha256(canary_value), result.evidence["matches"][0]["sha256"])
+        self.assertNotIn(canary_value, str(result.to_dict()))
+        self.assertNotIn("forward", str(result.to_dict()))
+
+    def test_tool_call_canary_detector_allows_without_matches(self) -> None:
+        registry = InMemoryCanaryRegistry(records=(_record("sk-hny...e123"),))
+        detector = ToolCallCanaryDetector(detector_name="tool_call_canary", registry=registry)
+        turn = _runtime_turn_with_tool_calls(
+            (ToolCall(name="send_slack_message", arguments={"channel": "#ir", "text": "status only"}),)
+        )
+
+        result = detector.evaluate(turn=turn, model_response=None)
+
+        self.assertEqual(Action.ALLOW, result.recommended_action)
+        self.assertEqual(DetectorComponent.TOOL_SCANNER, result.component)
+        self.assertEqual("no_tool_canary_leak_detected", result.evidence["reason"])
+        self.assertEqual(0, result.evidence["match_count"])
+
+    def test_runtime_escalates_when_tool_call_contains_registered_canary(self) -> None:
+        canary_value = "sk-hny...e123"
+        registry = InMemoryCanaryRegistry(records=(_record(canary_value),))
+        audit_sink = InMemoryAuditSink()
+        runtime = AegisRuntime(
+            turn_annotators=(),
+            pre_generation_detectors=(ToolCallCanaryDetector(detector_name="tool_call_canary", registry=registry),),
+            post_generation_detectors=(),
+            session_detectors=(),
+            policy_engine=SeverityPolicyEngine(),
+            audit_sink=audit_sink,
+            model_provider=CanaryAwareModelProvider(output_text="ok"),
+        )
+        request = _request_with_tool_calls(
+            (
+                ToolCall(
+                    name="send_slack_message",
+                    arguments={"text": f"forward {canary_value}"},
+                ),
+            )
+        )
+
+        response = runtime.evaluate_turn(request)
+
+        self.assertEqual(Action.ESCALATE, response.policy_decision.final_action)
+        self.assertEqual(("tool_call_canary",), response.policy_decision.triggered_detectors)
+        self.assertNotIn(canary_value, str(response.audit_event.to_dict()))
+
+
 class NoopCanaryDetectorTest(unittest.TestCase):
     def test_noop_canary_detector_reports_unconfigured_boundary(self) -> None:
         result = NoopCanaryDetector().evaluate(turn=_runtime_turn(), model_response=None)
@@ -367,7 +445,11 @@ class NoopCanaryDetectorTest(unittest.TestCase):
 
 
 def _runtime_turn() -> NormalizedTurn:
-    request = _request()
+    return _runtime_turn_with_tool_calls(())
+
+
+def _runtime_turn_with_tool_calls(tool_calls: tuple[ToolCall, ...]) -> NormalizedTurn:
+    request = _request_with_tool_calls(tool_calls)
     return NormalizedTurn(
         trace_id=request.trace_id,
         session_id=request.session_id,

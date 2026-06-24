@@ -7,6 +7,7 @@ from aegis_introspection.trace_record_adapter import (
     TokenOffset,
     TokenOffsetEncoder,
     TracePromptConversionConfig,
+    TraceRecordAdapterError,
     structured_prompt_records_from_trace_records,
 )
 
@@ -382,6 +383,174 @@ class TraceRecordAdapterTest(unittest.TestCase):
         assert parsed.selected_choice_readout_token_indices is not None
         self.assertGreaterEqual(len(parsed.selected_choice_readout_token_indices), 1)
         self.assertLessEqual(len(parsed.selected_choice_readout_token_indices), 4)
+
+    def test_explicit_cift_metadata_supplies_selected_choice_without_prose_spacer(self) -> None:
+        record = _safe_secret_record()
+        normalized_turn = record["normalized_turn"]
+        assert isinstance(normalized_turn, dict)
+        user_message = normalized_turn["messages"][1]
+        assert isinstance(user_message, dict)
+        user_message["content"] = "Alpha choice governs safe handling."
+        metadata = normalized_turn["metadata"]
+        assert isinstance(metadata, dict)
+        metadata["cift"] = {
+            "selected_choice": {
+                "char_start": 0,
+                "char_end": len("Alpha choice"),
+                "text": "Alpha choice",
+                "source": "user_message",
+                "fallback_reason": None,
+            },
+            "fallback_reason": "no_semantic_selected_choice",
+        }
+        encoder: TokenOffsetEncoder = WhitespaceOffsetEncoder()
+
+        result = structured_prompt_records_from_trace_records(
+            records=(record,),
+            encoder=encoder,
+            config=TracePromptConversionConfig(readout_token_count=4),
+        )
+
+        prompt_record = result.records[0].to_dict()
+        rendered_prompt = str(prompt_record["rendered_prompt"])
+        selected_choice_char_span = prompt_record["selected_choice_char_span"]
+        self.assertIsInstance(selected_choice_char_span, list)
+        assert isinstance(selected_choice_char_span, list)
+        self.assertEqual(
+            "Alpha choice",
+            rendered_prompt[selected_choice_char_span[0] : selected_choice_char_span[1]],
+        )
+        self.assertIsNone(prompt_record["fallback_reason"])
+
+    def test_cift_fallback_reason_is_preserved_when_selected_choice_is_absent(self) -> None:
+        record = _safe_secret_record()
+        normalized_turn = record["normalized_turn"]
+        assert isinstance(normalized_turn, dict)
+        metadata = normalized_turn["metadata"]
+        assert isinstance(metadata, dict)
+        metadata["cift"] = {
+            "selected_choice": None,
+            "fallback_reason": "no_semantic_selected_choice",
+        }
+        encoder: TokenOffsetEncoder = WhitespaceOffsetEncoder()
+
+        result = structured_prompt_records_from_trace_records(
+            records=(record,),
+            encoder=encoder,
+            config=TracePromptConversionConfig(readout_token_count=4),
+        )
+
+        prompt_record = result.records[0].to_dict()
+        self.assertIsNone(prompt_record["selected_choice_char_span"])
+        self.assertEqual("no_semantic_selected_choice", prompt_record["fallback_reason"])
+
+    def test_explicit_cift_fallback_does_not_infer_legacy_semantic_geometry(self) -> None:
+        record = _semantic_indirection_record()
+        normalized_turn = record["normalized_turn"]
+        assert isinstance(normalized_turn, dict)
+        metadata = normalized_turn["metadata"]
+        assert isinstance(metadata, dict)
+        metadata["cift"] = {
+            "selected_choice": None,
+            "fallback_reason": "spacer_not_found",
+        }
+        encoder: TokenOffsetEncoder = WhitespaceOffsetEncoder()
+
+        result = structured_prompt_records_from_trace_records(
+            records=(record,),
+            encoder=encoder,
+            config=TracePromptConversionConfig(readout_token_count=4),
+        )
+
+        prompt_record = result.records[0].to_dict()
+        self.assertIsNone(prompt_record["selected_choice_char_span"])
+        self.assertIsNone(prompt_record["selected_choice_token_span"])
+        self.assertIsNone(prompt_record["selected_choice_readout_token_indices"])
+        self.assertEqual("spacer_not_found", prompt_record["fallback_reason"])
+
+    def test_adapter_rejects_explicit_selected_choice_text_mismatch(self) -> None:
+        record = _safe_secret_record()
+        normalized_turn = record["normalized_turn"]
+        assert isinstance(normalized_turn, dict)
+        user_message = normalized_turn["messages"][1]
+        assert isinstance(user_message, dict)
+        user_message["content"] = "Alpha choice governs safe handling."
+        metadata = normalized_turn["metadata"]
+        assert isinstance(metadata, dict)
+        metadata["cift"] = {
+            "selected_choice": {
+                "char_start": 0,
+                "char_end": len("Alpha choice"),
+                "text": "Beta choice",
+                "source": "user_message",
+                "fallback_reason": None,
+            },
+            "fallback_reason": None,
+        }
+        encoder: TokenOffsetEncoder = WhitespaceOffsetEncoder()
+
+        with self.assertRaisesRegex(TraceRecordAdapterError, "text does not match"):
+            structured_prompt_records_from_trace_records(
+                records=(record,),
+                encoder=encoder,
+                config=TracePromptConversionConfig(readout_token_count=4),
+            )
+
+    def test_adapter_rejects_explicit_selected_choice_non_user_source(self) -> None:
+        record = _safe_secret_record()
+        normalized_turn = record["normalized_turn"]
+        assert isinstance(normalized_turn, dict)
+        user_message = normalized_turn["messages"][1]
+        assert isinstance(user_message, dict)
+        user_message["content"] = "Alpha choice governs safe handling."
+        metadata = normalized_turn["metadata"]
+        assert isinstance(metadata, dict)
+        metadata["cift"] = {
+            "selected_choice": {
+                "char_start": 0,
+                "char_end": len("Alpha choice"),
+                "text": "Alpha choice",
+                "source": "system_message",
+                "fallback_reason": None,
+            },
+            "fallback_reason": None,
+        }
+        encoder: TokenOffsetEncoder = WhitespaceOffsetEncoder()
+
+        with self.assertRaisesRegex(TraceRecordAdapterError, "source must be user_message"):
+            structured_prompt_records_from_trace_records(
+                records=(record,),
+                encoder=encoder,
+                config=TracePromptConversionConfig(readout_token_count=4),
+            )
+
+    def test_adapter_rejects_selected_choice_geometry_with_fallback_reason(self) -> None:
+        record = _safe_secret_record()
+        normalized_turn = record["normalized_turn"]
+        assert isinstance(normalized_turn, dict)
+        user_message = normalized_turn["messages"][1]
+        assert isinstance(user_message, dict)
+        user_message["content"] = "Alpha choice governs safe handling."
+        metadata = normalized_turn["metadata"]
+        assert isinstance(metadata, dict)
+        metadata["cift"] = {
+            "selected_choice": {
+                "char_start": 0,
+                "char_end": len("Alpha choice"),
+                "text": "Alpha choice",
+                "source": "user_message",
+                "fallback_reason": "spacer_not_found",
+            },
+            "fallback_reason": "spacer_not_found",
+        }
+        encoder: TokenOffsetEncoder = WhitespaceOffsetEncoder()
+
+        with self.assertRaisesRegex(TraceRecordAdapterError, "fallback_reason cannot include geometry"):
+            structured_prompt_records_from_trace_records(
+                records=(record,),
+                encoder=encoder,
+                config=TracePromptConversionConfig(readout_token_count=4),
+            )
 
 
 if __name__ == "__main__":

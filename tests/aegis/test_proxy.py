@@ -350,8 +350,7 @@ class MockProxyAppTest(unittest.TestCase):
 
         self.assertEqual(200, seed_status)
         self.assertEqual(200, status)
-        leaked_output = payload["choices"][0]["message"]["content"]
-        self.assertIn("ghp_", leaked_output)
+        self.assertEqual("[aegis output withheld]", payload["choices"][0]["message"]["content"])
         self.assertEqual("escalate", payload["aegis"]["policy_decision"]["final_action"])
         dp_honey_stage = _single_runtime_stage(payload["aegis"]["runtime_trace"], "dp_honey")
         self.assertEqual("not_configured", dp_honey_stage["status"])
@@ -362,7 +361,8 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertGreater(nimbus_result["evidence"]["turn_estimated_leakage_bits"], 0.0)
         self.assertEqual(200, audit_status)
         self.assertEqual(1, audit_payload["events"][0]["normalized_turn"]["metadata"]["test_seed_canary_count"])
-        self.assertNotIn(leaked_output.removeprefix("leaked="), str(audit_payload))
+        self.assertNotIn("ghp_", str(payload))
+        self.assertNotIn("ghp_", str(audit_payload))
 
     def test_seeded_canary_supports_encoded_and_partial_leak_modes(self) -> None:
         proxy = create_default_proxy()
@@ -409,6 +409,7 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual(200, seed_status)
         self.assertEqual(200, encoded_status)
         self.assertEqual(200, partial_status)
+        self.assertEqual("[aegis output withheld]", encoded_payload["choices"][0]["message"]["content"])
         encoded_result = _single_detector_result(encoded_payload, "encoded_canary")
         partial_nimbus_result = _single_detector_result(partial_payload, "nimbus")
         self.assertEqual("encoded_canary_leak_detected", encoded_result["evidence"]["reason"])
@@ -489,8 +490,7 @@ class MockProxyAppTest(unittest.TestCase):
         )
 
         self.assertEqual(200, status)
-        leaked_output = payload["choices"][0]["message"]["content"]
-        self.assertIn("ghp_", leaked_output)
+        self.assertEqual("[aegis output withheld]", payload["choices"][0]["message"]["content"])
         self.assertEqual("escalate", payload["aegis"]["policy_decision"]["final_action"])
         runtime_trace = payload["aegis"]["runtime_trace"]
         dp_honey_stage = _single_runtime_stage(runtime_trace, "dp_honey")
@@ -502,11 +502,11 @@ class MockProxyAppTest(unittest.TestCase):
             result for result in payload["aegis"]["detector_results"] if result["detector_name"] == "text_canary"
         ]
         self.assertEqual(1, len(text_results))
-        self.assertNotIn(leaked_output.removeprefix("leaked="), str(text_results[0]["evidence"]))
+        self.assertNotIn("ghp_", str(text_results[0]["evidence"]))
         nimbus_result = _single_detector_result(payload, "nimbus")
         self.assertEqual("active", nimbus_result["capability_status"])
         self.assertGreater(nimbus_result["evidence"]["turn_estimated_leakage_bits"], 0.0)
-        self.assertNotIn(leaked_output.removeprefix("leaked="), str(nimbus_result["evidence"]))
+        self.assertNotIn("ghp_", str(nimbus_result["evidence"]))
 
         audit_status, audit_payload = proxy.handle(method="GET", path="/audit/recent", body={})
         self.assertEqual(200, audit_status)
@@ -534,7 +534,7 @@ class MockProxyAppTest(unittest.TestCase):
         audit_status, audit_payload = proxy.handle(method="GET", path="/audit/recent", body={})
 
         self.assertEqual(200, status)
-        self.assertEqual("", payload["choices"][0]["message"]["content"])
+        self.assertEqual("[aegis output withheld]", payload["choices"][0]["message"]["content"])
         self.assertEqual("block", payload["aegis"]["policy_decision"]["final_action"])
         self.assertEqual(("provider_egress_guard",), tuple(payload["aegis"]["policy_decision"]["triggered_detectors"]))
         self.assertEqual("skipped", _single_runtime_stage(payload["aegis"]["runtime_trace"], "provider")["status"])
@@ -567,7 +567,7 @@ class MockProxyAppTest(unittest.TestCase):
         )
 
         self.assertEqual(200, status)
-        self.assertEqual("", payload["choices"][0]["message"]["content"])
+        self.assertEqual("[aegis output withheld]", payload["choices"][0]["message"]["content"])
         self.assertEqual("block", payload["aegis"]["policy_decision"]["final_action"])
         self.assertEqual(("provider_egress_guard",), tuple(payload["aegis"]["policy_decision"]["triggered_detectors"]))
         self.assertEqual("skipped", _single_runtime_stage(payload["aegis"]["runtime_trace"], "provider")["status"])

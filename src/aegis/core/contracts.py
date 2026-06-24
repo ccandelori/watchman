@@ -191,6 +191,24 @@ class AuditEvent:
         }
 
 
+def _audit_safe_sensitive_span(span: SensitiveSpan) -> dict[str, JsonValue]:
+    return {
+        "kind": span.kind,
+        "source": span.source,
+        "char_start": span.char_start,
+        "char_end": span.char_end,
+        "token_start": span.token_start,
+        "token_end": span.token_end,
+        "identifier": span.identifier,
+        "metadata": _audit_safe_sensitive_span_metadata(span.metadata),
+    }
+
+
+def _audit_safe_sensitive_span_metadata(metadata: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    safe_keys = ("sha256", "honeytoken_sha256", "credential_type", "source", "slot_name", "turn_planted")
+    return {key: metadata[key] for key in safe_keys if key in metadata}
+
+
 @dataclass(frozen=True)
 class CapabilityReport:
     capability_mode: CapabilityMode
@@ -217,10 +235,14 @@ def _audit_safe_normalized_turn(turn: NormalizedTurn) -> dict[str, JsonValue]:
         "turn_index": turn.turn_index,
         "capability_mode": turn.capability_mode.value,
         "model": turn.model.to_dict(),
+        "message_count": len(turn.messages),
         "messages": _audit_safe_messages(turn),
+        "tool_call_count": len(turn.tool_calls),
         "tool_calls": _audit_safe_tool_calls(turn),
-        "sensitive_spans": [span.to_dict() for span in turn.sensitive_spans],
-        "metadata": turn.metadata,
+        "sensitive_span_count": len(turn.sensitive_spans),
+        "sensitive_spans": [_audit_safe_sensitive_span(span) for span in turn.sensitive_spans],
+        "metadata_key_count": len(turn.metadata),
+        "metadata": _audit_safe_turn_metadata(turn.metadata),
     }
 
 
@@ -238,6 +260,16 @@ def _audit_safe_messages(turn: NormalizedTurn) -> list[JsonValue]:
             }
         )
     return messages
+
+
+def _audit_safe_turn_metadata(metadata: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    safe_keys = (
+        "dp_honey_canary_count",
+        "dp_honey_canary_ids",
+        "test_seed_canary_count",
+        "test_seed_canary_ids",
+    )
+    return {key: metadata[key] for key in safe_keys if key in metadata}
 
 
 def _audit_safe_message_content(
@@ -269,10 +301,17 @@ def _audit_safe_message_content(
 def _audit_safe_tool_calls(turn: NormalizedTurn) -> list[JsonValue]:
     blocked_spans = tuple(span for span in turn.sensitive_spans if span.kind not in _AUDIT_ALLOWED_SENSITIVE_SPAN_KINDS)
     if len(blocked_spans) == 0:
-        return [tool_call.to_dict() for tool_call in turn.tool_calls]
+        return [
+            {
+                "name": tool_call.name,
+                "argument_key_count": len(tool_call.arguments),
+            }
+            for tool_call in turn.tool_calls
+        ]
     return [
         {
             "name": tool_call.name,
+            "argument_key_count": len(tool_call.arguments),
             "arguments": {
                 "redacted": True,
                 "reason": "non_honeytoken_sensitive_span_present",

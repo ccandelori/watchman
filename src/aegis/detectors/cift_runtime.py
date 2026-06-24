@@ -306,6 +306,8 @@ def predict_cift_runtime_model(
         raise CiftRuntimeDetectorError(
             f"feature_vector has {len(feature_vector)} values, but model expects {model.feature_count}."
         )
+    for index, value in enumerate(feature_vector):
+        _validate_finite(value=value, field_name=f"feature_vector[{index}]")
     class_one_probability = _class_one_probability(model=model, feature_vector=feature_vector)
     positive_probability = _positive_probability(model=model, class_one_probability=class_one_probability)
     if positive_probability >= model.decision_threshold:
@@ -419,6 +421,10 @@ def validate_cift_runtime_model(model: CiftRuntimeLinearModel) -> None:
         field_name="logistic_coefficients",
         expected_length=model.feature_count,
     )
+    _validate_vector_finite(values=model.scaler_mean, field_name="scaler_mean")
+    _validate_vector_finite(values=model.scaler_scale, field_name="scaler_scale")
+    _validate_vector_finite(values=model.logistic_coefficients, field_name="logistic_coefficients")
+    _validate_finite(value=model.logistic_intercept, field_name="logistic_intercept")
     for index, scale in enumerate(model.scaler_scale):
         if scale <= 0.0:
             raise CiftRuntimeDetectorError(f"scaler_scale[{index}] must be greater than 0.")
@@ -698,7 +704,19 @@ def _required_float_tuple(record: Mapping[str, object], field_name: str, expecte
 def _float_item(value: object, field_name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise CiftRuntimeDetectorError(f"Field '{field_name}' must be a number.")
-    return float(value)
+    numeric_value = float(value)
+    _validate_finite(value=numeric_value, field_name=field_name)
+    return numeric_value
+
+
+def _validate_finite(value: float, field_name: str) -> None:
+    if not math.isfinite(value):
+        raise CiftRuntimeDetectorError(f"{field_name} must be finite.")
+
+
+def _validate_vector_finite(values: tuple[float, ...], field_name: str) -> None:
+    for index, value in enumerate(values):
+        _validate_finite(value=value, field_name=f"{field_name}[{index}]")
 
 
 def _validate_required_string(value: str, field_name: str) -> None:

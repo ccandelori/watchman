@@ -445,6 +445,18 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
         self.assertIs(turn, annotated)
         self.assertEqual([("trace-cift-runtime", "readout_window_layer_15")], extractor.calls)
 
+    def test_feature_annotator_rejects_non_finite_extractor_values(self) -> None:
+        extractor = RecordingFeatureExtractor(feature_vector=(1.0, math.inf))
+        annotator = CiftFeatureVectorAnnotator(
+            feature_key="readout_window_layer_15",
+            extractor=extractor,
+            source="test_self_hosted_extractor",
+        )
+        turn = _turn(capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION, metadata={})
+
+        with self.assertRaisesRegex(CiftRuntimeDetectorError, "must be finite"):
+            annotator.annotate(turn)
+
     def test_normalized_turn_with_cift_feature_vector_rejects_bad_cift_metadata(self) -> None:
         turn = _turn(capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION, metadata={"cift": "bad"})
 
@@ -474,6 +486,15 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
         with self.assertRaises(CiftRuntimeDetectorError):
             cift_feature_vector_from_turn(turn=turn, feature_key="readout_window_layer_15")
 
+    def test_feature_vector_parser_rejects_non_finite_values(self) -> None:
+        turn = _turn(
+            capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+            metadata={"cift": {"feature_vectors": {"readout_window_layer_15": [1.0, math.nan]}}},
+        )
+
+        with self.assertRaisesRegex(CiftRuntimeDetectorError, "must be finite"):
+            cift_feature_vector_from_turn(turn=turn, feature_key="readout_window_layer_15")
+
     def test_loader_rejects_invalid_schema(self) -> None:
         record = cift_runtime_model_to_dict(_runtime_model(positive_class_index=1))
         record["schema_version"] = "wrong"
@@ -488,11 +509,38 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
         with self.assertRaises(CiftRuntimeDetectorError):
             _model_from_temp_file(record)
 
+    def test_loader_rejects_non_finite_probability_fields(self) -> None:
+        record = cift_runtime_model_to_dict(_runtime_model(positive_class_index=1))
+        record["decision_threshold"] = math.nan
+
+        with self.assertRaisesRegex(CiftRuntimeDetectorError, "decision_threshold must be finite"):
+            _model_from_temp_file(record)
+
+    def test_loader_rejects_non_finite_vector_fields(self) -> None:
+        record = cift_runtime_model_to_dict(_runtime_model(positive_class_index=1))
+        record["scaler_mean"] = [1.0, math.inf]
+
+        with self.assertRaisesRegex(CiftRuntimeDetectorError, r"scaler_mean\[1\] must be finite"):
+            _model_from_temp_file(record)
+
+    def test_loader_rejects_non_finite_logistic_intercept(self) -> None:
+        record = cift_runtime_model_to_dict(_runtime_model(positive_class_index=1))
+        record["logistic_intercept"] = math.inf
+
+        with self.assertRaisesRegex(CiftRuntimeDetectorError, "logistic_intercept must be finite"):
+            _model_from_temp_file(record)
+
     def test_predict_rejects_wrong_feature_vector_length(self) -> None:
         model = _runtime_model(positive_class_index=1)
 
         with self.assertRaises(CiftRuntimeDetectorError):
             predict_cift_runtime_model(model=model, feature_vector=(1.0,))
+
+    def test_predict_rejects_non_finite_feature_vector_values(self) -> None:
+        model = _runtime_model(positive_class_index=1)
+
+        with self.assertRaisesRegex(CiftRuntimeDetectorError, r"feature_vector\[1\] must be finite"):
+            predict_cift_runtime_model(model=model, feature_vector=(1.0, math.nan))
 
     def test_model_validation_rejects_non_positive_scaler_scale(self) -> None:
         model = CiftRuntimeLinearModel(

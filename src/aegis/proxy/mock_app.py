@@ -8,6 +8,7 @@ from uuid import uuid4
 from aegis.audit.memory import InMemoryAuditSink
 from aegis.canaries.ledger import HoneytokenLedger, default_honeytoken_generator, inject_honeytokens
 from aegis.core.contracts import (
+    Action,
     CapabilityMode,
     DetectorComponent,
     DetectorResult,
@@ -54,6 +55,7 @@ _SUPPORTED_TEST_SEED_CREDENTIAL_TYPES = (
     "stripe_key",
 )
 _TEST_SEED_CANARY_FIELDS = frozenset(("session_id", "slot_name", "credential_type", "turn_index"))
+_WITHHELD_OUTPUT_TEXT = "[aegis output withheld]"
 
 
 class ProxyRequestError(ValueError):
@@ -285,7 +287,7 @@ class MockProxyApp:
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": response.output_text},
+                    "message": {"role": "assistant", "content": _response_output_text(response)},
                     "finish_reason": "stop",
                 }
             ],
@@ -308,6 +310,15 @@ class MockProxyApp:
             audit_sink=self._audit_sink,
             model_provider=self._model_provider,
         )
+
+
+def _response_output_text(response: AegisRuntimeResponse) -> str:
+    final_action = response.policy_decision.final_action
+    if final_action in (Action.ALLOW, Action.WARN):
+        return response.output_text
+    if final_action == Action.SANITIZE and response.policy_decision.sanitized_output is not None:
+        return response.policy_decision.sanitized_output
+    return _WITHHELD_OUTPUT_TEXT
 
 
 def _runtime_request_from_chat_body(
