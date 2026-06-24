@@ -30,6 +30,13 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual(200, status)
         self.assertEqual("chat.completion", payload["object"])
         self.assertEqual("assistant", payload["choices"][0]["message"]["role"])
+        aegis_metadata = payload["aegis"]
+        self.assertEqual("aegis.proxy.chat_completion/v1", aegis_metadata["schema_version"])
+        self.assertEqual("trace-1", aegis_metadata["trace_id"])
+        self.assertEqual("session-1", aegis_metadata["session_id"])
+        self.assertEqual(1, aegis_metadata["turn_index"])
+        self.assertEqual("black_box", aegis_metadata["capability_mode"])
+        self.assertEqual(len(aegis_metadata["detector_results"]), aegis_metadata["detector_count"])
         self.assertEqual(200, audit_status)
         self.assertEqual(1, len(audit_payload["events"]))
         audit_event = audit_payload["events"][0]

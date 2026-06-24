@@ -6,7 +6,7 @@ from uuid import uuid4
 
 from aegis.audit.memory import InMemoryAuditSink
 from aegis.core.contracts import AuditEvent, CapabilityMode, JsonValue, Message, ModelInfo, SensitiveSpan
-from aegis.core.orchestrator import AegisRuntime, RuntimeRequest
+from aegis.core.orchestrator import AegisRuntime, AegisRuntimeResponse, RuntimeRequest
 from aegis.detectors.activation import ActivationUnavailableDetector
 from aegis.detectors.canary import NoopCanaryDetector
 from aegis.detectors.nimbus import BaselineNimbusCritic, InMemoryNimbusStateStore, NimbusConfig, NimbusDetector
@@ -51,12 +51,25 @@ class MockProxyApp:
                     "finish_reason": "stop",
                 }
             ],
-            "aegis": {
-                "trace_id": request.trace_id,
-                "policy_decision": response.policy_decision.to_dict(),
-                "detector_results": [result.to_dict() for result in response.detector_results],
-            },
+            "aegis": _chat_completion_aegis_metadata(request=request, response=response),
         }
+
+
+def _chat_completion_aegis_metadata(
+    request: RuntimeRequest,
+    response: AegisRuntimeResponse,
+) -> dict[str, JsonValue]:
+    detector_results: list[JsonValue] = [result.to_dict() for result in response.detector_results]
+    return {
+        "schema_version": "aegis.proxy.chat_completion/v1",
+        "trace_id": request.trace_id,
+        "session_id": request.session_id,
+        "turn_index": request.turn_index,
+        "capability_mode": request.capability_mode.value,
+        "detector_count": len(detector_results),
+        "detector_results": detector_results,
+        "policy_decision": response.policy_decision.to_dict(),
+    }
 
 
 def _runtime_request_from_chat_body(body: object) -> RuntimeRequest:
