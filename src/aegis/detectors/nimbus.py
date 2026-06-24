@@ -324,12 +324,14 @@ class NimbusDetector:
             ),
         )
         budget_fraction = min(1.0, updated_state.cumulative_estimated_leakage_bits / self._config.budget_bits)
-        recommended_action = _budget_action(
+        budget_action = _budget_action(
             budget_fraction=budget_fraction,
             warn_threshold=self._config.warn_threshold,
             sanitize_threshold=self._config.sanitize_threshold,
             block_threshold=self._config.block_threshold,
         )
+        action_floor = _canary_critic_action_floor(critic_score.evidence)
+        recommended_action = highest_action((budget_action, action_floor))
         return DetectorResult(
             detector_name="nimbus",
             component=DetectorComponent.NIMBUS,
@@ -339,13 +341,19 @@ class NimbusDetector:
             capability_required=None,
             capability_status=CapabilityStatus.ACTIVE,
             evidence={
-                "reason": _budget_reason(recommended_action),
+                "reason": _nimbus_reason(
+                    recommended_action=recommended_action,
+                    budget_action=budget_action,
+                    action_floor=action_floor,
+                ),
                 "turn_index": turn.turn_index,
                 "turn_count": updated_state.turn_count,
                 "turn_estimated_leakage_bits": critic_score.estimated_leakage_bits,
                 "cumulative_estimated_leakage_bits": updated_state.cumulative_estimated_leakage_bits,
                 "budget_bits": self._config.budget_bits,
                 "budget_fraction": budget_fraction,
+                "budget_recommended_action": budget_action.value,
+                "action_floor": action_floor.value,
                 "warn_threshold": self._config.warn_threshold,
                 "sanitize_threshold": self._config.sanitize_threshold,
                 "block_threshold": self._config.block_threshold,
@@ -627,6 +635,21 @@ def _budget_reason(action: Action) -> str:
     if action == Action.WARN:
         return "nimbus_leakage_budget_warning"
     return "nimbus_leakage_budget_available"
+
+
+def _canary_critic_action_floor(evidence: dict[str, JsonValue]) -> Action:
+    if evidence.get("critic_kind") != "canary":
+        return Action.ALLOW
+    partial_match_count = evidence.get("partial_match_count")
+    if isinstance(partial_match_count, int) and partial_match_count > 0:
+        return Action.SANITIZE
+    return Action.ALLOW
+
+
+def _nimbus_reason(recommended_action: Action, budget_action: Action, action_floor: Action) -> str:
+    if recommended_action != budget_action and action_floor == Action.SANITIZE:
+        return "nimbus_canary_partial_overlap_sanitize"
+    return _budget_reason(recommended_action)
 
 
 def _recommended_action(
