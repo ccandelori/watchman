@@ -299,6 +299,29 @@ understood even when `encoded_canary` does not trigger on a single turn. See
 [docs/nimbus-redteam-eval.md](docs/nimbus-redteam-eval.md) for the full
 black-box redteam evaluation loop.
 
+NIMBUS runtime calibration is environment-driven. Defaults preserve the current
+local profile: exact and encoded matches count as `1.0` leakage bit, partial
+matches count as `0.8 * fragment_ratio`, and cumulative budget fractions map to
+`warn` at `0.3`, `sanitize` at `0.6`, and `block` at `0.9`.
+
+```bash
+AEGIS_NIMBUS_EXACT_MATCH_LEAKAGE_BITS=1.0
+AEGIS_NIMBUS_ENCODED_MATCH_LEAKAGE_BITS=1.0
+AEGIS_NIMBUS_PARTIAL_MATCH_LEAKAGE_BITS=0.8
+AEGIS_NIMBUS_PARTIAL_MATCH_THRESHOLD=0.4
+AEGIS_NIMBUS_CONFIDENCE=0.8
+AEGIS_NIMBUS_BUDGET_BITS=1.0
+AEGIS_NIMBUS_WARN_THRESHOLD=0.3
+AEGIS_NIMBUS_SANITIZE_THRESHOLD=0.6
+AEGIS_NIMBUS_BLOCK_THRESHOLD=0.9
+AEGIS_NIMBUS_MAX_TURNS=20
+AEGIS_NIMBUS_CRITIC_VERSION=canary-v0
+```
+
+For a stricter local profile where one roughly half-token partial fragment can
+block, lower the action thresholds intentionally rather than changing detector
+code.
+
 Generate controlled trace-collection assignments for human operators:
 
 ```bash
