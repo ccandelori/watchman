@@ -156,6 +156,7 @@ class StructuredTracePromptRecord:
     selected_choice_char_span: CharSpan | None
     selected_choice_token_span: TokenSpan | None
     selected_choice_readout_token_indices: tuple[int, ...] | None
+    fallback_reason: str | None
     honeytoken_id: str | None
     credential_type: str
     honeytoken_sha256: str | None
@@ -205,6 +206,7 @@ class StructuredTracePromptRecord:
             "selected_choice_readout_token_indices": list(self.selected_choice_readout_token_indices)
             if self.selected_choice_readout_token_indices is not None
             else None,
+            "fallback_reason": self.fallback_reason,
             "honeytoken_id": self.honeytoken_id,
             "credential_type": self.credential_type,
             "honeytoken_sha256": self.honeytoken_sha256,
@@ -380,14 +382,27 @@ def _convert_trace_record(
         tool_call_name = payload_readout.tool_call_name
         tool_argument_path = payload_readout.argument_path
 
-    selected_choice_readout = _selected_choice_readout(
-        message_segments=rendered.message_segments,
-        offsets=offsets,
-        readout_token_count=config.readout_token_count,
-        context=context,
-    )
+    cift_metadata = _cift_metadata_from_turn(turn=turn, context=context)
+    if cift_metadata is None:
+        selected_choice_readout = _selected_choice_readout(
+            message_segments=rendered.message_segments,
+            offsets=offsets,
+            readout_token_count=config.readout_token_count,
+            context=context,
+        )
+        fallback_reason = None
+    else:
+        selected_choice_readout, fallback_reason = _selected_choice_readout_from_cift_metadata(
+            cift_metadata=cift_metadata,
+            message_segments=rendered.message_segments,
+            offsets=offsets,
+            readout_token_count=config.readout_token_count,
+            context=context,
+        )
 
     return StructuredTracePromptRecord(
+        fallback_reason=fallback_reason,
+
         id=_required_string(record=turn, field_name="trace_id", context=context),
         example_id=_required_string(record=turn, field_name="trace_id", context=context),
         label=label,
@@ -608,6 +623,137 @@ def _safe_tool_payload_readout(
         readout_char_span=segment.value_span,
         tool_call_name=segment.tool_call_name,
         argument_path=segment.argument_path,
+    )
+
+
+def _cift_metadata_from_turn(turn: Mapping[str, object], context: str) -> Mapping[str, object] | None:
+    metadata_value = turn.get("metadata")
+    if metadata_value is None:
+        return None
+    metadata = _as_mapping(value=metadata_value, context=f"{context}.normalized_turn.metadata")
+    cift_value = metadata.get("cift")
+    if cift_value is None:
+        return None
+    return _as_mapping(value=cift_value, context=f"{context}.normalized_turn.metadata.cift")
+
+
+def _selected_choice_readout_from_cift_metadata(
+    cift_metadata: Mapping[str, object],
+    message_segments: tuple[MessageSegment, ...],
+    offsets: tuple[TokenOffset, ...],
+    readout_token_count: int,
+    context: str,
+) -> tuple[SelectedChoiceReadout | None, str | None]:
+    fallback_reason = _optional_fallback_reason(cift_metadata=cift_metadata, context=context)
+    selected_choice_value = cift_metadata.get("selected_choice")
+    if selected_choice_value is None:
+        return None, fallback_reason
+    selected_choice = _as_mapping(
+        value=selected_choice_value,
+        context=f"{context}.normalized_turn.metadata.cift.selected_choice",
+    )
+    selected_choice_fallback = selected_choice.get("fallback_reason")
+    if selected_choice_fallback is not None:
+        if not isinstance(selected_choice_fallback, str):
+            raise TraceRecordAdapterError(
+                f"{context}.normalized_turn.metadata.cift.selected_choice.fallback_reason must be a string or null."
+            )
+        if _selected_choice_has_geometry_fields(selected_choice=selected_choice):
+            raise TraceRecordAdapterError(
+                f"{context}.normalized_turn.metadata.cift.selected_choice fallback_reason cannot include geometry."
+            )
+        return None, selected_choice_fallback
+
+    _validate_explicit_selected_choice_source(selected_choice=selected_choice, context=context)
+    user_segments = tuple(segment for segment in message_segments if segment.role == "user")
+    if len(user_segments) == 0:
+        raise TraceRecordAdapterError(f"{context}: explicit selected-choice metadata requires a user message.")
+    user_segment = user_segments[0]
+    selected_choice_char_span = _explicit_selected_choice_char_span(
+        selected_choice=selected_choice,
+        user_segment=user_segment,
+        context=context,
+    )
+    selected_choice_token_span = _token_span_for_char_span(
+        offsets=offsets,
+        char_span=selected_choice_char_span,
+        context=context,
+    )
+    return (
+        SelectedChoiceReadout(
+            selected_choice_char_span=selected_choice_char_span,
+            selected_choice_token_span=selected_choice_token_span,
+            selected_choice_readout_token_indices=_readout_indices_for_char_span(
+                offsets=offsets,
+                char_span=selected_choice_char_span,
+                lower_bound=selected_choice_token_span.start,
+                readout_token_count=readout_token_count,
+                context=context,
+            ),
+        ),
+        None,
+    )
+
+
+def _optional_fallback_reason(cift_metadata: Mapping[str, object], context: str) -> str | None:
+    fallback_reason = cift_metadata.get("fallback_reason")
+    if fallback_reason is None:
+        return None
+    if not isinstance(fallback_reason, str):
+        raise TraceRecordAdapterError(
+            f"{context}.normalized_turn.metadata.cift.fallback_reason must be a string or null."
+        )
+    return fallback_reason
+
+
+def _selected_choice_has_geometry_fields(selected_choice: Mapping[str, object]) -> bool:
+    geometry_fields = ("char_start", "char_end", "text", "source")
+    return any(field_name in selected_choice for field_name in geometry_fields)
+
+
+def _validate_explicit_selected_choice_source(selected_choice: Mapping[str, object], context: str) -> None:
+    source = _required_string(
+        record=selected_choice,
+        field_name="source",
+        context=f"{context}.normalized_turn.metadata.cift.selected_choice",
+    )
+    if source != "user_message":
+        raise TraceRecordAdapterError(
+            f"{context}.normalized_turn.metadata.cift.selected_choice.source must be user_message."
+        )
+
+
+def _explicit_selected_choice_char_span(
+    selected_choice: Mapping[str, object],
+    user_segment: MessageSegment,
+    context: str,
+) -> CharSpan:
+    char_start = _required_int(
+        record=selected_choice,
+        field_name="char_start",
+        context=f"{context}.normalized_turn.metadata.cift.selected_choice",
+    )
+    char_end = _required_int(
+        record=selected_choice,
+        field_name="char_end",
+        context=f"{context}.normalized_turn.metadata.cift.selected_choice",
+    )
+    selected_text = _required_string(
+        record=selected_choice,
+        field_name="text",
+        context=f"{context}.normalized_turn.metadata.cift.selected_choice",
+    )
+    if char_start < 0 or char_end <= char_start or char_end > len(user_segment.content):
+        raise TraceRecordAdapterError(
+            f"{context}.normalized_turn.metadata.cift.selected_choice has invalid char_start/char_end geometry."
+        )
+    if user_segment.content[char_start:char_end] != selected_text:
+        raise TraceRecordAdapterError(
+            f"{context}.normalized_turn.metadata.cift.selected_choice text does not match char_start/char_end."
+        )
+    return CharSpan(
+        start=user_segment.content_span.start + char_start,
+        end=user_segment.content_span.start + char_end,
     )
 
 
