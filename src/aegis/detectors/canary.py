@@ -383,9 +383,7 @@ def _string_argument_values(value: JsonValue, path: str) -> tuple[tuple[str, str
         )
     if isinstance(value, dict):
         return tuple(
-            item
-            for key, child in value.items()
-            for item in _string_argument_values(value=child, path=f"{path}.{key}")
+            item for key, child in value.items() for item in _string_argument_values(value=child, path=f"{path}.{key}")
         )
     return ()
 

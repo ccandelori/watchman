@@ -355,9 +355,7 @@ def create_default_proxy() -> MockProxyApp:
             ActivationUnavailableDetector(),
             ToolCallCanaryDetector(detector_name="tool_call_canary", registry=canary_registry),
         ),
-        post_generation_detectors=(
-            TextCanaryDetector(detector_name="text_canary", registry=canary_registry),
-        ),
+        post_generation_detectors=(TextCanaryDetector(detector_name="text_canary", registry=canary_registry),),
         session_detectors=(
             NimbusDetector(
                 config=NimbusConfig(
