@@ -11,6 +11,7 @@ from aegis.detectors.nimbus import (
     NimbusDetector,
 )
 from aegis.providers.openai_compatible import OpenAICompatibleProviderError
+from aegis.proxy.config import ProxyNimbusConfig
 from aegis.proxy.http_app import create_http_app
 from aegis.proxy.mock_app import MockProxyApp, create_default_proxy
 from aegis.proxy.server import ProxyServerConfig, parse_args, run_server
@@ -37,6 +38,8 @@ def test_http_capabilities_route_returns_redteam_discovery_contract() -> None:
     assert payload["provider"]["mock_controls_enabled"] is True
     assert "partial_first_honeytoken" in payload["mock_response_modes"]
     assert payload["contract"]["error_schema_version"] == "aegis.proxy_error/v1"
+    assert payload["nimbus"]["thresholds"] == {"warn": 0.3, "sanitize": 0.6, "block": 0.9}
+    assert payload["nimbus"]["critic"]["partial_match_threshold"] == 0.4
     assert {"method": "POST", "path": "/test/seed-canary"} in payload["routes"]
     assert payload["test_controls"]["seed_canary"]["schema_version"] == "aegis.test_seed_canary/v1"
     assert "turn_index" in payload["test_controls"]["seed_canary"]["request_fields"]
@@ -430,4 +433,17 @@ def _proxy_with_provider(model_provider: FailingProvider) -> MockProxyApp:
         model_provider=model_provider,
         provider_name="openai_compatible",
         mock_controls_enabled=False,
+        nimbus_config=ProxyNimbusConfig(
+            exact_match_leakage_bits=1.0,
+            encoded_match_leakage_bits=1.0,
+            partial_match_leakage_bits=0.8,
+            partial_match_threshold=0.4,
+            confidence=0.8,
+            budget_bits=1.0,
+            warn_threshold=0.3,
+            sanitize_threshold=0.6,
+            block_threshold=0.9,
+            max_turns=20,
+            critic_version="canary-v0",
+        ),
     )

@@ -129,8 +129,31 @@ POST /test/seed-canary   # mock provider only
 `/aegis/capabilities` returns schema version
 `aegis.proxy_capabilities/v1`. It reports the provider name, whether mock
 controls are enabled, supported mock response modes, route names, detector
-names, and the current response/error schema versions. Redteam tools should use
-this route to decide whether mock-only probes and test controls are available.
+names, NIMBUS calibration, and the current response/error schema versions.
+Redteam tools should use this route to decide whether mock-only probes and test
+controls are available.
+
+The `nimbus` capabilities object reports the active cumulative budget profile:
+
+```json
+{
+  "critic_version": "canary-v0",
+  "budget_bits": 1.0,
+  "max_turns": 20,
+  "thresholds": {"warn": 0.3, "sanitize": 0.6, "block": 0.9},
+  "critic": {
+    "exact_match_leakage_bits": 1.0,
+    "encoded_match_leakage_bits": 1.0,
+    "partial_match_leakage_bits": 0.8,
+    "partial_match_threshold": 0.4,
+    "confidence": 0.8
+  }
+}
+```
+
+The default policy intentionally accumulates partial fragments over turns before
+blocking. Stricter local runs can lower `AEGIS_NIMBUS_BLOCK_THRESHOLD` and
+related action thresholds without changing detector code.
 
 Proxy-owned request and provider errors use schema version
 `aegis.proxy_error/v1`:

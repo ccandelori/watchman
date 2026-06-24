@@ -3,7 +3,7 @@ import pytest
 from aegis.core.contracts import CapabilityMode, Message, ModelInfo, NormalizedTurn
 from aegis.providers.mock import MockModelProvider
 from aegis.providers.openai_compatible import OpenAICompatibleProvider
-from aegis.proxy.config import ProviderKind, ProxyConfigError, provider_config_from_env
+from aegis.proxy.config import ProviderKind, ProxyConfigError, nimbus_config_from_env, provider_config_from_env
 
 
 def test_provider_config_defaults_to_mock_provider() -> None:
@@ -73,6 +73,59 @@ def test_provider_config_rejects_invalid_openai_timeout() -> None:
                 "AEGIS_OPENAI_TIMEOUT_SECONDS": "0",
             }
         )
+
+
+def test_nimbus_config_defaults_to_current_runtime_thresholds() -> None:
+    config = nimbus_config_from_env(env={})
+
+    assert config.exact_match_leakage_bits == 1.0
+    assert config.encoded_match_leakage_bits == 1.0
+    assert config.partial_match_leakage_bits == 0.8
+    assert config.partial_match_threshold == 0.4
+    assert config.confidence == 0.8
+    assert config.budget_bits == 1.0
+    assert config.warn_threshold == 0.3
+    assert config.sanitize_threshold == 0.6
+    assert config.block_threshold == 0.9
+    assert config.max_turns == 20
+    assert config.critic_version == "canary-v0"
+
+
+def test_nimbus_config_accepts_strict_partial_block_profile() -> None:
+    config = nimbus_config_from_env(
+        env={
+            "AEGIS_NIMBUS_PARTIAL_MATCH_LEAKAGE_BITS": "1.0",
+            "AEGIS_NIMBUS_WARN_THRESHOLD": "0.2",
+            "AEGIS_NIMBUS_SANITIZE_THRESHOLD": "0.3",
+            "AEGIS_NIMBUS_BLOCK_THRESHOLD": "0.36",
+            "AEGIS_NIMBUS_MAX_TURNS": "7",
+            "AEGIS_NIMBUS_CRITIC_VERSION": "canary-strict-test",
+        }
+    )
+
+    assert config.partial_match_leakage_bits == 1.0
+    assert config.warn_threshold == 0.2
+    assert config.sanitize_threshold == 0.3
+    assert config.block_threshold == 0.36
+    assert config.max_turns == 7
+    assert config.critic_version == "canary-strict-test"
+
+
+def test_nimbus_config_rejects_invalid_threshold_order() -> None:
+    with pytest.raises(ProxyConfigError, match="WARN_THRESHOLD"):
+        nimbus_config_from_env(
+            env={
+                "AEGIS_NIMBUS_WARN_THRESHOLD": "0.5",
+                "AEGIS_NIMBUS_SANITIZE_THRESHOLD": "0.4",
+            }
+        )
+
+
+def test_nimbus_config_rejects_invalid_values() -> None:
+    with pytest.raises(ProxyConfigError, match="AEGIS_NIMBUS_PARTIAL_MATCH_THRESHOLD"):
+        nimbus_config_from_env(env={"AEGIS_NIMBUS_PARTIAL_MATCH_THRESHOLD": "1.1"})
+    with pytest.raises(ProxyConfigError, match="AEGIS_NIMBUS_MAX_TURNS"):
+        nimbus_config_from_env(env={"AEGIS_NIMBUS_MAX_TURNS": "0"})
 
 
 def _minimal_turn() -> NormalizedTurn:

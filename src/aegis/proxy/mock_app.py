@@ -37,7 +37,7 @@ from aegis.detectors.nimbus import (
 from aegis.policy.engine import SeverityPolicyEngine
 from aegis.providers.mock import SUPPORTED_MOCK_RESPONSE_MODES
 from aegis.providers.openai_compatible import OpenAICompatibleProviderError
-from aegis.proxy.config import provider_config_from_env
+from aegis.proxy.config import ProxyNimbusConfig, nimbus_config_from_env, provider_config_from_env
 
 _RAW_CREDENTIAL_PATTERN = re.compile(r"(?:AKIA|ghp_|ya29\.|sk_live_|sk-|hny_)[A-Za-z0-9._-]{8,}")
 _PROXY_ERROR_SCHEMA_VERSION = "aegis.proxy_error/v1"
@@ -75,6 +75,7 @@ class MockProxyApp:
         model_provider: ModelProvider,
         provider_name: str,
         mock_controls_enabled: bool,
+        nimbus_config: ProxyNimbusConfig,
     ) -> None:
         self._audit_sink = audit_sink
         self._nimbus_detector = nimbus_detector
@@ -82,6 +83,7 @@ class MockProxyApp:
         self._model_provider = model_provider
         self._provider_name = provider_name
         self._mock_controls_enabled = mock_controls_enabled
+        self._nimbus_config = nimbus_config
         self._seeded_canaries_by_session_id: dict[str, tuple[CanaryRecord, ...]] = {}
 
     def handle(self, method: str, path: str, body: dict[str, JsonValue]) -> tuple[int, dict[str, JsonValue]]:
@@ -167,6 +169,7 @@ class MockProxyApp:
                 "name": self._provider_name,
                 "mock_controls_enabled": self._mock_controls_enabled,
             },
+            "nimbus": _nimbus_capabilities(self._nimbus_config),
             "routes": routes,
             "mock_response_modes": mock_response_modes,
             "detectors": detectors,
@@ -810,29 +813,50 @@ def _detector_names_for_component(
     return tuple(result.detector_name for result in detector_results if result.component == component)
 
 
+def _nimbus_capabilities(config: ProxyNimbusConfig) -> dict[str, JsonValue]:
+    return {
+        "critic_version": config.critic_version,
+        "budget_bits": config.budget_bits,
+        "max_turns": config.max_turns,
+        "thresholds": {
+            "warn": config.warn_threshold,
+            "sanitize": config.sanitize_threshold,
+            "block": config.block_threshold,
+        },
+        "critic": {
+            "exact_match_leakage_bits": config.exact_match_leakage_bits,
+            "encoded_match_leakage_bits": config.encoded_match_leakage_bits,
+            "partial_match_leakage_bits": config.partial_match_leakage_bits,
+            "partial_match_threshold": config.partial_match_threshold,
+            "confidence": config.confidence,
+        },
+    }
+
+
 def create_default_proxy() -> MockProxyApp:
     audit_sink = InMemoryAuditSink()
     provider_config = provider_config_from_env()
+    nimbus_config = nimbus_config_from_env()
     nimbus_critic = CanaryNimbusCritic(
         CanaryNimbusCriticConfig(
-            exact_match_leakage_bits=1.0,
-            encoded_match_leakage_bits=1.0,
-            partial_match_leakage_bits=0.8,
-            partial_match_threshold=0.4,
-            confidence=0.8,
+            exact_match_leakage_bits=nimbus_config.exact_match_leakage_bits,
+            encoded_match_leakage_bits=nimbus_config.encoded_match_leakage_bits,
+            partial_match_leakage_bits=nimbus_config.partial_match_leakage_bits,
+            partial_match_threshold=nimbus_config.partial_match_threshold,
+            confidence=nimbus_config.confidence,
         )
     )
     nimbus_detector = NimbusDetector(
         NimbusConfig(
-            budget_bits=1.0,
-            warn_threshold=0.3,
-            sanitize_threshold=0.6,
-            block_threshold=0.9,
-            max_turns=20,
-            critic_version="canary-v0",
+            budget_bits=nimbus_config.budget_bits,
+            warn_threshold=nimbus_config.warn_threshold,
+            sanitize_threshold=nimbus_config.sanitize_threshold,
+            block_threshold=nimbus_config.block_threshold,
+            max_turns=nimbus_config.max_turns,
+            critic_version=nimbus_config.critic_version,
         ),
         nimbus_critic,
-        InMemoryNimbusStateStore(max_turns=20),
+        InMemoryNimbusStateStore(max_turns=nimbus_config.max_turns),
     )
     return MockProxyApp(
         audit_sink=audit_sink,
@@ -841,4 +865,5 @@ def create_default_proxy() -> MockProxyApp:
         model_provider=provider_config.model_provider,
         provider_name=provider_config.provider_name,
         mock_controls_enabled=provider_config.mock_controls_enabled,
+        nimbus_config=nimbus_config,
     )
