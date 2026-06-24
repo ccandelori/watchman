@@ -163,6 +163,9 @@ runtime `ToolCall` contracts for detector use. `/audit/recent` returns a safe
 audit projection: trace/session/turn handles, a turn summary, detector results,
 policy decision, and whitelisted span metadata. It does not echo raw message
 content, arbitrary metadata values, tool-call arguments, or raw request bodies.
+When the final policy action is `sanitize`, `block`, or `escalate`, the proxy
+must not deliver raw model output in `choices`; it returns sanitized output when
+available or a fixed withheld-output message.
 For local redteam harnesses, `POST /test/seed-canary` registers a supplied
 canary value without returning it, then the mock proxy scans exact and encoded
 model output plus normalized tool-call arguments. `POST /test/reset` clears audit

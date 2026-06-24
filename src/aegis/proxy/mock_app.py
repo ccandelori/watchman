@@ -5,7 +5,16 @@ from collections.abc import Mapping
 from uuid import uuid4
 
 from aegis.audit.memory import InMemoryAuditSink
-from aegis.core.contracts import AuditEvent, CapabilityMode, JsonValue, Message, ModelInfo, SensitiveSpan, ToolCall
+from aegis.core.contracts import (
+    Action,
+    AuditEvent,
+    CapabilityMode,
+    JsonValue,
+    Message,
+    ModelInfo,
+    SensitiveSpan,
+    ToolCall,
+)
 from aegis.core.orchestrator import AegisRuntime, AegisRuntimeResponse, RuntimeRequest
 from aegis.detectors.activation import ActivationUnavailableDetector
 from aegis.detectors.canary import (
@@ -20,6 +29,8 @@ from aegis.detectors.canary import (
 from aegis.detectors.nimbus import BaselineNimbusCritic, InMemoryNimbusStateStore, NimbusConfig, NimbusDetector
 from aegis.policy.engine import SeverityPolicyEngine
 from aegis.providers.mock import MockModelProvider
+
+_WITHHELD_OUTPUT_TEXT = "[aegis output withheld]"
 
 
 class ProxyRequestError(ValueError):
@@ -86,7 +97,7 @@ class MockProxyApp:
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": response.output_text},
+                    "message": {"role": "assistant", "content": _response_output_text(response)},
                     "finish_reason": "stop",
                 }
             ],
@@ -115,6 +126,15 @@ class MockProxyApp:
         )
         self._test_canary_registry.add(record)
         return {"canary": _canary_record_summary(record)}
+
+
+def _response_output_text(response: AegisRuntimeResponse) -> str:
+    final_action = response.policy_decision.final_action
+    if final_action in (Action.ALLOW, Action.WARN):
+        return response.output_text
+    if final_action == Action.SANITIZE and response.policy_decision.sanitized_output is not None:
+        return response.policy_decision.sanitized_output
+    return _WITHHELD_OUTPUT_TEXT
 
 
 def _required_string_field(body: Mapping[str, JsonValue], key: str) -> str:

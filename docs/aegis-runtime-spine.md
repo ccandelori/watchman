@@ -73,7 +73,10 @@ payload["aegis"]["policy_decision"]
 trace/session/turn handles, turn summary counts and roles, normalized tool-call
 names, whitelisted sensitive span metadata, detector results, policy decision,
 and timing. It must not echo raw normalized message content, arbitrary metadata
-values, raw tool arguments, or raw request bodies.
+values, raw tool arguments, or raw request bodies. `/v1/chat/completions` also
+applies the policy decision before returning `choices`: `sanitize` uses
+`sanitized_output` when provided, while `block` and `escalate` return a fixed
+withheld-output message instead of raw model output.
 
 The mock proxy also exposes test-only redteam harness routes:
 

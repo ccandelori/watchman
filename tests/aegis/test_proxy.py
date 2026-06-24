@@ -240,6 +240,30 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertIn("tool_call_canary", policy["triggered_detectors"])
         self.assertNotIn(private_marker, str(chat_payload))
 
+    def test_policy_intervention_withholds_exact_canary_model_output(self) -> None:
+        proxy = create_default_proxy()
+        private_marker = "redacted-marker-173205080"
+
+        proxy.handle(
+            method="POST",
+            path="/test/seed-canary",
+            body={"canary_id": "hny_test_exact_output", "credential_type": "api_key", "value": private_marker},
+        )
+        chat_status, chat_payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "send status"}],
+                "metadata": {"mock_response": f"leaked {private_marker}"},
+            },
+        )
+
+        self.assertEqual(200, chat_status)
+        self.assertEqual("escalate", chat_payload["aegis"]["policy_decision"]["final_action"])
+        self.assertEqual("[aegis output withheld]", chat_payload["choices"][0]["message"]["content"])
+        self.assertNotIn(private_marker, str(chat_payload))
+
     def test_seed_canary_route_registers_encoded_output_scanner_without_returning_value(self) -> None:
         proxy = create_default_proxy()
         private_marker = "redacted-marker-141421356"
@@ -264,7 +288,9 @@ class MockProxyAppTest(unittest.TestCase):
         policy = chat_payload["aegis"]["policy_decision"]
         self.assertEqual("escalate", policy["final_action"])
         self.assertIn("encoded_canary", policy["triggered_detectors"])
+        self.assertEqual("[aegis output withheld]", chat_payload["choices"][0]["message"]["content"])
         self.assertNotIn(private_marker, str(chat_payload))
+        self.assertNotIn(encoded_marker, str(chat_payload))
 
     def test_seed_canary_route_rejects_invalid_seed_without_echoing_value(self) -> None:
         proxy = create_default_proxy()
