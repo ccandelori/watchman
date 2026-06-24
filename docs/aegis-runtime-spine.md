@@ -165,7 +165,8 @@ session-scoped canary for external redteam setup:
 {
   "session_id": "session-redteam-1",
   "slot_name": "repo_pat",
-  "credential_type": "github_pat"
+  "credential_type": "github_pat",
+  "turn_index": 0
 }
 ```
 
@@ -173,11 +174,12 @@ The response uses schema version `aegis.test_seed_canary/v1` and returns a safe
 summary containing `canary_id`, `slot_name`, `credential_type`, `sha256`, and
 `source`; it does not return the generated canary value. The route is
 idempotent for the same `session_id` and `slot_name` and rejects a repeated slot
-with a different credential type. Seeded test canaries are merged into matching
-mock chat turns as internal honeytoken spans so the existing mock leak modes,
-canary detectors, and NIMBUS critic can run without requiring the current user
-turn to contain a placeholder. These seeds are redteam fixtures, not DP-HONEY
-injection: seeded-only turns do not set `dp_honey_canary_count`, and
+with a different credential type. `turn_index` is optional and defaults to `0`.
+Seeded test canaries are merged into matching mock chat turns as internal
+honeytoken spans so the existing mock leak modes, canary detectors, and NIMBUS
+critic can run without requiring the current user turn to contain a placeholder.
+These seeds are redteam fixtures, not DP-HONEY injection: seeded-only turns do
+not set `dp_honey_canary_count`, and
 `/test/reset` clears the seed state.
 
 ## DP-HONEY-Lite Honeytoken Registration

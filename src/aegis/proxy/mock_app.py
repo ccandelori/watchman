@@ -53,7 +53,7 @@ _SUPPORTED_TEST_SEED_CREDENTIAL_TYPES = (
     "openai_key",
     "stripe_key",
 )
-_TEST_SEED_CANARY_FIELDS = frozenset(("session_id", "slot_name", "credential_type"))
+_TEST_SEED_CANARY_FIELDS = frozenset(("session_id", "slot_name", "credential_type", "turn_index"))
 
 
 class ProxyRequestError(ValueError):
@@ -145,6 +145,7 @@ class MockProxyApp:
                     "enabled": True,
                     "route": "/test/seed-canary",
                     "schema_version": _TEST_SEED_CANARY_SCHEMA_VERSION,
+                    "request_fields": list(sorted(_TEST_SEED_CANARY_FIELDS)),
                     "supported_credential_types": list(_SUPPORTED_TEST_SEED_CREDENTIAL_TYPES),
                 }
             }
@@ -213,6 +214,9 @@ class MockProxyApp:
         session_id = _body_string(body, "session_id")
         slot_name = _body_string(body, "slot_name")
         credential_type = _body_string(body, "credential_type")
+        turn_index = _body_int(body, "turn_index", 0)
+        if turn_index < 0:
+            raise ProxyRequestError("field 'turn_index' must be non-negative.")
         if credential_type not in _SUPPORTED_TEST_SEED_CREDENTIAL_TYPES:
             supported_types = ", ".join(_SUPPORTED_TEST_SEED_CREDENTIAL_TYPES)
             raise ProxyRequestError(
@@ -240,6 +244,7 @@ class MockProxyApp:
             session_id=session_id,
             slot_name=slot_name,
             credential_type=credential_type,
+            turn_index=turn_index,
         )
         seeded_records = _merge_canary_records(
             self._seeded_canaries_by_session_id.get(session_id, ()),
@@ -422,6 +427,15 @@ def _body_string(body: Mapping[str, JsonValue], key: str) -> str:
     return value
 
 
+def _body_int(body: Mapping[str, JsonValue], key: str, default: int) -> int:
+    value = body.get(key)
+    if value is None:
+        return default
+    if not isinstance(value, int):
+        raise ProxyRequestError(f"field '{key}' must be an integer.")
+    return value
+
+
 def _existing_seeded_canary(records: tuple[CanaryRecord, ...], slot_name: str) -> CanaryRecord | None:
     for record in records:
         if record.metadata.get("slot_name") == slot_name:
@@ -429,13 +443,13 @@ def _existing_seeded_canary(records: tuple[CanaryRecord, ...], slot_name: str) -
     return None
 
 
-def _seeded_canary_record(session_id: str, slot_name: str, credential_type: str) -> CanaryRecord:
+def _seeded_canary_record(session_id: str, slot_name: str, credential_type: str, turn_index: int) -> CanaryRecord:
     ledger = HoneytokenLedger(
         session_id=session_id,
         generator=default_honeytoken_generator,
         source=_TEST_SEEDED_CANARY_SOURCE,
     )
-    ledger.plant(slot_name=slot_name, credential_type=credential_type, turn_index=0)
+    ledger.plant(slot_name=slot_name, credential_type=credential_type, turn_index=turn_index)
     records = ledger.canary_records()
     if len(records) != 1:
         raise ProxyRequestError("test canary seeding failed to create exactly one canary.")
@@ -449,7 +463,7 @@ def _canary_record_public_summary(record: CanaryRecord) -> dict[str, JsonValue]:
         "credential_type": record.credential_type,
         "sha256": record.sha256,
         "source": record.source,
-        "metadata": {"slot_name": _canary_slot_name(record)},
+        "metadata": {"slot_name": _canary_slot_name(record), "turn_planted": record.metadata.get("turn_planted", 0)},
     }
 
 

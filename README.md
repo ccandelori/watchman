@@ -227,7 +227,8 @@ curl -s http://127.0.0.1:8000/test/seed-canary \
   -d '{
     "session_id": "session-local-1",
     "slot_name": "repo_pat",
-    "credential_type": "github_pat"
+    "credential_type": "github_pat",
+    "turn_index": 0
   }'
 ```
 
@@ -235,6 +236,7 @@ The seed response uses schema version `aegis.test_seed_canary/v1` and returns
 only safe identifiers, credential type, source, and SHA-256. It never returns
 the generated canary value. Repeating the same `session_id` and `slot_name` is
 idempotent; using the same slot with a different credential type is rejected.
+`turn_index` is optional and defaults to `0`.
 Seeded canaries are a redteam/dev fixture, not DP-HONEY injection. Seeded-only
 turns activate canary/NIMBUS detection while the runtime trace still reports the
 DP-HONEY stage as not configured.
