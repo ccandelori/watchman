@@ -1,6 +1,7 @@
 import unittest
 
-from aegis.proxy.mock_app import create_default_proxy
+from aegis.audit.memory import InMemoryAuditSink
+from aegis.proxy.mock_app import MockProxyApp, create_default_proxy
 
 
 class MockProxyAppTest(unittest.TestCase):
@@ -82,6 +83,71 @@ class MockProxyAppTest(unittest.TestCase):
 
         self.assertEqual(400, status)
         self.assertIn("messages", payload["error"])
+
+    def test_chat_completions_route_rejects_non_object_body(self) -> None:
+        proxy = create_default_proxy()
+
+        status, payload = proxy.handle(method="POST", path="/v1/chat/completions", body=[])
+
+        self.assertEqual(400, status)
+        self.assertIn("request body", payload["error"])
+        self.assertNotIn("[]", str(payload))
+
+    def test_chat_completions_route_rejects_bool_turn_index(self) -> None:
+        proxy = create_default_proxy()
+
+        status, payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "hello"}],
+                "metadata": {"turn_index": True},
+            },
+        )
+
+        self.assertEqual(400, status)
+        self.assertIn("turn_index", payload["error"])
+
+    def test_chat_completions_route_rejects_negative_turn_index(self) -> None:
+        proxy = create_default_proxy()
+
+        status, payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "hello"}],
+                "metadata": {"turn_index": -1},
+            },
+        )
+
+        self.assertEqual(400, status)
+        self.assertIn("turn_index", payload["error"])
+
+    def test_chat_completions_route_sanitizes_runtime_exceptions(self) -> None:
+        proxy = MockProxyApp(runtime=FailingRuntime(), audit_sink=InMemoryAuditSink())
+        private_marker = "redacted-marker-987654321"
+
+        status, payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": private_marker}],
+                "metadata": {"trace_id": "trace-runtime-error"},
+            },
+        )
+
+        self.assertEqual(500, status)
+        self.assertEqual("internal proxy error", payload["error"])
+        self.assertEqual("trace-runtime-error", payload["aegis"]["trace_id"])
+        self.assertNotIn(private_marker, str(payload))
+
+
+class FailingRuntime:
+    def evaluate_turn(self, request: object) -> object:
+        raise RuntimeError("private runtime failure redacted-marker-987654321")
 
 
 if __name__ == "__main__":

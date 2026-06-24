@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from collections.abc import Mapping
 from uuid import uuid4
 
@@ -22,7 +23,7 @@ class MockProxyApp:
         self._runtime = runtime
         self._audit_sink = audit_sink
 
-    def handle(self, method: str, path: str, body: dict[str, JsonValue]) -> tuple[int, dict[str, JsonValue]]:
+    def handle(self, method: str, path: str, body: object) -> tuple[int, dict[str, JsonValue]]:
         if method == "GET" and path == "/health":
             return 200, {"status": "ok"}
         if method == "GET" and path == "/audit/recent":
@@ -32,9 +33,11 @@ class MockProxyApp:
                 return 200, self._handle_chat_completions(body)
             except ProxyRequestError as exc:
                 return 400, {"error": str(exc)}
+            except Exception:
+                return 500, _internal_proxy_error_payload(body=body)
         return 404, {"error": f"No route for {method} {path}."}
 
-    def _handle_chat_completions(self, body: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    def _handle_chat_completions(self, body: object) -> dict[str, JsonValue]:
         request = _runtime_request_from_chat_body(body)
         response = self._runtime.evaluate_turn(request)
         return {
@@ -56,17 +59,18 @@ class MockProxyApp:
         }
 
 
-def _runtime_request_from_chat_body(body: dict[str, JsonValue]) -> RuntimeRequest:
-    model = body.get("model")
+def _runtime_request_from_chat_body(body: object) -> RuntimeRequest:
+    request_body = _json_object_from_raw(value=body, context="request body")
+    model = request_body.get("model")
     if not isinstance(model, str) or model == "":
         raise ProxyRequestError("field 'model' must be a non-empty string.")
 
-    raw_messages = body.get("messages")
+    raw_messages = request_body.get("messages")
     if not isinstance(raw_messages, list) or len(raw_messages) == 0:
         raise ProxyRequestError("field 'messages' must be a non-empty list.")
 
     messages = tuple(_message_from_raw(item) for item in raw_messages)
-    metadata = _metadata_from_raw(body.get("metadata"))
+    metadata = _metadata_from_raw(request_body.get("metadata"))
     trace_id = _metadata_string(metadata, "trace_id", f"trace-{uuid4().hex}")
     session_id = _metadata_string(metadata, "session_id", f"session-{uuid4().hex}")
     turn_index = _metadata_int(metadata, "turn_index", 1)
@@ -122,9 +126,58 @@ def _metadata_int(metadata: Mapping[str, JsonValue], key: str, default: int) -> 
     value = metadata.get(key)
     if value is None:
         return default
-    if not isinstance(value, int):
+    if isinstance(value, bool) or not isinstance(value, int):
         raise ProxyRequestError(f"metadata field '{key}' must be an integer.")
+    if value < 0:
+        raise ProxyRequestError(f"metadata field '{key}' must be non-negative.")
     return value
+
+
+def _json_object_from_raw(value: object, context: str) -> dict[str, JsonValue]:
+    if not isinstance(value, dict):
+        raise ProxyRequestError(f"{context} must be a JSON object.")
+    decoded: dict[str, JsonValue] = {}
+    for key, item in value.items():
+        if not isinstance(key, str):
+            raise ProxyRequestError(f"{context} keys must be strings.")
+        decoded[key] = _json_value_from_raw(value=item, context=f"{context}.{key}")
+    return decoded
+
+
+def _json_value_from_raw(value: object, context: str) -> JsonValue:
+    if value is None or isinstance(value, str | bool):
+        return value
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ProxyRequestError(f"{context} must be finite.")
+        return value
+    if isinstance(value, list):
+        return [_json_value_from_raw(value=item, context=f"{context}[{index}]") for index, item in enumerate(value)]
+    if isinstance(value, dict):
+        return _json_object_from_raw(value=value, context=context)
+    raise ProxyRequestError(f"{context} must be JSON-compatible.")
+
+
+def _internal_proxy_error_payload(body: object) -> dict[str, JsonValue]:
+    payload: dict[str, JsonValue] = {"error": "internal proxy error"}
+    trace_id = _trace_id_from_body(body=body)
+    if trace_id is not None:
+        payload["aegis"] = {"trace_id": trace_id}
+    return payload
+
+
+def _trace_id_from_body(body: object) -> str | None:
+    if not isinstance(body, dict):
+        return None
+    metadata = body.get("metadata")
+    if not isinstance(metadata, dict):
+        return None
+    trace_id = metadata.get("trace_id")
+    if not isinstance(trace_id, str) or trace_id == "":
+        return None
+    return trace_id
 
 
 def _safe_audit_event(event: AuditEvent) -> dict[str, JsonValue]:
