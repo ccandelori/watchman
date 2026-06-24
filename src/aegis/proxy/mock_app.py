@@ -4,7 +4,7 @@ from collections.abc import Mapping
 from uuid import uuid4
 
 from aegis.audit.memory import InMemoryAuditSink
-from aegis.core.contracts import CapabilityMode, JsonValue, Message, ModelInfo
+from aegis.core.contracts import AuditEvent, CapabilityMode, JsonValue, Message, ModelInfo, SensitiveSpan
 from aegis.core.orchestrator import AegisRuntime, RuntimeRequest
 from aegis.detectors.activation import ActivationUnavailableDetector
 from aegis.detectors.canary import NoopCanaryDetector
@@ -26,7 +26,7 @@ class MockProxyApp:
         if method == "GET" and path == "/health":
             return 200, {"status": "ok"}
         if method == "GET" and path == "/audit/recent":
-            return 200, {"events": [event.to_dict() for event in self._audit_sink.recent(limit=20)]}
+            return 200, {"events": [_safe_audit_event(event) for event in self._audit_sink.recent(limit=20)]}
         if method == "POST" and path == "/v1/chat/completions":
             try:
                 return 200, self._handle_chat_completions(body)
@@ -125,6 +125,47 @@ def _metadata_int(metadata: Mapping[str, JsonValue], key: str, default: int) -> 
     if not isinstance(value, int):
         raise ProxyRequestError(f"metadata field '{key}' must be an integer.")
     return value
+
+
+def _safe_audit_event(event: AuditEvent) -> dict[str, JsonValue]:
+    turn = event.normalized_turn
+    return {
+        "trace_id": event.trace_id,
+        "session_id": event.session_id,
+        "turn_index": event.turn_index,
+        "turn_summary": {
+            "capability_mode": turn.capability_mode.value,
+            "model": turn.model.to_dict(),
+            "message_count": len(turn.messages),
+            "message_roles": [message.role for message in turn.messages],
+            "tool_call_count": len(turn.tool_calls),
+            "sensitive_span_count": len(turn.sensitive_spans),
+            "metadata_key_count": len(turn.metadata),
+        },
+        "sensitive_spans": [_safe_sensitive_span(span) for span in turn.sensitive_spans],
+        "detector_results": [result.to_dict() for result in event.detector_results],
+        "policy_decision": event.policy_decision.to_dict(),
+        "latency_ms": event.latency_ms,
+        "created_at": event.created_at,
+    }
+
+
+def _safe_sensitive_span(span: SensitiveSpan) -> dict[str, JsonValue]:
+    return {
+        "kind": span.kind,
+        "source": span.source,
+        "char_start": span.char_start,
+        "char_end": span.char_end,
+        "token_start": span.token_start,
+        "token_end": span.token_end,
+        "identifier": span.identifier,
+        "metadata": _safe_sensitive_span_metadata(span.metadata),
+    }
+
+
+def _safe_sensitive_span_metadata(metadata: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    safe_keys = ("sha256", "honeytoken_sha256", "credential_type", "source", "slot_name", "turn_planted")
+    return {key: metadata[key] for key in safe_keys if key in metadata}
 
 
 def create_default_proxy() -> MockProxyApp:
