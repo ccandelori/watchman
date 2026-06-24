@@ -155,6 +155,17 @@ The default policy intentionally accumulates partial fragments over turns before
 blocking. Stricter local runs can lower `AEGIS_NIMBUS_BLOCK_THRESHOLD` and
 related action thresholds without changing detector code.
 
+`aegis-proxy-smoke` validates this distinction. The default smoke profile
+expects a single partial seeded-canary leak to stay below block. The strict
+profile expects the same probe to block:
+
+```bash
+uv run aegis-proxy-smoke \
+  --url http://127.0.0.1:8000 \
+  --timeout 5 \
+  --nimbus-profile strict-partial-block
+```
+
 Proxy-owned request and provider errors use schema version
 `aegis.proxy_error/v1`:
 

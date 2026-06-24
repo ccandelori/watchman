@@ -322,6 +322,30 @@ For a stricter local profile where one roughly half-token partial fragment can
 block, lower the action thresholds intentionally rather than changing detector
 code.
 
+The proxy smoke command checks the default profile unless told otherwise:
+
+```bash
+uv run aegis-proxy-smoke --url http://127.0.0.1:8000 --timeout 5
+```
+
+To demo aggressive partial-leak blocking, start the proxy with a stricter
+NIMBUS profile:
+
+```bash
+AEGIS_NIMBUS_SANITIZE_THRESHOLD=0.35 \
+AEGIS_NIMBUS_BLOCK_THRESHOLD=0.36 \
+uv run aegis-proxy --host 127.0.0.1 --port 8000
+```
+
+Then verify that a single partial seeded-canary leak blocks:
+
+```bash
+uv run aegis-proxy-smoke \
+  --url http://127.0.0.1:8000 \
+  --timeout 5 \
+  --nimbus-profile strict-partial-block
+```
+
 Generate controlled trace-collection assignments for human operators:
 
 ```bash
