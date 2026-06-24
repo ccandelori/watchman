@@ -14,6 +14,7 @@ from aegis.providers.openai_compatible import OpenAICompatibleProviderError
 from aegis.proxy.config import ProxyNimbusConfig
 from aegis.proxy.http_app import create_http_app
 from aegis.proxy.mock_app import MockProxyApp, create_default_proxy
+from aegis.proxy.runtime_factory import ProxyRuntimeFactory, black_box_cift_capability
 from aegis.proxy.server import ProxyServerConfig, parse_args, run_server
 
 
@@ -405,6 +406,7 @@ class FailingProvider:
 
 
 def _proxy_with_provider(model_provider: FailingProvider) -> MockProxyApp:
+    audit_sink = InMemoryAuditSink()
     nimbus_critic = CanaryNimbusCritic(
         CanaryNimbusCriticConfig(
             exact_match_leakage_bits=1.0,
@@ -426,24 +428,30 @@ def _proxy_with_provider(model_provider: FailingProvider) -> MockProxyApp:
         nimbus_critic,
         InMemoryNimbusStateStore(max_turns=20),
     )
+    nimbus_config = ProxyNimbusConfig(
+        exact_match_leakage_bits=1.0,
+        encoded_match_leakage_bits=1.0,
+        partial_match_leakage_bits=0.8,
+        partial_match_threshold=0.4,
+        confidence=0.8,
+        budget_bits=1.0,
+        warn_threshold=0.3,
+        sanitize_threshold=0.6,
+        block_threshold=0.9,
+        max_turns=20,
+        critic_version="canary-v0",
+    )
     return MockProxyApp(
-        audit_sink=InMemoryAuditSink(),
+        audit_sink=audit_sink,
         nimbus_detector=nimbus_detector,
         nimbus_critic=nimbus_critic,
-        model_provider=model_provider,
+        runtime_factory=ProxyRuntimeFactory(
+            audit_sink=audit_sink,
+            nimbus_detector=nimbus_detector,
+            cift_capability=black_box_cift_capability(),
+            model_provider=model_provider,
+        ),
         provider_name="openai_compatible",
         mock_controls_enabled=False,
-        nimbus_config=ProxyNimbusConfig(
-            exact_match_leakage_bits=1.0,
-            encoded_match_leakage_bits=1.0,
-            partial_match_leakage_bits=0.8,
-            partial_match_threshold=0.4,
-            confidence=0.8,
-            budget_bits=1.0,
-            warn_threshold=0.3,
-            sanitize_threshold=0.6,
-            block_threshold=0.9,
-            max_turns=20,
-            critic_version="canary-v0",
-        ),
+        nimbus_config=nimbus_config,
     )

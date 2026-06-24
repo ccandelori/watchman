@@ -7,20 +7,16 @@ import urllib.error
 import urllib.request
 from collections.abc import Sequence
 from dataclasses import dataclass
-from enum import StrEnum
 from typing import Protocol, cast
 
 from aegis.core.action_severity import action_severity
 from aegis.core.contracts import Action, JsonValue
+from aegis.proxy.nimbus_profile import NimbusSmokeProfile, partial_leak_smoke_expectation
+from aegis.proxy.smoke_contract import gateway_smoke_contract
 
 
 class GatewaySmokeError(RuntimeError):
     """Raised when the running gateway violates the smoke-test contract."""
-
-
-class NimbusSmokeProfile(StrEnum):
-    DEFAULT = "default"
-    STRICT_PARTIAL_BLOCK = "strict-partial-block"
 
 
 @dataclass(frozen=True)
@@ -82,29 +78,32 @@ def parse_args(argv: Sequence[str]) -> GatewaySmokeConfig:
 
 
 def run_gateway_smoke(config: GatewaySmokeConfig, client: GatewayHttpClient) -> dict[str, JsonValue]:
+    contract = gateway_smoke_contract()
     _check_health(config=config, client=client)
     capabilities_summary = _check_capabilities(config=config, client=client)
-    _reset_gateway(config=config, client=client, session_id="smoke-session")
-    _reset_gateway(config=config, client=client, session_id="smoke-seeded-session")
-    _reset_gateway(config=config, client=client, session_id="smoke-partial-session")
+    for session_id in contract.reset_session_ids:
+        _reset_gateway(config=config, client=client, session_id=session_id)
     benign_summary = _check_benign_chat(config=config, client=client)
     leak_summary = _check_encoded_canary_leak(config=config, client=client)
     seeded_summary = _check_seeded_canary_leak(config=config, client=client)
     partial_summary = _check_nimbus_partial_profile(config=config, client=client)
     audit_summary = _check_audit(config=config, client=client)
+    checks: dict[str, JsonValue] = {
+        "health": {"status": "ok"},
+        "capabilities": capabilities_summary,
+        "benign_chat": benign_summary,
+        "encoded_canary_leak": leak_summary,
+        "seeded_canary_leak": seeded_summary,
+        "nimbus_partial_leak": partial_summary,
+        "audit_recent": audit_summary,
+    }
+    if tuple(checks.keys()) != contract.check_names:
+        raise GatewaySmokeError("gateway smoke check order does not match the declared contract.")
     return {
         "status": "ok",
         "base_url": config.base_url,
         "nimbus_profile": config.nimbus_profile.value,
-        "checks": {
-            "health": {"status": "ok"},
-            "capabilities": capabilities_summary,
-            "benign_chat": benign_summary,
-            "encoded_canary_leak": leak_summary,
-            "seeded_canary_leak": seeded_summary,
-            "nimbus_partial_leak": partial_summary,
-            "audit_recent": audit_summary,
-        },
+        "checks": checks,
     }
 
 
@@ -402,25 +401,40 @@ def _assert_partial_nimbus_profile(
     final_action: Action,
     nimbus_action: Action,
 ) -> None:
-    if config.nimbus_profile == NimbusSmokeProfile.DEFAULT:
-        if nimbus_action != Action.WARN:
-            raise GatewaySmokeError(f"default NIMBUS profile expected partial leak warn but got {nimbus_action.value}.")
-        if action_severity(final_action) >= action_severity(Action.BLOCK):
-            raise GatewaySmokeError(
-                f"default NIMBUS profile expected partial leak below block but got {final_action.value}."
-            )
-        return
-    if config.nimbus_profile == NimbusSmokeProfile.STRICT_PARTIAL_BLOCK:
-        if action_severity(nimbus_action) < action_severity(Action.BLOCK):
-            raise GatewaySmokeError(
-                f"strict NIMBUS profile expected partial leak block-or-stronger but got {nimbus_action.value}."
-            )
-        if action_severity(final_action) < action_severity(Action.BLOCK):
-            raise GatewaySmokeError(
-                f"strict NIMBUS profile expected final action block-or-stronger but got {final_action.value}."
-            )
-        return
-    raise GatewaySmokeError(f"unsupported nimbus smoke profile {config.nimbus_profile.value}.")
+    expectation = partial_leak_smoke_expectation(config.nimbus_profile)
+    profile_label = _nimbus_profile_error_label(expectation.profile)
+    if expectation.nimbus_exact_action is not None and nimbus_action != expectation.nimbus_exact_action:
+        raise GatewaySmokeError(
+            f"{profile_label} expected partial leak "
+            f"{expectation.nimbus_exact_action.value} but got {nimbus_action.value}."
+        )
+    if expectation.nimbus_min_action is not None and action_severity(nimbus_action) < action_severity(
+        expectation.nimbus_min_action
+    ):
+        raise GatewaySmokeError(
+            f"{profile_label} expected partial leak "
+            f"{expectation.nimbus_min_action.value}-or-stronger but got {nimbus_action.value}."
+        )
+    if expectation.final_min_action is not None and action_severity(final_action) < action_severity(
+        expectation.final_min_action
+    ):
+        raise GatewaySmokeError(
+            f"{profile_label} expected final action "
+            f"{expectation.final_min_action.value}-or-stronger but got {final_action.value}."
+        )
+    if expectation.final_below_action is not None and action_severity(final_action) >= action_severity(
+        expectation.final_below_action
+    ):
+        raise GatewaySmokeError(
+            f"{profile_label} expected partial leak below "
+            f"{expectation.final_below_action.value} but got {final_action.value}."
+        )
+
+
+def _nimbus_profile_error_label(profile: NimbusSmokeProfile) -> str:
+    if profile == NimbusSmokeProfile.DEFAULT:
+        return "default NIMBUS profile"
+    return "strict NIMBUS profile"
 
 
 def _capability_routes(payload: dict[str, JsonValue]) -> frozenset[tuple[str, str]]:
@@ -490,17 +504,7 @@ def _assert_runtime_trace(aegis: dict[str, JsonValue]) -> None:
         if not isinstance(stage_name, str):
             raise GatewaySmokeError("runtime_trace stage name must be a string.")
         stage_names.append(stage_name)
-    expected = [
-        "normalize",
-        "dp_honey",
-        "cift",
-        "provider_egress_guard",
-        "provider",
-        "canary",
-        "nimbus",
-        "policy",
-        "audit",
-    ]
+    expected = list(gateway_smoke_contract().runtime_trace_stages)
     if stage_names != expected:
         raise GatewaySmokeError(f"runtime_trace stages mismatch: expected {expected}, got {stage_names}.")
 

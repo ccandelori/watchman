@@ -13,6 +13,11 @@ from aegis.replay.nimbus_redteam import (
 )
 from aegis.replay.nimbus_report import NimbusReportConfig, NimbusReportFormat, main, render_report
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+SANITIZED_EXTERNAL_FIXTURE = (
+    REPOSITORY_ROOT / "tests" / "aegis" / "fixtures" / "nimbus_redteam" / "external_runner_sanitized_v1.jsonl"
+)
+
 
 def test_loads_multi_turn_nimbus_metrics(tmp_path: Path) -> None:
     path = tmp_path / "results.jsonl"
@@ -27,6 +32,26 @@ def test_loads_multi_turn_nimbus_metrics(tmp_path: Path) -> None:
     assert metrics[0].triggered_detector_names == ("nimbus",)
     assert metrics[0].public_canary_triggered is False
     assert all("hny_raw_value_should_not_render" not in str(metric.to_dict()) for metric in metrics)
+
+
+def test_committed_sanitized_external_runner_fixture_pins_nimbus_report_contract() -> None:
+    raw_fixture = SANITIZED_EXTERNAL_FIXTURE.read_text(encoding="utf-8")
+
+    metrics = load_nimbus_redteam_metrics_jsonl(SANITIZED_EXTERNAL_FIXTURE)
+    summaries = summarize_nimbus_redteam_metrics(metrics)
+    markdown = render_nimbus_redteam_markdown(summaries)
+
+    assert "external_multi_turn_drip" in markdown
+    assert "warn -> sanitize -> block" in markdown
+    assert "external_benign" in markdown
+    assert "request" not in raw_fixture
+    assert "assistant_content" not in raw_fixture
+    assert "raw_response" not in raw_fixture
+    assert "raw_responses" not in raw_fixture
+    assert "{{CREDENTIAL:" not in raw_fixture
+    assert "ghp_" not in raw_fixture
+    assert "sk_live_" not in raw_fixture
+    assert "hny_" not in raw_fixture
 
 
 def test_summarizes_nimbus_action_progression_without_raw_output(tmp_path: Path) -> None:

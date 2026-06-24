@@ -16,17 +16,11 @@ from aegis.core.contracts import (
     ModelInfo,
     SensitiveSpan,
 )
-from aegis.core.orchestrator import AegisRuntime, AegisRuntimeResponse, Detector, ModelProvider, RuntimeRequest
-from aegis.detectors.activation import ActivationUnavailableDetector
+from aegis.core.orchestrator import AegisRuntimeResponse, RuntimeRequest
 from aegis.detectors.canary import (
     CanaryRecord,
-    EncodedCanaryDetector,
-    InMemoryCanaryRegistry,
-    NoopCanaryDetector,
-    TextCanaryDetector,
     canary_sha256,
 )
-from aegis.detectors.egress import ProviderEgressGuardDetector
 from aegis.detectors.nimbus import (
     CanaryNimbusCritic,
     CanaryNimbusCriticConfig,
@@ -34,10 +28,11 @@ from aegis.detectors.nimbus import (
     NimbusConfig,
     NimbusDetector,
 )
-from aegis.policy.engine import SeverityPolicyEngine
 from aegis.providers.mock import SUPPORTED_MOCK_RESPONSE_MODES
 from aegis.providers.openai_compatible import OpenAICompatibleProviderError
-from aegis.proxy.config import ProxyNimbusConfig, nimbus_config_from_env, provider_config_from_env
+from aegis.proxy.config import ProxyNimbusConfig, ProxyProviderConfig, nimbus_config_from_env, provider_config_from_env
+from aegis.proxy.nimbus_profile import nimbus_capabilities
+from aegis.proxy.runtime_factory import ProxyCiftCapability, ProxyRuntimeFactory, black_box_cift_capability
 
 _RAW_CREDENTIAL_PATTERN = re.compile(r"(?:AKIA|ghp_|ya29\.|sk_live_|sk-|hny_)[A-Za-z0-9._-]{8,}")
 _PROXY_ERROR_SCHEMA_VERSION = "aegis.proxy_error/v1"
@@ -72,7 +67,7 @@ class MockProxyApp:
         audit_sink: InMemoryAuditSink,
         nimbus_detector: NimbusDetector,
         nimbus_critic: CanaryNimbusCritic,
-        model_provider: ModelProvider,
+        runtime_factory: ProxyRuntimeFactory,
         provider_name: str,
         mock_controls_enabled: bool,
         nimbus_config: ProxyNimbusConfig,
@@ -80,7 +75,7 @@ class MockProxyApp:
         self._audit_sink = audit_sink
         self._nimbus_detector = nimbus_detector
         self._nimbus_critic = nimbus_critic
-        self._model_provider = model_provider
+        self._runtime_factory = runtime_factory
         self._provider_name = provider_name
         self._mock_controls_enabled = mock_controls_enabled
         self._nimbus_config = nimbus_config
@@ -169,7 +164,8 @@ class MockProxyApp:
                 "name": self._provider_name,
                 "mock_controls_enabled": self._mock_controls_enabled,
             },
-            "nimbus": _nimbus_capabilities(self._nimbus_config),
+            "cift": _cift_capabilities(self._runtime_factory.cift_capability),
+            "nimbus": nimbus_capabilities(self._nimbus_config),
             "routes": routes,
             "mock_response_modes": mock_response_modes,
             "detectors": detectors,
@@ -270,13 +266,14 @@ class MockProxyApp:
             provider_name=self._provider_name,
             mock_controls_enabled=self._mock_controls_enabled,
             seeded_canary_records_by_session_id=self._seeded_canaries_by_session_id,
+            capability_mode=self._runtime_factory.cift_capability.capability_mode,
         )
         request = proxy_request.runtime_request
         self._nimbus_critic.register_canary_records(
             session_id=request.session_id,
             records=proxy_request.canary_records,
         )
-        runtime = self._runtime_for_canary_records(proxy_request.canary_records)
+        runtime = self._runtime_factory.build(proxy_request.canary_records)
         response = runtime.evaluate_turn(request)
         return {
             "id": f"chatcmpl-{request.trace_id}",
@@ -298,23 +295,13 @@ class MockProxyApp:
             },
         }
 
-    def _runtime_for_canary_records(self, canary_records: tuple[CanaryRecord, ...]) -> AegisRuntime:
-        return AegisRuntime(
-            turn_annotators=(),
-            pre_generation_detectors=(ActivationUnavailableDetector(), ProviderEgressGuardDetector()),
-            post_generation_detectors=_post_generation_detectors(canary_records),
-            session_detectors=(self._nimbus_detector,),
-            policy_engine=SeverityPolicyEngine(),
-            audit_sink=self._audit_sink,
-            model_provider=self._model_provider,
-        )
-
 
 def _runtime_request_from_chat_body(
     body: dict[str, JsonValue],
     provider_name: str,
     mock_controls_enabled: bool,
     seeded_canary_records_by_session_id: Mapping[str, tuple[CanaryRecord, ...]],
+    capability_mode: CapabilityMode,
 ) -> ProxyRuntimeRequest:
     model = body.get("model")
     if not isinstance(model, str) or model == "":
@@ -363,7 +350,7 @@ def _runtime_request_from_chat_body(
             trace_id=trace_id,
             session_id=session_id,
             turn_index=turn_index,
-            capability_mode=CapabilityMode.BLACK_BOX,
+            capability_mode=capability_mode,
             model=ModelInfo(provider=provider_name, model_id=model, revision=None, selected_device=None),
             messages=seeded_messages,
             tool_calls=(),
@@ -706,16 +693,6 @@ def _metadata_positive_int(metadata: Mapping[str, JsonValue], key: str, default:
     return value
 
 
-def _post_generation_detectors(canary_records: tuple[CanaryRecord, ...]) -> tuple[Detector, ...]:
-    if len(canary_records) == 0:
-        return (NoopCanaryDetector(),)
-    registry = InMemoryCanaryRegistry(records=canary_records)
-    return (
-        TextCanaryDetector(detector_name="text_canary", registry=registry),
-        EncodedCanaryDetector(detector_name="encoded_canary", registry=registry, partial_match_threshold=0.75),
-    )
-
-
 def _runtime_trace(request: RuntimeRequest, response: AegisRuntimeResponse) -> dict[str, JsonValue]:
     detector_results = response.detector_results
     policy_decision = response.policy_decision
@@ -813,30 +790,20 @@ def _detector_names_for_component(
     return tuple(result.detector_name for result in detector_results if result.component == component)
 
 
-def _nimbus_capabilities(config: ProxyNimbusConfig) -> dict[str, JsonValue]:
+def _cift_capabilities(capability: ProxyCiftCapability) -> dict[str, JsonValue]:
     return {
-        "critic_version": config.critic_version,
-        "budget_bits": config.budget_bits,
-        "max_turns": config.max_turns,
-        "thresholds": {
-            "warn": config.warn_threshold,
-            "sanitize": config.sanitize_threshold,
-            "block": config.block_threshold,
-        },
-        "critic": {
-            "exact_match_leakage_bits": config.exact_match_leakage_bits,
-            "encoded_match_leakage_bits": config.encoded_match_leakage_bits,
-            "partial_match_leakage_bits": config.partial_match_leakage_bits,
-            "partial_match_threshold": config.partial_match_threshold,
-            "confidence": config.confidence,
-        },
+        "capability_mode": capability.capability_mode.value,
+        "detectors": list(capability.detector_names),
+        "turn_annotator_count": len(capability.turn_annotators),
     }
 
 
-def create_default_proxy() -> MockProxyApp:
+def create_proxy(
+    provider_config: ProxyProviderConfig,
+    nimbus_config: ProxyNimbusConfig,
+    cift_capability: ProxyCiftCapability,
+) -> MockProxyApp:
     audit_sink = InMemoryAuditSink()
-    provider_config = provider_config_from_env()
-    nimbus_config = nimbus_config_from_env()
     nimbus_critic = CanaryNimbusCritic(
         CanaryNimbusCriticConfig(
             exact_match_leakage_bits=nimbus_config.exact_match_leakage_bits,
@@ -858,12 +825,26 @@ def create_default_proxy() -> MockProxyApp:
         nimbus_critic,
         InMemoryNimbusStateStore(max_turns=nimbus_config.max_turns),
     )
+    runtime_factory = ProxyRuntimeFactory(
+        audit_sink=audit_sink,
+        nimbus_detector=nimbus_detector,
+        cift_capability=cift_capability,
+        model_provider=provider_config.model_provider,
+    )
     return MockProxyApp(
         audit_sink=audit_sink,
         nimbus_detector=nimbus_detector,
         nimbus_critic=nimbus_critic,
-        model_provider=provider_config.model_provider,
+        runtime_factory=runtime_factory,
         provider_name=provider_config.provider_name,
         mock_controls_enabled=provider_config.mock_controls_enabled,
         nimbus_config=nimbus_config,
+    )
+
+
+def create_default_proxy() -> MockProxyApp:
+    return create_proxy(
+        provider_config=provider_config_from_env(),
+        nimbus_config=nimbus_config_from_env(),
+        cift_capability=black_box_cift_capability(),
     )
