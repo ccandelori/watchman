@@ -33,7 +33,7 @@ def test_nimbus_fixture_results_are_parseable_without_raw_prompts_or_outputs(tmp
     assert "ghp_" not in raw_output
     assert "sk_live_" not in raw_output
     assert summaries_by_name["partial_drip"].nimbus_action_progression == (
-        Action.WARN,
+        Action.SANITIZE,
         Action.SANITIZE,
         Action.BLOCK,
     )
@@ -51,4 +51,4 @@ def test_nimbus_fixture_cli_writes_reportable_jsonl(tmp_path: Path, monkeypatch:
 
     assert output_path.exists()
     assert "partial_drip" in report
-    assert "warn -> sanitize -> block" in report
+    assert "sanitize -> sanitize -> block" in report

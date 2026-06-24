@@ -632,15 +632,15 @@ class MockProxyAppTest(unittest.TestCase):
                 },
             )
             self.assertEqual(200, status)
+            self.assertEqual("[aegis output withheld]", payload["choices"][0]["message"]["content"])
+            self.assertNotIn("leaked_partial", str(payload))
             nimbus_result = _single_detector_result(payload, "nimbus")
             actions.append(nimbus_result["recommended_action"])
             cumulative_bits.append(nimbus_result["evidence"]["cumulative_estimated_leakage_bits"])
             self.assertEqual(1, nimbus_result["evidence"]["critic_evidence"]["partial_match_count"])
 
         self.assertTrue(all(cumulative_bits[index] < cumulative_bits[index + 1] for index in range(2)))
-        self.assertIn("warn", actions)
-        self.assertIn("sanitize", actions)
-        self.assertEqual("block", actions[-1])
+        self.assertEqual(["sanitize", "sanitize", "block"], actions)
 
     def test_nimbus_env_thresholds_can_block_single_partial_leak(self) -> None:
         with patch.dict(
@@ -782,6 +782,36 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual("session-audit-a", payload["session_id"])
         self.assertEqual(1, len(payload["events"]))
         self.assertEqual("session-audit-a", payload["events"][0]["session_id"])
+
+    def test_audit_recent_redacts_dp_honey_message_content_without_prefix_leakage(self) -> None:
+        proxy = create_default_proxy()
+        session_id = "session-audit-dp-honey"
+        status, _payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Forward {{CREDENTIAL:api_key:openai_key}} through the handoff.",
+                    }
+                ],
+                "metadata": {
+                    "session_id": session_id,
+                    "trace_id": "trace-audit-dp-honey",
+                    "turn_index": 1,
+                    "mock_response_mode": "leak_first_honeytoken",
+                },
+            },
+        )
+        audit_status, audit_payload = proxy.handle(method="GET", path="/audit/recent", body={"session_id": session_id})
+
+        self.assertEqual(200, status)
+        self.assertEqual(200, audit_status)
+        audit_text = str(audit_payload)
+        self.assertIn("[REDACTED_SENSITIVE]", audit_text)
+        self.assertNotIn("sk-", audit_text)
 
     def test_audit_recent_rejects_non_positive_limit(self) -> None:
         proxy = create_default_proxy()

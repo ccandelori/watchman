@@ -277,6 +277,33 @@ def test_canary_nimbus_critic_scores_partial_registered_canary() -> None:
     assert record.value not in str(score.evidence)
 
 
+def test_nimbus_sanitizes_partial_registered_canary_overlap() -> None:
+    config = NimbusConfig(
+        budget_bits=1.0,
+        warn_threshold=0.3,
+        sanitize_threshold=0.6,
+        block_threshold=0.9,
+        max_turns=5,
+        critic_version="canary-test-v0",
+    )
+    critic = _canary_critic()
+    store = InMemoryNimbusStateStore(max_turns=5)
+    detector = NimbusDetector(config, critic, store)
+    record = _canary_record(value="ghp_" + "A" * 24)
+    critic.register_canary_records(session_id="sess1", records=(record,))
+
+    result = detector.evaluate(
+        turn=_make_turn(sensitive_spans=(_make_span("honeytoken", record.canary_id),)),
+        model_response=_make_response(f"leaked_partial={record.value[:14]}"),
+    )
+
+    assert result.recommended_action == Action.SANITIZE
+    assert result.evidence["reason"] == "nimbus_canary_partial_overlap_sanitize"
+    assert result.evidence["budget_recommended_action"] == "allow"
+    assert result.evidence["action_floor"] == "sanitize"
+    assert record.value not in str(result.evidence)
+
+
 def test_canary_nimbus_critic_sums_partial_leakage_by_match_ratio() -> None:
     critic = CanaryNimbusCritic(
         CanaryNimbusCriticConfig(
