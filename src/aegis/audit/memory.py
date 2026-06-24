@@ -14,3 +14,6 @@ class InMemoryAuditSink:
         if limit <= 0:
             raise ValueError("limit must be positive.")
         return tuple(reversed(self._events[-limit:]))
+
+    def clear(self) -> None:
+        self._events.clear()

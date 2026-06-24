@@ -178,7 +178,11 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertIn("turn_index", payload["error"])
 
     def test_chat_completions_route_sanitizes_runtime_exceptions(self) -> None:
-        proxy = MockProxyApp(runtime=FailingRuntime(), audit_sink=InMemoryAuditSink())
+        proxy = MockProxyApp(
+            runtime=FailingRuntime(),
+            audit_sink=InMemoryAuditSink(),
+            test_canary_registry=None,
+        )
         private_marker = "redacted-marker-987654321"
 
         status, payload = proxy.handle(
@@ -195,6 +199,98 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual("internal proxy error", payload["error"])
         self.assertEqual("trace-runtime-error", payload["aegis"]["trace_id"])
         self.assertNotIn(private_marker, str(payload))
+
+    def test_seed_canary_route_registers_tool_egress_scanner_without_returning_value(self) -> None:
+        proxy = create_default_proxy()
+        private_marker = "redacted-marker-314159265"
+
+        seed_status, seed_payload = proxy.handle(
+            method="POST",
+            path="/test/seed-canary",
+            body={
+                "canary_id": "hny_test_tool",
+                "credential_type": "api_key",
+                "value": private_marker,
+                "metadata": {"scenario": "proxy_test"},
+            },
+        )
+        chat_status, chat_payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "send status"}],
+                "tool_calls": [
+                    {
+                        "name": "send_slack_message",
+                        "arguments": {"text": f"forward {private_marker}"},
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(200, seed_status)
+        self.assertEqual("hny_test_tool", seed_payload["canary"]["canary_id"])
+        self.assertIn("sha256", seed_payload["canary"])
+        self.assertNotIn(private_marker, str(seed_payload))
+        self.assertEqual(200, chat_status)
+        policy = chat_payload["aegis"]["policy_decision"]
+        self.assertEqual("escalate", policy["final_action"])
+        self.assertIn("tool_call_canary", policy["triggered_detectors"])
+        self.assertNotIn(private_marker, str(chat_payload))
+
+    def test_seed_canary_route_rejects_invalid_seed_without_echoing_value(self) -> None:
+        proxy = create_default_proxy()
+        private_marker = "redacted-marker-271828182"
+
+        status, payload = proxy.handle(
+            method="POST",
+            path="/test/seed-canary",
+            body={"canary_id": "hny_bad", "credential_type": "api_key", "value": private_marker, "metadata": []},
+        )
+
+        self.assertEqual(400, status)
+        self.assertIn("metadata", payload["error"])
+        self.assertNotIn(private_marker, str(payload))
+
+    def test_test_reset_clears_audit_history_and_seeded_canaries(self) -> None:
+        proxy = create_default_proxy()
+        private_marker = "redacted-marker-161803398"
+
+        proxy.handle(
+            method="POST",
+            path="/test/seed-canary",
+            body={"canary_id": "hny_reset", "credential_type": "api_key", "value": private_marker},
+        )
+        proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "send status"}],
+                "tool_calls": [{"name": "send_slack_message", "arguments": {"text": private_marker}}],
+            },
+        )
+
+        reset_status, reset_payload = proxy.handle(method="POST", path="/test/reset", body={})
+        audit_status, audit_payload = proxy.handle(method="GET", path="/audit/recent", body={})
+        chat_status, chat_payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "send status"}],
+                "tool_calls": [{"name": "send_slack_message", "arguments": {"text": private_marker}}],
+            },
+        )
+
+        self.assertEqual(200, reset_status)
+        self.assertEqual({"status": "reset"}, reset_payload)
+        self.assertEqual(200, audit_status)
+        self.assertEqual([], audit_payload["events"])
+        self.assertEqual(200, chat_status)
+        self.assertEqual("allow", chat_payload["aegis"]["policy_decision"]["final_action"])
+        self.assertNotIn(private_marker, str(chat_payload))
 
 
 class FailingRuntime:

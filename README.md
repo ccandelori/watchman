@@ -163,6 +163,9 @@ runtime `ToolCall` contracts for detector use. `/audit/recent` returns a safe
 audit projection: trace/session/turn handles, a turn summary, detector results,
 policy decision, and whitelisted span metadata. It does not echo raw message
 content, arbitrary metadata values, tool-call arguments, or raw request bodies.
+For local redteam harnesses, `POST /test/seed-canary` registers a supplied
+canary value without returning it, and `POST /test/reset` clears audit history
+and seeded canaries.
 
 ## Quality Gates
 

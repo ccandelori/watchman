@@ -8,7 +8,14 @@ from aegis.audit.memory import InMemoryAuditSink
 from aegis.core.contracts import AuditEvent, CapabilityMode, JsonValue, Message, ModelInfo, SensitiveSpan, ToolCall
 from aegis.core.orchestrator import AegisRuntime, AegisRuntimeResponse, RuntimeRequest
 from aegis.detectors.activation import ActivationUnavailableDetector
-from aegis.detectors.canary import NoopCanaryDetector
+from aegis.detectors.canary import (
+    CanaryDetectorError,
+    CanaryRecord,
+    InMemoryCanaryRegistry,
+    TextCanaryDetector,
+    ToolCallCanaryDetector,
+    canary_sha256,
+)
 from aegis.detectors.nimbus import BaselineNimbusCritic, InMemoryNimbusStateStore, NimbusConfig, NimbusDetector
 from aegis.policy.engine import SeverityPolicyEngine
 from aegis.providers.mock import MockModelProvider
@@ -18,16 +25,47 @@ class ProxyRequestError(ValueError):
     """Raised when a mock proxy request cannot be normalized."""
 
 
+class _MutableCanaryRegistry(InMemoryCanaryRegistry):
+    def __init__(self) -> None:
+        super().__init__(records=())
+
+    def add(self, record: CanaryRecord) -> None:
+        try:
+            validated = InMemoryCanaryRegistry(records=(*self.records(), record))
+        except CanaryDetectorError as exc:
+            raise ProxyRequestError(str(exc)) from exc
+        self._records = validated.records()
+
+    def clear(self) -> None:
+        self._records = ()
+
+
 class MockProxyApp:
-    def __init__(self, runtime: AegisRuntime, audit_sink: InMemoryAuditSink) -> None:
+    def __init__(
+        self,
+        runtime: AegisRuntime,
+        audit_sink: InMemoryAuditSink,
+        test_canary_registry: _MutableCanaryRegistry | None,
+    ) -> None:
         self._runtime = runtime
         self._audit_sink = audit_sink
+        self._test_canary_registry = test_canary_registry
 
     def handle(self, method: str, path: str, body: object) -> tuple[int, dict[str, JsonValue]]:
         if method == "GET" and path == "/health":
             return 200, {"status": "ok"}
         if method == "GET" and path == "/audit/recent":
             return 200, {"events": [_safe_audit_event(event) for event in self._audit_sink.recent(limit=20)]}
+        if method == "POST" and path == "/test/reset":
+            try:
+                return 200, self._handle_test_reset(body)
+            except ProxyRequestError as exc:
+                return 400, {"error": str(exc)}
+        if method == "POST" and path == "/test/seed-canary":
+            try:
+                return 200, self._handle_seed_canary(body)
+            except ProxyRequestError as exc:
+                return 400, {"error": str(exc)}
         if method == "POST" and path == "/v1/chat/completions":
             try:
                 return 200, self._handle_chat_completions(body)
@@ -53,6 +91,55 @@ class MockProxyApp:
             ],
             "aegis": _chat_completion_aegis_metadata(request=request, response=response),
         }
+
+    def _handle_test_reset(self, body: object) -> dict[str, JsonValue]:
+        _json_object_from_raw(value=body, context="request body")
+        self._audit_sink.clear()
+        if self._test_canary_registry is not None:
+            self._test_canary_registry.clear()
+        return {"status": "reset"}
+
+    def _handle_seed_canary(self, body: object) -> dict[str, JsonValue]:
+        if self._test_canary_registry is None:
+            raise ProxyRequestError("test canary registry is not configured.")
+        request_body = _json_object_from_raw(value=body, context="request body")
+        canary_value = _required_string_field(request_body, "value")
+        record = CanaryRecord(
+            canary_id=_required_string_field(request_body, "canary_id"),
+            credential_type=_required_string_field(request_body, "credential_type"),
+            value=canary_value,
+            sha256=canary_sha256(canary_value),
+            source=_optional_string_field(request_body, "source", "test_seed"),
+            metadata=_metadata_from_raw(request_body.get("metadata")),
+        )
+        self._test_canary_registry.add(record)
+        return {"canary": _canary_record_summary(record)}
+
+
+def _required_string_field(body: Mapping[str, JsonValue], key: str) -> str:
+    value = body.get(key)
+    if not isinstance(value, str) or value == "":
+        raise ProxyRequestError(f"field '{key}' must be a non-empty string.")
+    return value
+
+
+def _optional_string_field(body: Mapping[str, JsonValue], key: str, fallback: str) -> str:
+    value = body.get(key)
+    if value is None:
+        return fallback
+    if not isinstance(value, str) or value == "":
+        raise ProxyRequestError(f"field '{key}' must be a non-empty string when provided.")
+    return value
+
+
+def _canary_record_summary(record: CanaryRecord) -> dict[str, JsonValue]:
+    return {
+        "canary_id": record.canary_id,
+        "credential_type": record.credential_type,
+        "sha256": record.sha256,
+        "source": record.source,
+        "metadata": record.metadata,
+    }
 
 
 def _chat_completion_aegis_metadata(
@@ -261,10 +348,16 @@ def _safe_sensitive_span_metadata(metadata: Mapping[str, JsonValue]) -> dict[str
 
 def create_default_proxy() -> MockProxyApp:
     audit_sink = InMemoryAuditSink()
+    canary_registry = _MutableCanaryRegistry()
     runtime = AegisRuntime(
         turn_annotators=(),
-        pre_generation_detectors=(ActivationUnavailableDetector(),),
-        post_generation_detectors=(NoopCanaryDetector(),),
+        pre_generation_detectors=(
+            ActivationUnavailableDetector(),
+            ToolCallCanaryDetector(detector_name="tool_call_canary", registry=canary_registry),
+        ),
+        post_generation_detectors=(
+            TextCanaryDetector(detector_name="text_canary", registry=canary_registry),
+        ),
         session_detectors=(
             NimbusDetector(
                 config=NimbusConfig(
@@ -283,4 +376,4 @@ def create_default_proxy() -> MockProxyApp:
         audit_sink=audit_sink,
         model_provider=MockModelProvider(default_content="Aegis mock response."),
     )
-    return MockProxyApp(runtime=runtime, audit_sink=audit_sink)
+    return MockProxyApp(runtime=runtime, audit_sink=audit_sink, test_canary_registry=canary_registry)

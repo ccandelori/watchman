@@ -28,8 +28,9 @@ chat request
   -> NormalizedTurn
   -> turn annotators
   -> ActivationUnavailableDetector
+  -> ToolCallCanaryDetector
   -> MockModelProvider
-  -> NoopCanaryDetector
+  -> TextCanaryDetector
   -> NimbusDetector
   -> SeverityPolicyEngine
   -> InMemoryAuditSink
@@ -40,9 +41,10 @@ chat request
 activation monitoring is unavailable in black-box/mock mode instead of silently
 omitting the signal.
 
-`NoopCanaryDetector` is the first DP-HONEY boundary. It records that no canary
-registry is configured yet and keeps future canary detection separate from
-honeytoken injection.
+`TextCanaryDetector` and `ToolCallCanaryDetector` are backed by the mock proxy's
+in-memory test canary registry. With an empty registry they allow; after
+`/test/seed-canary` they escalate on registered canary egress in model output or
+normalized tool-call arguments.
 
 `NimbusDetector` is the default stateful session-stage NIMBUS shell. In the mock
 proxy it runs with a deterministic baseline critic and emits unavailable evidence
@@ -71,6 +73,16 @@ trace/session/turn handles, turn summary counts and roles, normalized tool-call
 names, whitelisted sensitive span metadata, detector results, policy decision,
 and timing. It must not echo raw normalized message content, arbitrary metadata
 values, raw tool arguments, or raw request bodies.
+
+The mock proxy also exposes test-only redteam harness routes:
+
+- `POST /test/seed-canary` registers a supplied canary value in the in-memory
+  test registry and returns only `canary_id`, `credential_type`, `sha256`,
+  `source`, and metadata.
+- `POST /test/reset` clears audit history and seeded canaries.
+
+These routes are for local harnesses only. They must never echo seeded canary
+values in responses or audit projections.
 
 ## DP-HONEY-Lite Honeytoken Registration
 
