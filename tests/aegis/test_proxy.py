@@ -25,6 +25,7 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual("aegis.proxy_error/v1", payload["contract"]["error_schema_version"])
         self.assertIn({"method": "POST", "path": "/test/seed-canary"}, payload["routes"])
         self.assertEqual("aegis.test_seed_canary/v1", payload["test_controls"]["seed_canary"]["schema_version"])
+        self.assertIn("turn_index", payload["test_controls"]["seed_canary"]["request_fields"])
 
     def test_chat_completions_route_returns_openai_compatible_response_and_audit(self) -> None:
         proxy = create_default_proxy()
@@ -202,6 +203,7 @@ class MockProxyAppTest(unittest.TestCase):
             "session_id": "session-seed",
             "slot_name": "repo_pat",
             "credential_type": "github_pat",
+            "turn_index": 2,
         }
 
         first_status, first_payload = proxy.handle(method="POST", path="/test/seed-canary", body=seed_body)
@@ -214,8 +216,27 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertFalse(second_payload["created"])
         self.assertEqual(first_payload["canary"]["canary_id"], second_payload["canary"]["canary_id"])
         self.assertEqual(first_payload["canary"]["sha256"], second_payload["canary"]["sha256"])
+        self.assertEqual(2, first_payload["canary"]["metadata"]["turn_planted"])
         self.assertNotIn("value", first_payload["canary"])
         self.assertNotIn("ghp_", str(first_payload))
+
+    def test_seed_canary_route_rejects_negative_turn_index(self) -> None:
+        proxy = create_default_proxy()
+
+        status, payload = proxy.handle(
+            method="POST",
+            path="/test/seed-canary",
+            body={
+                "session_id": "session-seed-negative",
+                "slot_name": "repo_pat",
+                "credential_type": "github_pat",
+                "turn_index": -1,
+            },
+        )
+
+        self.assertEqual(400, status)
+        self.assertEqual("invalid_request", payload["error"]["code"])
+        self.assertIn("turn_index", payload["error"]["message"])
 
     def test_seed_canary_route_rejects_raw_values_and_slot_type_conflicts(self) -> None:
         proxy = create_default_proxy()

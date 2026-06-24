@@ -39,6 +39,7 @@ def test_http_capabilities_route_returns_redteam_discovery_contract() -> None:
     assert payload["contract"]["error_schema_version"] == "aegis.proxy_error/v1"
     assert {"method": "POST", "path": "/test/seed-canary"} in payload["routes"]
     assert payload["test_controls"]["seed_canary"]["schema_version"] == "aegis.test_seed_canary/v1"
+    assert "turn_index" in payload["test_controls"]["seed_canary"]["request_fields"]
 
 
 def test_http_chat_completion_returns_aegis_block_and_audit_event() -> None:
@@ -115,6 +116,7 @@ def test_http_seed_canary_drives_no_placeholder_leak_probe() -> None:
             "session_id": session_id,
             "slot_name": "repo_pat",
             "credential_type": "github_pat",
+            "turn_index": 0,
         },
     )
     chat_response = client.post(
@@ -134,6 +136,7 @@ def test_http_seed_canary_drives_no_placeholder_leak_probe() -> None:
     seed_payload = seed_response.json()
     assert seed_payload["schema_version"] == "aegis.test_seed_canary/v1"
     assert seed_payload["created"] is True
+    assert seed_payload["canary"]["metadata"]["turn_planted"] == 0
     assert "value" not in seed_payload["canary"]
     assert "ghp_" not in str(seed_payload)
     assert chat_response.status_code == 200
