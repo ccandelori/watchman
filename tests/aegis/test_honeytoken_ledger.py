@@ -5,7 +5,7 @@ import unittest
 
 from aegis.audit.memory import InMemoryAuditSink
 from aegis.canaries.ledger import HoneytokenLedger, HoneytokenLedgerError, inject_honeytokens
-from aegis.core.contracts import Action, CapabilityMode, Message, ModelInfo, NormalizedTurn
+from aegis.core.contracts import Action, CapabilityMode, JsonValue, Message, ModelInfo, NormalizedTurn
 from aegis.core.orchestrator import AegisRuntime, ModelResponse, RuntimeRequest
 from aegis.detectors.canary import EncodedCanaryDetector, TextCanaryDetector
 from aegis.policy.engine import SeverityPolicyEngine
@@ -51,6 +51,8 @@ class HoneytokenLedgerTest(unittest.TestCase):
         self.assertEqual("hny_session-ledger_api_key", result.sensitive_spans[0].identifier)
         self.assertEqual("openai_key", result.sensitive_spans[0].metadata["credential_type"])
         self.assertEqual(result.canary_records[0].sha256, result.sensitive_spans[0].metadata["sha256"])
+        self.assertNotIn("dp_honey", result.canary_records[0].metadata)
+        self.assertNotIn("dp_honey", result.sensitive_spans[0].metadata)
 
     def test_real_secret_scrub_substitutes_honeytoken_without_auditing_raw_secret(self) -> None:
         ledger = HoneytokenLedger(session_id="session-ledger", generator=_generator)
@@ -77,6 +79,34 @@ class HoneytokenLedgerTest(unittest.TestCase):
 
         self.assertEqual(first.canary_records[0].value, second.canary_records[0].value)
         self.assertEqual(1, len(ledger.canary_records()))
+
+    def test_metadata_provider_payloads_are_deep_copied(self) -> None:
+        nested_metadata: dict[str, JsonValue] = {"value": "original", "items": ["first"]}
+        provider_payload: dict[str, JsonValue] = {"nested": nested_metadata}
+        ledger = HoneytokenLedger(
+            session_id="session-ledger",
+            generator=_generator,
+            metadata_provider=lambda slot_name, credential_type, value: provider_payload,
+        )
+
+        injection = inject_honeytokens(messages=_messages(), ledger=ledger, turn_index=0)
+        nested_metadata["value"] = "provider-mutated"
+        provider_payload["new_key"] = "provider-new"
+        record_metadata = injection.canary_records[0].metadata
+        span_metadata = injection.sensitive_spans[0].metadata
+        record_nested = record_metadata["nested"]
+        span_nested = span_metadata["nested"]
+        self.assertIsInstance(record_nested, dict)
+        self.assertIsInstance(span_nested, dict)
+        if isinstance(record_nested, dict):
+            record_nested["value"] = "record-mutated"
+
+        self.assertNotIn("new_key", record_metadata)
+        self.assertNotIn("new_key", span_metadata)
+        if isinstance(span_nested, dict):
+            self.assertEqual("original", span_nested["value"])
+        if isinstance(record_nested, dict):
+            self.assertEqual("record-mutated", record_nested["value"])
 
     def test_invalid_configuration_is_rejected(self) -> None:
         with self.assertRaisesRegex(HoneytokenLedgerError, "session_id"):

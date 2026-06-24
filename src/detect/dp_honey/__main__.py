@@ -21,6 +21,7 @@ from typing import cast
 import numpy as np
 
 from . import scanner
+from .artifact_status import inspect_artifact, validate_artifact
 from .bigram import (
     DEFAULT_CLIP,
     DEFAULT_CORPUS_SIZE,
@@ -28,16 +29,21 @@ from .bigram import (
     DEFAULT_MAX_REPAIR_ATTEMPTS,
     DEFAULT_SAMPLE_SEED,
     DEFAULT_TRAIN_SEED,
-    BigramHoneytokenModel,
-    build_model,
 )
-from .errors import DPHoneyError, UnknownFormatError
+from .errors import DPHoneyError
 from .formats import get_format, list_formats
-from .model_io import load_model, read_artifact_dict, save_model
-from .realism import REPORT_MAX, compute_report, enforce_count_limit
-
-# Plaintext `generate` streams, but we still cap it for predictability.
-GENERATE_MAX = 10000
+from .operations import (
+    GENERATE_MAX,
+    FormatModelSource,
+    GenerateRequest,
+    ModelArtifactSource,
+    ReportRequest,
+    TrainRequest,
+    generate_tokens,
+    run_report_request,
+    train_to_artifact,
+)
+from .realism import REPORT_MAX, enforce_count_limit
 
 DESCRIPTION = (
     "DP-HONEY: generate synthetic, shape-only honeytokens for credential-leak "
@@ -139,12 +145,12 @@ def _add_model_source(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _model_from_args(args: argparse.Namespace) -> BigramHoneytokenModel:
-    """Resolve a model from --model (load) or --format (train on the fly)."""
+def _source_from_args(args: argparse.Namespace) -> FormatModelSource | ModelArtifactSource:
+    """Resolve a typed model source from --model or --format arguments."""
     if args.model:
-        return load_model(args.model)
-    return build_model(
-        args.format,
+        return ModelArtifactSource(path=Path(args.model))
+    return FormatModelSource(
+        format_slug=args.format,
         epsilon=args.epsilon,
         clip=args.clip,
         corpus_size=args.corpus_size,
@@ -190,75 +196,80 @@ def cmd_preview_corpus(args: argparse.Namespace) -> int:
 
 
 def cmd_train(args: argparse.Namespace) -> int:
-    model = build_model(
-        args.format,
-        epsilon=args.epsilon,
-        clip=args.clip,
-        corpus_size=args.corpus_size,
-        train_seed=args.seed,
+    result = train_to_artifact(
+        TrainRequest(
+            format_slug=args.format,
+            output_path=Path(args.out),
+            epsilon=args.epsilon,
+            clip=args.clip,
+            corpus_size=args.corpus_size,
+            train_seed=args.seed,
+            force=args.force,
+        )
     )
-    path = save_model(model, args.out, force=args.force)
-    print(f"trained {args.format} -> {path}")
-    print(f"  epsilon={args.epsilon} clip={args.clip} corpus_size={args.corpus_size} train_seed={args.seed}")
+    print(f"trained {args.format} -> {result.path}")
+    print(
+        f"  epsilon={result.epsilon} clip={result.clip} corpus_size={result.corpus_size} train_seed={result.train_seed}"
+    )
     print("  NOTE: synthetic, shape-only model; outputs are not real credentials.")
     return 0
 
 
 def cmd_generate(args: argparse.Namespace) -> int:
-    enforce_count_limit(args.count, maximum=GENERATE_MAX, label="--count")
-    model = _model_from_args(args)
+    result = generate_tokens(
+        GenerateRequest(
+            source=_source_from_args(args),
+            count=args.count,
+            sample_seed=args.seed,
+            max_repair_attempts=args.max_attempts,
+        )
+    )
     _emit_safety_banner()
     if args.json:
-        tokens = model.sample(args.count, seed=args.seed, max_repair_attempts=args.max_attempts)
-        print(json.dumps(tokens, indent=2))
+        print(json.dumps(list(result.tokens), indent=2))
     else:
-        for token in model.isample(args.count, seed=args.seed, max_repair_attempts=args.max_attempts):
+        for token in result.tokens:
             print(token)
     return 0
 
 
 def cmd_inspect_model(args: argparse.Namespace) -> int:
-    data = read_artifact_dict(args.model)  # ModelArtifactDecodeError on bad JSON
-    fmt = data.get("format", {})
-    privacy = data.get("privacy", {})
-    alphabet = data.get("alphabet", {})
-    safety = data.get("safety", {})
-    slug = fmt.get("slug", "?")
+    inspection = inspect_artifact(args.model)
+    safety = inspection.safety if isinstance(inspection.safety, dict) else {}
     print(f"artifact: {args.model}")
-    print(f"  schema_version: {data.get('schema_version')}")
-    print(f"  format: {slug} (registry_version={fmt.get('registry_version')})")
+    print(f"  schema_version: {inspection.schema_version}")
+    print(f"  format: {inspection.format_slug} (registry_version={inspection.registry_version})")
     print(
-        f"  epsilon={privacy.get('epsilon')} clip={privacy.get('clip')} "
-        f"corpus_size={privacy.get('corpus_size')} train_seed={privacy.get('train_seed')}"
+        f"  epsilon={inspection.epsilon} clip={inspection.clip} "
+        f"corpus_size={inspection.corpus_size} train_seed={inspection.train_seed}"
     )
-    print(f"  alphabet_size: {len(alphabet.get('symbols', []))}")
-    print(f"  snapshot_status: {_snapshot_status(slug, fmt.get('spec_hash'))}")
+    print(f"  alphabet_size: {inspection.alphabet_size}")
+    print(f"  snapshot_status: {inspection.snapshot_status.value}")
     print(f"  safety: synthetic_only={safety.get('synthetic_only')} provider_valid={safety.get('provider_valid')}")
     if safety.get("note"):
         print(f"  note: {safety['note']}")
     return 0
 
 
-def _snapshot_status(slug: str, stored_hash: str | None) -> str:
-    try:
-        live = get_format(slug)
-    except UnknownFormatError:
-        return "UNKNOWN_FORMAT"
-    return "OK" if stored_hash == live.spec_hash() else "DRIFT"
-
-
 def cmd_validate(args: argparse.Namespace) -> int:
-    load_model(args.model)  # raises a typed DPHoneyError on any problem
+    result = validate_artifact(args.model)
+    if not result.valid:
+        raise DPHoneyError(result.error or f"invalid artifact: {args.model}")
     print(f"valid: {args.model}")
     return 0
 
 
 def cmd_report(args: argparse.Namespace) -> int:
-    enforce_count_limit(args.count, maximum=REPORT_MAX, label="--count")
-    model = _model_from_args(args)
+    report = run_report_request(
+        ReportRequest(
+            source=_source_from_args(args),
+            count=args.count,
+            sample_seed=args.seed,
+            max_repair_attempts=args.max_attempts,
+        )
+    )
     _emit_safety_banner()
-    tokens = model.sample(args.count, seed=args.seed, max_repair_attempts=args.max_attempts)
-    print(json.dumps(compute_report(tokens, model), indent=2))
+    print(json.dumps(report, indent=2))
     return 0
 
 
