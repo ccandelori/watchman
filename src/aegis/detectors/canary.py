@@ -7,7 +7,15 @@ import re
 from dataclasses import dataclass
 from difflib import SequenceMatcher
 
-from aegis.core.contracts import Action, CapabilityStatus, DetectorComponent, DetectorResult, JsonValue, NormalizedTurn
+from aegis.core.contracts import (
+    Action,
+    CapabilityStatus,
+    DetectorComponent,
+    DetectorResult,
+    JsonValue,
+    NormalizedTurn,
+    ToolCall,
+)
 from aegis.core.orchestrator import ModelResponse
 
 _BASE64_RUN = re.compile(r"[A-Za-z0-9+/]{12,}={0,2}")
@@ -52,6 +60,20 @@ class EncodedCanaryMatch:
     fragment_ratio: float
     char_start: int | None
     char_end: int | None
+    metadata: dict[str, JsonValue]
+
+
+@dataclass(frozen=True)
+class ToolCallCanaryMatch:
+    canary_id: str
+    credential_type: str
+    sha256: str
+    source: str
+    tool_call_index: int
+    tool_name: str
+    argument_path: str
+    char_start: int
+    char_end: int
     metadata: dict[str, JsonValue]
 
 
@@ -202,6 +224,52 @@ class EncodedCanaryDetector:
         )
 
 
+class ToolCallCanaryDetector:
+    def __init__(self, detector_name: str, registry: InMemoryCanaryRegistry) -> None:
+        if detector_name == "":
+            raise CanaryDetectorError("detector_name must not be empty.")
+        self.detector_name = detector_name
+        self._registry = registry
+
+    def evaluate(self, turn: NormalizedTurn, model_response: ModelResponse | None) -> DetectorResult:
+        matches = _scan_tool_calls_for_canaries(tool_calls=turn.tool_calls, records=self._registry.records())
+        if len(matches) == 0:
+            return DetectorResult(
+                detector_name=self.detector_name,
+                component=DetectorComponent.TOOL_SCANNER,
+                score=0.0,
+                confidence=1.0,
+                recommended_action=Action.ALLOW,
+                capability_required=None,
+                capability_status=CapabilityStatus.ACTIVE,
+                evidence={
+                    "reason": "no_tool_canary_leak_detected",
+                    "session_id": turn.session_id,
+                    "match_count": 0,
+                    "matches": [],
+                },
+                latency_ms=0.0,
+            )
+
+        match_values: list[JsonValue] = [_tool_match_to_dict(match) for match in matches]
+        return DetectorResult(
+            detector_name=self.detector_name,
+            component=DetectorComponent.TOOL_SCANNER,
+            score=1.0,
+            confidence=1.0,
+            recommended_action=Action.ESCALATE,
+            capability_required=None,
+            capability_status=CapabilityStatus.ACTIVE,
+            evidence={
+                "reason": "registered_canary_tool_egress_detected",
+                "session_id": turn.session_id,
+                "match_count": len(matches),
+                "matches": match_values,
+            },
+            latency_ms=0.0,
+        )
+
+
 class NoopCanaryDetector:
     detector_name = "noop_canary"
 
@@ -277,6 +345,49 @@ def _scan_text_for_canaries(text: str, records: tuple[CanaryRecord, ...]) -> tup
             )
             start_index = text.find(record.value, end_index)
     return tuple(matches)
+
+
+def _scan_tool_calls_for_canaries(
+    tool_calls: tuple[ToolCall, ...],
+    records: tuple[CanaryRecord, ...],
+) -> tuple[ToolCallCanaryMatch, ...]:
+    matches: list[ToolCallCanaryMatch] = []
+    for tool_call_index, tool_call in enumerate(tool_calls):
+        for argument_path, argument_value in _string_argument_values(value=tool_call.arguments, path="$"):
+            for text_match in _scan_text_for_canaries(text=argument_value, records=records):
+                matches.append(
+                    ToolCallCanaryMatch(
+                        canary_id=text_match.canary_id,
+                        credential_type=text_match.credential_type,
+                        sha256=text_match.sha256,
+                        source=text_match.source,
+                        tool_call_index=tool_call_index,
+                        tool_name=tool_call.name,
+                        argument_path=argument_path,
+                        char_start=text_match.char_start,
+                        char_end=text_match.char_end,
+                        metadata=text_match.metadata,
+                    )
+                )
+    return tuple(matches)
+
+
+def _string_argument_values(value: JsonValue, path: str) -> tuple[tuple[str, str], ...]:
+    if isinstance(value, str):
+        return ((path, value),)
+    if isinstance(value, list):
+        return tuple(
+            item
+            for index, child in enumerate(value)
+            for item in _string_argument_values(value=child, path=f"{path}[{index}]")
+        )
+    if isinstance(value, dict):
+        return tuple(
+            item
+            for key, child in value.items()
+            for item in _string_argument_values(value=child, path=f"{path}.{key}")
+        )
+    return ()
 
 
 def _scan_text_for_encoded_canaries(
@@ -445,6 +556,21 @@ def _encoded_match_to_dict(match: EncodedCanaryMatch) -> dict[str, JsonValue]:
         "encoding": match.encoding,
         "exact": match.exact,
         "fragment_ratio": match.fragment_ratio,
+        "char_start": match.char_start,
+        "char_end": match.char_end,
+        "metadata": match.metadata,
+    }
+
+
+def _tool_match_to_dict(match: ToolCallCanaryMatch) -> dict[str, JsonValue]:
+    return {
+        "canary_id": match.canary_id,
+        "credential_type": match.credential_type,
+        "sha256": match.sha256,
+        "source": match.source,
+        "tool_call_index": match.tool_call_index,
+        "tool_name": match.tool_name,
+        "argument_path": match.argument_path,
         "char_start": match.char_start,
         "char_end": match.char_end,
         "metadata": match.metadata,

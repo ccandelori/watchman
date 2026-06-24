@@ -181,12 +181,55 @@ class AuditEvent:
             "trace_id": self.trace_id,
             "session_id": self.session_id,
             "turn_index": self.turn_index,
-            "normalized_turn": self.normalized_turn.to_dict(),
+            "normalized_turn": _audit_safe_normalized_turn(self.normalized_turn),
             "detector_results": [result.to_dict() for result in self.detector_results],
             "policy_decision": self.policy_decision.to_dict(),
             "latency_ms": self.latency_ms,
             "created_at": self.created_at,
         }
+
+
+def _audit_safe_normalized_turn(turn: NormalizedTurn) -> dict[str, JsonValue]:
+    return {
+        "trace_id": turn.trace_id,
+        "session_id": turn.session_id,
+        "turn_index": turn.turn_index,
+        "capability_mode": turn.capability_mode.value,
+        "model": turn.model.to_dict(),
+        "message_count": len(turn.messages),
+        "messages": [_audit_safe_message(message) for message in turn.messages],
+        "tool_call_count": len(turn.tool_calls),
+        "tool_calls": [_audit_safe_tool_call(tool_call) for tool_call in turn.tool_calls],
+        "sensitive_span_count": len(turn.sensitive_spans),
+        "sensitive_spans": [_audit_safe_sensitive_span(span) for span in turn.sensitive_spans],
+        "metadata_key_count": len(turn.metadata),
+    }
+
+
+def _audit_safe_message(message: Message) -> dict[str, JsonValue]:
+    return {"role": message.role, "content_length": len(message.content)}
+
+
+def _audit_safe_tool_call(tool_call: ToolCall) -> dict[str, JsonValue]:
+    return {"name": tool_call.name, "argument_key_count": len(tool_call.arguments)}
+
+
+def _audit_safe_sensitive_span(span: SensitiveSpan) -> dict[str, JsonValue]:
+    return {
+        "kind": span.kind,
+        "source": span.source,
+        "char_start": span.char_start,
+        "char_end": span.char_end,
+        "token_start": span.token_start,
+        "token_end": span.token_end,
+        "identifier": span.identifier,
+        "metadata": _audit_safe_sensitive_span_metadata(span.metadata),
+    }
+
+
+def _audit_safe_sensitive_span_metadata(metadata: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    safe_keys = ("sha256", "honeytoken_sha256", "credential_type", "source", "slot_name", "turn_planted")
+    return {key: metadata[key] for key in safe_keys if key in metadata}
 
 
 @dataclass(frozen=True)
