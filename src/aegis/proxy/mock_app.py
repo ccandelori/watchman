@@ -8,6 +8,7 @@ from aegis.core.contracts import CapabilityMode, JsonValue, Message, ModelInfo
 from aegis.core.orchestrator import AegisRuntime, RuntimeRequest
 from aegis.detectors.activation import ActivationUnavailableDetector
 from aegis.detectors.canary import NoopCanaryDetector
+from aegis.detectors.nimbus import BaselineNimbusCritic, InMemoryNimbusStateStore, NimbusConfig, NimbusDetector
 from aegis.policy.engine import SeverityPolicyEngine
 from aegis.providers.mock import MockModelProvider
 
@@ -132,7 +133,20 @@ def create_default_proxy() -> MockProxyApp:
         turn_annotators=(),
         pre_generation_detectors=(ActivationUnavailableDetector(),),
         post_generation_detectors=(NoopCanaryDetector(),),
-        session_detectors=(),
+        session_detectors=(
+            NimbusDetector(
+                config=NimbusConfig(
+                    budget_bits=1.0,
+                    warn_threshold=0.3,
+                    sanitize_threshold=0.5,
+                    block_threshold=0.7,
+                    max_turns=20,
+                    critic_version="baseline-fixed-v0",
+                ),
+                critic=BaselineNimbusCritic(fixed_estimated_leakage_bits=0.0, fixed_confidence=0.7),
+                state_store=InMemoryNimbusStateStore(max_turns=20),
+            ),
+        ),
         policy_engine=SeverityPolicyEngine(),
         audit_sink=audit_sink,
         model_provider=MockModelProvider(default_content="Aegis mock response."),
