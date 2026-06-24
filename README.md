@@ -37,10 +37,11 @@ The first runtime spine is implemented and CI-enforced:
   runtime/import boundary while preparing self-hosted activation features.
 - A CIFT window selector that treats selected-choice readout geometry as
   primary coverage and payload/query readout as degraded fallback evidence.
-- `NimbusLeakageDetector`, a session detector that accumulates exact or encoded
-  canary leakage signals into a per-session leakage budget.
-- A mock OpenAI-compatible proxy surface for `/health`,
-  `/v1/chat/completions`, and `/audit/recent`.
+- A runtime-native `NimbusDetector` with a canary-aware critic that estimates
+  exact, encoded, and partial canary leakage bits into a per-session budget.
+- A development OpenAI-compatible proxy surface for `/health`,
+  `/v1/chat/completions`, and `/audit/recent`, with a mock provider by
+  default and an OpenAI-compatible HTTP provider adapter behind env config.
 - Mandatory CI gates for linting, formatting, strict typing, import-boundary
   checks, and tests with coverage.
 
@@ -54,6 +55,7 @@ chat request
   -> NormalizedTurn
   -> turn annotators
   -> pre-generation detectors
+  -> provider egress guard
   -> model provider
   -> post-generation detectors
   -> session detectors
@@ -93,6 +95,258 @@ Run the built-in demo scenarios:
 
 ```bash
 uv run python scripts/run_demo.py
+```
+
+Run the development HTTP proxy:
+
+```bash
+uv run aegis-proxy --host 127.0.0.1 --port 8000
+```
+
+The development proxy exposes the current OpenAI-compatible mock surface:
+
+```text
+GET  /health
+GET  /aegis/capabilities
+POST /v1/chat/completions
+GET  /audit/recent
+POST /test/reset
+POST /test/seed-canary   # mock provider only
+```
+
+`GET /aegis/capabilities` returns the machine-readable development contract:
+provider kind, whether mock controls are enabled, supported mock response modes,
+route list, schema versions, and mock-only test controls. Redteam tooling
+should call this route before assuming that `mock_response_mode` or
+`/test/seed-canary` is accepted.
+
+By default, `aegis-proxy` runs with the deterministic mock provider. To point
+the development proxy at an OpenAI-compatible model endpoint, configure the
+provider explicitly:
+
+```bash
+AEGIS_PROVIDER=openai_compatible \
+AEGIS_OPENAI_BASE_URL=https://api.openai.com \
+AEGIS_OPENAI_API_KEY="$OPENAI_API_KEY" \
+AEGIS_OPENAI_MODEL=gpt-4.1-mini \
+uv run aegis-proxy --host 127.0.0.1 --port 8000
+```
+
+`AEGIS_OPENAI_BASE_URL` may be the service root, `/v1`, or the full
+`/v1/chat/completions` endpoint. Mock controls such as `mock_response` and
+`mock_response_mode` are accepted only when `AEGIS_PROVIDER=mock`; the proxy
+rejects them for real providers so redteam-only controls cannot cross the
+provider boundary.
+
+Proxy-owned request errors use a stable envelope:
+
+```json
+{
+  "error": {
+    "schema_version": "aegis.proxy_error/v1",
+    "code": "invalid_request",
+    "message": "...",
+    "details": {}
+  }
+}
+```
+
+Provider transport failures use the same envelope with status `502` and
+`code=provider_error`. Aegis policy blocks still return HTTP `200`; the
+enforcement decision lives in `aegis.policy_decision.final_action`. When policy
+returns `sanitize`, `block`, or `escalate`, the proxy does not return raw model
+output in `choices`; it returns sanitized output when available or the fixed
+`[aegis output withheld]` message.
+
+Run the proxy smoke test from another terminal after the development proxy is
+listening:
+
+```bash
+uv run aegis-proxy-smoke --url http://127.0.0.1:8000 --timeout 5
+```
+
+The smoke command checks health, capability discovery, a benign chat turn, an
+encoded DP-HONEY leak turn, a seeded no-placeholder canary leak turn, and audit
+readback. It exits nonzero if the gateway contract is broken.
+
+Send one local chat request:
+
+```bash
+curl -s http://127.0.0.1:8000/v1/chat/completions \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "mock-model",
+    "messages": [{"role": "user", "content": "hello"}],
+    "metadata": {"trace_id": "trace-local-1", "session_id": "session-local-1"}
+  }'
+```
+
+Redteam scenarios should target the HTTP surface first. For pre-server tests,
+use the mock proxy only inside Aegis unit tests. The separate redteam repo
+should treat Aegis as a black-box HTTP target and inspect the assistant response
+plus the `aegis` detector/policy/trace block.
+
+The development proxy supports deterministic mock response controls through
+request metadata:
+
+```json
+{
+  "metadata": {
+    "mock_response_mode": "leak_first_honeytoken"
+  }
+}
+```
+
+Supported modes are:
+
+- `default` - return the default benign mock response.
+- `echo_last_user` - return the last user message.
+- `leak_first_honeytoken` - return the first fake honeytoken visible in the prompt.
+- `base64_first_honeytoken` - return the first fake honeytoken as base64.
+- `partial_first_honeytoken` - return a prefix of the first fake honeytoken.
+
+Leak modes require a planted honeytoken visible to the current mock turn.
+Use either a credential placeholder in the scenario turn or the mock-only
+`POST /test/seed-canary` route for session-scoped setup.
+
+To exercise DP-HONEY/canary detection through the proxy, include credential
+placeholders in chat messages:
+
+```text
+{{CREDENTIAL:repo_pat:github_pat}}
+```
+
+The development proxy replaces placeholders with fake honeytokens, attaches
+`SensitiveSpan` metadata, runs canary detectors when canaries exist, feeds the
+same planted-canary registry to the NIMBUS critic, and returns the detector
+outputs in the `aegis` block.
+
+To seed a session canary without putting a placeholder in the user turn, use the
+mock-only test route:
+
+```bash
+curl -s http://127.0.0.1:8000/test/seed-canary \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "session_id": "session-local-1",
+    "slot_name": "repo_pat",
+    "credential_type": "github_pat",
+    "turn_index": 0
+  }'
+```
+
+The seed response uses schema version `aegis.test_seed_canary/v1` and returns
+only safe identifiers, credential type, source, and SHA-256. It never returns
+the generated canary value. Repeating the same `session_id` and `slot_name` is
+idempotent; using the same slot with a different credential type is rejected.
+`turn_index` is optional and defaults to `0`.
+Seeded canaries are a redteam/dev fixture, not DP-HONEY injection. Seeded-only
+turns activate canary/NIMBUS detection while the runtime trace still reports the
+DP-HONEY stage as not configured.
+
+Use `POST /test/reset` between redteam runs. An empty JSON object clears all
+development proxy audit and session state:
+
+```bash
+curl -s http://127.0.0.1:8000/test/reset \
+  -H 'Content-Type: application/json' \
+  -d '{}'
+```
+
+To clear only one NIMBUS session and its audit events, pass a session id:
+
+```bash
+curl -s http://127.0.0.1:8000/test/reset \
+  -H 'Content-Type: application/json' \
+  -d '{"session_id": "session-local-1"}'
+```
+
+This route is a local development/testing affordance, not a production API.
+
+Every chat response includes an additive `aegis.runtime_trace` object with
+schema version `aegis.runtime_trace/v1`. The trace summarizes the ordered stages:
+normalize, DP-HONEY, CIFT, provider egress guard, provider, canary, NIMBUS,
+policy, and audit. It contains detector names, statuses, provider/model
+identifiers, counts, and actions only; it does not include raw secrets, canary
+values, feature vectors, or model output.
+
+Fetch recent audit events:
+
+```bash
+curl -s http://127.0.0.1:8000/audit/recent
+```
+
+Filter recent audit events by session and limit:
+
+```bash
+curl -s 'http://127.0.0.1:8000/audit/recent?session_id=session-local-1&limit=5'
+```
+
+Summarize NIMBUS behavior from external redteam JSONL results:
+
+```bash
+uv run aegis-nimbus-report --input ../watchman-redteam/results/aegis-local.jsonl
+```
+
+Generate a local in-process NIMBUS fixture JSONL when the external redteam
+runner is not available:
+
+```bash
+uv run aegis-nimbus-fixtures --output /tmp/aegis-nimbus-fixtures.jsonl
+uv run aegis-nimbus-report --input /tmp/aegis-nimbus-fixtures.jsonl
+```
+
+The report reads detector and policy metadata only. It distinguishes immediate
+public canary detectors from NIMBUS critic evidence, so partial leakage can be
+understood even when `encoded_canary` does not trigger on a single turn. See
+[docs/nimbus-redteam-eval.md](docs/nimbus-redteam-eval.md) for the full
+black-box redteam evaluation loop.
+
+NIMBUS runtime calibration is environment-driven. Defaults preserve the current
+local profile: exact and encoded matches count as `1.0` leakage bit, partial
+matches count as `0.8 * fragment_ratio`, and cumulative budget fractions map to
+`warn` at `0.3`, `sanitize` at `0.6`, and `block` at `0.9`.
+
+```bash
+AEGIS_NIMBUS_EXACT_MATCH_LEAKAGE_BITS=1.0
+AEGIS_NIMBUS_ENCODED_MATCH_LEAKAGE_BITS=1.0
+AEGIS_NIMBUS_PARTIAL_MATCH_LEAKAGE_BITS=0.8
+AEGIS_NIMBUS_PARTIAL_MATCH_THRESHOLD=0.4
+AEGIS_NIMBUS_CONFIDENCE=0.8
+AEGIS_NIMBUS_BUDGET_BITS=1.0
+AEGIS_NIMBUS_WARN_THRESHOLD=0.3
+AEGIS_NIMBUS_SANITIZE_THRESHOLD=0.6
+AEGIS_NIMBUS_BLOCK_THRESHOLD=0.9
+AEGIS_NIMBUS_MAX_TURNS=20
+AEGIS_NIMBUS_CRITIC_VERSION=canary-v0
+```
+
+For a stricter local profile where one roughly half-token partial fragment can
+block, lower the action thresholds intentionally rather than changing detector
+code.
+
+The proxy smoke command checks the default profile unless told otherwise:
+
+```bash
+uv run aegis-proxy-smoke --url http://127.0.0.1:8000 --timeout 5
+```
+
+To demo aggressive partial-leak blocking, start the proxy with a stricter
+NIMBUS profile:
+
+```bash
+AEGIS_NIMBUS_SANITIZE_THRESHOLD=0.35 \
+AEGIS_NIMBUS_BLOCK_THRESHOLD=0.36 \
+uv run aegis-proxy --host 127.0.0.1 --port 8000
+```
+
+Then verify that a single partial seeded-canary leak blocks:
+
+```bash
+uv run aegis-proxy-smoke \
+  --url http://127.0.0.1:8000 \
+  --timeout 5 \
+  --nimbus-profile strict-partial-block
 ```
 
 Generate controlled trace-collection assignments for human operators:
@@ -185,10 +439,11 @@ make quality
 It runs:
 
 ```bash
-uv run --extra dev ruff check src/aegis tests/aegis scripts
-uv run --extra dev ruff format --check src/aegis tests/aegis scripts
-uv run --extra dev mypy src/aegis scripts
+uv run --extra dev ruff check src/aegis src/detect tests/aegis tests/dp_honey scripts
+uv run --extra dev ruff format --check src/aegis src/detect tests/aegis tests/dp_honey scripts
+uv run --extra dev mypy src/aegis src/detect scripts
 uv run python scripts/check_import_boundaries.py
+uv run python scripts/check_artifact_boundaries.py
 uv run --extra dev pytest
 ```
 
@@ -209,6 +464,7 @@ src/aegis/replay/      Offline replay harnesses for fixtures and demos
 src/aegis/sdk/         SDK entrypoint for embedding the runtime
 tests/aegis/           Runtime spine tests
 scripts/               Repository quality and architecture checks
+introspection/         Research notebooks, activation experiments, and CIFT reports
 docs/                  Project and setup documentation
 ```
 
@@ -230,10 +486,19 @@ New runtime work must preserve the spine boundaries:
   payload/query readout is degraded fallback coverage and must be labeled as
   such in detector evidence.
 - DP-HONEY injection/registration and canary detection remain separate stages.
+- Tool-call sensitive spans should carry `metadata.tool_call_name` and
+  `metadata.argument_path` using the `arguments.payload.items[1]` path dialect.
+  The provider egress guard may report those handles as evidence, but never raw
+  argument values.
 - NIMBUS-style detectors emit cumulative session risk as ordinary
   `DetectorResult` values; policy still owns the final action.
+- The canonical NIMBUS runtime path is `NimbusDetector` plus a `NimbusCritic`.
+  `CanaryNimbusCritic` is the deterministic local critic for proxy and redteam
+  positive controls; paper-faithful critics should satisfy the same interface.
 - Real credentials cross runtime boundaries as handles, spans, hashes, or
   evidence, not raw production secrets.
+- Generated trace data, local worktrees, OCR assets, pycache files, and raw
+  model or activation artifacts should not be committed into runtime paths.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) before adding detector, policy, proxy, or
 adapter code.

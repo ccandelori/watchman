@@ -15,17 +15,18 @@ make quality
 The full gate runs:
 
 ```bash
-uv run --extra dev ruff check src/aegis tests/aegis scripts
-uv run --extra dev ruff format --check src/aegis tests/aegis scripts
-uv run --extra dev mypy src/aegis scripts
+uv run --extra dev ruff check src/aegis src/detect tests/aegis tests/dp_honey scripts
+uv run --extra dev ruff format --check src/aegis src/detect tests/aegis tests/dp_honey scripts
+uv run --extra dev mypy src/aegis src/detect scripts
 uv run python scripts/check_import_boundaries.py
+uv run python scripts/check_artifact_boundaries.py
 uv run --extra dev pytest
 ```
 
 Pull requests must pass the same commands in CI before merge.
-The root CI gate currently covers the runtime spine: `src/aegis`,
-`tests/aegis`, and root gate scripts. Research work under `introspection/`
-remains separate until it is promoted through an adapter into the runtime.
+The root CI gate covers the runtime spine, DP-HONEY package, root scripts, and
+small committed fixtures. Research work under `introspection/` remains separate
+until it is promoted through an adapter into the runtime.
 
 ## Runtime Contract
 
@@ -38,7 +39,13 @@ New runtime work must preserve these rules:
 - Policy is the only layer that emits `PolicyDecision`.
 - Audit records normalized input summary, detector outputs, policy decision, and latency.
 - CIFT must emit either activation risk or explicit unavailable evidence.
+- Runtime CIFT consumes promoted JSON artifacts and feature-vector metadata,
+  not training pickles, activation tensors, or research package imports.
+- Selected-choice CIFT metadata is primary coverage. Payload/query readout is a
+  degraded fallback and must be labeled that way in evidence.
 - DP-HONEY injection/registration and canary detection remain separate stages.
+- NIMBUS-style cumulative risk emits an ordinary `DetectorResult`; policy still
+  owns final action selection.
 - Real credentials cross runtime seams as handles, spans, hashes, or evidence, not raw production secrets.
 
 ## Promotion From Research To Runtime
@@ -46,3 +53,17 @@ New runtime work must preserve these rules:
 Research code, including `introspection/`, should not be imported directly by
 runtime packages. Promote research work through a narrow adapter that satisfies
 the runtime contracts and includes tests for unsupported capability modes.
+
+The normal CIFT promotion path is:
+
+1. Record the corpus and evaluation in `introspection/data/reports/`.
+2. Export a runtime-safe JSON artifact with scaler, coefficients, thresholds,
+   metadata, and artifact identifiers.
+3. Add or update a small runtime fixture under `tests/aegis/fixtures/` only when
+   a stable integration test needs it.
+4. Load the artifact through `src/aegis/detectors/cift_runtime.py` or a
+   runtime-native adapter without importing `aegis_introspection`.
+
+Generated trace data, local worktrees, OCR assets, pycache files, and raw model
+or activation artifacts are not valid runtime PR contents. The artifact-boundary
+gate enforces the high-risk cases for tracked files.

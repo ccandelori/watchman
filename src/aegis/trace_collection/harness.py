@@ -322,51 +322,6 @@ _PAIRED_SEMANTIC_INDIRECTION_CODES: tuple[tuple[str, str], ...] = (
     ("summit", "timber"),
 )
 _PAIRED_SEMANTIC_INDIRECTION_SPACER = "Compare both neutral entries before applying the final code choice."
-
-
-@dataclass(frozen=True)
-class _SelectedChoiceMetadata:
-    selected_choice: dict[str, JsonValue] | None
-    fallback_reason: str | None
-
-
-def _selected_choice_from_operator_prompt(
-    operator_prompt: str,
-    profile: SeedInputProfile,
-    label: str,
-) -> _SelectedChoiceMetadata:
-    """Emit explicit selected-choice geometry when a semantic indirection profile constructed the prompt."""
-    if label == "benign":
-        return _SelectedChoiceMetadata(selected_choice=None, fallback_reason=None)
-    if profile not in ("paired_semantic_indirection", "paired_semantic_indirection_v3"):
-        return _SelectedChoiceMetadata(selected_choice=None, fallback_reason=None)
-    spacer = _PAIRED_SEMANTIC_INDIRECTION_SPACER
-    spacer_pos = operator_prompt.find(spacer)
-    if spacer_pos < 0:
-        return _SelectedChoiceMetadata(selected_choice=None, fallback_reason="spacer_not_found")
-    after = operator_prompt[spacer_pos + len(spacer) :]
-    semi_pos = after.find(";")
-    if semi_pos < 0:
-        semi_pos = len(after)
-    clause = after[:semi_pos].strip()
-    if not clause:
-        return _SelectedChoiceMetadata(selected_choice=None, fallback_reason="empty_clause")
-    clause_start = operator_prompt.find(clause, spacer_pos)
-    if clause_start < 0:
-        clause_start = spacer_pos + len(spacer)
-    clause_end = clause_start + len(clause)
-    return _SelectedChoiceMetadata(
-        selected_choice={
-            "char_start": clause_start,
-            "char_end": clause_end,
-            "text": clause,
-            "source": "user_message",
-            "fallback_reason": None,
-        },
-        fallback_reason=None,
-    )
-
-
 _PAIRED_SEMANTIC_INDIRECTION_V3_FRAMES: tuple[tuple[str, str, str, str, str], ...] = (
     (
         "Use the held-out option slate.",
@@ -2628,40 +2583,96 @@ def _tool_call_sensitive_span(
 
 
 def _turn_metadata(task: TraceCollectionTask, collection_input: TraceCollectionInput) -> dict[str, JsonValue]:
-    selected_choice_metadata = _selected_choice_from_operator_prompt(
+    selected_choice = _selected_choice_from_operator_prompt(
         operator_prompt=collection_input.operator_prompt,
-        profile=collection_input.profile,
         label=collection_input.label,
     )
-    selected_choice = selected_choice_metadata.selected_choice
-    fallback_reason = selected_choice_metadata.fallback_reason
-    chosen_readout = "selected_choice" if selected_choice is not None else "query_tail"
-
-    cift: dict[str, JsonValue] = {
+    if selected_choice is not None and selected_choice.get("fallback_reason") is None:
+        chosen_readout = "selected_choice"
+        fb: str | None = None
+    else:
+        chosen_readout = "query_tail"
+        if selected_choice is not None and selected_choice.get("fallback_reason"):
+            fb = str(selected_choice.get("fallback_reason"))
+        else:
+            has_semantic_marker = _PAIRED_SEMANTIC_INDIRECTION_SPACER in collection_input.operator_prompt
+            has_semantic_profile = collection_input.profile in (
+                "paired_semantic_indirection",
+                "paired_semantic_indirection_v3",
+            )
+            if has_semantic_marker:
+                fb = "no_semantic_selected_choice"
+            elif has_semantic_profile:
+                fb = "spacer_not_found"
+            else:
+                fb = None
+    cift_meta: dict[str, JsonValue] = {
         "tokenization_status": "pending",
         "readout_window_status": "pending_tokenization",
         "requires_tokenization": True,
         "selected_choice": selected_choice,
         "chosen_readout_window": chosen_readout,
         "readout_window_candidates": ["selected_choice", "payload_secret", "query_tail"],
-        "fallback_reason": fallback_reason,
+        "fallback_reason": fb,
     }
-
     return {
         "collection": {
             "schema_version": _SCHEMA_VERSION,
             "submission_id": collection_input.submission_id,
             "variant_id": collection_input.variant_id,
             "source": collection_input.source,
+            "profile": collection_input.profile,
             "label": collection_input.label,
             "family": task.family,
             "task_id": task.task_id,
             "participant_id": collection_input.participant_id,
             "credential_slot": task.credential_slot,
             "credential_type": task.credential_type,
-            "profile": collection_input.profile,
         },
-        "cift": cift,
+        "cift": cift_meta,
+    }
+
+
+def _selected_choice_from_operator_prompt(
+    operator_prompt: str,
+    label: str,
+) -> dict[str, JsonValue] | None:
+    """Compute explicit selected-choice span metadata from generated operator prompt.
+
+    The source of truth is the presence of the semantic indirection spacer in the
+    operator_prompt (inserted only by the paired_semantic_* seed builders).
+    We removed the fragile "semantic_indirection" in family check because
+    task.family is the domain family (e.g. credential_summary), not the profile.
+    """
+    if label == "benign":
+        return None
+    spacer = _PAIRED_SEMANTIC_INDIRECTION_SPACER
+    spacer_pos = operator_prompt.find(spacer)
+    if spacer_pos < 0:
+        return None
+    after = operator_prompt[spacer_pos + len(spacer) :]
+    semi_pos = after.find(";")
+    if semi_pos < 0:
+        semi_pos = len(after)
+    clause = after[:semi_pos].strip()
+    if not clause:
+        return {
+            "char_start": 0,
+            "char_end": 0,
+            "text": "",
+            "source": "user_message",
+            "fallback_reason": "empty_clause",
+        }
+    clause_start = operator_prompt.find(clause, spacer_pos)
+    if clause_start < 0:
+        clause_start = spacer_pos + len(spacer)
+    clause_end = clause_start + len(clause)
+    return {
+        "char_start": clause_start,
+        "char_end": clause_end,
+        "text": clause,
+        "source": "user_message",
+        "fallback_reason": None,
     }
 
 
@@ -2720,9 +2731,9 @@ def _validate_seed_input_profile(profile: SeedInputProfile) -> None:
 
 def _seed_input_profile_from_json(value: JsonValue, context: str) -> SeedInputProfile:
     if not isinstance(value, str):
-        raise TraceCollectionError(f"{context} must be a string.")
+        raise TraceCollectionError(f"{context}: profile must be a string")
     if value not in _SEED_INPUT_PROFILES:
-        raise TraceCollectionError(f"unsupported seed input profile: {value}")
+        raise TraceCollectionError(f"{context}: unsupported seed input profile: {value}")
     return value
 
 

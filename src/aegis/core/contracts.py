@@ -5,6 +5,8 @@ from enum import StrEnum
 from typing import TypeAlias
 
 JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
+_AUDIT_ALLOWED_SENSITIVE_SPAN_KINDS = frozenset(("honeytoken",))
+_AUDIT_REDACTION_MARKER = "[REDACTED_SENSITIVE]"
 
 
 class Action(StrEnum):
@@ -189,31 +191,6 @@ class AuditEvent:
         }
 
 
-def _audit_safe_normalized_turn(turn: NormalizedTurn) -> dict[str, JsonValue]:
-    return {
-        "trace_id": turn.trace_id,
-        "session_id": turn.session_id,
-        "turn_index": turn.turn_index,
-        "capability_mode": turn.capability_mode.value,
-        "model": turn.model.to_dict(),
-        "message_count": len(turn.messages),
-        "messages": [_audit_safe_message(message) for message in turn.messages],
-        "tool_call_count": len(turn.tool_calls),
-        "tool_calls": [_audit_safe_tool_call(tool_call) for tool_call in turn.tool_calls],
-        "sensitive_span_count": len(turn.sensitive_spans),
-        "sensitive_spans": [_audit_safe_sensitive_span(span) for span in turn.sensitive_spans],
-        "metadata_key_count": len(turn.metadata),
-    }
-
-
-def _audit_safe_message(message: Message) -> dict[str, JsonValue]:
-    return {"role": message.role, "content_length": len(message.content)}
-
-
-def _audit_safe_tool_call(tool_call: ToolCall) -> dict[str, JsonValue]:
-    return {"name": tool_call.name, "argument_key_count": len(tool_call.arguments)}
-
-
 def _audit_safe_sensitive_span(span: SensitiveSpan) -> dict[str, JsonValue]:
     return {
         "kind": span.kind,
@@ -249,3 +226,105 @@ class CapabilityReport:
             "unavailable_detectors": unavailable_detectors,
             "model": self.model.to_dict(),
         }
+
+
+def _audit_safe_normalized_turn(turn: NormalizedTurn) -> dict[str, JsonValue]:
+    return {
+        "trace_id": turn.trace_id,
+        "session_id": turn.session_id,
+        "turn_index": turn.turn_index,
+        "capability_mode": turn.capability_mode.value,
+        "model": turn.model.to_dict(),
+        "message_count": len(turn.messages),
+        "messages": _audit_safe_messages(turn),
+        "tool_call_count": len(turn.tool_calls),
+        "tool_calls": _audit_safe_tool_calls(turn),
+        "sensitive_span_count": len(turn.sensitive_spans),
+        "sensitive_spans": [_audit_safe_sensitive_span(span) for span in turn.sensitive_spans],
+        "metadata_key_count": len(turn.metadata),
+        "metadata": _audit_safe_turn_metadata(turn.metadata),
+    }
+
+
+def _audit_safe_messages(turn: NormalizedTurn) -> list[JsonValue]:
+    messages: list[JsonValue] = []
+    for index, message in enumerate(turn.messages):
+        messages.append(
+            {
+                "role": message.role,
+                "content": _audit_safe_message_content(
+                    message=message,
+                    message_index=index,
+                    sensitive_spans=turn.sensitive_spans,
+                ),
+            }
+        )
+    return messages
+
+
+def _audit_safe_turn_metadata(metadata: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    safe_keys = (
+        "dp_honey_canary_count",
+        "dp_honey_canary_ids",
+        "test_seed_canary_count",
+        "test_seed_canary_ids",
+    )
+    return {key: metadata[key] for key in safe_keys if key in metadata}
+
+
+def _audit_safe_message_content(
+    message: Message,
+    message_index: int,
+    sensitive_spans: tuple[SensitiveSpan, ...],
+) -> str:
+    blocked_spans = tuple(
+        span
+        for span in sensitive_spans
+        if span.kind not in _AUDIT_ALLOWED_SENSITIVE_SPAN_KINDS or span.metadata.get("audit_redact") is True
+    )
+    if len(blocked_spans) == 0:
+        return message.content
+    content = message.content
+    redaction_ranges: list[tuple[int, int]] = []
+    for span in blocked_spans:
+        span_message_index = span.metadata.get("message_index")
+        if isinstance(span_message_index, int) and span_message_index != message_index:
+            continue
+        if span.char_start is None or span.char_end is None:
+            return _AUDIT_REDACTION_MARKER
+        if span.char_start < 0 or span.char_end <= span.char_start or span.char_end > len(content):
+            return _AUDIT_REDACTION_MARKER
+        redaction_ranges.append((span.char_start, span.char_end))
+    return _redact_ranges(content=content, ranges=tuple(redaction_ranges))
+
+
+def _audit_safe_tool_calls(turn: NormalizedTurn) -> list[JsonValue]:
+    blocked_spans = tuple(span for span in turn.sensitive_spans if span.kind not in _AUDIT_ALLOWED_SENSITIVE_SPAN_KINDS)
+    if len(blocked_spans) == 0:
+        return [
+            {
+                "name": tool_call.name,
+                "argument_key_count": len(tool_call.arguments),
+            }
+            for tool_call in turn.tool_calls
+        ]
+    return [
+        {
+            "name": tool_call.name,
+            "argument_key_count": len(tool_call.arguments),
+            "arguments": {
+                "redacted": True,
+                "reason": "non_honeytoken_sensitive_span_present",
+            },
+        }
+        for tool_call in turn.tool_calls
+    ]
+
+
+def _redact_ranges(content: str, ranges: tuple[tuple[int, int], ...]) -> str:
+    if len(ranges) == 0:
+        return content
+    redacted = content
+    for start, end in sorted(ranges, reverse=True):
+        redacted = redacted[:start] + _AUDIT_REDACTION_MARKER + redacted[end:]
+    return redacted

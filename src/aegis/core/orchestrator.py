@@ -1,11 +1,13 @@
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
 
+from aegis.core.action_severity import action_severity
 from aegis.core.contracts import (
+    Action,
     AuditEvent,
     CapabilityMode,
     DetectorResult,
@@ -44,6 +46,7 @@ class AegisRuntimeResponse:
     detector_results: tuple[DetectorResult, ...]
     policy_decision: PolicyDecision
     audit_event: AuditEvent
+    model_response_metadata: dict[str, JsonValue] = field(default_factory=dict)
 
 
 class Detector(Protocol):
@@ -107,11 +110,19 @@ class AegisRuntime:
             turn = annotator.annotate(turn)
 
         pre_generation_results = tuple(detector.evaluate(turn, None) for detector in self._pre_generation_detectors)
-        model_response = self._model_provider.generate(turn)
-        post_generation_results = tuple(
-            detector.evaluate(turn, model_response) for detector in self._post_generation_detectors
-        )
-        session_results = tuple(detector.evaluate(turn, model_response) for detector in self._session_detectors)
+        if _should_skip_generation(pre_generation_results):
+            model_response = ModelResponse(
+                output_text="",
+                metadata={"provider": "skipped", "reason": "pre_generation_policy_block"},
+            )
+            post_generation_results: tuple[DetectorResult, ...] = ()
+            session_results: tuple[DetectorResult, ...] = ()
+        else:
+            model_response = self._model_provider.generate(turn)
+            post_generation_results = tuple(
+                detector.evaluate(turn, model_response) for detector in self._post_generation_detectors
+            )
+            session_results = tuple(detector.evaluate(turn, model_response) for detector in self._session_detectors)
         detector_results = pre_generation_results + post_generation_results + session_results
         policy_decision = self._policy_engine.decide(detector_results)
         latency_ms = (time.perf_counter() - started_at) * 1000.0
@@ -133,7 +144,14 @@ class AegisRuntime:
 
         return AegisRuntimeResponse(
             output_text=output_text,
+            model_response_metadata=model_response.metadata,
             detector_results=detector_results,
             policy_decision=policy_decision,
             audit_event=audit_event,
         )
+
+
+def _should_skip_generation(pre_generation_results: tuple[DetectorResult, ...]) -> bool:
+    return any(
+        action_severity(result.recommended_action) >= action_severity(Action.BLOCK) for result in pre_generation_results
+    )

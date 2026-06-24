@@ -207,6 +207,12 @@ geometry: the strongest CIFT runtime candidate uses the selected clause after
 the neutral option table, while payload/query readout is treated as degraded
 fallback.
 
+For CIFT training, selected-choice geometry should come from
+`normalized_turn.metadata["cift"]["selected_choice"]` emitted by the harness.
+The converter may keep legacy parser fallback support for old records, but new
+paired semantic-indirection data should not depend on prose parsing to discover
+the selected clause.
+
 ## Validate Paired Inputs
 
 Before converting paired safe/exfiltration inputs into CIFT structured prompts,

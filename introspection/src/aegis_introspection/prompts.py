@@ -44,6 +44,7 @@ class StructuredPromptExample:
     query_tail_readout_token_indices: tuple[int, ...] | None
     selected_choice_token_span: PromptTokenSpan | None
     selected_choice_readout_token_indices: tuple[int, ...] | None
+    fallback_reason: str | None
 
 
 def _as_mapping(value: object, line_number: int) -> Mapping[str, object]:
@@ -56,6 +57,17 @@ def _required_string(record: Mapping[str, object], field_name: str, line_number:
     value = record.get(field_name)
     if not isinstance(value, str):
         raise PromptDataError(f"Line {line_number}: field '{field_name}' must be a string.")
+    if value == "":
+        raise PromptDataError(f"Line {line_number}: field '{field_name}' must not be empty.")
+    return value
+
+
+def _optional_string(record: Mapping[str, object], field_name: str, line_number: int) -> str | None:
+    value = record.get(field_name)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise PromptDataError(f"Line {line_number}: field '{field_name}' must be a string or null.")
     if value == "":
         raise PromptDataError(f"Line {line_number}: field '{field_name}' must not be empty.")
     return value
@@ -290,6 +302,7 @@ def parse_structured_prompt_example(record: Mapping[str, object], line_number: i
         query_tail_readout_token_indices=query_tail_readout_token_indices,
         selected_choice_token_span=selected_choice_token_span,
         selected_choice_readout_token_indices=selected_choice_readout_token_indices,
+        fallback_reason=_optional_string(record, "fallback_reason", line_number),
     )
 
 
