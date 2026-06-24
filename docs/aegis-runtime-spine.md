@@ -67,10 +67,10 @@ payload["aegis"]["policy_decision"]
 ```
 
 `/audit/recent` is a projection, not raw `AuditEvent.to_dict()`. It exposes
-trace/session/turn handles, turn summary counts and roles, whitelisted sensitive
-span metadata, detector results, policy decision, and timing. It must not echo
-raw normalized message content, arbitrary metadata values, raw tool arguments, or
-raw request bodies.
+trace/session/turn handles, turn summary counts and roles, normalized tool-call
+names, whitelisted sensitive span metadata, detector results, policy decision,
+and timing. It must not echo raw normalized message content, arbitrary metadata
+values, raw tool arguments, or raw request bodies.
 
 ## DP-HONEY-Lite Honeytoken Registration
 

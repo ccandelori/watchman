@@ -141,6 +141,9 @@ status, payload = proxy.handle(
         "model": "mock-model",
         "messages": [{"role": "user", "content": "hello"}],
         "metadata": {"trace_id": "trace-1", "session_id": "session-1"},
+        "tool_calls": [
+            {"name": "send_slack_message", "arguments": {"channel": "#ir", "text": "status only"}}
+        ],
     },
 )
 
@@ -155,10 +158,11 @@ print(payload["aegis"]["policy_decision"])
 `/v1/chat/completions` accepts only JSON-object request bodies and returns a
 stable `payload["aegis"]` envelope containing `schema_version`, `trace_id`,
 `session_id`, `turn_index`, `capability_mode`, `detector_count`, detector
-results, and the final policy decision. `/audit/recent` returns a safe audit
-projection: trace/session/turn handles, a turn summary, detector results, policy
-decision, and whitelisted span metadata. It does not echo raw message content,
-arbitrary metadata values, tool-call arguments, or raw request bodies.
+results, and the final policy decision. Optional `tool_calls` are normalized into
+runtime `ToolCall` contracts for detector use. `/audit/recent` returns a safe
+audit projection: trace/session/turn handles, a turn summary, detector results,
+policy decision, and whitelisted span metadata. It does not echo raw message
+content, arbitrary metadata values, tool-call arguments, or raw request bodies.
 
 ## Quality Gates
 

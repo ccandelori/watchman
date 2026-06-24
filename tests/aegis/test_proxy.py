@@ -79,6 +79,51 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertNotIn("mock_response", audit_text)
         self.assertNotIn("operator_note", audit_text)
 
+    def test_chat_completions_route_normalizes_tool_calls_without_audit_argument_echo(self) -> None:
+        proxy = create_default_proxy()
+        private_marker = "redacted-marker-246813579"
+
+        proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "prepare a tool call"}],
+                "metadata": {"session_id": "session-tools", "trace_id": "trace-tools"},
+                "tool_calls": [
+                    {
+                        "name": "send_slack_message",
+                        "arguments": {"channel": "#ir", "text": private_marker},
+                    }
+                ],
+            },
+        )
+
+        audit_status, audit_payload = proxy.handle(method="GET", path="/audit/recent", body={})
+
+        self.assertEqual(200, audit_status)
+        audit_event = audit_payload["events"][0]
+        self.assertEqual(1, audit_event["turn_summary"]["tool_call_count"])
+        self.assertEqual(["send_slack_message"], audit_event["turn_summary"]["tool_call_names"])
+        self.assertNotIn(private_marker, str(audit_payload))
+        self.assertNotIn("#ir", str(audit_payload))
+
+    def test_chat_completions_route_rejects_malformed_tool_calls(self) -> None:
+        proxy = create_default_proxy()
+
+        status, payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "hello"}],
+                "tool_calls": [{"name": "send_slack_message", "arguments": "bad"}],
+            },
+        )
+
+        self.assertEqual(400, status)
+        self.assertIn("tool_calls", payload["error"])
+
     def test_chat_completions_route_rejects_invalid_messages(self) -> None:
         proxy = create_default_proxy()
 

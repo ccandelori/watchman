@@ -5,7 +5,7 @@ from collections.abc import Mapping
 from uuid import uuid4
 
 from aegis.audit.memory import InMemoryAuditSink
-from aegis.core.contracts import AuditEvent, CapabilityMode, JsonValue, Message, ModelInfo, SensitiveSpan
+from aegis.core.contracts import AuditEvent, CapabilityMode, JsonValue, Message, ModelInfo, SensitiveSpan, ToolCall
 from aegis.core.orchestrator import AegisRuntime, AegisRuntimeResponse, RuntimeRequest
 from aegis.detectors.activation import ActivationUnavailableDetector
 from aegis.detectors.canary import NoopCanaryDetector
@@ -83,6 +83,7 @@ def _runtime_request_from_chat_body(body: object) -> RuntimeRequest:
         raise ProxyRequestError("field 'messages' must be a non-empty list.")
 
     messages = tuple(_message_from_raw(item) for item in raw_messages)
+    tool_calls = _tool_calls_from_raw(request_body.get("tool_calls"))
     metadata = _metadata_from_raw(request_body.get("metadata"))
     trace_id = _metadata_string(metadata, "trace_id", f"trace-{uuid4().hex}")
     session_id = _metadata_string(metadata, "session_id", f"session-{uuid4().hex}")
@@ -95,7 +96,7 @@ def _runtime_request_from_chat_body(body: object) -> RuntimeRequest:
         capability_mode=CapabilityMode.BLACK_BOX,
         model=ModelInfo(provider="mock", model_id=model, revision=None, selected_device=None),
         messages=messages,
-        tool_calls=(),
+        tool_calls=tool_calls,
         sensitive_spans=(),
         metadata=metadata,
     )
@@ -111,6 +112,29 @@ def _message_from_raw(value: object) -> Message:
     if not isinstance(content, str):
         raise ProxyRequestError("each message must include string content.")
     return Message(role=role, content=content)
+
+
+def _tool_calls_from_raw(value: JsonValue | None) -> tuple[ToolCall, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ProxyRequestError("field 'tool_calls' must be a list when provided.")
+    return tuple(_tool_call_from_raw(value=item, index=index) for index, item in enumerate(value))
+
+
+def _tool_call_from_raw(value: object, index: int) -> ToolCall:
+    if not isinstance(value, dict):
+        raise ProxyRequestError(f"field 'tool_calls' item {index} must be an object.")
+    name = value.get("name")
+    if not isinstance(name, str) or name == "":
+        raise ProxyRequestError(f"field 'tool_calls' item {index} must include a non-empty string name.")
+    arguments = value.get("arguments")
+    if not isinstance(arguments, dict):
+        raise ProxyRequestError(f"field 'tool_calls' item {index} arguments must be an object.")
+    return ToolCall(
+        name=name,
+        arguments=_json_object_from_raw(value=arguments, context=f"field 'tool_calls' item {index} arguments"),
+    )
 
 
 def _metadata_from_raw(value: object) -> dict[str, JsonValue]:
@@ -205,6 +229,7 @@ def _safe_audit_event(event: AuditEvent) -> dict[str, JsonValue]:
             "message_count": len(turn.messages),
             "message_roles": [message.role for message in turn.messages],
             "tool_call_count": len(turn.tool_calls),
+            "tool_call_names": [tool_call.name for tool_call in turn.tool_calls],
             "sensitive_span_count": len(turn.sensitive_spans),
             "metadata_key_count": len(turn.metadata),
         },
