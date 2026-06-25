@@ -21,6 +21,11 @@ class ActivationArtifactMetadata(TypedDict):
     selected_device: str
     dtype: NotRequired[str]
     trust_remote_code: NotRequired[bool]
+    hidden_size: NotRequired[int]
+    layer_count: NotRequired[int]
+    tokenizer_fingerprint_sha256: NotRequired[str]
+    special_tokens_map_sha256: NotRequired[str]
+    chat_template_sha256: NotRequired[str]
     layer_indices: tuple[int, ...]
     pooling_methods: tuple[PoolingMethod, ...]
 
@@ -83,6 +88,11 @@ def _metadata(value: object) -> ActivationArtifactMetadata:
     model_id = mapping.get("model_id")
     revision = mapping.get("revision")
     selected_device = mapping.get("selected_device")
+    hidden_size = mapping.get("hidden_size")
+    layer_count = mapping.get("layer_count")
+    tokenizer_fingerprint_sha256 = mapping.get("tokenizer_fingerprint_sha256")
+    special_tokens_map_sha256 = mapping.get("special_tokens_map_sha256")
+    chat_template_sha256 = mapping.get("chat_template_sha256")
     layer_indices = mapping.get("layer_indices")
     pooling_methods = mapping.get("pooling_methods")
     dtype = mapping.get("dtype")
@@ -94,6 +104,17 @@ def _metadata(value: object) -> ActivationArtifactMetadata:
         raise ActivationArtifactError("Expected metadata field 'revision' to be a string.")
     if not isinstance(selected_device, str):
         raise ActivationArtifactError("Expected metadata field 'selected_device' to be a string.")
+    parsed_hidden_size = _optional_positive_int(value=hidden_size, field_name="hidden_size")
+    parsed_layer_count = _optional_positive_int(value=layer_count, field_name="layer_count")
+    parsed_tokenizer_fingerprint_sha256 = _optional_sha256(
+        value=tokenizer_fingerprint_sha256,
+        field_name="tokenizer_fingerprint_sha256",
+    )
+    parsed_special_tokens_map_sha256 = _optional_sha256(
+        value=special_tokens_map_sha256,
+        field_name="special_tokens_map_sha256",
+    )
+    parsed_chat_template_sha256 = _optional_sha256(value=chat_template_sha256, field_name="chat_template_sha256")
     if not isinstance(layer_indices, tuple) or not all(isinstance(item, int) for item in layer_indices):
         raise ActivationArtifactError("Expected metadata field 'layer_indices' to be a tuple of integers.")
     if not isinstance(pooling_methods, tuple) or not all(isinstance(item, str) for item in pooling_methods):
@@ -110,11 +131,44 @@ def _metadata(value: object) -> ActivationArtifactMetadata:
         "layer_indices": layer_indices,
         "pooling_methods": cast(tuple[PoolingMethod, ...], pooling_methods),
     }
+    if parsed_hidden_size is not None:
+        metadata["hidden_size"] = parsed_hidden_size
+    if parsed_layer_count is not None:
+        metadata["layer_count"] = parsed_layer_count
+    if parsed_tokenizer_fingerprint_sha256 is not None:
+        metadata["tokenizer_fingerprint_sha256"] = parsed_tokenizer_fingerprint_sha256
+    if parsed_special_tokens_map_sha256 is not None:
+        metadata["special_tokens_map_sha256"] = parsed_special_tokens_map_sha256
+    if parsed_chat_template_sha256 is not None:
+        metadata["chat_template_sha256"] = parsed_chat_template_sha256
     if dtype is not None:
         metadata["dtype"] = dtype
     if trust_remote_code is not None:
         metadata["trust_remote_code"] = trust_remote_code
     return metadata
+
+
+def _optional_positive_int(value: object, field_name: str) -> int | None:
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ActivationArtifactError(f"Expected metadata field '{field_name}' to be an integer.")
+    if value < 1:
+        raise ActivationArtifactError(f"Expected metadata field '{field_name}' to be positive.")
+    return value
+
+
+def _optional_sha256(value: object, field_name: str) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ActivationArtifactError(f"Expected metadata field '{field_name}' to be a string.")
+    if len(value) != 64:
+        raise ActivationArtifactError(f"Expected metadata field '{field_name}' to be a SHA-256 hex digest.")
+    for character in value:
+        if character not in "0123456789abcdef":
+            raise ActivationArtifactError(f"Expected metadata field '{field_name}' to be lowercase hexadecimal.")
+    return value
 
 
 def validate_activation_artifact(value: object) -> ActivationArtifact:

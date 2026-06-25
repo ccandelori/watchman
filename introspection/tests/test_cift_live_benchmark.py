@@ -60,6 +60,9 @@ class FakeHiddenStateRunner:
     def run(self, prompt: str) -> HiddenStateForwardPass:
         return HiddenStateForwardPass(
             prompt=prompt,
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor(((1,),), dtype=torch.int64),
             attention_mask=torch.tensor(((1,),), dtype=torch.int64),
             hidden_states=(torch.tensor((((1.0, 2.0),),), dtype=torch.float32),),

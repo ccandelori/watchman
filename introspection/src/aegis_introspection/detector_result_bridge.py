@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, TypeAlias
+from typing import TYPE_CHECKING, Literal, TypeAlias
 
-from aegis_introspection.cift_calibration import CalibratedCiftPrediction
+from aegis.core.contracts import JsonValue
 from aegis_introspection.cift_model_bundle import CiftModelPrediction
-from aegis_introspection.error_analysis import BinaryExamplePrediction
-from aegis_introspection.probe import JsonValue
+
+if TYPE_CHECKING:
+    from aegis_introspection.cift_calibration import CalibratedCiftPrediction
+    from aegis_introspection.error_analysis import BinaryExamplePrediction
 
 
 DetectorResultJson: TypeAlias = dict[str, JsonValue]

@@ -1,5 +1,6 @@
 {
   "candidate_status": "offline_research_candidate",
+  "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
   "class_indices": [
     0,
     1
@@ -3103,7 +3104,13 @@
   "schema_version": "aegis.cift_runtime_linear/v1",
   "score_semantics": "full_train_classifier_probability",
   "source_artifact_sha256": "a1d27ed3b747d6454047435ac77ae1299e181d09755367f53d5570dec76a626d",
+  "source_hidden_size": 1024,
+  "source_layer_count": 28,
   "source_model_id": "Qwen/Qwen3-0.6B",
+  "source_revision": "main",
+  "source_selected_device": "cpu",
+  "special_tokens_map_sha256": "edcb2fc2acbbe77f858a9c4fe51295ffdb84711efba5703ec5906b3d67282569",
   "task_name": "safe_secret_vs_exfiltration",
+  "tokenizer_fingerprint_sha256": "41e00eccf531cffc2e562d38bdd879d41e5044ea279af5b73c6a32aabcc8fe04",
   "training_dataset_id": "dp_honey_lite_v4_1_selector_windows"
 }

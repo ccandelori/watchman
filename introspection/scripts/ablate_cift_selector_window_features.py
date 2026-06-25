@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 SCRIPT_PATH = Path(__file__).resolve()
 INTROSPECTION_ROOT = SCRIPT_PATH.parents[1]
@@ -12,12 +13,13 @@ SRC_PATH = INTROSPECTION_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from aegis_introspection.artifacts import load_activation_artifact
-from aegis_introspection.binary_tasks import BinaryTaskConfig, BinaryTaskError
-from aegis_introspection.cift_feature_ablation import (
+from aegis_introspection.artifacts import load_activation_artifact  # noqa: E402
+from aegis_introspection.binary_tasks import BinaryTaskConfig, BinaryTaskError  # noqa: E402
+from aegis_introspection.cift_feature_ablation import (  # noqa: E402
+    CiftFeatureAblationReport,
     CiftFeatureAblationVariant,
+    cift_feature_ablation_report_to_json,
     evaluate_grouped_cift_feature_ablation,
-    write_cift_feature_ablation_json,
     write_cift_feature_ablation_markdown,
 )
 
@@ -27,6 +29,7 @@ class AblateCiftSelectorWindowFeaturesCliConfig:
     artifact_path: Path
     output_json_path: Path
     output_markdown_path: Path
+    report_id: str
     task_name: str
     baseline_variant_id: str
     variants: tuple[CiftFeatureAblationVariant, ...]
@@ -96,21 +99,20 @@ def _build_parser() -> argparse.ArgumentParser:
         "--output-json",
         required=False,
         default=str(
-            INTROSPECTION_ROOT
-            / "data"
-            / "reports"
-            / "dp_honey_lite_v3_selector_window_feature_ablation_v1.json"
+            INTROSPECTION_ROOT / "data" / "reports" / "dp_honey_lite_v3_selector_window_feature_ablation_v1.json"
         ),
     )
     parser.add_argument(
         "--output-md",
         required=False,
         default=str(
-            INTROSPECTION_ROOT
-            / "data"
-            / "reports"
-            / "dp_honey_lite_v3_selector_window_feature_ablation_v1_summary.md"
+            INTROSPECTION_ROOT / "data" / "reports" / "dp_honey_lite_v3_selector_window_feature_ablation_v1_summary.md"
         ),
+    )
+    parser.add_argument(
+        "--report-id",
+        required=False,
+        default="dp_honey_lite_v3_selector_window_feature_ablation_v1",
     )
     parser.add_argument("--task", required=False, default="safe_secret_vs_exfiltration")
     parser.add_argument("--baseline-variant", required=False, default="baseline_layer_15")
@@ -137,6 +139,7 @@ def _parse_args(argv: Sequence[str]) -> AblateCiftSelectorWindowFeaturesCliConfi
         artifact_path=Path(namespace.artifact),
         output_json_path=Path(namespace.output_json),
         output_markdown_path=Path(namespace.output_md),
+        report_id=str(namespace.report_id),
         task_name=str(namespace.task),
         baseline_variant_id=str(namespace.baseline_variant),
         variants=_parse_variants(namespace.variant),
@@ -187,17 +190,32 @@ def run_ablation(config: AblateCiftSelectorWindowFeaturesCliConfig) -> None:
         baseline_variant_id=config.baseline_variant_id,
         config=_binary_task_config(config),
     )
-    write_cift_feature_ablation_json(config.output_json_path, report)
+    _write_identified_cift_feature_ablation_json(
+        path=config.output_json_path,
+        report_id=config.report_id,
+        report=report,
+    )
     write_cift_feature_ablation_markdown(config.output_markdown_path, report)
     baseline = next(variant for variant in report.variants if variant.is_baseline)
     best = report.variants[0]
     print(f"Wrote CIFT feature ablation JSON to {config.output_json_path}")
     print(f"Wrote CIFT feature ablation summary to {config.output_markdown_path}")
     print(f"best={best.variant_id} macro_f1={best.macro_f1_mean:.4f} accuracy={best.accuracy_mean:.4f}")
-    print(
-        f"baseline={baseline.variant_id} "
-        f"macro_f1={baseline.macro_f1_mean:.4f} accuracy={baseline.accuracy_mean:.4f}"
-    )
+    print(f"baseline={baseline.variant_id} macro_f1={baseline.macro_f1_mean:.4f} accuracy={baseline.accuracy_mean:.4f}")
+
+
+def _write_identified_cift_feature_ablation_json(
+    path: Path,
+    report_id: str,
+    report: CiftFeatureAblationReport,
+) -> None:
+    if report_id == "":
+        raise BinaryTaskError("report_id must not be empty.")
+    record = cift_feature_ablation_report_to_json(report)
+    record["report_id"] = report_id
+    record["schema_version"] = "aegis_introspection.cift_feature_ablation/v1"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 def main(argv: Sequence[str]) -> None:

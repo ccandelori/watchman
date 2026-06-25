@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from aegis.audit.memory import InMemoryAuditSink
-from aegis.core.contracts import JsonValue, NormalizedTurn
+from aegis.core.contracts import Action, JsonValue, NormalizedTurn
 from aegis.core.orchestrator import AegisRuntime, RuntimeRequest
 from aegis.detectors.cift_runtime import (
     CiftFeatureExtractor,
@@ -208,11 +208,13 @@ def run_cift_window_selector_runtime_eval_with_extractor(
                 feature_key=selected_choice_model.feature_key,
                 extractor=extractor,
                 source=config.feature_source,
+                selected_choice_window=True,
             ),
             CiftFeatureVectorAnnotator(
                 feature_key=fallback_model.feature_key,
                 extractor=extractor,
                 source=config.feature_source,
+                selected_choice_window=False,
             ),
         ),
         pre_generation_detectors=(
@@ -220,6 +222,7 @@ def run_cift_window_selector_runtime_eval_with_extractor(
                 detector_name=config.detector_name,
                 selected_choice_model=selected_choice_model,
                 fallback_model=fallback_model,
+                activation_failure_action=Action.ALLOW,
             ),
         ),
         post_generation_detectors=(),
@@ -254,9 +257,16 @@ def run_cift_runtime_eval_with_extractor(
                 feature_key=runtime_model.feature_key,
                 extractor=extractor,
                 source=config.feature_source,
+                selected_choice_window=False,
             ),
         ),
-        pre_generation_detectors=(CiftRuntimeDetector(detector_name=config.detector_name, model=runtime_model),),
+        pre_generation_detectors=(
+            CiftRuntimeDetector(
+                detector_name=config.detector_name,
+                model=runtime_model,
+                activation_failure_action=Action.ALLOW,
+            ),
+        ),
         post_generation_detectors=(),
         session_detectors=(),
         policy_engine=SeverityPolicyEngine(),

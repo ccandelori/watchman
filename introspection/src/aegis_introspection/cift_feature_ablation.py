@@ -262,7 +262,9 @@ def _validate_variants(
         if variant.variant_id == "":
             raise BinaryTaskError("CIFT feature ablation variant id must not be empty.")
         if variant.feature_key == "":
-            raise BinaryTaskError(f"CIFT feature ablation variant '{variant.variant_id}' feature key must not be empty.")
+            raise BinaryTaskError(
+                f"CIFT feature ablation variant '{variant.variant_id}' feature key must not be empty."
+            )
     if baseline_variant_id not in variant_ids:
         raise BinaryTaskError(f"Baseline variant '{baseline_variant_id}' is not present in variants.")
 

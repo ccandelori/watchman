@@ -4,8 +4,6 @@ from dataclasses import replace
 from pathlib import Path
 
 import numpy as np
-from sklearn.pipeline import Pipeline
-
 from aegis_introspection.binary_tasks import BinaryTaskConfig, build_activation_classifier
 from aegis_introspection.cift_model_bundle import (
     CiftModelBundle,
@@ -15,6 +13,7 @@ from aegis_introspection.cift_model_bundle import (
     predict_cift_model_bundle,
     save_cift_model_bundle,
 )
+from sklearn.pipeline import Pipeline
 
 
 def _trained_classifier() -> Pipeline:
@@ -48,6 +47,11 @@ def _metadata() -> CiftModelBundleMetadata:
         source_model_id="Qwen/Qwen3-0.6B",
         source_revision="main",
         source_selected_device="mps",
+        source_hidden_size=1024,
+        source_layer_count=24,
+        tokenizer_fingerprint_sha256="b" * 64,
+        special_tokens_map_sha256="c" * 64,
+        chat_template_sha256="d" * 64,
         training_dataset_id="dp_honey_lite_v4_1_selector_windows",
         source_artifact_path="data/activations/qwen3_0_6b_dp_honey_lite_v4_1_selector_windows.pt",
         source_artifact_sha256="a" * 64,
@@ -88,6 +92,15 @@ class CiftModelBundleTest(unittest.TestCase):
             path = Path(directory) / "cift_model_bundle.pkl"
 
             with self.assertRaisesRegex(CiftModelBundleError, "decision_threshold"):
+                save_cift_model_bundle(path=path, bundle=bundle)
+
+    def test_save_rejects_missing_tokenizer_fingerprint(self) -> None:
+        metadata = replace(_metadata(), tokenizer_fingerprint_sha256="")
+        bundle = CiftModelBundle(metadata=metadata, classifier=_trained_classifier(), calibrator=None)
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "cift_model_bundle.pkl"
+
+            with self.assertRaisesRegex(CiftModelBundleError, "tokenizer_fingerprint_sha256"):
                 save_cift_model_bundle(path=path, bundle=bundle)
 
     def test_predict_rejects_feature_count_mismatch(self) -> None:

@@ -1,9 +1,13 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from dataclasses import dataclass
 from typing import Protocol, cast
 
+from aegis.cift_contract import CIFT_EXTRACTION_RECEIPT_SCHEMA_VERSION
 from aegis.core.contracts import JsonValue, NormalizedTurn
+from aegis.detectors.cift_runtime import CiftFeatureExtraction
 from aegis_introspection.activations import HiddenStateForwardPass, run_hidden_state_forward
 from aegis_introspection.features import PoolingMethod, extract_activation_features
 from aegis_introspection.model_loader import LoadedCausalLM
@@ -50,25 +54,39 @@ class LiveCiftFeatureExtractor:
         self._source_specs = parse_live_cift_feature_key(feature_key)
 
     def extract_feature_vector(self, turn: NormalizedTurn, feature_key: str) -> tuple[float, ...] | None:
+        return self.extract_feature_extraction(turn=turn, feature_key=feature_key).feature_vector
+
+    def extract_feature_extraction(self, turn: NormalizedTurn, feature_key: str) -> CiftFeatureExtraction:
         if feature_key != self._feature_key:
             raise CiftLiveExtractorError(f"Extractor was initialized for '{self._feature_key}', not '{feature_key}'.")
         readout_token_indices = readout_token_indices_from_turn(turn)
         if readout_token_indices is None and _requires_readout_window(self._source_specs):
-            return None
+            return CiftFeatureExtraction(feature_vector=None, selected_choice_readout_token_indices=None, provenance={})
         query_tail_readout_token_indices = query_tail_readout_token_indices_from_turn(turn)
         if query_tail_readout_token_indices is None and _requires_query_tail_window(self._source_specs):
-            return None
+            return CiftFeatureExtraction(feature_vector=None, selected_choice_readout_token_indices=None, provenance={})
         selected_choice_readout_token_indices = selected_choice_readout_token_indices_from_turn(turn)
         if selected_choice_readout_token_indices is None and _requires_selected_choice_window(self._source_specs):
-            return None
+            return CiftFeatureExtraction(feature_vector=None, selected_choice_readout_token_indices=None, provenance={})
         prompt = rendered_prompt_from_turn(turn)
         forward_pass = self._runner.run(prompt)
-        return _feature_vector_from_forward_pass(
+        feature_vector = _feature_vector_from_forward_pass(
             forward_pass=forward_pass,
             source_specs=self._source_specs,
             readout_token_indices=readout_token_indices,
             query_tail_readout_token_indices=query_tail_readout_token_indices,
             selected_choice_readout_token_indices=selected_choice_readout_token_indices,
+        )
+        return CiftFeatureExtraction(
+            feature_vector=feature_vector,
+            selected_choice_readout_token_indices=selected_choice_readout_token_indices,
+            provenance=_extraction_receipt_provenance(
+                feature_key=feature_key,
+                feature_vector=feature_vector,
+                selected_choice_readout_token_indices=selected_choice_readout_token_indices,
+                prompt=prompt,
+                forward_pass=forward_pass,
+            ),
         )
 
 
@@ -86,26 +104,40 @@ class LiveCiftFeatureSetExtractor:
         self._cached_forward_pass: HiddenStateForwardPass | None = None
 
     def extract_feature_vector(self, turn: NormalizedTurn, feature_key: str) -> tuple[float, ...] | None:
+        return self.extract_feature_extraction(turn=turn, feature_key=feature_key).feature_vector
+
+    def extract_feature_extraction(self, turn: NormalizedTurn, feature_key: str) -> CiftFeatureExtraction:
         source_specs = self._source_specs_by_feature_key.get(feature_key)
         if source_specs is None:
             raise CiftLiveExtractorError(f"Extractor was not initialized for '{feature_key}'.")
         readout_token_indices = readout_token_indices_from_turn(turn)
         if readout_token_indices is None and _requires_readout_window(source_specs):
-            return None
+            return CiftFeatureExtraction(feature_vector=None, selected_choice_readout_token_indices=None, provenance={})
         query_tail_readout_token_indices = query_tail_readout_token_indices_from_turn(turn)
         if query_tail_readout_token_indices is None and _requires_query_tail_window(source_specs):
-            return None
+            return CiftFeatureExtraction(feature_vector=None, selected_choice_readout_token_indices=None, provenance={})
         selected_choice_readout_token_indices = selected_choice_readout_token_indices_from_turn(turn)
         if selected_choice_readout_token_indices is None and _requires_selected_choice_window(source_specs):
-            return None
+            return CiftFeatureExtraction(feature_vector=None, selected_choice_readout_token_indices=None, provenance={})
         prompt = rendered_prompt_from_turn(turn)
         forward_pass = self._forward_pass(turn=turn, prompt=prompt)
-        return _feature_vector_from_forward_pass(
+        feature_vector = _feature_vector_from_forward_pass(
             forward_pass=forward_pass,
             source_specs=source_specs,
             readout_token_indices=readout_token_indices,
             query_tail_readout_token_indices=query_tail_readout_token_indices,
             selected_choice_readout_token_indices=selected_choice_readout_token_indices,
+        )
+        return CiftFeatureExtraction(
+            feature_vector=feature_vector,
+            selected_choice_readout_token_indices=selected_choice_readout_token_indices,
+            provenance=_extraction_receipt_provenance(
+                feature_key=feature_key,
+                feature_vector=feature_vector,
+                selected_choice_readout_token_indices=selected_choice_readout_token_indices,
+                prompt=prompt,
+                forward_pass=forward_pass,
+            ),
         )
 
     def _forward_pass(self, turn: NormalizedTurn, prompt: str) -> HiddenStateForwardPass:
@@ -271,6 +303,61 @@ def _feature_vector_from_forward_pass(
             raise CiftLiveExtractorError(f"Extracted feature '{feature.key}', but expected '{source_spec.key}'.")
         values.extend(float(value) for value in feature.values.squeeze(0).cpu().float().reshape(-1).tolist())
     return tuple(values)
+
+
+def _extraction_receipt_provenance(
+    feature_key: str,
+    feature_vector: tuple[float, ...],
+    selected_choice_readout_token_indices: tuple[int, ...] | None,
+    prompt: str,
+    forward_pass: HiddenStateForwardPass,
+) -> dict[str, JsonValue]:
+    _validate_forward_pass_source_metadata(forward_pass)
+    provenance: dict[str, JsonValue] = {
+        "extraction_receipt_schema_version": CIFT_EXTRACTION_RECEIPT_SCHEMA_VERSION,
+        "feature_key": feature_key,
+        "feature_vector_length": len(feature_vector),
+        "feature_vector_sha256": _json_sha256([float(value) for value in feature_vector]),
+        "rendered_prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest(),
+        "input_device_observed": forward_pass.source_input_device,
+        "hidden_state_layer_count": len(forward_pass.hidden_states),
+        "hidden_state_device_observed": _single_observed_device(forward_pass.source_hidden_state_devices),
+        "hidden_state_devices": [str(device) for device in forward_pass.source_hidden_state_devices],
+        "hidden_state_dtypes": [str(dtype) for dtype in forward_pass.source_hidden_state_dtypes],
+    }
+    if selected_choice_readout_token_indices is not None:
+        token_indices = [int(token_index) for token_index in selected_choice_readout_token_indices]
+        provenance["selected_choice_readout_token_indices"] = token_indices
+        provenance["selected_choice_readout_token_count"] = len(token_indices)
+        provenance["selected_choice_readout_token_indices_sha256"] = _json_sha256(token_indices)
+    return provenance
+
+
+def _validate_forward_pass_source_metadata(forward_pass: HiddenStateForwardPass) -> None:
+    if forward_pass.source_input_device == "":
+        raise CiftLiveExtractorError("Hidden-state forward pass source_input_device must not be empty.")
+    if len(forward_pass.hidden_states) == 0:
+        raise CiftLiveExtractorError("Hidden-state forward pass must include at least one hidden-state tensor.")
+    if len(forward_pass.source_hidden_state_devices) != len(forward_pass.hidden_states):
+        raise CiftLiveExtractorError("Hidden-state source device count must match hidden-state tensor count.")
+    if len(forward_pass.source_hidden_state_dtypes) != len(forward_pass.hidden_states):
+        raise CiftLiveExtractorError("Hidden-state source dtype count must match hidden-state tensor count.")
+    if any(device == "" for device in forward_pass.source_hidden_state_devices):
+        raise CiftLiveExtractorError("Hidden-state source devices must not contain empty values.")
+    if any(dtype == "" for dtype in forward_pass.source_hidden_state_dtypes):
+        raise CiftLiveExtractorError("Hidden-state source dtypes must not contain empty values.")
+
+
+def _single_observed_device(devices: tuple[str, ...]) -> str:
+    unique_devices = tuple(dict.fromkeys(devices))
+    if len(unique_devices) == 1:
+        return unique_devices[0]
+    return "mixed"
+
+
+def _json_sha256(value: JsonValue) -> str:
+    encoded = json.dumps(value, allow_nan=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 def _int_item(value: JsonValue, field_name: str) -> int:

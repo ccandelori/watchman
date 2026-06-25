@@ -8,7 +8,6 @@ from typing import Literal, Protocol, TypeAlias
 import numpy as np
 from numpy.typing import NDArray
 
-
 FloatMatrix: TypeAlias = NDArray[np.float32]
 ProbabilityMatrix: TypeAlias = NDArray[np.float64]
 CandidateStatus: TypeAlias = Literal["offline_research_candidate", "runtime_candidate"]
@@ -36,6 +35,11 @@ class CiftModelBundleMetadata:
     source_model_id: str
     source_revision: str
     source_selected_device: str
+    source_hidden_size: int
+    source_layer_count: int
+    tokenizer_fingerprint_sha256: str
+    special_tokens_map_sha256: str
+    chat_template_sha256: str
     training_dataset_id: str
     source_artifact_path: str
     source_artifact_sha256: str
@@ -112,6 +116,11 @@ def _validate_metadata(metadata: CiftModelBundleMetadata) -> None:
     _validate_required_string(value=metadata.source_model_id, field_name="source_model_id")
     _validate_required_string(value=metadata.source_revision, field_name="source_revision")
     _validate_required_string(value=metadata.source_selected_device, field_name="source_selected_device")
+    _validate_positive_int(value=metadata.source_hidden_size, field_name="source_hidden_size")
+    _validate_positive_int(value=metadata.source_layer_count, field_name="source_layer_count")
+    _validate_sha256(value=metadata.tokenizer_fingerprint_sha256, field_name="tokenizer_fingerprint_sha256")
+    _validate_sha256(value=metadata.special_tokens_map_sha256, field_name="special_tokens_map_sha256")
+    _validate_sha256(value=metadata.chat_template_sha256, field_name="chat_template_sha256")
     _validate_required_string(value=metadata.training_dataset_id, field_name="training_dataset_id")
     _validate_required_string(value=metadata.source_artifact_path, field_name="source_artifact_path")
     _validate_required_string(value=metadata.source_artifact_sha256, field_name="source_artifact_sha256")
@@ -126,11 +135,7 @@ def _validate_metadata(metadata: CiftModelBundleMetadata) -> None:
         raise CiftModelBundleError("feature_count must be at least 1.")
     if metadata.decision_threshold < 0.0 or metadata.decision_threshold > 1.0:
         raise CiftModelBundleError("decision_threshold must be in [0.0, 1.0].")
-    if len(metadata.source_artifact_sha256) != 64:
-        raise CiftModelBundleError("source_artifact_sha256 must be a 64-character SHA-256 hex digest.")
-    for character in metadata.source_artifact_sha256:
-        if character not in "0123456789abcdefABCDEF":
-            raise CiftModelBundleError("source_artifact_sha256 must be a SHA-256 hex digest.")
+    _validate_sha256(value=metadata.source_artifact_sha256, field_name="source_artifact_sha256")
     _validate_string_tuple(values=metadata.evaluation_report_ids, field_name="evaluation_report_ids")
     _validate_string_tuple(values=metadata.label_names, field_name="label_names")
     if len(metadata.label_names) != 2:
@@ -144,6 +149,22 @@ def _validate_metadata(metadata: CiftModelBundleMetadata) -> None:
 def _validate_required_string(value: str, field_name: str) -> None:
     if value == "":
         raise CiftModelBundleError(f"{field_name} must not be empty.")
+
+
+def _validate_positive_int(value: int, field_name: str) -> None:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise CiftModelBundleError(f"{field_name} must be an integer.")
+    if value < 1:
+        raise CiftModelBundleError(f"{field_name} must be positive.")
+
+
+def _validate_sha256(value: str, field_name: str) -> None:
+    _validate_required_string(value=value, field_name=field_name)
+    if len(value) != 64:
+        raise CiftModelBundleError(f"{field_name} must be a 64-character SHA-256 hex digest.")
+    for character in value:
+        if character not in "0123456789abcdefABCDEF":
+            raise CiftModelBundleError(f"{field_name} must be a SHA-256 hex digest.")
 
 
 def _validate_string_tuple(values: tuple[str, ...], field_name: str) -> None:
@@ -219,7 +240,9 @@ def _predictions_from_probabilities(
         positive_probability = float(probability)
         if positive_probability < 0.0 or positive_probability > 1.0:
             raise CiftModelBundleError("positive_probability must be in [0.0, 1.0].")
-        predicted_label = metadata.positive_label if positive_probability >= metadata.decision_threshold else negative_label
+        predicted_label = (
+            metadata.positive_label if positive_probability >= metadata.decision_threshold else negative_label
+        )
         predictions.append(
             CiftModelPrediction(
                 positive_label=metadata.positive_label,

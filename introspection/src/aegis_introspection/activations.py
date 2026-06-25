@@ -29,6 +29,9 @@ class HiddenStateSummary:
 @dataclass(frozen=True)
 class HiddenStateForwardPass:
     prompt: str
+    source_input_device: str
+    source_hidden_state_devices: tuple[str, ...]
+    source_hidden_state_dtypes: tuple[str, ...]
     input_ids: torch.Tensor
     attention_mask: torch.Tensor | None
     hidden_states: tuple[torch.Tensor, ...]
@@ -76,6 +79,9 @@ def run_hidden_state_forward(loaded_model: LoadedCausalLM, prompt: str) -> Hidde
 
     return HiddenStateForwardPass(
         prompt=prompt,
+        source_input_device=str(input_ids.device),
+        source_hidden_state_devices=tuple(str(hidden_state.device) for hidden_state in hidden_states),
+        source_hidden_state_dtypes=tuple(str(hidden_state.dtype) for hidden_state in hidden_states),
         input_ids=input_ids.detach().cpu(),
         attention_mask=None if attention_mask is None else attention_mask.detach().cpu(),
         hidden_states=tuple(hidden_state.detach().cpu() for hidden_state in hidden_states),

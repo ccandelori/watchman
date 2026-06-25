@@ -1,7 +1,6 @@
 import unittest
 
 import torch
-
 from aegis_introspection.activations import (
     HiddenStateForwardPass,
     ReadoutWindowError,
@@ -29,6 +28,9 @@ class ActivationHelpersTest(unittest.TestCase):
     def test_final_token_activation_returns_last_token_vector(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3]]),
             attention_mask=torch.tensor([[1, 1, 0]]),
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]]),),
@@ -41,6 +43,9 @@ class ActivationHelpersTest(unittest.TestCase):
     def test_mean_pool_activation_uses_attention_mask(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3]]),
             attention_mask=torch.tensor([[1, 1, 0]]),
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]]),),
@@ -53,6 +58,9 @@ class ActivationHelpersTest(unittest.TestCase):
     def test_mean_pool_activation_without_mask_uses_all_tokens(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3]]),
             attention_mask=None,
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]]),),
@@ -65,6 +73,9 @@ class ActivationHelpersTest(unittest.TestCase):
     def test_readout_window_activation_pools_selected_tokens(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3, 4]]),
             attention_mask=torch.tensor([[1, 1, 1, 1]]),
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 6.0], [5.0, 10.0], [7.0, 14.0]]]),),
@@ -77,6 +88,9 @@ class ActivationHelpersTest(unittest.TestCase):
     def test_readout_window_activation_rejects_empty_window(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3]]),
             attention_mask=None,
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]]),),
@@ -88,6 +102,9 @@ class ActivationHelpersTest(unittest.TestCase):
     def test_readout_window_activation_rejects_out_of_range_index(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3]]),
             attention_mask=None,
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]]),),

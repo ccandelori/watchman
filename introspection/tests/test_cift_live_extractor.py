@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-# ruff: noqa: E402
 import unittest
 
-import pytest
+try:
+    import torch
+except ModuleNotFoundError as exc:
+    raise unittest.SkipTest("torch is required for live CIFT extractor tests") from exc
 
-torch = pytest.importorskip("torch")
 from aegis_introspection.activations import HiddenStateForwardPass
 from aegis_introspection.cift_live_extractor import (
     CiftLiveExtractorError,
@@ -178,6 +179,9 @@ def _cift_metadata(readout_token_indices: tuple[int, ...]) -> dict[str, object]:
 def _forward_pass(prompt: str, hidden_states: tuple[torch.Tensor, ...]) -> HiddenStateForwardPass:
     return HiddenStateForwardPass(
         prompt=prompt,
+        source_input_device="cpu",
+        source_hidden_state_devices=tuple("cpu" for _ in hidden_states),
+        source_hidden_state_dtypes=tuple(str(hidden_state.dtype) for hidden_state in hidden_states),
         input_ids=torch.tensor(((1, 2, 3),), dtype=torch.int64),
         attention_mask=torch.tensor(((1, 1, 1),), dtype=torch.int64),
         hidden_states=hidden_states,

@@ -41,6 +41,9 @@ class FeatureExtractionTest(unittest.TestCase):
     def test_extract_activation_features_returns_selected_layers_and_methods(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu", "cpu"),
+            source_hidden_state_dtypes=("torch.float32", "torch.float32"),
             input_ids=torch.tensor([[1, 2, 3]]),
             attention_mask=torch.tensor([[1, 1, 0]]),
             hidden_states=(
@@ -71,6 +74,9 @@ class FeatureExtractionTest(unittest.TestCase):
     def test_extract_activation_features_supports_readout_window_pooling(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3, 4]]),
             attention_mask=torch.tensor([[1, 1, 1, 1]]),
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 6.0], [5.0, 10.0], [7.0, 14.0]]]),),
@@ -91,6 +97,9 @@ class FeatureExtractionTest(unittest.TestCase):
     def test_extract_activation_features_supports_selected_choice_window_pooling(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3, 4]]),
             attention_mask=torch.tensor([[1, 1, 1, 1]]),
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 6.0], [5.0, 10.0], [7.0, 14.0]]]),),
@@ -111,6 +120,9 @@ class FeatureExtractionTest(unittest.TestCase):
     def test_extract_activation_features_supports_query_tail_window_pooling(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3, 4]]),
             attention_mask=torch.tensor([[1, 1, 1, 1]]),
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 6.0], [5.0, 10.0], [7.0, 14.0]]]),),
@@ -131,6 +143,9 @@ class FeatureExtractionTest(unittest.TestCase):
     def test_extract_activation_features_supports_combined_readout_window_pooling(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3, 4]]),
             attention_mask=torch.tensor([[1, 1, 1, 1]]),
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 6.0], [5.0, 10.0], [7.0, 14.0]]]),),
@@ -151,6 +166,9 @@ class FeatureExtractionTest(unittest.TestCase):
     def test_extract_activation_features_requires_indices_for_readout_window_pooling(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3]]),
             attention_mask=None,
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]]),),
@@ -169,6 +187,9 @@ class FeatureExtractionTest(unittest.TestCase):
     def test_extract_activation_features_requires_indices_for_selected_choice_window_pooling(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3]]),
             attention_mask=None,
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]]),),
@@ -187,6 +208,9 @@ class FeatureExtractionTest(unittest.TestCase):
     def test_extract_activation_features_requires_both_windows_for_combined_pooling(self) -> None:
         forward_pass = HiddenStateForwardPass(
             prompt="prompt",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2, 3]]),
             attention_mask=None,
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 4.0], [5.0, 6.0]]]),),
@@ -205,12 +229,18 @@ class FeatureExtractionTest(unittest.TestCase):
     def test_stack_feature_rows_returns_feature_matrices(self) -> None:
         first_pass = HiddenStateForwardPass(
             prompt="first",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2]]),
             attention_mask=None,
             hidden_states=(torch.tensor([[[1.0, 2.0], [3.0, 4.0]]]),),
         )
         second_pass = HiddenStateForwardPass(
             prompt="second",
+            source_input_device="cpu",
+            source_hidden_state_devices=("cpu",),
+            source_hidden_state_dtypes=("torch.float32",),
             input_ids=torch.tensor([[1, 2]]),
             attention_mask=None,
             hidden_states=(torch.tensor([[[5.0, 6.0], [7.0, 8.0]]]),),

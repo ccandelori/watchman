@@ -17,6 +17,11 @@ if str(SRC_PATH) not in sys.path:
 
 from aegis_introspection.activations import run_hidden_state_forward  # noqa: E402
 from aegis_introspection.artifacts import ActivationArtifact  # noqa: E402
+from aegis_introspection.cift_model_metadata import (  # noqa: E402
+    CiftModelMetadataConfig,
+    CiftModelMetadataReport,
+    cift_model_metadata_report_from_loaded_objects,
+)
 from aegis_introspection.features import (  # noqa: E402
     ActivationFeature,
     PoolingMethod,
@@ -71,7 +76,7 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--model-id", required=False, default="Qwen/Qwen3-0.6B")
     parser.add_argument("--revision", required=False, default="main")
-    parser.add_argument("--device", required=False, default="auto")
+    parser.add_argument("--device", required=True)
     parser.add_argument("--dtype", required=False, default="device")
     parser.add_argument("--trust-remote-code", action="store_true")
     parser.add_argument("--layers", required=False, default="0,7,14,21,28")
@@ -113,6 +118,7 @@ def _save_artifact(
     config: ExtractionScriptConfig,
     examples: tuple[PromptExtractionExample, ...],
     selected_device: str,
+    model_metadata: CiftModelMetadataReport,
     feature_tensors: dict[str, torch.Tensor],
 ) -> None:
     config.output_path.parent.mkdir(parents=True, exist_ok=True)
@@ -123,6 +129,11 @@ def _save_artifact(
             "selected_device": selected_device,
             "dtype": config.dtype_name,
             "trust_remote_code": config.trust_remote_code,
+            "hidden_size": model_metadata.hidden_size,
+            "layer_count": model_metadata.layer_count,
+            "tokenizer_fingerprint_sha256": model_metadata.tokenizer_fingerprint_sha256,
+            "special_tokens_map_sha256": model_metadata.special_tokens_map_sha256,
+            "chat_template_sha256": model_metadata.chat_template_sha256,
             "layer_indices": config.layer_indices,
             "pooling_methods": config.pooling_methods,
         },
@@ -195,6 +206,16 @@ def run_extraction(config: ExtractionScriptConfig) -> None:
         context="activation extraction",
     )
     loaded_model = load_causal_lm(_build_model_config(config))
+    model_metadata = cift_model_metadata_report_from_loaded_objects(
+        config=CiftModelMetadataConfig(
+            model_id=config.model_id,
+            revision=config.revision,
+            local_files_only=config.local_files_only,
+            trust_remote_code=config.trust_remote_code,
+        ),
+        model_config=loaded_model.model.config,
+        tokenizer=loaded_model.tokenizer,
+    )
 
     feature_rows: list[tuple[ActivationFeature, ...]] = []
     for index, example in enumerate(examples, start=1):
@@ -222,6 +243,7 @@ def run_extraction(config: ExtractionScriptConfig) -> None:
         config=config,
         examples=examples,
         selected_device=loaded_model.device.name,
+        model_metadata=model_metadata,
         feature_tensors=feature_tensors,
     )
     print(f"Wrote activation features to {config.output_path}")

@@ -18,7 +18,7 @@ for source_path in (SRC_PATH, WORKSPACE_SRC_PATH):
         sys.path.insert(0, str(source_path))
 
 from aegis_introspection.runtime_bridge import RuntimeBridgeConfig, structured_prompt_to_normalized_turn  # noqa: E402
-from aegis_introspection.sealed_holdout import (  # noqa: E402
+from aegis_introspection.sealed_holdout_policy import (  # noqa: E402
     add_unseal_flag,
     assert_unsealed_jsonl_tags,
     assert_unsealed_paths,

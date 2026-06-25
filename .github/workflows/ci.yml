@@ -55,5 +55,13 @@ jobs:
       - name: Artifact boundaries
         run: uv run python scripts/check_artifact_boundaries.py
 
+      - name: CIFT paper-faithful lint
+        run: |
+          uv run ruff check introspection/scripts/convert_cift_training_artifact.py introspection/scripts/train_cift_model_bundle.py introspection/src/aegis_introspection/cift_model_training.py introspection/src/aegis_introspection/cift_paper_mlp.py introspection/src/aegis_introspection/cift_probe_competition.py introspection/src/aegis_introspection/cift_promotion_gate.py introspection/src/aegis_introspection/cift_runtime_export.py introspection/src/aegis_introspection/cift_training_artifact_conversion.py introspection/src/aegis_introspection/detector_result_bridge.py introspection/src/aegis_introspection/trained_detector_export.py introspection/tests/test_cift_model_training.py introspection/tests/test_cift_paper_mlp.py introspection/tests/test_cift_probe_competition.py introspection/tests/test_cift_promotion_gate.py introspection/tests/test_cift_runtime_export.py introspection/tests/test_trained_detector_export.py introspection/tests/test_cift_training_artifact_conversion.py
+          uv run ruff format --check introspection/scripts/convert_cift_training_artifact.py introspection/scripts/train_cift_model_bundle.py introspection/src/aegis_introspection/cift_model_training.py introspection/src/aegis_introspection/cift_paper_mlp.py introspection/src/aegis_introspection/cift_probe_competition.py introspection/src/aegis_introspection/cift_promotion_gate.py introspection/src/aegis_introspection/cift_runtime_export.py introspection/src/aegis_introspection/cift_training_artifact_conversion.py introspection/src/aegis_introspection/detector_result_bridge.py introspection/src/aegis_introspection/trained_detector_export.py introspection/tests/test_cift_model_training.py introspection/tests/test_cift_paper_mlp.py introspection/tests/test_cift_probe_competition.py introspection/tests/test_cift_promotion_gate.py introspection/tests/test_cift_runtime_export.py introspection/tests/test_trained_detector_export.py introspection/tests/test_cift_training_artifact_conversion.py
+
+      - name: CIFT paper-faithful gates
+        run: PYTHONPATH=introspection/src:. uv run pytest --no-cov introspection/tests/test_cift_model_training.py introspection/tests/test_cift_paper_mlp.py introspection/tests/test_cift_probe_competition.py introspection/tests/test_cift_promotion_gate.py introspection/tests/test_cift_runtime_export.py introspection/tests/test_trained_detector_export.py introspection/tests/test_cift_training_artifact_conversion.py
+
       - name: Tests with coverage
         run: uv run pytest

@@ -63,12 +63,43 @@ class ModelLoaderTest(unittest.TestCase):
         self.assertEqual(torch.device("cuda"), selection.torch_device)
         self.assertEqual(torch.float16, selection.torch_dtype)
 
+    def test_select_device_accepts_available_mps_after_tensor_smoke(self) -> None:
+        tensor = Mock()
+        tensor.device = torch.device("mps")
+
+        with (
+            patch("aegis_introspection.model_loader._mps_is_available", return_value=True),
+            patch("aegis_introspection.model_loader.torch.ones", return_value=tensor),
+        ):
+            selection = select_device("mps")
+
+        self.assertEqual("mps", selection.name)
+        self.assertEqual(torch.device("mps"), selection.torch_device)
+        self.assertEqual(torch.float16, selection.torch_dtype)
+
     def test_select_device_rejects_unavailable_cuda(self) -> None:
         with (
             patch("torch.cuda.is_available", return_value=False),
             self.assertRaises(DeviceUnavailableError),
         ):
             select_device("cuda")
+
+    def test_select_device_rejects_unavailable_mps_with_diagnostics(self) -> None:
+        with (
+            patch("aegis_introspection.model_loader._mps_is_available", return_value=False),
+            patch("aegis_introspection.model_loader._mps_diagnostic", return_value="torch=test"),
+            self.assertRaisesRegex(DeviceUnavailableError, "torch=test"),
+        ):
+            select_device("mps")
+
+    def test_select_device_rejects_mps_when_tensor_smoke_fails(self) -> None:
+        with (
+            patch("aegis_introspection.model_loader._mps_is_available", return_value=True),
+            patch("aegis_introspection.model_loader._mps_diagnostic", return_value="torch=test"),
+            patch("aegis_introspection.model_loader.torch.ones", side_effect=RuntimeError("metal unavailable")),
+            self.assertRaisesRegex(DeviceUnavailableError, "smoke tensor allocation failed"),
+        ):
+            select_device("mps")
 
     def test_select_device_rejects_unknown_device(self) -> None:
         with self.assertRaises(UnsupportedDeviceError):

@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 SCRIPT_PATH = Path(__file__).resolve()
 INTROSPECTION_ROOT = SCRIPT_PATH.parents[1]
@@ -12,9 +12,13 @@ SRC_PATH = INTROSPECTION_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from aegis_introspection.cift_model_bundle import CandidateStatus
-from aegis_introspection.cift_model_training import CiftModelTrainingConfig, train_cift_model_bundle
-from aegis_introspection.sealed_holdout import (
+from aegis_introspection.cift_model_bundle import CandidateStatus  # noqa: E402
+from aegis_introspection.cift_model_training import (  # noqa: E402
+    CiftModelTrainingConfig,
+    ClassifierFamily,
+    train_cift_model_bundle,
+)
+from aegis_introspection.sealed_holdout_policy import (  # noqa: E402
     add_unseal_flag,
     assert_unsealed_paths,
 )
@@ -32,6 +36,7 @@ class TrainCiftModelBundleCliConfig:
     random_seed: int
     max_iter: int
     regularization_c: float
+    classifier_family: ClassifierFamily
     evaluation_report_ids: tuple[str, ...]
     score_semantics: str
     candidate_status: CandidateStatus
@@ -44,12 +49,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--artifact",
         required=False,
-        default=str(
-            INTROSPECTION_ROOT
-            / "data"
-            / "activations"
-            / "qwen3_0_6b_dp_honey_lite_v4_1_selector_windows.pt"
-        ),
+        default=str(INTROSPECTION_ROOT / "data" / "activations" / "qwen3_0_6b_dp_honey_lite_v4_1_selector_windows.pt"),
     )
     parser.add_argument(
         "--output-bundle",
@@ -69,6 +69,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--seed", required=False, type=int, default=42)
     parser.add_argument("--max-iter", required=False, type=int, default=1000)
     parser.add_argument("--regularization-c", required=False, type=float, default=1.0)
+    parser.add_argument(
+        "--classifier-family",
+        required=False,
+        choices=("linear_logistic_regression", "mlp_128_64_1"),
+        default="linear_logistic_regression",
+    )
     parser.add_argument(
         "--evaluation-report-ids",
         required=False,
@@ -102,6 +108,7 @@ def _parse_args(argv: Sequence[str]) -> TrainCiftModelBundleCliConfig:
         random_seed=int(namespace.seed),
         max_iter=int(namespace.max_iter),
         regularization_c=float(namespace.regularization_c),
+        classifier_family=_classifier_family(str(namespace.classifier_family)),
         evaluation_report_ids=_parse_ids(str(namespace.evaluation_report_ids)),
         score_semantics=str(namespace.score_semantics),
         candidate_status=_candidate_status(str(namespace.candidate_status)),
@@ -125,6 +132,14 @@ def _candidate_status(value: str) -> CandidateStatus:
     raise ValueError(f"Unsupported candidate-status '{value}'.")
 
 
+def _classifier_family(value: str) -> ClassifierFamily:
+    if value == "linear_logistic_regression":
+        return "linear_logistic_regression"
+    if value == "mlp_128_64_1":
+        return "mlp_128_64_1"
+    raise ValueError(f"Unsupported classifier-family '{value}'.")
+
+
 def _training_config(config: TrainCiftModelBundleCliConfig) -> CiftModelTrainingConfig:
     return CiftModelTrainingConfig(
         artifact_path=config.artifact_path,
@@ -137,6 +152,7 @@ def _training_config(config: TrainCiftModelBundleCliConfig) -> CiftModelTraining
         random_seed=config.random_seed,
         max_iter=config.max_iter,
         regularization_c=config.regularization_c,
+        classifier_family=config.classifier_family,
         evaluation_report_ids=config.evaluation_report_ids,
         score_semantics=config.score_semantics,
         candidate_status=config.candidate_status,

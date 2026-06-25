@@ -44,8 +44,16 @@ def structured_prompt_to_normalized_turn(
 ) -> NormalizedTurnJson:
     _reject_raw_secret_metadata(record)
     text = _required_matching_text(record=record)
-    secret_char_span = _required_int_pair(record=record, field_name="secret_char_span")
-    secret_token_span = _required_int_pair(record=record, field_name="secret_token_span")
+    label = _required_string(record=record, field_name="label")
+    secret_char_span = _optional_int_pair(record=record, field_name="secret_char_span")
+    secret_token_span = _optional_int_pair(record=record, field_name="secret_token_span")
+    sensitive_spans = _sensitive_spans(
+        record=record,
+        config=config,
+        label=label,
+        secret_char_span=secret_char_span,
+        secret_token_span=secret_token_span,
+    )
     query_char_span = _required_int_pair(record=record, field_name="query_char_span")
     query_token_span = _required_int_pair(record=record, field_name="query_token_span")
     payload_char_span = _optional_int_pair(record=record, field_name="payload_char_span")
@@ -81,30 +89,16 @@ def structured_prompt_to_normalized_turn(
         },
         "messages": [{"role": "user", "content": text}],
         "tool_calls": [],
-        "sensitive_spans": [
-            {
-                "kind": "honeytoken",
-                "source": config.sensitive_source,
-                "char_start": secret_char_span[0],
-                "char_end": secret_char_span[1],
-                "token_start": secret_token_span[0],
-                "token_end": secret_token_span[1],
-                "identifier": _required_string(record=record, field_name="honeytoken_id"),
-                "metadata": {
-                    "credential_type": _required_string(record=record, field_name="credential_type"),
-                    "honeytoken_sha256": _required_string(record=record, field_name="honeytoken_sha256"),
-                },
-            }
-        ],
+        "sensitive_spans": sensitive_spans,
         "metadata": {
             "example_id": _required_string(record=record, field_name="example_id"),
             "eval": {
-                "label": _required_string(record=record, field_name="label"),
+                "label": label,
                 "family": _required_string(record=record, field_name="family"),
                 "tags": _required_string_list(record=record, field_name="tags"),
             },
             "cift": {
-                "secret_token_span": list(secret_token_span),
+                "secret_token_span": _optional_pair_json(secret_token_span),
                 "query_char_span": list(query_char_span),
                 "query_token_span": list(query_token_span),
                 "payload_char_span": _optional_pair_json(payload_char_span),
@@ -125,6 +119,36 @@ def structured_prompt_to_normalized_turn(
             },
         },
     }
+
+
+def _sensitive_spans(
+    record: Mapping[str, object],
+    config: RuntimeBridgeConfig,
+    label: str,
+    secret_char_span: tuple[int, int] | None,
+    secret_token_span: tuple[int, int] | None,
+) -> list[JsonValue]:
+    if secret_char_span is None and secret_token_span is None:
+        if label != "benign":
+            raise RuntimeBridgeError("Non-benign structured prompt records require secret span geometry.")
+        return []
+    if secret_char_span is None or secret_token_span is None:
+        raise RuntimeBridgeError("Secret span geometry requires both secret_char_span and secret_token_span.")
+    return [
+        {
+            "kind": "honeytoken",
+            "source": config.sensitive_source,
+            "char_start": secret_char_span[0],
+            "char_end": secret_char_span[1],
+            "token_start": secret_token_span[0],
+            "token_end": secret_token_span[1],
+            "identifier": _required_string(record=record, field_name="honeytoken_id"),
+            "metadata": {
+                "credential_type": _required_string(record=record, field_name="credential_type"),
+                "honeytoken_sha256": _required_string(record=record, field_name="honeytoken_sha256"),
+            },
+        }
+    ]
 
 
 def _required_matching_text(record: Mapping[str, object]) -> str:

@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from aegis.audit.memory import InMemoryAuditSink
-from aegis.core.contracts import JsonValue, NormalizedTurn
+from aegis.core.contracts import Action, JsonValue, NormalizedTurn
 from aegis.core.orchestrator import AegisRuntime, RuntimeRequest
 from aegis.detectors.cift_runtime import (
     CiftFeatureExtractor,
@@ -189,9 +189,16 @@ def run_cift_live_benchmark(config: CiftLiveBenchmarkConfig) -> CiftLiveBenchmar
                 feature_key=runtime_model.feature_key,
                 extractor=timing_extractor,
                 source=config.feature_source,
+                selected_choice_window=False,
             ),
         ),
-        pre_generation_detectors=(CiftRuntimeDetector(detector_name=config.detector_name, model=runtime_model),),
+        pre_generation_detectors=(
+            CiftRuntimeDetector(
+                detector_name=config.detector_name,
+                model=runtime_model,
+                activation_failure_action=Action.ALLOW,
+            ),
+        ),
         post_generation_detectors=(),
         session_detectors=(),
         policy_engine=SeverityPolicyEngine(),

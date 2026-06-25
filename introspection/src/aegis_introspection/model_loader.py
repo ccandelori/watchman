@@ -1,3 +1,4 @@
+import platform
 from dataclasses import dataclass
 from typing import Literal, TypeAlias, cast
 
@@ -59,6 +60,17 @@ def _mps_is_available() -> bool:
     return hasattr(torch.backends, "mps") and torch.backends.mps.is_available()
 
 
+def device_diagnostic() -> str:
+    mps_built = "missing" if not hasattr(torch.backends, "mps") else str(torch.backends.mps.is_built())
+    macos_version = platform.mac_ver()[0] or "unknown"
+    machine = platform.machine() or "unknown"
+    return f"torch={torch.__version__}; macos={macos_version}; machine={machine}; mps_built={mps_built}"
+
+
+def _mps_diagnostic() -> str:
+    return device_diagnostic()
+
+
 def _mps_selection() -> DeviceSelection:
     return DeviceSelection(
         name="mps",
@@ -73,6 +85,21 @@ def _cpu_selection() -> DeviceSelection:
         torch_device=torch.device("cpu"),
         torch_dtype=torch.float32,
     )
+
+
+def _require_mps_tensor_allocation() -> None:
+    try:
+        tensor = torch.ones(1, device=torch.device("mps"))
+    except RuntimeError as exc:
+        raise DeviceUnavailableError(
+            f"MPS was requested, but a smoke tensor allocation failed. Diagnostics: {_mps_diagnostic()}. "
+            f"Torch error: {exc}"
+        ) from exc
+    if tensor.device.type != "mps":
+        raise DeviceUnavailableError(
+            f"MPS was requested, but smoke tensor allocation returned device {tensor.device}. "
+            f"Diagnostics: {_mps_diagnostic()}."
+        )
 
 
 def select_device(requested_device: str) -> DeviceSelection:
@@ -90,7 +117,10 @@ def select_device(requested_device: str) -> DeviceSelection:
 
     if requested_device == "mps":
         if not _mps_is_available():
-            raise DeviceUnavailableError("MPS was requested, but torch.backends.mps.is_available() is false.")
+            raise DeviceUnavailableError(
+                f"MPS was requested, but torch.backends.mps.is_available() is false. Diagnostics: {_mps_diagnostic()}."
+            )
+        _require_mps_tensor_allocation()
         return _mps_selection()
 
     if requested_device == "cpu":

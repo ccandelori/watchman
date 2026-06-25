@@ -1,20 +1,34 @@
+from __future__ import annotations
+
+import importlib
+import importlib.util
 import json
 import tempfile
 import unittest
 from pathlib import Path
 
-import torch
+import pytest
 
-from aegis_introspection.artifacts import ActivationArtifact
-from aegis_introspection.binary_tasks import BinaryTaskConfig, BinaryTaskError
-from aegis_introspection.cift_feature_ablation import (
-    CiftFeatureAblationVariant,
-    evaluate_grouped_cift_feature_ablation,
-    render_cift_feature_ablation_markdown,
-    write_cift_feature_ablation_json,
-    write_cift_feature_ablation_markdown,
-)
-from introspection.scripts.ablate_cift_selector_window_features import _default_selector_window_variants, _parse_args
+_TORCH_AVAILABLE = importlib.util.find_spec("torch") is not None
+pytestmark = pytest.mark.skipif(not _TORCH_AVAILABLE, reason="torch is required for CIFT feature ablation tests.")
+
+if _TORCH_AVAILABLE:
+    torch = importlib.import_module("torch")
+    _artifacts_module = importlib.import_module("aegis_introspection.artifacts")
+    _binary_tasks_module = importlib.import_module("aegis_introspection.binary_tasks")
+    _feature_ablation_module = importlib.import_module("aegis_introspection.cift_feature_ablation")
+    _feature_ablation_script = importlib.import_module("introspection.scripts.ablate_cift_selector_window_features")
+
+    ActivationArtifact = _artifacts_module.ActivationArtifact
+    BinaryTaskConfig = _binary_tasks_module.BinaryTaskConfig
+    BinaryTaskError = _binary_tasks_module.BinaryTaskError
+    CiftFeatureAblationVariant = _feature_ablation_module.CiftFeatureAblationVariant
+    evaluate_grouped_cift_feature_ablation = _feature_ablation_module.evaluate_grouped_cift_feature_ablation
+    render_cift_feature_ablation_markdown = _feature_ablation_module.render_cift_feature_ablation_markdown
+    write_cift_feature_ablation_json = _feature_ablation_module.write_cift_feature_ablation_json
+    write_cift_feature_ablation_markdown = _feature_ablation_module.write_cift_feature_ablation_markdown
+    _default_selector_window_variants = _feature_ablation_script._default_selector_window_variants
+    _parse_args = _feature_ablation_script._parse_args
 
 
 def _synthetic_artifact() -> ActivationArtifact:
@@ -202,6 +216,7 @@ class CiftFeatureAblationTest(unittest.TestCase):
 
         self.assertEqual("baseline_layer_15", config.baseline_variant_id)
         self.assertEqual("dp_honey_lite_v3_selector_window_feature_ablation_v1.json", config.output_json_path.name)
+        self.assertEqual("dp_honey_lite_v3_selector_window_feature_ablation_v1", config.report_id)
         self.assertEqual("baseline_layer_15", variants[0].variant_id)
         self.assertEqual("readout_window_layer_15", variants[0].feature_key)
         self.assertIn("local_concat_14_15_16", tuple(variant.variant_id for variant in variants))

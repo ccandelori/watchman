@@ -1,25 +1,27 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
-from aegis_introspection.binary_tasks import (
-    BinaryTaskDefinition,
-    activation_feature_tensor,
-    build_binary_task_dataset,
-    default_binary_task_definitions,
-)
-from aegis_introspection.calibrated_detector_export import load_runtime_turns_by_example_id
+from aegis.core.contracts import JsonValue
 from aegis_introspection.cift_model_bundle import CiftModelBundle, load_cift_model_bundle, predict_cift_model_bundle
+from aegis_introspection.cift_model_training import (
+    BinaryTaskDefinition,
+    build_cift_binary_task_rows,
+    cift_binary_task_definition,
+    cift_feature_matrix_for_rows,
+    load_cift_training_artifact_with_unseal_policy,
+)
 from aegis_introspection.detector_result_bridge import (
     CiftModelPredictionContext,
     RecommendedAction,
     TrainedCiftDetectorBridgeConfig,
     trained_cift_prediction_to_detector_result,
 )
-from aegis_introspection.probe import JsonValue, tensor_to_float_matrix
-from aegis_introspection.sealed_holdout import load_activation_artifact_with_unseal_policy
+from aegis_introspection.sealed_holdout_policy import assert_unsealed_jsonl_tags
 
 
 class TrainedDetectorExportError(ValueError):
@@ -42,25 +44,32 @@ class TrainedDetectorExportConfig:
 
 
 def export_trained_cift_detector_results(config: TrainedDetectorExportConfig) -> int:
+    assert_unsealed_jsonl_tags(
+        path=config.runtime_turns_path,
+        allow_sealed_holdout=config.allow_sealed_holdout,
+        context="trained CIFT DetectorResult export",
+    )
     turns_by_example_id = load_runtime_turns_by_example_id(config.runtime_turns_path)
-    artifact = load_activation_artifact_with_unseal_policy(
+    artifact = load_cift_training_artifact_with_unseal_policy(
         path=config.artifact_path,
         allow_sealed_holdout=config.allow_sealed_holdout,
         context="trained CIFT DetectorResult export",
     )
     bundle = load_cift_model_bundle(config.model_bundle_path)
-    definition = _task_definition(bundle.metadata.task_name)
-    dataset = build_binary_task_dataset(artifact=artifact, definition=definition)
-    feature_tensor = activation_feature_tensor(artifact=artifact, feature_key=bundle.metadata.activation_feature_key)
-    selected_indices = tuple(artifact["example_ids"].index(example_id) for example_id in dataset.example_ids)
-    matrix = tensor_to_float_matrix(feature_tensor)[list(selected_indices)]
+    definition = cift_binary_task_definition(bundle.metadata.task_name)
+    task_rows = build_cift_binary_task_rows(artifact=artifact, definition=definition)
+    matrix = cift_feature_matrix_for_rows(
+        artifact=artifact,
+        feature_key=bundle.metadata.activation_feature_key,
+        selected_indices=task_rows.artifact_indices,
+    )
     predictions = predict_cift_model_bundle(bundle=bundle, feature_matrix=matrix)
     bridge_config = _bridge_config(config=config, bundle=bundle)
 
     config.output_path.parent.mkdir(parents=True, exist_ok=True)
     with config.output_path.open("w", encoding="utf-8") as file:
         for row_index, prediction in enumerate(predictions):
-            example_id = dataset.example_ids[row_index]
+            example_id = task_rows.example_ids[row_index]
             turn = turns_by_example_id.get(example_id)
             if turn is None:
                 raise TrainedDetectorExportError(f"Missing runtime turn for trained prediction example '{example_id}'.")
@@ -68,9 +77,9 @@ def export_trained_cift_detector_results(config: TrainedDetectorExportConfig) ->
                 prediction=prediction,
                 context=CiftModelPredictionContext(
                     example_id=example_id,
-                    family=dataset.families[row_index],
-                    source_label=dataset.source_labels[row_index],
-                    true_label=dataset.target_labels[row_index],
+                    family=task_rows.families[row_index],
+                    source_label=task_rows.source_labels[row_index],
+                    true_label=task_rows.target_labels[row_index],
                 ),
                 config=bridge_config,
             )
@@ -86,11 +95,33 @@ def export_trained_cift_detector_results(config: TrainedDetectorExportConfig) ->
     return len(predictions)
 
 
+def load_runtime_turns_by_example_id(path: Path) -> dict[str, Mapping[str, object]]:
+    turns_by_example_id: dict[str, Mapping[str, object]] = {}
+    with path.open("r", encoding="utf-8") as file:
+        for line_number, raw_line in enumerate(file, start=1):
+            line = raw_line.strip()
+            if line == "":
+                continue
+            decoded = json.loads(line)
+            record = _as_mapping(value=decoded, line_number=line_number)
+            metadata = _as_mapping(value=record.get("metadata"), line_number=line_number)
+            example_id = metadata.get("example_id")
+            if not isinstance(example_id, str) or example_id == "":
+                raise TrainedDetectorExportError(f"Line {line_number}: metadata.example_id must be a non-empty string.")
+            if example_id in turns_by_example_id:
+                raise TrainedDetectorExportError(f"Line {line_number}: duplicate example_id '{example_id}'.")
+            turns_by_example_id[example_id] = record
+
+    if len(turns_by_example_id) == 0:
+        raise TrainedDetectorExportError(f"No runtime turns found in {path}.")
+    return turns_by_example_id
+
+
 def _task_definition(task_name: str) -> BinaryTaskDefinition:
-    matches = tuple(definition for definition in default_binary_task_definitions() if definition.name == task_name)
-    if len(matches) != 1:
-        raise TrainedDetectorExportError(f"Unknown binary task '{task_name}'.")
-    return matches[0]
+    try:
+        return cift_binary_task_definition(task_name)
+    except ValueError as exc:
+        raise TrainedDetectorExportError(str(exc)) from exc
 
 
 def _bridge_config(
@@ -107,6 +138,12 @@ def _bridge_config(
         negative_action=config.negative_action,
         confidence=config.confidence,
     )
+
+
+def _as_mapping(value: object, line_number: int) -> Mapping[str, object]:
+    if not isinstance(value, dict):
+        raise TrainedDetectorExportError(f"Line {line_number}: expected a JSON object.")
+    return cast(Mapping[str, object], value)
 
 
 def _required_string(value: object, field_name: str, example_id: str) -> str:

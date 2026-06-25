@@ -25,6 +25,7 @@ from aegis_introspection.model_loader import parse_model_dtype  # noqa: E402
 
 @dataclass(frozen=True)
 class BenchmarkLiveCiftWindowSelectorCliConfig:
+    report_id: str
     runtime_turns_path: Path
     selected_choice_runtime_model_path: Path
     fallback_runtime_model_path: Path
@@ -44,6 +45,7 @@ class BenchmarkLiveCiftWindowSelectorCliConfig:
 
 def _build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Benchmark live CIFT window-selector extraction latency.")
+    parser.add_argument("--report-id", required=True)
     parser.add_argument("--runtime-turns", required=True)
     parser.add_argument("--selected-choice-runtime-model", required=True)
     parser.add_argument("--fallback-runtime-model", required=True)
@@ -65,6 +67,7 @@ def _build_parser() -> argparse.ArgumentParser:
 def _parse_args(argv: Sequence[str]) -> BenchmarkLiveCiftWindowSelectorCliConfig:
     namespace = _build_parser().parse_args(argv)
     return BenchmarkLiveCiftWindowSelectorCliConfig(
+        report_id=str(namespace.report_id),
         runtime_turns_path=Path(namespace.runtime_turns),
         selected_choice_runtime_model_path=Path(namespace.selected_choice_runtime_model),
         fallback_runtime_model_path=Path(namespace.fallback_runtime_model),
@@ -87,6 +90,7 @@ def _benchmark_config(
     config: BenchmarkLiveCiftWindowSelectorCliConfig,
 ) -> CiftLiveWindowSelectorBenchmarkConfig:
     return CiftLiveWindowSelectorBenchmarkConfig(
+        report_id=config.report_id,
         runtime_turns_path=config.runtime_turns_path,
         selected_choice_runtime_model_path=config.selected_choice_runtime_model_path,
         fallback_runtime_model_path=config.fallback_runtime_model_path,

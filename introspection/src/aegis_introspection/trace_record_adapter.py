@@ -593,6 +593,29 @@ def _render_trace_prompt(
     )
 
 
+def render_trace_prompt(
+    messages: tuple[MessageRecord, ...],
+    tool_calls: tuple[ToolCallRecord, ...],
+) -> RenderedTracePrompt:
+    return _render_trace_prompt(messages=messages, tool_calls=tool_calls)
+
+
+def semantic_indirection_selected_choice_readout(
+    rendered_prompt: RenderedTracePrompt,
+    offsets: tuple[TokenOffset, ...],
+    readout_token_count: int,
+    context: str,
+) -> SelectedChoiceReadout | None:
+    if readout_token_count < 1:
+        raise TraceRecordAdapterError("readout_token_count must be positive.")
+    return _selected_choice_readout(
+        message_segments=rendered_prompt.message_segments,
+        offsets=offsets,
+        readout_token_count=readout_token_count,
+        context=context,
+    )
+
+
 def _flatten_tool_arguments(value: object, path: str) -> tuple[_FlatToolArgument, ...]:
     if isinstance(value, str):
         return (_FlatToolArgument(path=path, rendered_value=value),)

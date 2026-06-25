@@ -18,6 +18,13 @@ def _runtime_model_record(feature_key: str, model_bundle_id: str) -> dict[str, o
         "schema_version": "aegis.cift_runtime_linear/v1",
         "model_bundle_id": model_bundle_id,
         "source_model_id": "Qwen/Qwen3-test",
+        "source_revision": "main",
+        "source_selected_device": "cpu",
+        "source_hidden_size": 2,
+        "source_layer_count": 1,
+        "tokenizer_fingerprint_sha256": "b" * 64,
+        "special_tokens_map_sha256": "c" * 64,
+        "chat_template_sha256": "d" * 64,
         "training_dataset_id": "synthetic-runtime-test",
         "source_artifact_sha256": "a" * 64,
         "evaluation_report_ids": ["synthetic-report"],
@@ -31,13 +38,13 @@ def _runtime_model_record(feature_key: str, model_bundle_id: str) -> dict[str, o
         "decision_threshold": 0.5,
         "score_semantics": "synthetic_probability",
         "confidence": 0.72,
-        "candidate_status": "runtime_candidate",
+        "candidate_status": "offline_research_candidate",
         "scaler_mean": [0.0, 0.0],
         "scaler_scale": [1.0, 1.0],
         "logistic_coefficients": [1.0, 1.0],
         "logistic_intercept": 0.0,
         "negative_action": "allow",
-        "positive_action": "warn",
+        "positive_action": "block",
     }
 
 
@@ -129,7 +136,7 @@ class CiftLiveRuntimeEvalTest(unittest.TestCase):
             rows = [json.loads(line) for line in output_path.read_text(encoding="utf-8").splitlines()]
 
         self.assertEqual(2, summary.request_count)
-        self.assertEqual({"warn": 2}, summary.detector_action_counts)
+        self.assertEqual({"block": 2}, summary.detector_action_counts)
         self.assertEqual(("message for selected-exfil-1", "message for fallback-exfil-1"), tuple(runner.prompts))
         self.assertEqual("selected_choice", rows[0]["detector_result"]["evidence"]["cift_window_family"])
         self.assertEqual("payload_query_fallback", rows[1]["detector_result"]["evidence"]["cift_window_family"])
@@ -148,6 +155,9 @@ class RecordingRunner:
 def _forward_pass(hidden_states: tuple[torch.Tensor, ...]) -> HiddenStateForwardPass:
     return HiddenStateForwardPass(
         prompt="unused",
+        source_input_device="cpu",
+        source_hidden_state_devices=tuple("cpu" for _ in hidden_states),
+        source_hidden_state_dtypes=tuple(str(hidden_state.dtype) for hidden_state in hidden_states),
         input_ids=torch.tensor(((1, 2, 3),), dtype=torch.int64),
         attention_mask=torch.tensor(((1, 1, 1),), dtype=torch.int64),
         hidden_states=hidden_states,

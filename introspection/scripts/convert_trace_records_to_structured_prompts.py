@@ -11,38 +11,16 @@ SRC_PATH = INTROSPECTION_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
+from aegis_introspection.hf_offset_encoder import (  # noqa: E402
+    HuggingFaceOffsetEncoder,
+    load_huggingface_tokenizer,
+)
 from aegis_introspection.trace_record_adapter import (  # noqa: E402
-    TokenOffset,
     TracePromptConversionConfig,
-    TraceRecordAdapterError,
     load_trace_records_jsonl,
     structured_prompt_records_from_trace_records,
     write_structured_prompt_jsonl,
 )
-
-
-class HuggingFaceOffsetEncoder:
-    def __init__(self, tokenizer: object) -> None:
-        self._tokenizer = tokenizer
-
-    def encode_offsets(self, text: str) -> tuple[TokenOffset, ...]:
-        encoded = self._tokenizer(
-            text,
-            add_special_tokens=True,
-            return_offsets_mapping=True,
-        )
-        offset_mapping = encoded.get("offset_mapping")
-        if not isinstance(offset_mapping, list):
-            raise TraceRecordAdapterError("Tokenizer did not return a list offset_mapping.")
-
-        offsets: list[TokenOffset] = []
-        for index, item in enumerate(offset_mapping):
-            if not isinstance(item, list | tuple):
-                raise TraceRecordAdapterError(f"offset_mapping[{index}] must be a two-item sequence.")
-            if len(item) != 2:
-                raise TraceRecordAdapterError(f"offset_mapping[{index}] must contain exactly two values.")
-            offsets.append(TokenOffset(start=int(item[0]), end=int(item[1])))
-        return tuple(offsets)
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -58,16 +36,6 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _load_tokenizer(model_id: str, revision: str, local_files_only: bool) -> object:
-    from transformers import AutoTokenizer
-
-    return AutoTokenizer.from_pretrained(
-        model_id,
-        revision=revision,
-        local_files_only=local_files_only,
-    )
-
-
 def main(argv: Sequence[str]) -> None:
     namespace = _build_parser().parse_args(argv)
     records_path = Path(str(namespace.records))
@@ -77,7 +45,7 @@ def main(argv: Sequence[str]) -> None:
     readout_token_count = int(namespace.readout_token_count)
     local_files_only = not bool(namespace.allow_download)
 
-    tokenizer = _load_tokenizer(
+    tokenizer = load_huggingface_tokenizer(
         model_id=model_id,
         revision=revision,
         local_files_only=local_files_only,
