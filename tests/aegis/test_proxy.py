@@ -583,7 +583,7 @@ class MockProxyAppTest(unittest.TestCase):
 
         self.assertEqual(200, seed_status)
         self.assertEqual(200, status)
-        self.assertEqual("", payload["choices"][0]["message"]["content"])
+        self.assertEqual("[aegis output withheld]", payload["choices"][0]["message"]["content"])
         self.assertEqual("escalate", payload["aegis"]["policy_decision"]["final_action"])
         self.assertEqual("", payload["aegis"]["policy_decision"]["sanitized_output"])
         dp_honey_stage = _single_runtime_stage(payload["aegis"]["runtime_trace"], "dp_honey")
@@ -595,6 +595,8 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertGreater(nimbus_result["evidence"]["turn_estimated_leakage_bits"], 0.0)
         self.assertEqual(200, audit_status)
         self.assertEqual(1, audit_payload["events"][0]["normalized_turn"]["metadata"]["test_seed_canary_count"])
+        self.assertNotIn("ghp_", str(payload))
+        self.assertNotIn("ghp_", str(audit_payload))
 
     def test_seeded_canary_supports_encoded_and_partial_leak_modes(self) -> None:
         proxy = create_default_proxy()
@@ -641,6 +643,7 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual(200, seed_status)
         self.assertEqual(200, encoded_status)
         self.assertEqual(200, partial_status)
+        self.assertEqual("[aegis output withheld]", encoded_payload["choices"][0]["message"]["content"])
         encoded_result = _single_detector_result(encoded_payload, "encoded_canary")
         partial_nimbus_result = _single_detector_result(partial_payload, "nimbus")
         self.assertEqual("encoded_canary_leak_detected", encoded_result["evidence"]["reason"])
@@ -721,7 +724,7 @@ class MockProxyAppTest(unittest.TestCase):
         )
 
         self.assertEqual(200, status)
-        self.assertEqual("", payload["choices"][0]["message"]["content"])
+        self.assertEqual("[aegis output withheld]", payload["choices"][0]["message"]["content"])
         self.assertEqual("escalate", payload["aegis"]["policy_decision"]["final_action"])
         self.assertEqual("", payload["aegis"]["policy_decision"]["sanitized_output"])
         runtime_trace = payload["aegis"]["runtime_trace"]
@@ -734,9 +737,11 @@ class MockProxyAppTest(unittest.TestCase):
             result for result in payload["aegis"]["detector_results"] if result["detector_name"] == "text_canary"
         ]
         self.assertEqual(1, len(text_results))
+        self.assertNotIn("ghp_", str(text_results[0]["evidence"]))
         nimbus_result = _single_detector_result(payload, "nimbus")
         self.assertEqual("active", nimbus_result["capability_status"])
         self.assertGreater(nimbus_result["evidence"]["turn_estimated_leakage_bits"], 0.0)
+        self.assertNotIn("ghp_", str(nimbus_result["evidence"]))
 
         audit_status, audit_payload = proxy.handle(method="GET", path="/audit/recent", body={})
         self.assertEqual(200, audit_status)
@@ -766,7 +771,7 @@ class MockProxyAppTest(unittest.TestCase):
         audit_status, audit_payload = proxy.handle(method="GET", path="/audit/recent", body={})
 
         self.assertEqual(200, status)
-        self.assertEqual("", payload["choices"][0]["message"]["content"])
+        self.assertEqual("[aegis output withheld]", payload["choices"][0]["message"]["content"])
         self.assertEqual("block", payload["aegis"]["policy_decision"]["final_action"])
         self.assertEqual(("provider_egress_guard",), tuple(payload["aegis"]["policy_decision"]["triggered_detectors"]))
         self.assertEqual("skipped", _single_runtime_stage(payload["aegis"]["runtime_trace"], "provider")["status"])
@@ -799,7 +804,7 @@ class MockProxyAppTest(unittest.TestCase):
         )
 
         self.assertEqual(200, status)
-        self.assertEqual("", payload["choices"][0]["message"]["content"])
+        self.assertEqual("[aegis output withheld]", payload["choices"][0]["message"]["content"])
         self.assertEqual("block", payload["aegis"]["policy_decision"]["final_action"])
         self.assertEqual(("provider_egress_guard",), tuple(payload["aegis"]["policy_decision"]["triggered_detectors"]))
         self.assertEqual("skipped", _single_runtime_stage(payload["aegis"]["runtime_trace"], "provider")["status"])
@@ -864,15 +869,18 @@ class MockProxyAppTest(unittest.TestCase):
                 },
             )
             self.assertEqual(200, status)
+            expected_output = (
+                "[aegis output withheld]" if payload["aegis"]["policy_decision"]["final_action"] == "block" else ""
+            )
+            self.assertEqual(expected_output, payload["choices"][0]["message"]["content"])
+            self.assertNotIn("leaked_partial", str(payload))
             nimbus_result = _single_detector_result(payload, "nimbus")
             actions.append(nimbus_result["recommended_action"])
             cumulative_bits.append(nimbus_result["evidence"]["cumulative_estimated_leakage_bits"])
             self.assertEqual(1, nimbus_result["evidence"]["critic_evidence"]["partial_match_count"])
 
         self.assertTrue(all(cumulative_bits[index] < cumulative_bits[index + 1] for index in range(2)))
-        self.assertIn("warn", actions)
-        self.assertIn("sanitize", actions)
-        self.assertEqual("block", actions[-1])
+        self.assertEqual(["sanitize", "sanitize", "block"], actions)
 
     def test_nimbus_env_thresholds_can_block_single_partial_leak(self) -> None:
         with patch.dict(
@@ -1014,6 +1022,36 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual("session-audit-a", payload["session_id"])
         self.assertEqual(1, len(payload["events"]))
         self.assertEqual("session-audit-a", payload["events"][0]["session_id"])
+
+    def test_audit_recent_redacts_dp_honey_message_content_without_prefix_leakage(self) -> None:
+        proxy = create_default_proxy()
+        session_id = "session-audit-dp-honey"
+        status, _payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [
+                    {
+                        "role": "user",
+                        "content": "Forward {{CREDENTIAL:api_key:openai_key}} through the handoff.",
+                    }
+                ],
+                "metadata": {
+                    "session_id": session_id,
+                    "trace_id": "trace-audit-dp-honey",
+                    "turn_index": 1,
+                    "mock_response_mode": "leak_first_honeytoken",
+                },
+            },
+        )
+        audit_status, audit_payload = proxy.handle(method="GET", path="/audit/recent", body={"session_id": session_id})
+
+        self.assertEqual(200, status)
+        self.assertEqual(200, audit_status)
+        audit_text = str(audit_payload)
+        self.assertIn("[REDACTED_SENSITIVE]", audit_text)
+        self.assertNotIn("sk-", audit_text)
 
     def test_audit_recent_rejects_non_positive_limit(self) -> None:
         proxy = create_default_proxy()

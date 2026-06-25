@@ -222,7 +222,7 @@ def test_default_http_app_can_use_configured_self_hosted_cift_with_trusted_windo
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["choices"][0]["message"]["content"] == ""
+    assert payload["choices"][0]["message"]["content"] == "[aegis output withheld]"
     assert payload["aegis"]["policy_decision"]["final_action"] == Action.BLOCK.value
     provider_stage = _runtime_stage(payload["aegis"]["runtime_trace"], "provider")
     assert provider_stage["status"] == "skipped"
@@ -439,7 +439,7 @@ def test_default_http_app_registers_env_configured_cift_extractor_sidecar(monkey
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["choices"][0]["message"]["content"] == ""
+    assert payload["choices"][0]["message"]["content"] == "[aegis output withheld]"
     assert payload["aegis"]["policy_decision"]["final_action"] == Action.BLOCK.value
     provider_stage = _runtime_stage(payload["aegis"]["runtime_trace"], "provider")
     assert provider_stage["status"] == "skipped"
@@ -560,7 +560,7 @@ def test_default_http_app_bootstraps_gateway_smoke_from_preview_candidate(monkey
     assert readiness_cift["extractor"]["chat_template_sha256"] == "d" * 64
     assert response.status_code == 200
     payload = response.json()
-    assert payload["choices"][0]["message"]["content"] == ""
+    assert payload["choices"][0]["message"]["content"] == "[aegis output withheld]"
     assert payload["aegis"]["policy_decision"]["final_action"] == Action.BLOCK.value
     provider_stage = _runtime_stage(payload["aegis"]["runtime_trace"], "provider")
     assert provider_stage["status"] == "skipped"
@@ -669,7 +669,7 @@ def test_default_http_app_blocks_when_env_configured_cift_sidecar_attestation_de
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["choices"][0]["message"]["content"] == ""
+    assert payload["choices"][0]["message"]["content"] == "[aegis output withheld]"
     assert payload["aegis"]["policy_decision"]["final_action"] == Action.BLOCK.value
     provider_stage = _runtime_stage(payload["aegis"]["runtime_trace"], "provider")
     assert provider_stage["status"] == "skipped"
@@ -737,7 +737,7 @@ def test_default_http_app_blocks_when_env_configured_cift_sidecar_readout_count_
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["choices"][0]["message"]["content"] == ""
+    assert payload["choices"][0]["message"]["content"] == "[aegis output withheld]"
     assert payload["aegis"]["policy_decision"]["final_action"] == Action.BLOCK.value
     provider_stage = _runtime_stage(payload["aegis"]["runtime_trace"], "provider")
     assert provider_stage["status"] == "skipped"
@@ -939,7 +939,7 @@ def test_default_http_app_blocks_when_env_configured_cift_sidecar_omits_selected
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["choices"][0]["message"]["content"] == ""
+    assert payload["choices"][0]["message"]["content"] == "[aegis output withheld]"
     assert payload["aegis"]["policy_decision"]["final_action"] == Action.BLOCK.value
     provider_stage = _runtime_stage(payload["aegis"]["runtime_trace"], "provider")
     assert provider_stage["status"] == "skipped"
@@ -997,7 +997,7 @@ def test_default_http_app_blocks_configured_self_hosted_cift_without_trusted_win
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["choices"][0]["message"]["content"] == ""
+    assert payload["choices"][0]["message"]["content"] == "[aegis output withheld]"
     assert payload["aegis"]["policy_decision"]["final_action"] == Action.BLOCK.value
     provider_stage = _runtime_stage(payload["aegis"]["runtime_trace"], "provider")
     assert provider_stage["status"] == "skipped"
@@ -1059,7 +1059,7 @@ def test_http_metadata_credential_slot_drives_dp_honey_canary_leak_detection() -
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["choices"][0]["message"]["content"] == ""
+    assert payload["choices"][0]["message"]["content"] == "[aegis output withheld]"
     assert payload["aegis"]["policy_decision"]["final_action"] == "escalate"
     dp_honey_stage = _runtime_stage(payload["aegis"]["runtime_trace"], "dp_honey")
     assert dp_honey_stage["status"] == "active"
@@ -1118,7 +1118,7 @@ def test_http_raw_tool_credential_is_blocked_before_provider_completion() -> Non
 
     assert response.status_code == 200
     payload = response.json()
-    assert payload["choices"][0]["message"]["content"] == ""
+    assert payload["choices"][0]["message"]["content"] == "[aegis output withheld]"
     assert payload["aegis"]["policy_decision"]["final_action"] == "block"
     provider_stage = _runtime_stage(payload["aegis"]["runtime_trace"], "provider")
     assert provider_stage["status"] == "skipped"

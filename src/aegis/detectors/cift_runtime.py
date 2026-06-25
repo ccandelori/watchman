@@ -1143,6 +1143,10 @@ def _validate_linear_model(model: CiftRuntimeLinearModel) -> None:
         field_name="logistic_coefficients",
         expected_length=model.feature_count,
     )
+    _validate_vector_finite(values=model.scaler_mean, field_name="scaler_mean")
+    _validate_vector_finite(values=model.scaler_scale, field_name="scaler_scale")
+    _validate_vector_finite(values=model.logistic_coefficients, field_name="logistic_coefficients")
+    _validate_finite(value=model.logistic_intercept, field_name="logistic_intercept")
     for index, scale in enumerate(model.scaler_scale):
         if scale <= 0.0:
             raise CiftRuntimeDetectorError(f"scaler_scale[{index}] must be greater than 0.")
@@ -1847,10 +1851,19 @@ def _required_float_matrix(
 def _float_item(value: object, field_name: str) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise CiftRuntimeDetectorError(f"Field '{field_name}' must be a number.")
-    parsed_value = float(value)
-    if not math.isfinite(parsed_value):
-        raise CiftRuntimeDetectorError(f"Field '{field_name}' must be finite.")
-    return parsed_value
+    numeric_value = float(value)
+    _validate_finite(value=numeric_value, field_name=field_name)
+    return numeric_value
+
+
+def _validate_finite(value: float, field_name: str) -> None:
+    if not math.isfinite(value):
+        raise CiftRuntimeDetectorError(f"{field_name} must be finite.")
+
+
+def _validate_vector_finite(values: tuple[float, ...], field_name: str) -> None:
+    for index, value in enumerate(values):
+        _validate_finite(value=value, field_name=f"{field_name}[{index}]")
 
 
 def _validate_required_string(value: str, field_name: str) -> None:
@@ -1877,6 +1890,7 @@ def _validate_sha256_field(value: str, field_name: str) -> None:
 
 
 def _validate_probability(value: float, field_name: str) -> None:
+    _validate_finite(value=value, field_name=field_name)
     if value < 0.0 or value > 1.0:
         raise CiftRuntimeDetectorError(f"{field_name} must be in [0.0, 1.0].")
 

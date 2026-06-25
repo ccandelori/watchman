@@ -203,7 +203,10 @@ Proxy-owned request and provider errors use schema version
 
 Transport and validation errors use non-2xx HTTP status codes. Aegis policy
 decisions, including `block` and `escalate`, remain successful chat responses
-with HTTP `200`; clients must read `aegis.policy_decision.final_action`.
+with HTTP `200`; clients must read `aegis.policy_decision.final_action`. Policy
+actions `sanitize`, `block`, and `escalate` gate assistant delivery: the proxy
+returns sanitized output when available or the fixed `[aegis output withheld]`
+message instead of raw model output.
 
 `GET /audit/recent` accepts optional `session_id` and `limit` query parameters.
 It returns newest-first events and schema version `aegis.audit_recent/v1`.

@@ -153,7 +153,7 @@ def test_proxy_can_run_server_configured_self_hosted_cift_capability() -> None:
     assert cift_result["recommended_action"] == Action.BLOCK.value
     assert cift_result["evidence"]["activation_source"] == "metadata.cift.feature_vectors"
     assert cift_result["evidence"]["feature_source"] == "test_self_hosted_extractor"
-    assert payload["choices"][0]["message"]["content"] == ""
+    assert payload["choices"][0]["message"]["content"] == "[aegis output withheld]"
     assert aegis["policy_decision"]["final_action"] == Action.BLOCK.value
     cift_stage = _runtime_stage(aegis=aegis, stage_name="cift")
     assert cift_stage == {"stage": "cift", "status": "active", "detectors": ["cift_runtime"]}

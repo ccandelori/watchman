@@ -19,6 +19,7 @@ from aegis.cift_contract import (
     CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
 )
 from aegis.core.contracts import (
+    Action,
     CapabilityMode,
     DetectorComponent,
     DetectorResult,
@@ -132,6 +133,7 @@ _SECRET_LIKE_FIELD_TOKENS = (
     "password",
     "private_key",
 )
+_WITHHELD_OUTPUT_TEXT = "[aegis output withheld]"
 
 
 class ProxyRequestError(ValueError):
@@ -586,7 +588,7 @@ class MockProxyApp:
             "choices": [
                 {
                     "index": 0,
-                    "message": {"role": "assistant", "content": response.output_text},
+                    "message": {"role": "assistant", "content": _response_output_text(response)},
                     "finish_reason": "stop",
                 }
             ],
@@ -598,6 +600,15 @@ class MockProxyApp:
                 "detector_results": [result.to_dict() for result in response.detector_results],
             },
         }
+
+
+def _response_output_text(response: AegisRuntimeResponse) -> str:
+    final_action = response.policy_decision.final_action
+    if final_action in (Action.ALLOW, Action.WARN):
+        return response.output_text
+    if final_action == Action.SANITIZE and response.policy_decision.sanitized_output is not None:
+        return response.policy_decision.sanitized_output
+    return _WITHHELD_OUTPUT_TEXT
 
 
 def _runtime_request_from_chat_body(
