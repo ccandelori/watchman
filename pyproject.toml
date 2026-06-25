@@ -28,6 +28,7 @@ dev = [
 ]
 
 [project.scripts]
+aegis-console = "aegis.console.__main__:main"
 aegis-proxy = "aegis.proxy.server:main"
 aegis-proxy-smoke = "aegis.proxy.smoke:main"
 aegis-nimbus-fixtures = "aegis.replay.nimbus_fixture:main"
@@ -49,6 +50,7 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.setuptools.package-data]
+"aegis.console" = ["static/*"]
 "detect.dp_honey.webui" = ["static/*"]
 
 [tool.pytest.ini_options]

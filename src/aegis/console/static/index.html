@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aegis Watchman Console</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Aegis Watchman Console</h1>
+      <p id="gateway-line">Gateway: checking...</p>
+    </div>
+    <button id="refresh" type="button">Refresh</button>
+  </header>
+
+  <nav class="tabs" aria-label="Console views">
+    <button type="button" data-tab="overview" class="active">Overview</button>
+    <button type="button" data-tab="requests">Live Requests</button>
+    <button type="button" data-tab="model">Model &amp; CIFT</button>
+    <button type="button" data-tab="detectors">Detector Activity</button>
+    <button type="button" data-tab="setup">Setup</button>
+  </nav>
+
+  <main class="shell">
+    <section id="status" class="status-band"></section>
+    <section id="view"></section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

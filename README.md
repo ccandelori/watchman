@@ -107,12 +107,31 @@ The development proxy exposes the current OpenAI-compatible mock surface:
 
 ```text
 GET  /health
+GET  /ready
 GET  /aegis/capabilities
 POST /v1/chat/completions
 GET  /audit/recent
+GET  /audit/explain
 POST /test/reset
 POST /test/seed-canary   # mock provider only
 ```
+
+Run the local operator console after the gateway is running:
+
+```bash
+uv run aegis-console \
+  --gateway-url http://127.0.0.1:8000 \
+  --host 127.0.0.1 \
+  --port 8780 \
+  --smoke-report introspection/data/reports/aegis_default_mock_provider_smoke_runtime_evidence_v1.json \
+  --sample-audit-jsonl introspection/data/reports/aegis_default_mock_provider_smoke_runtime_evidence_audit_v1.jsonl
+```
+
+Open `http://127.0.0.1:8780` to see gateway readiness, protection state,
+active model/CIFT certification binding, recent allow/block decisions, detector
+activity, and setup commands. The optional sample audit path is used only when
+the live gateway audit is empty, so the console can still show the strict smoke
+stage timeline without replaying it as production evidence.
 
 `GET /aegis/capabilities` returns the machine-readable development contract:
 provider kind, whether mock controls are enabled, supported mock response modes,
