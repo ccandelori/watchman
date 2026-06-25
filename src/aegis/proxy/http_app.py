@@ -4,6 +4,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from json import JSONDecodeError
 from typing import cast
 
@@ -12,7 +13,13 @@ from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from aegis.core.contracts import JsonValue
-from aegis.proxy.mock_app import MockProxyApp, create_default_proxy, proxy_error_payload
+from aegis.detectors.cift_runtime import CiftFeatureExtractor
+from aegis.proxy.mock_app import (
+    MockProxyApp,
+    create_default_proxy,
+    create_default_proxy_with_cift_extractors,
+    proxy_error_payload,
+)
 
 
 def create_http_app(proxy: MockProxyApp) -> FastAPI:
@@ -24,6 +31,10 @@ def create_http_app(proxy: MockProxyApp) -> FastAPI:
     @app.get("/health")
     def health() -> JSONResponse:
         return _proxy_response(proxy, method="GET", path="/health", body={})
+
+    @app.get("/ready")
+    def ready() -> JSONResponse:
+        return _proxy_response(proxy, method="GET", path="/ready", body={})
 
     @app.get("/aegis/capabilities")
     def capabilities() -> JSONResponse:
@@ -42,6 +53,15 @@ def create_http_app(proxy: MockProxyApp) -> FastAPI:
         if session_id is not None:
             body["session_id"] = session_id
         return _proxy_response(proxy, method="GET", path="/audit/recent", body=body)
+
+    @app.get("/audit/explain")
+    def audit_explain(trace_id: str | None = None, session_id: str | None = None) -> JSONResponse:
+        body: dict[str, JsonValue] = {}
+        if trace_id is not None:
+            body["trace_id"] = trace_id
+        if session_id is not None:
+            body["session_id"] = session_id
+        return _proxy_response(proxy, method="GET", path="/audit/explain", body=body)
 
     @app.post("/test/reset")
     async def test_reset(request: Request) -> JSONResponse:
@@ -66,6 +86,10 @@ def create_http_app(proxy: MockProxyApp) -> FastAPI:
 
 def create_default_http_app() -> FastAPI:
     return create_http_app(create_default_proxy())
+
+
+def create_default_http_app_with_cift_extractors(cift_extractors: Mapping[str, CiftFeatureExtractor]) -> FastAPI:
+    return create_http_app(create_default_proxy_with_cift_extractors(cift_extractors=cift_extractors))
 
 
 async def _request_json_object(request: Request) -> dict[str, JsonValue] | JSONResponse:

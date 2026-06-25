@@ -150,6 +150,7 @@ class HoneytokenLedgerTest(unittest.TestCase):
         self.assertEqual(Action.ESCALATE, response.policy_decision.final_action)
         self.assertEqual(("encoded_canary",), response.policy_decision.triggered_detectors)
         self.assertEqual(2, len(response.detector_results))
+        self.assertNotIn(injection.canary_records[0].value, str(response.audit_event.to_dict()))
         self.assertNotIn("{{CREDENTIAL", str(response.audit_event.to_dict()))
         self.assertNotIn("sk-real-secret-123", str(response.audit_event.to_dict()))
 

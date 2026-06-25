@@ -25,6 +25,7 @@ class SeverityPolicyEngineTest(unittest.TestCase):
         self.assertEqual(Action.ALLOW, decision.final_action)
         self.assertEqual((), decision.triggered_detectors)
         self.assertEqual(0.0, decision.risk_score)
+        self.assertIsNone(decision.sanitized_output)
 
     def test_highest_severity_result_wins(self) -> None:
         decision = SeverityPolicyEngine().decide(
@@ -38,6 +39,7 @@ class SeverityPolicyEngineTest(unittest.TestCase):
         self.assertEqual(Action.BLOCK, decision.final_action)
         self.assertEqual(("blocker",), decision.triggered_detectors)
         self.assertEqual(0.9, decision.risk_score)
+        self.assertEqual("", decision.sanitized_output)
 
     def test_tied_highest_severity_keeps_all_triggering_detectors(self) -> None:
         decision = SeverityPolicyEngine().decide(
@@ -51,6 +53,7 @@ class SeverityPolicyEngineTest(unittest.TestCase):
         self.assertEqual(Action.ESCALATE, decision.final_action)
         self.assertEqual(("canary", "ledger"), decision.triggered_detectors)
         self.assertEqual(0.8, decision.risk_score)
+        self.assertEqual("", decision.sanitized_output)
 
 
 if __name__ == "__main__":

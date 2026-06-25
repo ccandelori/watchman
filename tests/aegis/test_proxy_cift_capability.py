@@ -1,11 +1,20 @@
 from __future__ import annotations
 
+import pytest
+
 from aegis.core.contracts import Action, CapabilityMode, JsonValue
 from aegis.core.orchestrator import ModelProvider
 from aegis.detectors.cift_runtime import CiftFeatureVectorAnnotator, CiftRuntimeDetector, CiftRuntimeLinearModel
 from aegis.providers.mock import MockModelProvider
-from aegis.proxy.config import ProviderKind, ProxyNimbusConfig, ProxyProviderConfig
-from aegis.proxy.mock_app import ProxyCiftCapability, create_default_proxy, create_proxy
+from aegis.proxy.config import (
+    CiftCertificationMode,
+    ProviderKind,
+    ProxyConfigError,
+    ProxyNimbusConfig,
+    ProxyProviderConfig,
+)
+from aegis.proxy.mock_app import create_default_proxy, create_proxy
+from aegis.proxy.runtime_factory import ProxyCiftCapability, ProxyCiftRuntimeBinding
 
 
 def test_default_proxy_reports_black_box_cift_capability() -> None:
@@ -21,6 +30,84 @@ def test_default_proxy_reports_black_box_cift_capability() -> None:
     }
 
 
+def test_proxy_reports_strict_cift_runtime_binding_in_capabilities() -> None:
+    proxy = create_proxy(
+        provider_config=_mock_provider_config(MockModelProvider(default_content="ok")),
+        nimbus_config=_nimbus_config(),
+        cift_capability=ProxyCiftCapability(
+            capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+            turn_annotators=(),
+            pre_generation_detectors=(),
+            detector_names=("cift_runtime",),
+            runtime_binding=ProxyCiftRuntimeBinding(
+                certification_mode=CiftCertificationMode.STRICT,
+                certification_id="synthetic-certified-cift",
+                runtime_model_sha256="a" * 64,
+                release_gate_report_sha256="e" * 64,
+                model_bundle_id="selected-choice-bundle",
+                source_model_id="Qwen/Qwen3-4B",
+                source_revision="0123456789abcdef0123456789abcdef01234567",
+                source_selected_device="mps",
+                source_hidden_size=2560,
+                source_layer_count=36,
+                tokenizer_fingerprint_sha256="b" * 64,
+                special_tokens_map_sha256="c" * 64,
+                chat_template_sha256="d" * 64,
+                feature_key="selected_choice_window_layer_21",
+                feature_count=1024,
+                selected_choice_readout_token_count=4,
+            ),
+        ),
+    )
+
+    status, payload = proxy.handle(method="GET", path="/aegis/capabilities", body={})
+
+    assert status == 200
+    assert payload["cift"] == {
+        "capability_mode": "self_hosted_introspection",
+        "detectors": ["cift_runtime"],
+        "turn_annotator_count": 0,
+        "runtime_binding": {
+            "certification_mode": "strict",
+            "certification_id": "synthetic-certified-cift",
+            "runtime_model_sha256": "a" * 64,
+            "release_gate_report_sha256": "e" * 64,
+            "model_bundle_id": "selected-choice-bundle",
+            "source_model_id": "Qwen/Qwen3-4B",
+            "source_revision": "0123456789abcdef0123456789abcdef01234567",
+            "source_selected_device": "mps",
+            "source_hidden_size": 2560,
+            "source_layer_count": 36,
+            "tokenizer_fingerprint_sha256": "b" * 64,
+            "special_tokens_map_sha256": "c" * 64,
+            "chat_template_sha256": "d" * 64,
+            "feature_key": "selected_choice_window_layer_21",
+            "feature_count": 1024,
+            "selected_choice_readout_token_count": 4,
+        },
+    }
+
+
+def test_default_proxy_fails_closed_when_self_hosted_cift_extractor_is_not_registered(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("AEGIS_CIFT_PROFILE", "self_hosted_window_selector")
+    monkeypatch.setenv("AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH", "selected.json")
+    monkeypatch.setenv("AEGIS_CIFT_CERTIFICATION_MANIFEST_PATH", "certification.json")
+    monkeypatch.setenv("AEGIS_CIFT_CERTIFICATION_REPORT_PATH", "certification-run.json")
+    monkeypatch.setenv("AEGIS_CIFT_CERTIFICATION_ARTIFACT_ROOT", ".")
+    monkeypatch.setenv("AEGIS_CIFT_CERTIFICATION_MANIFEST_SHA256", "0" * 64)
+    monkeypatch.setenv("AEGIS_CIFT_CERTIFICATION_REPORT_SHA256", "1" * 64)
+    monkeypatch.setenv("AEGIS_CIFT_RELEASE_GATE_REPORT_PATH", "release-gate.json")
+    monkeypatch.setenv("AEGIS_CIFT_RELEASE_GATE_REPORT_SHA256", "2" * 64)
+    monkeypatch.setenv("AEGIS_CIFT_REQUIRED_DEVICE", "mps")
+    monkeypatch.setenv("AEGIS_CIFT_SELECTED_CHOICE_READOUT_TOKEN_COUNT", "4")
+    monkeypatch.setenv("AEGIS_CIFT_EXTRACTOR_ID", "trusted-activation-sidecar")
+
+    with pytest.raises(ProxyConfigError, match="trusted-activation-sidecar"):
+        create_default_proxy()
+
+
 def test_proxy_can_run_server_configured_self_hosted_cift_capability() -> None:
     proxy = create_proxy(
         provider_config=_mock_provider_config(MockModelProvider(default_content="ok")),
@@ -32,10 +119,18 @@ def test_proxy_can_run_server_configured_self_hosted_cift_capability() -> None:
                     feature_key="readout_window_layer_15",
                     extractor=ConstantFeatureExtractor(feature_vector=(3.0, 2.0)),
                     source="test_self_hosted_extractor",
+                    selected_choice_window=False,
                 ),
             ),
-            pre_generation_detectors=(CiftRuntimeDetector(detector_name="cift_runtime", model=_runtime_model()),),
+            pre_generation_detectors=(
+                CiftRuntimeDetector(
+                    detector_name="cift_runtime",
+                    model=_runtime_model(),
+                    activation_failure_action=Action.BLOCK,
+                ),
+            ),
             detector_names=("cift_runtime",),
+            runtime_binding=None,
         ),
     )
 
@@ -55,11 +150,16 @@ def test_proxy_can_run_server_configured_self_hosted_cift_capability() -> None:
     detector_results = _detector_results(aegis)
     cift_result = _detector_result(detector_results=detector_results, detector_name="cift_runtime")
     assert cift_result["capability_status"] == "active"
-    assert cift_result["recommended_action"] == Action.WARN.value
+    assert cift_result["recommended_action"] == Action.BLOCK.value
     assert cift_result["evidence"]["activation_source"] == "metadata.cift.feature_vectors"
     assert cift_result["evidence"]["feature_source"] == "test_self_hosted_extractor"
+    assert payload["choices"][0]["message"]["content"] == ""
+    assert aegis["policy_decision"]["final_action"] == Action.BLOCK.value
     cift_stage = _runtime_stage(aegis=aegis, stage_name="cift")
     assert cift_stage == {"stage": "cift", "status": "active", "detectors": ["cift_runtime"]}
+    provider_stage = _runtime_stage(aegis=aegis, stage_name="provider")
+    assert provider_stage["status"] == "skipped"
+    assert provider_stage["reason"] == "pre_generation_policy_block"
 
 
 class ConstantFeatureExtractor:
@@ -100,6 +200,13 @@ def _runtime_model() -> CiftRuntimeLinearModel:
         schema_version="aegis.cift_runtime_linear/v1",
         model_bundle_id="test_bundle",
         source_model_id="test-model",
+        source_revision="main",
+        source_selected_device="mps",
+        source_hidden_size=2,
+        source_layer_count=1,
+        tokenizer_fingerprint_sha256="b" * 64,
+        special_tokens_map_sha256="c" * 64,
+        chat_template_sha256="d" * 64,
         training_dataset_id="test-dataset",
         source_artifact_sha256="a" * 64,
         evaluation_report_ids=("test-report",),
@@ -119,7 +226,7 @@ def _runtime_model() -> CiftRuntimeLinearModel:
         logistic_coefficients=(1.0, -0.5),
         logistic_intercept=0.25,
         negative_action=Action.ALLOW,
-        positive_action=Action.WARN,
+        positive_action=Action.BLOCK,
     )
 
 

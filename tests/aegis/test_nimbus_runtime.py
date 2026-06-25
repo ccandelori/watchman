@@ -22,7 +22,10 @@ def test_default_proxy_emits_nimbus_result():
     body = {
         "model": "test-model",
         "messages": [{"role": "user", "content": "test"}],
-        "metadata": {"secret_context_handle": "secret-123"},
+        "metadata": {
+            "credential_slots": [{"slot_name": "repo_pat", "credential_type": "github_pat"}],
+            "protected_workflow": True,
+        },
     }
     status, response = proxy.handle("POST", "/v1/chat/completions", body)
     assert status == 200
@@ -47,12 +50,28 @@ def test_nimbus_unavailable_without_secret_handle():
     assert any(r["capability_status"] == "unavailable" for r in nimbus_results)
 
 
-def test_nimbus_active_with_metadata_handle():
+def test_nimbus_rejects_client_supplied_secret_context_handle():
     proxy = create_default_proxy()
     body = {
         "model": "test-model",
         "messages": [{"role": "user", "content": "test"}],
         "metadata": {"secret_context_handle": "secret-xyz"},
+    }
+    status, response = proxy.handle("POST", "/v1/chat/completions", body)
+    assert status == 400
+    assert response["error"]["code"] == "invalid_request"
+    assert "secret_context_handle" in response["error"]["message"]
+
+
+def test_nimbus_active_with_runtime_owned_canary_context():
+    proxy = create_default_proxy()
+    body = {
+        "model": "test-model",
+        "messages": [{"role": "user", "content": "test"}],
+        "metadata": {
+            "credential_slots": [{"slot_name": "repo_pat", "credential_type": "github_pat"}],
+            "protected_workflow": True,
+        },
     }
     status, response = proxy.handle("POST", "/v1/chat/completions", body)
     assert status == 200
@@ -83,7 +102,7 @@ def test_nimbus_active_with_metadata_handle():
 
     # Ensure the actual secret handle is not leaked in evidence
     for result in nimbus_audit_results:
-        assert "secret-xyz" not in str(result.get("evidence", {}))
+        assert "hny_" not in str(result.get("evidence", {}))
 
 
 def test_nimbus_multi_turn_escalation():

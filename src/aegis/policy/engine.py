@@ -32,5 +32,11 @@ class SeverityPolicyEngine:
             reason=reason,
             triggered_detectors=triggered_detectors,
             risk_score=max(result.score for result in triggering_results),
-            sanitized_output=None,
+            sanitized_output=_sanitized_output_for_action(final_action),
         )
+
+
+def _sanitized_output_for_action(action: Action) -> str | None:
+    if action_severity(action) >= action_severity(Action.SANITIZE):
+        return ""
+    return None

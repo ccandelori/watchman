@@ -2,14 +2,17 @@ from __future__ import annotations
 
 import argparse
 import sys
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import cast
 
 from aegis.core.contracts import CapabilityMode, ModelInfo
 from aegis.trace_collection.harness import (
     PairedPromptValidationConfig,
     SeedInputProfile,
+    TraceCollectionAssignment,
+    TraceCollectionSubmission,
+    TraceCollectionTask,
     build_matched_seed_trace_collection_submissions,
     build_paired_adversarial_seed_trace_collection_submissions,
     build_paired_crossed_action_seed_trace_collection_submissions,
@@ -18,6 +21,11 @@ from aegis.trace_collection.harness import (
     build_paired_prompt_work_items,
     build_paired_semantic_indirection_seed_trace_collection_submissions,
     build_paired_semantic_indirection_v3_seed_trace_collection_submissions,
+    build_paired_semantic_indirection_v4_seed_trace_collection_submissions,
+    build_paired_semantic_indirection_v5_seed_trace_collection_submissions,
+    build_paired_semantic_indirection_v6_seed_trace_collection_submissions,
+    build_paired_semantic_indirection_v7_seed_trace_collection_submissions,
+    build_paired_semantic_indirection_v8_seed_trace_collection_submissions,
     build_pre_output_intent_seed_trace_collection_submissions,
     build_seed_trace_collection_submissions,
     build_trace_collection_assignments,
@@ -35,6 +43,30 @@ from aegis.trace_collection.harness import (
     write_trace_collection_submissions_jsonl,
 )
 from aegis.trace_collection.tasks import default_trace_collection_tasks
+
+_SeedInputBuilder = Callable[
+    [tuple[TraceCollectionAssignment, ...], tuple[TraceCollectionTask, ...], int],
+    tuple[TraceCollectionSubmission, ...],
+]
+
+_SEED_INPUT_BUILDERS: dict[SeedInputProfile, _SeedInputBuilder] = {
+    "standard": build_seed_trace_collection_submissions,
+    "matched_hard": build_matched_seed_trace_collection_submissions,
+    "pre_output_intent": build_pre_output_intent_seed_trace_collection_submissions,
+    "paired_intent": build_paired_intent_seed_trace_collection_submissions,
+    "paired_natural": build_paired_natural_seed_trace_collection_submissions,
+    "paired_adversarial": build_paired_adversarial_seed_trace_collection_submissions,
+    "paired_crossed_action": build_paired_crossed_action_seed_trace_collection_submissions,
+    "paired_semantic_indirection": build_paired_semantic_indirection_seed_trace_collection_submissions,
+    "paired_semantic_indirection_v3": build_paired_semantic_indirection_v3_seed_trace_collection_submissions,
+    "paired_semantic_indirection_v4": build_paired_semantic_indirection_v4_seed_trace_collection_submissions,
+    "paired_semantic_indirection_v5": build_paired_semantic_indirection_v5_seed_trace_collection_submissions,
+    "paired_semantic_indirection_v6": build_paired_semantic_indirection_v6_seed_trace_collection_submissions,
+    "paired_semantic_indirection_v7": build_paired_semantic_indirection_v7_seed_trace_collection_submissions,
+    "paired_semantic_indirection_v8": build_paired_semantic_indirection_v8_seed_trace_collection_submissions,
+}
+
+_SEED_INPUT_PROFILE_CHOICES: tuple[SeedInputProfile, ...] = tuple(_SEED_INPUT_BUILDERS.keys())
 
 
 @dataclass(frozen=True)
@@ -108,60 +140,14 @@ def run_record_builder_cli(argv: tuple[str, ...]) -> None:
 def run_seed_input_cli(argv: tuple[str, ...]) -> None:
     args = _parse_seed_input_args(argv)
     assignments = read_trace_collection_assignments_jsonl(path=args.assignments_path)
-    if args.profile == "standard":
-        submissions = build_seed_trace_collection_submissions(
-            assignments=assignments,
-            tasks=default_trace_collection_tasks(),
-            variants_per_label=args.variants_per_label,
-        )
-    elif args.profile == "matched_hard":
-        submissions = build_matched_seed_trace_collection_submissions(
-            assignments=assignments,
-            tasks=default_trace_collection_tasks(),
-            variants_per_label=args.variants_per_label,
-        )
-    elif args.profile == "pre_output_intent":
-        submissions = build_pre_output_intent_seed_trace_collection_submissions(
-            assignments=assignments,
-            tasks=default_trace_collection_tasks(),
-            variants_per_label=args.variants_per_label,
-        )
-    elif args.profile == "paired_intent":
-        submissions = build_paired_intent_seed_trace_collection_submissions(
-            assignments=assignments,
-            tasks=default_trace_collection_tasks(),
-            variants_per_label=args.variants_per_label,
-        )
-    elif args.profile == "paired_natural":
-        submissions = build_paired_natural_seed_trace_collection_submissions(
-            assignments=assignments,
-            tasks=default_trace_collection_tasks(),
-            variants_per_label=args.variants_per_label,
-        )
-    elif args.profile == "paired_adversarial":
-        submissions = build_paired_adversarial_seed_trace_collection_submissions(
-            assignments=assignments,
-            tasks=default_trace_collection_tasks(),
-            variants_per_label=args.variants_per_label,
-        )
-    elif args.profile == "paired_crossed_action":
-        submissions = build_paired_crossed_action_seed_trace_collection_submissions(
-            assignments=assignments,
-            tasks=default_trace_collection_tasks(),
-            variants_per_label=args.variants_per_label,
-        )
-    elif args.profile == "paired_semantic_indirection":
-        submissions = build_paired_semantic_indirection_seed_trace_collection_submissions(
-            assignments=assignments,
-            tasks=default_trace_collection_tasks(),
-            variants_per_label=args.variants_per_label,
-        )
-    else:
-        submissions = build_paired_semantic_indirection_v3_seed_trace_collection_submissions(
-            assignments=assignments,
-            tasks=default_trace_collection_tasks(),
-            variants_per_label=args.variants_per_label,
-        )
+    builder = _SEED_INPUT_BUILDERS.get(args.profile)
+    if builder is None:
+        raise ValueError(f"Unsupported seed input profile: {args.profile}.")
+    submissions = builder(
+        assignments,
+        default_trace_collection_tasks(),
+        args.variants_per_label,
+    )
     write_trace_collection_submissions_jsonl(path=args.output_path, submissions=submissions)
 
 
@@ -306,17 +292,7 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
         "--profile",
         required=False,
         default="standard",
-        choices=(
-            "standard",
-            "matched_hard",
-            "pre_output_intent",
-            "paired_intent",
-            "paired_natural",
-            "paired_adversarial",
-            "paired_crossed_action",
-            "paired_semantic_indirection",
-            "paired_semantic_indirection_v3",
-        ),
+        choices=_SEED_INPUT_PROFILE_CHOICES,
         help="Seed input profile to generate.",
     )
     parser.add_argument("--output", required=True, help="Output JSONL path for seeded collection inputs.")
@@ -336,27 +312,14 @@ def _parse_seed_input_args(argv: tuple[str, ...]) -> _SeedInputCliArgs:
     variants_per_label = int(variants_per_label_value)
     if variants_per_label < 1:
         raise ValueError("--variants-per-label must be positive.")
-    if (
-        profile_value != "standard"
-        and profile_value != "matched_hard"
-        and profile_value != "pre_output_intent"
-        and profile_value != "paired_intent"
-        and profile_value != "paired_natural"
-        and profile_value != "paired_adversarial"
-        and profile_value != "paired_crossed_action"
-        and profile_value != "paired_semantic_indirection"
-        and profile_value != "paired_semantic_indirection_v3"
-    ):
-        raise ValueError(
-            "--profile must be 'standard', 'matched_hard', 'pre_output_intent', "
-            "'paired_intent', 'paired_natural', 'paired_adversarial', 'paired_crossed_action', "
-            "'paired_semantic_indirection', or 'paired_semantic_indirection_v3'."
-        )
+    if profile_value not in _SEED_INPUT_BUILDERS:
+        allowed_profiles = ", ".join(f"'{profile}'" for profile in _SEED_INPUT_PROFILE_CHOICES)
+        raise ValueError(f"--profile must be one of: {allowed_profiles}.")
     return _SeedInputCliArgs(
         assignments_path=Path(assignments_value),
         output_path=Path(output_value),
         variants_per_label=variants_per_label,
-        profile=cast(SeedInputProfile, profile_value),
+        profile=profile_value,
     )
 
 

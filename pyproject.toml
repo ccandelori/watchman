@@ -28,11 +28,20 @@ dev = [
 ]
 
 [project.scripts]
+aegis-audit-explain = "aegis.audit.explain_cli:main"
 aegis-console = "aegis.console.__main__:main"
 aegis-proxy = "aegis.proxy.server:main"
+aegis-proxy-cift-smoke = "aegis.proxy.cift_smoke:main"
+aegis-loopback-openai-provider = "aegis.providers.loopback_openai:main"
+aegis-provider-preflight = "aegis.proxy.provider_preflight:main"
+aegis-provider-smoke-verify = "aegis.proxy.provider_smoke_verify:main"
 aegis-proxy-smoke = "aegis.proxy.smoke:main"
+aegis-nimbus-eval = "aegis.replay.nimbus_eval:main"
+aegis-nimbus-eval-infonce = "aegis.replay.nimbus_infonce:main_eval"
 aegis-nimbus-fixtures = "aegis.replay.nimbus_fixture:main"
 aegis-nimbus-report = "aegis.replay.nimbus_report:main"
+aegis-nimbus-training-corpus = "aegis.replay.nimbus_training:main"
+aegis-nimbus-train-infonce = "aegis.replay.nimbus_infonce:main_train"
 aegis-trace-assignments = "aegis.trace_collection.__main__:main"
 aegis-trace-build-records = "aegis.trace_collection.main:record_builder_main"
 aegis-trace-seed-inputs = "aegis.trace_collection.main:seed_input_main"

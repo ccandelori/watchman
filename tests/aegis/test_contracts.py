@@ -95,6 +95,15 @@ class RuntimeContractsTest(unittest.TestCase):
         self.assertEqual("activation_unavailable", encoded["detector_results"][0]["detector_name"])
         self.assertEqual("unavailable", encoded["detector_results"][0]["capability_status"])
         self.assertEqual("allow", encoded["policy_decision"]["final_action"])
+        self.assertEqual("aegis.audit_runtime_evidence/v1", encoded["runtime_evidence"]["schema_version"])
+        self.assertEqual("severity", encoded["runtime_evidence"]["policy_mode"])
+        self.assertEqual("allow", encoded["runtime_evidence"]["final_action"])
+        self.assertEqual("completed", encoded["runtime_evidence"]["provider_state"]["status"])
+        self.assertEqual(
+            "activation-unavailable-v1",
+            encoded["runtime_evidence"]["detector_versions"]["activation_unavailable"],
+        )
+        self.assertEqual(2.4, encoded["runtime_evidence"]["latency_ms"])
 
     def test_capability_report_records_active_and_unavailable_detectors(self) -> None:
         report = CapabilityReport(

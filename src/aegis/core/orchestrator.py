@@ -135,6 +135,7 @@ class AegisRuntime:
             policy_decision=policy_decision,
             latency_ms=latency_ms,
             created_at=datetime.now(UTC).isoformat(),
+            model_response_metadata=model_response.metadata,
         )
         self._audit_sink.write(audit_event)
 

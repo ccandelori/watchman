@@ -18,6 +18,7 @@ SUPPORTED_MOCK_RESPONSE_MODES = frozenset(
 )
 
 _HONEYTOKEN_PATTERN = re.compile(r"(?:AKIA|ghp_|ya29\.|sk_live_|sk-|hny_)[A-Za-z0-9._-]{8,}")
+_TRAILING_HONEYTOKEN_PUNCTUATION = ".,;:"
 
 
 class MockModelProvider:
@@ -75,8 +76,8 @@ def _first_honeytoken(turn: NormalizedTurn) -> str | None:
         return None
     for message in turn.messages:
         for match in _HONEYTOKEN_PATTERN.finditer(message.content):
-            candidate = match.group(0)
-            if _sha256(candidate) in known_hashes:
+            candidate = _registered_honeytoken_candidate(value=match.group(0), known_hashes=known_hashes)
+            if candidate is not None:
                 return candidate
     return None
 
@@ -94,3 +95,14 @@ def _known_honeytoken_hashes(turn: NormalizedTurn) -> frozenset[str]:
 
 def _sha256(value: str) -> str:
     return hashlib.sha256(value.encode("utf-8")).hexdigest()
+
+
+def _registered_honeytoken_candidate(value: str, known_hashes: frozenset[str]) -> str | None:
+    candidate = value
+    while candidate != "":
+        if _sha256(candidate) in known_hashes:
+            return candidate
+        if candidate[-1] not in _TRAILING_HONEYTOKEN_PUNCTUATION:
+            return None
+        candidate = candidate[:-1]
+    return None

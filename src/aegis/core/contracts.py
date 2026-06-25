@@ -1,12 +1,37 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from enum import StrEnum
 from typing import TypeAlias
 
 JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 _AUDIT_ALLOWED_SENSITIVE_SPAN_KINDS = frozenset(("honeytoken",))
 _AUDIT_REDACTION_MARKER = "[REDACTED_SENSITIVE]"
+_AUDIT_RUNTIME_EVIDENCE_SCHEMA_VERSION = "aegis.audit_runtime_evidence/v1"
+_AUDIT_POLICY_MODE = "severity"
+_AUDIT_ARTIFACT_HASH_KEYS = (
+    "runtime_model_sha256",
+    "release_gate_report_sha256",
+    "feature_vector_sha256",
+    "rendered_prompt_sha256",
+    "certification_manifest_sha256",
+    "certification_report_sha256",
+)
+_AUDIT_CIFT_KEYS = (
+    "certification_id",
+    "certification_mode",
+    "runtime_model_sha256",
+    "release_gate_report_sha256",
+    "runtime_model_bundle_id",
+    "feature_source",
+)
+_DETECTOR_VERSION_BY_NAME = {
+    "activation_unavailable": "activation-unavailable-v1",
+    "provider_egress_guard": "provider-egress-guard-v1",
+    "text_canary": "text-canary-v1",
+    "encoded_canary": "encoded-canary-v1",
+    "noop_canary": "noop-canary-v1",
+}
 
 
 class Action(StrEnum):
@@ -177,6 +202,7 @@ class AuditEvent:
     policy_decision: PolicyDecision
     latency_ms: float
     created_at: str
+    model_response_metadata: dict[str, JsonValue] = field(default_factory=dict)
 
     def to_dict(self) -> dict[str, JsonValue]:
         return {
@@ -188,6 +214,14 @@ class AuditEvent:
             "policy_decision": self.policy_decision.to_dict(),
             "latency_ms": self.latency_ms,
             "created_at": self.created_at,
+            "model_response_metadata": self.model_response_metadata,
+            "runtime_evidence": _audit_runtime_evidence(
+                turn=self.normalized_turn,
+                detector_results=self.detector_results,
+                policy_decision=self.policy_decision,
+                latency_ms=self.latency_ms,
+                model_response_metadata=self.model_response_metadata,
+            ),
         }
 
 
@@ -289,3 +323,156 @@ def _redact_ranges(content: str, ranges: tuple[tuple[int, int], ...]) -> str:
     for start, end in sorted(ranges, reverse=True):
         redacted = redacted[:start] + _AUDIT_REDACTION_MARKER + redacted[end:]
     return redacted
+
+
+def _audit_runtime_evidence(
+    turn: NormalizedTurn,
+    detector_results: tuple[DetectorResult, ...],
+    policy_decision: PolicyDecision,
+    latency_ms: float,
+    model_response_metadata: dict[str, JsonValue],
+) -> dict[str, JsonValue]:
+    provider_state = _audit_provider_state(turn=turn, model_response_metadata=model_response_metadata)
+    return {
+        "schema_version": _AUDIT_RUNTIME_EVIDENCE_SCHEMA_VERSION,
+        "policy_mode": _AUDIT_POLICY_MODE,
+        "final_action": policy_decision.final_action.value,
+        "provider_state": provider_state,
+        "credential_slot_status": _audit_credential_slot_status(turn),
+        "detector_versions": _audit_detector_versions(detector_results),
+        "detector_latency_ms": _audit_detector_latencies(detector_results),
+        "artifact_hashes": _audit_artifact_hashes(detector_results),
+        "cift": _audit_cift_summary(detector_results),
+        "fail_closed_events": _audit_fail_closed_events(
+            turn=turn,
+            policy_decision=policy_decision,
+            provider_state=provider_state,
+        ),
+        "latency_ms": latency_ms,
+    }
+
+
+def _audit_provider_state(
+    turn: NormalizedTurn,
+    model_response_metadata: dict[str, JsonValue],
+) -> dict[str, JsonValue]:
+    provider = model_response_metadata.get("provider")
+    if not isinstance(provider, str) or provider == "":
+        provider = turn.model.provider
+    model_id = model_response_metadata.get("model_id")
+    if not isinstance(model_id, str) or model_id == "":
+        model_id = turn.model.model_id
+    state: dict[str, JsonValue] = {
+        "status": "skipped" if provider == "skipped" else "completed",
+        "provider": provider,
+        "model_id": model_id,
+    }
+    reason = model_response_metadata.get("reason")
+    if isinstance(reason, str) and reason != "":
+        state["reason"] = reason
+    return state
+
+
+def _audit_credential_slot_status(turn: NormalizedTurn) -> str:
+    detection = _json_object_or_empty(turn.metadata.get("aegis_credential_slot_detection"))
+    status = detection.get("status")
+    if isinstance(status, str) and status != "":
+        return status
+    return "unknown"
+
+
+def _audit_detector_versions(detector_results: tuple[DetectorResult, ...]) -> dict[str, JsonValue]:
+    versions: dict[str, JsonValue] = {}
+    for result in detector_results:
+        versions[result.detector_name] = _audit_detector_version(result)
+    return versions
+
+
+def _audit_detector_version(result: DetectorResult) -> str:
+    evidence = result.evidence
+    version = evidence.get("detector_version")
+    if isinstance(version, str) and version != "":
+        return version
+    critic_version = evidence.get("critic_version")
+    if result.component == DetectorComponent.NIMBUS and isinstance(critic_version, str) and critic_version != "":
+        return critic_version
+    runtime_model_bundle_id = evidence.get("runtime_model_bundle_id")
+    if (
+        result.component == DetectorComponent.CIFT
+        and isinstance(runtime_model_bundle_id, str)
+        and runtime_model_bundle_id != ""
+    ):
+        return runtime_model_bundle_id
+    mapped = _DETECTOR_VERSION_BY_NAME.get(result.detector_name)
+    if mapped is not None:
+        return mapped
+    return f"{result.component.value}-unknown"
+
+
+def _audit_detector_latencies(detector_results: tuple[DetectorResult, ...]) -> dict[str, JsonValue]:
+    return {result.detector_name: result.latency_ms for result in detector_results}
+
+
+def _audit_artifact_hashes(detector_results: tuple[DetectorResult, ...]) -> dict[str, JsonValue]:
+    hashes: dict[str, JsonValue] = {}
+    for result in detector_results:
+        for key in _AUDIT_ARTIFACT_HASH_KEYS:
+            value = result.evidence.get(key)
+            if _is_audit_safe_hash(value):
+                hashes[key] = value
+    return hashes
+
+
+def _audit_cift_summary(detector_results: tuple[DetectorResult, ...]) -> dict[str, JsonValue]:
+    summary: dict[str, JsonValue] = {}
+    for result in detector_results:
+        if result.component != DetectorComponent.CIFT:
+            continue
+        for key in _AUDIT_CIFT_KEYS:
+            value = result.evidence.get(key)
+            if isinstance(value, str) and value != "":
+                summary[key] = value
+    return summary
+
+
+def _audit_fail_closed_events(
+    turn: NormalizedTurn,
+    policy_decision: PolicyDecision,
+    provider_state: dict[str, JsonValue],
+) -> list[JsonValue]:
+    events: list[JsonValue] = []
+    detection = _json_object_or_empty(turn.metadata.get("aegis_credential_slot_detection"))
+    if detection.get("status") == "ambiguous_protected_workflow" or detection.get("fail_closed") is True:
+        events.append(
+            {
+                "kind": "ambiguous_protected_workflow",
+                "credential_slot_status": detection.get("status"),
+                "final_action": policy_decision.final_action.value,
+            }
+        )
+    if provider_state.get("status") == "skipped" and provider_state.get("reason") == "pre_generation_policy_block":
+        events.append(
+            {
+                "kind": "pre_generation_policy_block",
+                "provider_status": "skipped",
+                "final_action": policy_decision.final_action.value,
+                "triggered_detectors": list(policy_decision.triggered_detectors),
+            }
+        )
+    return events
+
+
+def _json_object_or_empty(value: JsonValue) -> dict[str, JsonValue]:
+    if isinstance(value, dict):
+        return value
+    return {}
+
+
+def _is_audit_safe_hash(value: JsonValue) -> bool:
+    if not isinstance(value, str):
+        return False
+    if len(value) == 64:
+        return all(character in "0123456789abcdef" for character in value)
+    if value.startswith("sha256:") and len(value) == len("sha256:") + 64:
+        return all(character in "0123456789abcdef" for character in value[len("sha256:") :])
+    return False

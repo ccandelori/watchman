@@ -147,6 +147,8 @@ class TextCanaryDetectorTest(unittest.TestCase):
         response = runtime.evaluate_turn(_request())
 
         self.assertEqual(Action.ESCALATE, response.policy_decision.final_action)
+        self.assertEqual("", response.output_text)
+        self.assertEqual("", response.policy_decision.sanitized_output)
         self.assertEqual(("text_canary",), response.policy_decision.triggered_detectors)
         self.assertEqual(2, len(response.detector_results))
         self.assertEqual(1, len(audit_sink.recent(limit=10)))
@@ -351,6 +353,8 @@ class EncodedCanaryDetectorTest(unittest.TestCase):
         response = runtime.evaluate_turn(_request())
 
         self.assertEqual(Action.ESCALATE, response.policy_decision.final_action)
+        self.assertEqual("", response.output_text)
+        self.assertEqual("", response.policy_decision.sanitized_output)
         self.assertEqual(("encoded_canary",), response.policy_decision.triggered_detectors)
         self.assertEqual(2, len(response.detector_results))
         self.assertNotIn(canary_value, str(response.audit_event.to_dict()))

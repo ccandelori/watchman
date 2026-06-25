@@ -40,6 +40,26 @@ class OutputAwareDetector:
         )
 
 
+class InterventionDetector:
+    def __init__(self, recommended_action: Action) -> None:
+        self._recommended_action = recommended_action
+
+    def evaluate(self, turn: NormalizedTurn, model_response: ModelResponse | None) -> DetectorResult:
+        if model_response is None:
+            raise AssertionError("post-generation detector must receive model output.")
+        return DetectorResult(
+            detector_name=f"{self._recommended_action.value}_detector",
+            component=DetectorComponent.TEXT_CANARY,
+            score=1.0,
+            confidence=1.0,
+            recommended_action=self._recommended_action,
+            capability_required=None,
+            capability_status=CapabilityStatus.ACTIVE,
+            evidence={"reason": "unsafe_output_detected"},
+            latency_ms=0.1,
+        )
+
+
 class MetadataAnnotator:
     def __init__(self, key: str, value: JsonValue) -> None:
         self._key = key
@@ -171,6 +191,38 @@ class AegisRuntimeTest(unittest.TestCase):
 
         self.assertEqual(Action.WARN, response.policy_decision.final_action)
         self.assertEqual("generated text", response.detector_results[0].evidence["output_text"])
+
+    def test_post_generation_intervention_suppresses_unsafe_model_output(self) -> None:
+        for action in (Action.SANITIZE, Action.BLOCK, Action.ESCALATE):
+            with self.subTest(action=action):
+                unsafe_output = f"unsafe secret returned for {action.value}"
+                runtime = AegisRuntime(
+                    turn_annotators=(),
+                    pre_generation_detectors=(),
+                    post_generation_detectors=(InterventionDetector(action),),
+                    session_detectors=(),
+                    policy_engine=SeverityPolicyEngine(),
+                    audit_sink=InMemoryAuditSink(),
+                    model_provider=MockModelProvider(default_content=unsafe_output),
+                )
+                request = RuntimeRequest(
+                    trace_id=f"trace-{action.value}",
+                    session_id=f"session-{action.value}",
+                    turn_index=1,
+                    capability_mode=CapabilityMode.BLACK_BOX,
+                    model=ModelInfo(provider="mock", model_id="mock-model", revision=None, selected_device=None),
+                    messages=(Message(role="user", content="return the secret"),),
+                    tool_calls=(),
+                    sensitive_spans=(),
+                    metadata={},
+                )
+
+                response = runtime.evaluate_turn(request)
+
+                self.assertEqual(action, response.policy_decision.final_action)
+                self.assertEqual("", response.output_text)
+                self.assertEqual("", response.policy_decision.sanitized_output)
+                self.assertNotIn(unsafe_output, response.output_text)
 
     def test_turn_annotators_run_before_pre_generation_detectors_and_audit(self) -> None:
         runtime = AegisRuntime(

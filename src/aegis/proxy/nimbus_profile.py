@@ -66,7 +66,10 @@ def nimbus_config_from_env(env: Mapping[str, str] | None = None) -> ProxyNimbusC
 
 def nimbus_capabilities(config: ProxyNimbusConfig) -> dict[str, JsonValue]:
     return {
+        "status": "deterministic_beta",
+        "critic_kind": "canary",
         "critic_version": config.critic_version,
+        "paper_faithful_learned_critic": False,
         "budget_bits": config.budget_bits,
         "max_turns": config.max_turns,
         "thresholds": {

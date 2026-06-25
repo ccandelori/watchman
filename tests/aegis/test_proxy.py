@@ -3,7 +3,12 @@ import unittest
 from unittest.mock import patch
 
 from aegis.core.contracts import CapabilityMode
-from aegis.proxy.mock_app import ProxyRequestError, _runtime_request_from_chat_body, create_default_proxy
+from aegis.proxy.mock_app import (
+    ProxyRequestError,
+    ProxyRequestEvidenceError,
+    _runtime_request_from_chat_body,
+    create_default_proxy,
+)
 
 
 class MockProxyAppTest(unittest.TestCase):
@@ -158,6 +163,205 @@ class MockProxyAppTest(unittest.TestCase):
                 capability_mode=CapabilityMode.BLACK_BOX,
             )
 
+    def test_chat_body_plants_dp_honey_canary_from_metadata_credential_slot(self) -> None:
+        proxy_request = _runtime_request_from_chat_body(
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "summarize repo status"}],
+                "metadata": {
+                    "trace_id": "trace-slot",
+                    "session_id": "session-slot",
+                    "protected_workflow": True,
+                    "credential_slots": [
+                        {
+                            "slot_name": "repo_pat",
+                            "credential_type": "github_pat",
+                        }
+                    ],
+                },
+            },
+            provider_name="mock",
+            mock_controls_enabled=True,
+            seeded_canary_records_by_session_id={},
+            capability_mode=CapabilityMode.BLACK_BOX,
+        )
+
+        request = proxy_request.runtime_request
+        self.assertEqual(1, len(proxy_request.canary_records))
+        self.assertEqual("dp_honey", proxy_request.canary_records[0].source)
+        self.assertIn("dp_honey", proxy_request.canary_records[0].metadata)
+        self.assertEqual(1, request.metadata["dp_honey_canary_count"])
+        credential_detection = request.metadata["aegis_credential_slot_detection"]
+        self.assertIsInstance(credential_detection, dict)
+        self.assertEqual("honeytoken_substituted", credential_detection["status"])
+        self.assertEqual(1, credential_detection["credential_needed_count"])
+        self.assertEqual(1, credential_detection["honeytoken_substituted_count"])
+        self.assertEqual("dp_honey", request.sensitive_spans[0].source)
+        self.assertNotIn("{{CREDENTIAL:", request.messages[-1].content)
+
+    def test_chat_body_plants_dp_honey_canary_from_tool_schema_secret_field(self) -> None:
+        proxy_request = _runtime_request_from_chat_body(
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "run the protected repository workflow"}],
+                "tools": [
+                    {
+                        "type": "function",
+                        "function": {
+                            "name": "repo_admin",
+                            "parameters": {
+                                "type": "object",
+                                "properties": {
+                                    "github_token": {
+                                        "type": "string",
+                                        "description": "Repository credential handle.",
+                                    }
+                                },
+                            },
+                        },
+                    }
+                ],
+                "metadata": {"protected_workflow": True},
+            },
+            provider_name="mock",
+            mock_controls_enabled=True,
+            seeded_canary_records_by_session_id={},
+            capability_mode=CapabilityMode.BLACK_BOX,
+        )
+
+        request = proxy_request.runtime_request
+        credential_detection = request.metadata["aegis_credential_slot_detection"]
+        self.assertIsInstance(credential_detection, dict)
+        self.assertEqual("honeytoken_substituted", credential_detection["status"])
+        self.assertEqual(1, credential_detection["credential_needed_count"])
+        self.assertEqual(1, len(proxy_request.canary_records))
+        self.assertEqual("tool_schema", credential_detection["slots"][0]["source"])
+
+    def test_chat_body_plants_dp_honey_canary_from_env_config_shaped_message(self) -> None:
+        proxy_request = _runtime_request_from_chat_body(
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "Use OPENAI_API_KEY from the local env for this task."}],
+                "metadata": {"protected_workflow": True},
+            },
+            provider_name="mock",
+            mock_controls_enabled=True,
+            seeded_canary_records_by_session_id={},
+            capability_mode=CapabilityMode.BLACK_BOX,
+        )
+
+        request = proxy_request.runtime_request
+        credential_detection = request.metadata["aegis_credential_slot_detection"]
+        self.assertIsInstance(credential_detection, dict)
+        self.assertEqual("honeytoken_substituted", credential_detection["status"])
+        self.assertEqual("openai_api_key", credential_detection["slots"][0]["slot_name"])
+        self.assertEqual("openai_key", credential_detection["slots"][0]["credential_type"])
+        self.assertEqual(1, len(proxy_request.canary_records))
+
+    def test_chat_body_rejects_ambiguous_protected_workflow_without_slot(self) -> None:
+        with self.assertRaisesRegex(ProxyRequestEvidenceError, "protected_workflow=true") as context:
+            _runtime_request_from_chat_body(
+                body={
+                    "model": "mock-model",
+                    "messages": [{"role": "user", "content": "do protected work"}],
+                    "metadata": {"protected_workflow": True},
+                },
+                provider_name="mock",
+                mock_controls_enabled=True,
+                seeded_canary_records_by_session_id={},
+                capability_mode=CapabilityMode.BLACK_BOX,
+            )
+
+        self.assertEqual("ambiguous_protected_workflow", context.exception.details["credential_slot_status"])
+        self.assertTrue(context.exception.details["fail_closed"])
+        self.assertEqual(0, context.exception.details["credential_needed_count"])
+        self.assertIn("tool_schema", context.exception.details["accepted_detection_sources"])
+
+    def test_chat_route_returns_structured_ambiguous_protected_workflow_error(self) -> None:
+        proxy = create_default_proxy()
+
+        status, payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "do protected work"}],
+                "metadata": {
+                    "trace_id": "trace-ambiguous-protected",
+                    "session_id": "session-ambiguous-protected",
+                    "protected_workflow": True,
+                },
+            },
+        )
+
+        self.assertEqual(400, status)
+        self.assertEqual("invalid_request", payload["error"]["code"])
+        self.assertIn("protected_workflow=true", payload["error"]["message"])
+        self.assertEqual("ambiguous_protected_workflow", payload["error"]["details"]["credential_slot_status"])
+        self.assertTrue(payload["error"]["details"]["fail_closed"])
+        self.assertEqual(0, payload["error"]["details"]["honeytoken_substituted_count"])
+
+    def test_chat_body_substitutes_dp_honey_canary_in_tool_call_arguments(self) -> None:
+        proxy_request = _runtime_request_from_chat_body(
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "send the internal credential through the safe tool"}],
+                "tool_calls": [
+                    {
+                        "name": "internal_lookup",
+                        "arguments": {"credential": "{{CREDENTIAL:repo_pat:github_pat}}"},
+                    }
+                ],
+                "metadata": {"trace_id": "trace-tool-slot", "session_id": "session-tool-slot"},
+            },
+            provider_name="mock",
+            mock_controls_enabled=True,
+            seeded_canary_records_by_session_id={},
+            capability_mode=CapabilityMode.BLACK_BOX,
+        )
+
+        request = proxy_request.runtime_request
+        self.assertEqual(1, len(request.tool_calls))
+        tool_argument = request.tool_calls[0].arguments["credential"]
+        self.assertIsInstance(tool_argument, str)
+        self.assertNotIn("{{CREDENTIAL:", tool_argument)
+        self.assertEqual(1, len(proxy_request.canary_records))
+        self.assertEqual(proxy_request.canary_records[0].value, tool_argument)
+        tool_spans = tuple(span for span in request.sensitive_spans if span.metadata.get("tool_call_name"))
+        self.assertEqual(1, len(tool_spans))
+        self.assertEqual("internal_lookup", tool_spans[0].metadata["tool_call_name"])
+        self.assertEqual("arguments.credential", tool_spans[0].metadata["argument_path"])
+
+    def test_chat_body_substitutes_dp_honey_canary_for_secret_like_tool_field(self) -> None:
+        proxy_request = _runtime_request_from_chat_body(
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "call the configured integration"}],
+                "tool_calls": [
+                    {
+                        "name": "integration_call",
+                        "arguments": {"api_key": "repo_api_key"},
+                    }
+                ],
+                "metadata": {"trace_id": "trace-tool-secret-field", "session_id": "session-tool-secret-field"},
+            },
+            provider_name="mock",
+            mock_controls_enabled=True,
+            seeded_canary_records_by_session_id={},
+            capability_mode=CapabilityMode.BLACK_BOX,
+        )
+
+        request = proxy_request.runtime_request
+        tool_argument = request.tool_calls[0].arguments["api_key"]
+        self.assertIsInstance(tool_argument, str)
+        self.assertNotEqual("repo_api_key", tool_argument)
+        self.assertNotIn("{{CREDENTIAL:", tool_argument)
+        self.assertEqual(proxy_request.canary_records[0].value, tool_argument)
+        credential_detection = request.metadata["aegis_credential_slot_detection"]
+        self.assertIsInstance(credential_detection, dict)
+        self.assertEqual("honeytoken_substituted", credential_detection["status"])
+        self.assertEqual("repo_api_key", credential_detection["slots"][0]["slot_name"])
+
     def test_chat_completions_route_rejects_credential_shaped_metadata(self) -> None:
         proxy = create_default_proxy()
         raw_secret = "sk_live_metaSecret1234567890"
@@ -198,6 +402,30 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual("invalid_request", payload["error"]["code"])
         self.assertIn("Aegis-reserved", payload["error"]["message"])
         self.assertIn("metadata.dp_honey_canary_count", payload["error"]["message"])
+
+    def test_chat_completions_route_rejects_client_supplied_cift_metadata(self) -> None:
+        proxy = create_default_proxy()
+
+        status, payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "hello"}],
+                "metadata": {
+                    "cift": {
+                        "feature_vectors": {
+                            "readout_window_layer_15": [10.0, 10.0],
+                        },
+                    }
+                },
+            },
+        )
+
+        self.assertEqual(400, status)
+        self.assertEqual("invalid_request", payload["error"]["code"])
+        self.assertIn("Aegis-reserved", payload["error"]["message"])
+        self.assertIn("metadata.cift", payload["error"]["message"])
 
     def test_unknown_route_returns_versioned_error(self) -> None:
         proxy = create_default_proxy()
@@ -355,9 +583,9 @@ class MockProxyAppTest(unittest.TestCase):
 
         self.assertEqual(200, seed_status)
         self.assertEqual(200, status)
-        leaked_output = payload["choices"][0]["message"]["content"]
-        self.assertIn("ghp_", leaked_output)
+        self.assertEqual("", payload["choices"][0]["message"]["content"])
         self.assertEqual("escalate", payload["aegis"]["policy_decision"]["final_action"])
+        self.assertEqual("", payload["aegis"]["policy_decision"]["sanitized_output"])
         dp_honey_stage = _single_runtime_stage(payload["aegis"]["runtime_trace"], "dp_honey")
         self.assertEqual("not_configured", dp_honey_stage["status"])
         self.assertEqual("active", _single_runtime_stage(payload["aegis"]["runtime_trace"], "canary")["status"])
@@ -367,7 +595,6 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertGreater(nimbus_result["evidence"]["turn_estimated_leakage_bits"], 0.0)
         self.assertEqual(200, audit_status)
         self.assertEqual(1, audit_payload["events"][0]["normalized_turn"]["metadata"]["test_seed_canary_count"])
-        self.assertNotIn(leaked_output.removeprefix("leaked="), str(audit_payload))
 
     def test_seeded_canary_supports_encoded_and_partial_leak_modes(self) -> None:
         proxy = create_default_proxy()
@@ -494,9 +721,9 @@ class MockProxyAppTest(unittest.TestCase):
         )
 
         self.assertEqual(200, status)
-        leaked_output = payload["choices"][0]["message"]["content"]
-        self.assertIn("ghp_", leaked_output)
+        self.assertEqual("", payload["choices"][0]["message"]["content"])
         self.assertEqual("escalate", payload["aegis"]["policy_decision"]["final_action"])
+        self.assertEqual("", payload["aegis"]["policy_decision"]["sanitized_output"])
         runtime_trace = payload["aegis"]["runtime_trace"]
         dp_honey_stage = _single_runtime_stage(runtime_trace, "dp_honey")
         provider_stage = _single_runtime_stage(runtime_trace, "provider")
@@ -507,17 +734,17 @@ class MockProxyAppTest(unittest.TestCase):
             result for result in payload["aegis"]["detector_results"] if result["detector_name"] == "text_canary"
         ]
         self.assertEqual(1, len(text_results))
-        self.assertNotIn(leaked_output.removeprefix("leaked="), str(text_results[0]["evidence"]))
         nimbus_result = _single_detector_result(payload, "nimbus")
         self.assertEqual("active", nimbus_result["capability_status"])
         self.assertGreater(nimbus_result["evidence"]["turn_estimated_leakage_bits"], 0.0)
-        self.assertNotIn(leaked_output.removeprefix("leaked="), str(nimbus_result["evidence"]))
 
         audit_status, audit_payload = proxy.handle(method="GET", path="/audit/recent", body={})
         self.assertEqual(200, audit_status)
         normalized_turn = audit_payload["events"][0]["normalized_turn"]
         self.assertEqual(1, len(normalized_turn["sensitive_spans"]))
         self.assertEqual(1, normalized_turn["metadata"]["dp_honey_canary_count"])
+        self.assertNotIn("ghp_", str(audit_payload))
+        self.assertIn("[REDACTED_SENSITIVE]", normalized_turn["messages"][0]["content"])
 
     def test_chat_completions_route_blocks_raw_credential_before_provider_and_redacts_audit(self) -> None:
         proxy = create_default_proxy()

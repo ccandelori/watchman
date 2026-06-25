@@ -61,7 +61,6 @@ def settings_from_env(env: Mapping[str, str]) -> ConsoleSettings:
     )
 
 
-
 def console_overview(settings: ConsoleSettings, fetcher: GatewayFetcher) -> dict[str, JsonValue]:
     health = _endpoint(settings=settings, fetcher=fetcher, path="/health", query=())
     readiness = _endpoint(settings=settings, fetcher=fetcher, path="/ready", query=())
@@ -136,11 +135,7 @@ def console_trace(settings: ConsoleSettings, fetcher: GatewayFetcher, trace_id: 
 
 
 def console_setup(settings: ConsoleSettings) -> dict[str, JsonValue]:
-    console_command = (
-        "uv run aegis-console "
-        f"--gateway-url {settings.gateway_base_url} "
-        "--host 127.0.0.1 --port 8780"
-    )
+    console_command = f"uv run aegis-console --gateway-url {settings.gateway_base_url} --host 127.0.0.1 --port 8780"
     return {
         "schema_version": CONSOLE_SETUP_SCHEMA_VERSION,
         "gateway_base_url": settings.gateway_base_url,
@@ -153,8 +148,7 @@ def console_setup(settings: ConsoleSettings) -> dict[str, JsonValue]:
                 "--timeout 5 --output introspection/data/reports/aegis_default_mock_provider_smoke_v1.json"
             ),
             "strict_cift_smoke": (
-                "uv run aegis-proxy-smoke --url http://127.0.0.1:8000 "
-                "--timeout 120 --require-cift-pre-generation-block"
+                "uv run aegis-proxy-smoke --url http://127.0.0.1:8000 --timeout 120 --require-cift-pre-generation-block"
             ),
         },
         "common_degraded_states": [
