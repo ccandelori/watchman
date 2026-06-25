@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from aegis.canaries.dp_honey import DPHoneyCanaryGenerator, build_dp_honey_ledger
+from aegis.canaries.dp_honey import DPHoneyCanaryGenerator, DPHoneyCanaryGeneratorError, build_dp_honey_ledger
 from aegis.canaries.ledger import HoneytokenLedger, HoneytokenLedgerError, inject_honeytokens
 from aegis.core.contracts import (
     Action,
@@ -106,6 +106,41 @@ class DPHoneyCanaryGeneratorTest(unittest.TestCase):
 
         self.assertTrue(get_format("github-ghp").validate(token))
 
+    def test_generator_reports_explicit_format_selection_and_provenance(self) -> None:
+        generator = DPHoneyCanaryGenerator(corpus_size=20, train_seed=4)
+
+        canary = generator.generate(slot_name="repo_pat", credential_type="github_pat")
+        metadata = canary.metadata()["dp_honey"]
+
+        self.assertTrue(get_format("github-ghp").validate(canary.value))
+        self.assertEqual("github_pat", canary.format_selection.credential_type)
+        self.assertEqual("github-ghp", canary.format_selection.format_slug)
+        self.assertEqual("explicit", canary.format_selection.mapping_source)
+        self.assertEqual(20, canary.model_provenance.corpus_size)
+        self.assertEqual(4, canary.model_provenance.train_seed)
+        self.assertTrue(canary.model_provenance.spec_hash.startswith("sha256:"))
+        self.assertNotIn("sample_seed", metadata)
+        self.assertEqual("sha256(seed_salt, slot_name, credential_type, format_slug)", metadata["seed_derivation"])
+
+    def test_metadata_provider_rejects_mismatched_value(self) -> None:
+        generator = DPHoneyCanaryGenerator(corpus_size=20, train_seed=4)
+
+        with self.assertRaisesRegex(DPHoneyCanaryGeneratorError, "does not match"):
+            generator.metadata_for(
+                slot_name="repo_pat",
+                credential_type="github_pat",
+                value="not-the-generated-value",
+            )
+
+    def test_generator_reports_default_format_selection(self) -> None:
+        generator = DPHoneyCanaryGenerator(corpus_size=20)
+
+        canary = generator.generate(slot_name="custom_slot", credential_type="unknown_kind")
+
+        self.assertTrue(get_format("generic-sk").validate(canary.value))
+        self.assertEqual("generic-sk", canary.format_selection.format_slug)
+        self.assertEqual("default", canary.format_selection.mapping_source)
+
     def test_dp_honey_ledger_plants_registered_canary_records(self) -> None:
         ledger = build_dp_honey_ledger(
             session_id="session-ledger",
@@ -123,6 +158,14 @@ class DPHoneyCanaryGeneratorTest(unittest.TestCase):
         )
 
         self.assertEqual("dp_honey", injection.canary_records[0].source)
+        dp_honey_metadata = injection.canary_records[0].metadata["dp_honey"]
+        self.assertEqual("github-ghp", dp_honey_metadata["format_slug"])
+        self.assertEqual("explicit", dp_honey_metadata["mapping_source"])
+        self.assertEqual(20, dp_honey_metadata["corpus_size"])
+        self.assertNotIn("sample_seed", dp_honey_metadata)
+        self.assertIn("registry_version", dp_honey_metadata)
+        self.assertIn("spec_hash", dp_honey_metadata)
+        self.assertEqual(dp_honey_metadata, injection.sensitive_spans[0].metadata["dp_honey"])
         self.assertEqual(Action.ESCALATE, result.recommended_action)
         self.assertNotIn("{{CREDENTIAL", str(injection.to_dict()))
 

@@ -10,6 +10,7 @@ from aegis.core.contracts import JsonValue, Message, SensitiveSpan
 from aegis.detectors.canary import CanaryRecord, InMemoryCanaryRegistry, canary_sha256
 
 HoneytokenGenerator = Callable[[str, str], str]
+HoneytokenMetadataProvider = Callable[[str, str, str], dict[str, JsonValue]]
 
 _PLACEHOLDER_PATTERN = re.compile(r"\{\{CREDENTIAL:([^:}]+):([^}]+)\}\}")
 
@@ -27,6 +28,7 @@ class Honeytoken:
     sha256: str
     source: str
     turn_planted: int
+    metadata: dict[str, JsonValue]
 
 
 @dataclass(frozen=True)
@@ -52,6 +54,7 @@ class HoneytokenLedger:
         session_id: str,
         generator: HoneytokenGenerator,
         source: str = "dp_honey_lite",
+        metadata_provider: HoneytokenMetadataProvider | None = None,
     ) -> None:
         if session_id == "":
             raise HoneytokenLedgerError("session_id must not be empty.")
@@ -60,6 +63,7 @@ class HoneytokenLedger:
         self.session_id = session_id
         self.source = source
         self._generator = generator
+        self._metadata_provider = metadata_provider
         self._honeytokens_by_slot: dict[str, Honeytoken] = {}
         self._real_secrets_by_slot: dict[str, tuple[str, str]] = {}
 
@@ -80,6 +84,9 @@ class HoneytokenLedger:
         if value == "":
             raise HoneytokenLedgerError("honeytoken generator returned an empty value.")
         canary_id = _canary_id(session_id=self.session_id, slot_name=slot_name)
+        metadata = _copy_metadata(
+            self._metadata_provider(slot_name, credential_type, value) if self._metadata_provider is not None else {}
+        )
         honeytoken = Honeytoken(
             slot_name=slot_name,
             credential_type=credential_type,
@@ -88,6 +95,7 @@ class HoneytokenLedger:
             sha256=canary_sha256(value),
             source=self.source,
             turn_planted=turn_index,
+            metadata=metadata,
         )
         self._honeytokens_by_slot[slot_name] = honeytoken
         return honeytoken
@@ -194,6 +202,13 @@ def _spans_for_scrubbed_tokens(content: str, honeytokens: tuple[Honeytoken, ...]
 
 
 def _sensitive_span(honeytoken: Honeytoken, char_start: int | None, char_end: int | None) -> SensitiveSpan:
+    metadata: dict[str, JsonValue] = {
+        "slot_name": honeytoken.slot_name,
+        "credential_type": honeytoken.credential_type,
+        "sha256": honeytoken.sha256,
+        "turn_planted": honeytoken.turn_planted,
+    }
+    metadata.update(_copy_metadata(honeytoken.metadata))
     return SensitiveSpan(
         kind="honeytoken",
         source=honeytoken.source,
@@ -202,26 +217,23 @@ def _sensitive_span(honeytoken: Honeytoken, char_start: int | None, char_end: in
         token_start=None,
         token_end=None,
         identifier=honeytoken.canary_id,
-        metadata={
-            "slot_name": honeytoken.slot_name,
-            "credential_type": honeytoken.credential_type,
-            "sha256": honeytoken.sha256,
-            "turn_planted": honeytoken.turn_planted,
-        },
+        metadata=metadata,
     )
 
 
 def _canary_record(honeytoken: Honeytoken) -> CanaryRecord:
+    metadata: dict[str, JsonValue] = {
+        "slot_name": honeytoken.slot_name,
+        "turn_planted": honeytoken.turn_planted,
+    }
+    metadata.update(_copy_metadata(honeytoken.metadata))
     return CanaryRecord(
         canary_id=honeytoken.canary_id,
         credential_type=honeytoken.credential_type,
         value=honeytoken.value,
         sha256=honeytoken.sha256,
         source=honeytoken.source,
-        metadata={
-            "slot_name": honeytoken.slot_name,
-            "turn_planted": honeytoken.turn_planted,
-        },
+        metadata=metadata,
     )
 
 
@@ -231,8 +243,20 @@ def _canary_record_summary(record: CanaryRecord) -> dict[str, JsonValue]:
         "credential_type": record.credential_type,
         "sha256": record.sha256,
         "source": record.source,
-        "metadata": record.metadata,
+        "metadata": _copy_metadata(record.metadata),
     }
+
+
+def _copy_metadata(metadata: dict[str, JsonValue]) -> dict[str, JsonValue]:
+    return {key: _copy_json_value(value) for key, value in metadata.items()}
+
+
+def _copy_json_value(value: JsonValue) -> JsonValue:
+    if isinstance(value, dict):
+        return {key: _copy_json_value(item) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_copy_json_value(item) for item in value]
+    return value
 
 
 def _canary_id(session_id: str, slot_name: str) -> str:

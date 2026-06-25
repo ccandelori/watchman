@@ -2,6 +2,7 @@ import os
 import unittest
 from unittest.mock import patch
 
+from aegis.core.contracts import CapabilityMode
 from aegis.proxy.mock_app import ProxyRequestError, _runtime_request_from_chat_body, create_default_proxy
 
 
@@ -110,6 +111,7 @@ class MockProxyAppTest(unittest.TestCase):
             provider_name="openai_compatible",
             mock_controls_enabled=False,
             seeded_canary_records_by_session_id={},
+            capability_mode=CapabilityMode.BLACK_BOX,
         )
 
         self.assertEqual("openai_compatible", proxy_request.runtime_request.model.provider)
@@ -126,6 +128,7 @@ class MockProxyAppTest(unittest.TestCase):
                 provider_name="openai_compatible",
                 mock_controls_enabled=False,
                 seeded_canary_records_by_session_id={},
+                capability_mode=CapabilityMode.BLACK_BOX,
             )
 
     def test_chat_body_accepts_zero_turn_index_and_rejects_negative_turn_index(self) -> None:
@@ -138,6 +141,7 @@ class MockProxyAppTest(unittest.TestCase):
             provider_name="mock",
             mock_controls_enabled=True,
             seeded_canary_records_by_session_id={},
+            capability_mode=CapabilityMode.BLACK_BOX,
         )
 
         self.assertEqual(0, proxy_request.runtime_request.turn_index)
@@ -151,6 +155,7 @@ class MockProxyAppTest(unittest.TestCase):
                 provider_name="mock",
                 mock_controls_enabled=True,
                 seeded_canary_records_by_session_id={},
+                capability_mode=CapabilityMode.BLACK_BOX,
             )
 
     def test_chat_completions_route_rejects_credential_shaped_metadata(self) -> None:

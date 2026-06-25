@@ -14,7 +14,7 @@ from typing import Any
 import numpy as np
 
 from .. import scanner
-from ..__main__ import GENERATE_MAX
+from ..artifact_status import inspect_artifact, validate_artifact
 from ..bigram import (
     DEFAULT_CLIP,
     DEFAULT_CORPUS_SIZE,
@@ -22,13 +22,22 @@ from ..bigram import (
     DEFAULT_MAX_REPAIR_ATTEMPTS,
     DEFAULT_SAMPLE_SEED,
     DEFAULT_TRAIN_SEED,
-    BigramHoneytokenModel,
-    build_model,
 )
-from ..errors import DPHoneyError, UnknownFormatError
+from ..errors import DPHoneyError
 from ..formats import get_format, list_formats
-from ..model_io import load_model, read_artifact_dict, save_model
-from ..realism import REPORT_MAX, compute_report, enforce_count_limit
+from ..model_io import read_artifact_dict
+from ..operations import (
+    GENERATE_MAX,
+    FormatModelSource,
+    GenerateRequest,
+    ModelArtifactSource,
+    ReportRequest,
+    TrainRequest,
+    generate_tokens,
+    run_report_request,
+    train_to_artifact,
+)
+from ..realism import enforce_count_limit
 
 # Repo root (this file is src/detect/dp_honey/webui/service.py -> parents[4])
 # so the golden fixture and default models dir resolve regardless of the process CWD.
@@ -40,12 +49,6 @@ GOLDEN_PATH = _PKG_ROOT / "tests" / "dp_honey" / "fixtures" / "dp_honey" / "gold
 
 _SAFE_NAME = re.compile(r"^[A-Za-z0-9._-]+$")
 _MAX_NAME_LEN = 100
-
-_SAFETY = {
-    "synthetic_only": True,
-    "provider_valid": False,
-    "note": "Synthetic, shape-only honeytokens. Not real, valid, or usable credentials.",
-}
 
 
 class InvalidModelName(DPHoneyError):
@@ -97,48 +100,44 @@ def preview_corpus(fmt: str, count: int, seed: int) -> list[str]:
     return [spec.random_example(rng) for _ in range(count)]
 
 
-def _model_from_params(params: JsonDict, models_dir: Path | None = None) -> BigramHoneytokenModel:
+def _source_from_params(params: JsonDict, models_dir: Path | None) -> FormatModelSource | ModelArtifactSource:
     if params.get("source") == "model":
         model_name = params.get("model")
         if not model_name:
             raise InvalidModelName("'model' is required when source='model'")
-        return load_model(resolve_model_ref(model_name, models_dir))
+        return ModelArtifactSource(path=resolve_model_ref(str(model_name), models_dir))
     fmt = params.get("format")
     if not fmt:
         raise DPHoneyError("'format' is required when source='format'")
-    return build_model(
-        fmt,
-        epsilon=float(params.get("epsilon", DEFAULT_EPSILON)),
-        clip=float(params.get("clip", DEFAULT_CLIP)),
-        corpus_size=int(params.get("corpus_size", DEFAULT_CORPUS_SIZE)),
-        train_seed=int(params.get("train_seed", DEFAULT_TRAIN_SEED)),
+    return FormatModelSource(
+        format_slug=str(fmt),
+        epsilon=_float_param(params, "epsilon", DEFAULT_EPSILON),
+        clip=_float_param(params, "clip", DEFAULT_CLIP),
+        corpus_size=_int_param(params, "corpus_size", DEFAULT_CORPUS_SIZE),
+        train_seed=_int_param(params, "train_seed", DEFAULT_TRAIN_SEED),
     )
 
 
 def run_generate(params: JsonDict, models_dir: Path | None = None) -> JsonDict:
     """Generate a batch of synthetic tokens from format params or a saved model."""
-    count = int(params.get("count", 1))
-    enforce_count_limit(count, maximum=GENERATE_MAX, label="count")
-    model = _model_from_params(params, models_dir)
-    tokens = model.sample(
-        count,
-        seed=int(params.get("seed", DEFAULT_SAMPLE_SEED)),
-        max_repair_attempts=int(params.get("max_attempts", DEFAULT_MAX_REPAIR_ATTEMPTS)),
+    request = GenerateRequest(
+        source=_source_from_params(params, models_dir),
+        count=_int_param(params, "count", 1),
+        sample_seed=_int_param(params, "seed", DEFAULT_SAMPLE_SEED),
+        max_repair_attempts=_int_param(params, "max_attempts", DEFAULT_MAX_REPAIR_ATTEMPTS),
     )
-    return {"tokens": tokens, "format": model.format_slug, "safety": dict(_SAFETY)}
+    return generate_tokens(request).to_dict()
 
 
 def run_report(params: JsonDict, models_dir: Path | None = None) -> JsonDict:
     """Generate a batch (<= REPORT_MAX) and compute realism metrics."""
-    count = int(params.get("count", 1))
-    enforce_count_limit(count, maximum=REPORT_MAX, label="count")
-    model = _model_from_params(params, models_dir)
-    tokens = model.sample(
-        count,
-        seed=int(params.get("seed", DEFAULT_SAMPLE_SEED)),
-        max_repair_attempts=int(params.get("max_attempts", DEFAULT_MAX_REPAIR_ATTEMPTS)),
+    request = ReportRequest(
+        source=_source_from_params(params, models_dir),
+        count=_int_param(params, "count", 1),
+        sample_seed=_int_param(params, "seed", DEFAULT_SAMPLE_SEED),
+        max_repair_attempts=_int_param(params, "max_attempts", DEFAULT_MAX_REPAIR_ATTEMPTS),
     )
-    return compute_report(tokens, model)
+    return run_report_request(request)
 
 
 def run_scan(text: str) -> JsonDict:
@@ -169,22 +168,16 @@ def run_train(params: JsonDict, models_dir: Path | None = None) -> JsonDict:
     directory = _models_dir(models_dir)
     directory.mkdir(parents=True, exist_ok=True)
     filename = out_name if out_name.endswith(".json") else f"{out_name}.json"
-    model = build_model(
-        fmt,
-        epsilon=float(params.get("epsilon", DEFAULT_EPSILON)),
-        clip=float(params.get("clip", DEFAULT_CLIP)),
-        corpus_size=int(params.get("corpus_size", DEFAULT_CORPUS_SIZE)),
-        train_seed=int(params.get("seed", DEFAULT_TRAIN_SEED)),
+    request = TrainRequest(
+        format_slug=str(fmt),
+        output_path=directory / filename,
+        epsilon=_float_param(params, "epsilon", DEFAULT_EPSILON),
+        clip=_float_param(params, "clip", DEFAULT_CLIP),
+        corpus_size=_int_param(params, "corpus_size", DEFAULT_CORPUS_SIZE),
+        train_seed=_int_param(params, "seed", DEFAULT_TRAIN_SEED),
+        force=bool(params.get("force", False)),
     )
-    save_model(model, directory / filename, force=bool(params.get("force", False)))
-    return {
-        "saved": filename,
-        "format": model.format_slug,
-        "epsilon": model.epsilon,
-        "clip": model.clip,
-        "corpus_size": model.corpus_size,
-        "train_seed": model.train_seed,
-    }
+    return train_to_artifact(request).to_dict()
 
 
 def _describe_model(name: str, path: Path, source: str) -> JsonDict:
@@ -210,41 +203,21 @@ def list_models(models_dir: Path | None = None) -> list[JsonDict]:
     return entries
 
 
-def _snapshot_status(slug: str, stored_hash: object) -> str:
-    # Mirrors detect.dp_honey.__main__._snapshot_status (kept local to avoid
-    # importing a private CLI helper).
-    try:
-        live = get_format(slug)
-    except UnknownFormatError:
-        return "UNKNOWN_FORMAT"
-    return "OK" if stored_hash == live.spec_hash() else "DRIFT"
-
-
 def run_inspect(model_name: str, models_dir: Path | None = None) -> JsonDict:
     """Lenient inspection of an artifact (reports drift; never raises on drift)."""
-    data = read_artifact_dict(resolve_model_ref(model_name, models_dir))
-    fmt = data.get("format", {})
-    privacy = data.get("privacy", {})
-    alphabet = data.get("alphabet", {})
-    slug = fmt.get("slug", "?")
-    return {
-        "schema_version": data.get("schema_version"),
-        "format": slug,
-        "registry_version": fmt.get("registry_version"),
-        "epsilon": privacy.get("epsilon"),
-        "clip": privacy.get("clip"),
-        "corpus_size": privacy.get("corpus_size"),
-        "train_seed": privacy.get("train_seed"),
-        "alphabet_size": len(alphabet.get("symbols", [])),
-        "snapshot_status": _snapshot_status(slug, fmt.get("spec_hash")),
-        "safety": data.get("safety", {}),
-    }
+    return inspect_artifact(resolve_model_ref(model_name, models_dir)).to_dict()
 
 
 def run_validate(model_name: str, models_dir: Path | None = None) -> JsonDict:
     """Strictly validate an artifact; never raises — returns a result dict."""
-    try:
-        load_model(resolve_model_ref(model_name, models_dir))
-        return {"valid": True, "error": None}
-    except DPHoneyError as exc:
-        return {"valid": False, "error": str(exc)}
+    return validate_artifact(resolve_model_ref(model_name, models_dir)).to_dict()
+
+
+def _int_param(params: JsonDict, key: str, default_value: int) -> int:
+    value = params.get(key, default_value)
+    return int(value)
+
+
+def _float_param(params: JsonDict, key: str, default_value: float) -> float:
+    value = params.get(key, default_value)
+    return float(value)

@@ -435,7 +435,7 @@ def _active_evidence(
     turn: NormalizedTurn,
     prediction: CiftRuntimePrediction,
 ) -> dict[str, JsonValue]:
-    return {
+    evidence: dict[str, JsonValue] = {
         "model_bundle_id": model.model_bundle_id,
         "source_model_id": model.source_model_id,
         "training_dataset_id": model.training_dataset_id,
@@ -454,6 +454,10 @@ def _active_evidence(
         "model_id": turn.model.model_id,
         "selected_device": turn.model.selected_device,
     }
+    feature_source = _feature_source(turn=turn, feature_key=model.feature_key)
+    if feature_source is not None:
+        evidence["feature_source"] = feature_source
+    return evidence
 
 
 def _unavailable_result(
@@ -627,6 +631,22 @@ def _feature_sources_metadata(
         raise CiftRuntimeDetectorError("NormalizedTurn metadata.cift.feature_sources must be an object when present.")
     sources[feature_key] = {"source": source, "feature_count": feature_count}
     return sources
+
+
+def _feature_source(turn: NormalizedTurn, feature_key: str) -> str | None:
+    cift_metadata = turn.metadata.get(_CIFT_METADATA_KEY)
+    if not isinstance(cift_metadata, dict):
+        return None
+    feature_sources = cift_metadata.get("feature_sources")
+    if not isinstance(feature_sources, dict):
+        return None
+    feature_source = feature_sources.get(feature_key)
+    if not isinstance(feature_source, dict):
+        return None
+    source = feature_source.get("source")
+    if not isinstance(source, str) or source == "":
+        return None
+    return source
 
 
 def _elapsed_ms(started_at: float) -> float:
