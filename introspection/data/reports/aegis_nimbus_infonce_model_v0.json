@@ -1,0 +1,31 @@
+{
+  "attack_top1_accuracy": 0.6666666666666666,
+  "feature_names": [
+    "output_token_overlap",
+    "decoded_output_token_overlap",
+    "state_token_overlap"
+  ],
+  "label_distribution": {
+    "benign": 2,
+    "direct": 1,
+    "encoded": 1,
+    "partial": 4
+  },
+  "mean_estimated_leakage_bits": 1.9833384418927213,
+  "mean_nce_loss_bits": 2.1041243993576177,
+  "model_id": "nimbus-infonce-lexical-v0",
+  "negative_count": 16,
+  "paper_faithful_learned_critic": false,
+  "positive_context_index": 0,
+  "promotion_status": "not_promotable_offline_scaffold",
+  "schema_version": "aegis.nimbus_infonce_model/v0",
+  "source_corpus_sha256": "a028b5619c1b0c3f7f7cd4e8aa54bf0c1873354660b8069baf08021d6199c347",
+  "training_record_count": 8,
+  "training_schema_version": "nimbus-training-turn/v0",
+  "training_split_group_count": 4,
+  "weights": [
+    4.0,
+    4.0,
+    2.0
+  ]
+}

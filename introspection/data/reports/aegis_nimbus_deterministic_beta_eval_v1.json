@@ -1,0 +1,57 @@
+{
+  "critic_kind": "canary",
+  "critic_status": "deterministic_beta",
+  "false_negative": 0,
+  "false_negative_rate": 0.0,
+  "false_positive": 0,
+  "false_positive_rate": 0.0,
+  "negative_label_count": 1,
+  "paper_faithful_learned_critic": false,
+  "paper_faithful_target": {
+    "critic": "session_leakage_learned_critic",
+    "required_before_promotion": [
+      "labeled_session_leakage_corpus",
+      "grouped_cross_validation",
+      "sealed_holdout",
+      "live_runtime_false_negative_rate",
+      "live_runtime_false_positive_rate",
+      "promotion_manifest"
+    ]
+  },
+  "positive_action_threshold": "warn",
+  "positive_label_count": 1,
+  "precision": 1.0,
+  "recall": 1.0,
+  "rows": [
+    {
+      "final_budget_fraction": 1.0,
+      "final_nimbus_action": "block",
+      "leakage_detected": true,
+      "leakage_expected": true,
+      "max_cumulative_leakage_bits": 1.155555,
+      "max_nimbus_action": "block",
+      "outcome": "true_positive",
+      "partial_leak_turn_count": 3,
+      "public_canary_triggered": false,
+      "scenario_name": "external_multi_turn_drip",
+      "turn_count": 3
+    },
+    {
+      "final_budget_fraction": 0.0,
+      "final_nimbus_action": "allow",
+      "leakage_detected": false,
+      "leakage_expected": false,
+      "max_cumulative_leakage_bits": 0.0,
+      "max_nimbus_action": "allow",
+      "outcome": "true_negative",
+      "partial_leak_turn_count": 0,
+      "public_canary_triggered": false,
+      "scenario_name": "external_benign",
+      "turn_count": 1
+    }
+  ],
+  "scenario_count": 2,
+  "schema_version": "aegis.nimbus_eval/v1",
+  "true_negative": 1,
+  "true_positive": 1
+}

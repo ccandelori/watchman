@@ -1,0 +1,81 @@
+{
+  "critic_status": "training_corpus_scaffold",
+  "info_nce_negative_count": 16,
+  "label_counts": {
+    "benign": 2,
+    "direct": 1,
+    "encoded": 1,
+    "partial": 4
+  },
+  "paper_faithful_learned_critic": false,
+  "promotion_status": "not_promotable_training_contract_only",
+  "quality_gates": [
+    {
+      "name": "expected_negative_context_count",
+      "observed": 16,
+      "passed": true,
+      "required": 16
+    },
+    {
+      "name": "label_coverage",
+      "observed": [
+        "benign",
+        "direct",
+        "encoded",
+        "partial"
+      ],
+      "passed": true,
+      "required": [
+        "benign",
+        "direct",
+        "encoded",
+        "partial"
+      ]
+    },
+    {
+      "name": "credential_shaped_material_absent",
+      "observed": false,
+      "passed": true,
+      "required": false
+    },
+    {
+      "name": "cumulative_bits_monotonic_by_session",
+      "observed": true,
+      "passed": true,
+      "required": true
+    }
+  ],
+  "record_count": 8,
+  "required_before_paper_faithful_promotion": [
+    "large_labeled_session_leakage_corpus",
+    "grouped_cross_validation",
+    "sealed_holdout",
+    "learned_session_critic_artifact",
+    "live_runtime_false_negative_rate",
+    "live_runtime_false_positive_rate",
+    "promotion_manifest"
+  ],
+  "scenario_count": 4,
+  "scenario_counts": {
+    "benign": 2,
+    "direct_leak": 1,
+    "encoded_leak": 1,
+    "partial_drip": 4
+  },
+  "schema_version": "aegis.nimbus_training_manifest/v1",
+  "session_count": 4,
+  "session_counts": {
+    "nimbus-train-benign": 2,
+    "nimbus-train-direct-leak": 1,
+    "nimbus-train-encoded-leak": 1,
+    "nimbus-train-partial-drip": 4
+  },
+  "split_group_count": 4,
+  "split_group_counts": {
+    "nimbus-train-benign": 2,
+    "nimbus-train-direct-leak": 1,
+    "nimbus-train-encoded-leak": 1,
+    "nimbus-train-partial-drip": 4
+  },
+  "training_schema_version": "nimbus-training-turn/v0"
+}

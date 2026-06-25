@@ -112,6 +112,18 @@ runtime trace: provider kind, redacted base URL, and model ID. It rejects
 mock-only request metadata before building the runtime request so redteam
 controls cannot accidentally reach a real model provider.
 
+Run the no-network provider preflight before attempting real-provider smoke:
+
+```bash
+AEGIS_PROVIDER=openai_compatible \
+AEGIS_OPENAI_BASE_URL=https://api.openai.com \
+AEGIS_OPENAI_API_KEY="$OPENAI_API_KEY" \
+AEGIS_OPENAI_MODEL=gpt-4.1-mini \
+uv run aegis-provider-preflight \
+  --require-real-provider \
+  --output introspection/data/reports/aegis_real_provider_preflight_v1.json
+```
+
 ## HTTP Redteam Contract V1
 
 The development proxy exposes a small black-box contract for external redteam
@@ -157,13 +169,22 @@ related action thresholds without changing detector code.
 
 `aegis-proxy-smoke` validates this distinction. The default smoke profile
 expects a single partial seeded-canary leak to stay below block. The strict
-profile expects the same probe to block:
+profile expects the same probe to block. Against a self-hosted CIFT gateway,
+the same smoke command can also require the CIFT exfiltration-intent turn to
+block before provider generation:
 
 ```bash
 uv run aegis-proxy-smoke \
   --url http://127.0.0.1:8000 \
   --timeout 5 \
-  --nimbus-profile strict-partial-block
+  --nimbus-profile strict-partial-block \
+  --output introspection/data/reports/aegis_strict_nimbus_smoke_v1.json
+
+uv run aegis-proxy-smoke \
+  --url http://127.0.0.1:8000 \
+  --timeout 120 \
+  --require-cift-pre-generation-block \
+  --output introspection/data/reports/aegis_self_hosted_cift_smoke_v1.json
 ```
 
 Proxy-owned request and provider errors use schema version
@@ -215,6 +236,13 @@ critic can run without requiring the current user turn to contain a placeholder.
 These seeds are redteam fixtures, not DP-HONEY injection: seeded-only turns do
 not set `dp_honey_canary_count`, and
 `/test/reset` clears the seed state.
+
+Protected workflows fail closed when no deterministic credential path can be
+resolved. The versioned proxy error details report
+`credential_slot_status=ambiguous_protected_workflow`, `fail_closed=true`, and
+zero credential/honeytoken counts. Resolved credential paths continue to report
+the normal runtime statuses: `no_credential_path`, `credential_needed`,
+`honeytoken_substituted`, or `real_secret_present`.
 
 ## DP-HONEY-Lite Honeytoken Registration
 
@@ -303,13 +331,60 @@ active CIFT `DetectorResult` with the model score, predicted label, threshold,
 feature key, and artifact IDs. It never copies the feature vector into audit
 evidence.
 
-`CiftFeatureVectorAnnotator` is the first sanctioned self-hosted feature hook.
-It runs before pre-generation detectors, calls a caller-supplied extractor, and
-attaches the returned feature vector under:
+`CiftFeatureVectorAnnotator` is the sanctioned self-hosted feature hook. It runs
+before pre-generation detectors, calls a trusted extractor, and attaches the
+returned feature vector under:
 
 ```text
 NormalizedTurn.metadata["cift"]["feature_vectors"][feature_key]
 ```
+
+When configured for selected-choice CIFT, the extractor may also provide trusted
+`selected_choice_readout_token_indices`; the annotator writes those under
+proxy-owned `metadata.cift`. Client-supplied request metadata remains untrusted
+and may not include CIFT-reserved keys. The default proxy can register an HTTP
+sidecar from `AEGIS_CIFT_EXTRACTOR_BASE_URL`; the sidecar endpoint is
+`POST /v1/cift/features` and implements the
+`aegis.cift_feature_extract_request/v1` and
+`aegis.cift_feature_extract_response/v1` schemas. Successful feature responses
+must include `model_attestation` with
+`schema_version=aegis.cift_model_attestation/v1`; the gateway validates the
+attested model id, revision, selected device, hidden size, layer count,
+tokenizer fingerprint, special-token map hash, chat-template hash, prompt
+renderer, selected-choice geometry method, and selected-choice readout token
+count before accepting the returned activations. The gateway's
+`AEGIS_CIFT_SELECTED_CHOICE_READOUT_TOKEN_COUNT` must match the sidecar's
+`--selected-choice-readout-token-count`, and the attested tokenizer/template
+identity must match the promoted runtime artifact.
+Startup also validates the runtime model, certification manifest, workflow run,
+all release-required manifest artifacts, gateway smoke identity, and
+evidence-chain identity under `AEGIS_CIFT_CERTIFICATION_ARTIFACT_ROOT` before
+enabling self-hosted CIFT. The configured detector name must match the certified
+gateway smoke report.
+
+The runnable live sidecar is
+`introspection/scripts/run_cift_extractor_sidecar.py`. It loads a Transformers
+causal LM, serves `/v1/cift/features`, and uses the same
+`LiveCiftFeatureSetExtractor` path as the live benchmark. The sidecar renders
+structured proxy turns into the calibration bridge's prompt format, then derives
+selected-choice readout token indices for the semantic-indirection prompt family
+with the loaded tokenizer offsets and configured readout count. It does not
+infer arbitrary selected-choice spans from untrusted client metadata, and it
+scrubs inbound `metadata.cift` before extracting features. If the
+indices cannot be derived for a selected-choice feature key, the sidecar returns
+a successful response with `feature_vector=null` and the gateway fails closed
+under the production `BLOCK` activation-failure policy. If the sidecar attests a
+model or device that does not match the certification binding, the gateway also
+fails closed before provider generation.
+
+Before live Qwen3-4B sidecar, activation extraction, or benchmark runs, execute
+`introspection/scripts/check_cift_device_preflight.py --device mps` with the
+same Python environment that will load the model. The preflight must report
+`eligible=true`, `selected_device=mps`, and a smoke tensor on `mps:0`. The
+runtime artifact's `source_selected_device` must also match the required
+production device. Explicit MPS requests in the model loader fail closed when
+the Torch environment cannot allocate an MPS tensor, so CPU fallback cannot
+become MPS-certified evidence.
 
 The annotator does not call the extractor in black-box or SDK-only modes. If a
 self-hosted extractor cannot provide a vector, the turn remains unchanged and
@@ -320,9 +395,11 @@ contract.
 `CiftRuntimeWindowSelector` is the runtime route for the current selected-choice
 CIFT candidate. When `metadata.cift.selected_choice_readout_token_indices` is
 present, the selector scores the selected-choice feature family and records
-`cift_window_coverage=primary`. When selected-choice geometry is absent, it
-scores the broader payload/query readout model as degraded fallback evidence,
-caps confidence, and records `cift_window_coverage=degraded_fallback`.
+`cift_window_coverage=primary`. Under production `BLOCK` activation-failure
+policy, absent or malformed selected-choice geometry fails closed before
+provider generation. Degraded payload/query fallback remains available only for
+non-blocking offline/research evaluation and must be labeled as fallback
+coverage.
 
 `build_cift_window_selector_runtime_components` is the spine-native assembly
 helper for optional CIFT deployment. It loads selected-choice and fallback JSON
@@ -344,6 +421,10 @@ unavailable capability status without copying the secret handle into evidence.
 proxy. It keeps planted canary records in memory, scans model output for exact,
 encoded, and partial leakage, and returns estimated leakage bits without writing
 raw canary values into normalized turns or audit evidence.
+The proxy reports this path as `deterministic_beta` with
+`paper_faithful_learned_critic=false`; a learned, paper-faithful NIMBUS critic
+still needs separate corpus, grouped CV, sealed holdout, live FN/FP metrics, and
+promotion evidence before it can replace the deterministic critic.
 
 `BaselineNimbusCritic` and `InMemoryNimbusStateStore` are intentionally small
 implementations for tests and demos. They establish the contract that a future
@@ -371,6 +452,26 @@ metadata, extracts per-turn leakage bits and budget fractions, and renders
 scenario-level action progressions. See `docs/nimbus-redteam-eval.md` for the
 runtime/redteam evaluation loop and the distinction between public canary
 detectors and NIMBUS critic evidence.
+
+`aegis-nimbus-eval` adds a required label manifest and emits session-level
+`false_negative_rate` and `false_positive_rate` for the deterministic beta
+critic. The report declares `paper_faithful_learned_critic=false`; it is not a
+learned-NIMBUS promotion artifact.
+
+`aegis-nimbus-training-corpus` generates the bootstrap
+`nimbus-training-turn/v0` corpus contract for the future learned critic. Each
+record has session state, current output, true secret context, 16 negative
+contexts, explicit leakage label, target leakage bits, and `split_group_key`
+for grouped CV. The companion manifest declares
+`not_promotable_training_contract_only`; it is data-contract evidence, not
+runtime or promotion evidence.
+
+`aegis-nimbus-train-infonce` and `aegis-nimbus-eval-infonce` train and evaluate
+an offline lexical InfoNCE scaffold over `nimbus-training-turn/v0` rows. The
+model artifact stores weights, schema metadata, corpus digest, label
+distribution, and aggregate metrics only. It does not store raw contexts or
+outputs, reports `promotion_status=not_promotable_offline_scaffold`, and keeps
+`paper_faithful_learned_critic=false`.
 
 `aegis-nimbus-fixtures` runs a small in-process mock-proxy fixture suite and
 writes redteam-shaped JSONL for fast local NIMBUS regression checks. The output
@@ -404,23 +505,94 @@ the authoritative detector and enforcement contracts. Trace stages must not
 include raw secrets, raw canaries, model output, activation vectors, or restored
 credential material.
 
+When `AEGIS_AUDIT_JSONL_PATH` is set, the proxy writes redacted audit records to
+local JSONL in addition to serving recent records. `GET /audit/explain` rebuilds
+a safe stage timeline for one `trace_id` or `session_id` from the audit store,
+including provider skipped/completed state, detector actions, policy outcome,
+latency, and model-bound CIFT hashes where present.
+`aegis-audit-explain --input <audit.jsonl> --trace-id <trace>` reconstructs the
+same explanation from saved JSONL after the proxy process exits, which makes the
+local smoke evidence independently inspectable.
+
+Audit records include `runtime_evidence` with schema version
+`aegis.audit_runtime_evidence/v1`. This is the durable machine-readable release
+evidence block for one turn: policy mode, final action, provider state,
+credential-slot status, detector versions, detector latencies, whitelisted
+artifact hashes, CIFT certification/runtime summary fields when present,
+fail-closed events, and total latency. The same redaction boundary applies as
+for the runtime trace: no raw secrets, raw canaries, model output, activation
+vectors, or restored credential material.
+
 ## Gateway Smoke
 
 `aegis-proxy-smoke` is the first runnable gateway affordance for contributors
 and external redteam tooling. Against a running development proxy it checks:
 
 - `GET /health`
+- `GET /ready`
 - `GET /aegis/capabilities`
-- a benign chat request that should allow
+- a protected credential-slot benign chat request that should allow
+- an optional self-hosted CIFT exfiltration-intent request that should block before provider generation
+- a raw credential-shaped tool payload that should be blocked by the provider egress guard
 - an encoded DP-HONEY leak request that should block or escalate
-- a seeded no-placeholder canary leak request that should block or escalate
+- a metadata-declared credential-slot canary leak request that should block or escalate
+- deterministic NIMBUS partial-leak accounting
 - `GET /audit/recent`
+- `GET /audit/explain` for the provider-egress-block trace
 
 The command writes a JSON summary and exits nonzero on contract failure:
 
 ```bash
-uv run aegis-proxy-smoke --url http://127.0.0.1:8000 --timeout 5
+uv run aegis-proxy-smoke \
+  --url http://127.0.0.1:8000 \
+  --timeout 5 \
+  --output introspection/data/reports/aegis_default_mock_provider_smoke_ambiguous_protected_v1.json
 ```
+
+Use `--provider-mode real-provider` only when the gateway is explicitly running
+with `AEGIS_PROVIDER=openai_compatible`. Real-provider smoke skips mock-only leak
+probes but still verifies readiness with provider identity, benign provider
+completion, pre-generation egress blocking, audit readback, and trace
+explanation.
+
+For local real-provider-mode evidence without external network access, run the
+loopback OpenAI-compatible provider and point the gateway at
+`http://127.0.0.1:<port>/v1`:
+
+```bash
+uv run aegis-loopback-openai-provider \
+  --host 127.0.0.1 \
+  --port 8772 \
+  --response-content "Loopback provider completed." \
+  --request-log introspection/data/reports/aegis_loopback_openai_provider_request_log_v2.jsonl \
+  --expected-bearer-token loopback-test-token \
+  --forbidden-substring ghp_realLookingToolSecret1234567890 \
+  --forbidden-substring fake-
+```
+
+That loopback path proves the gateway uses the OpenAI-compatible adapter with
+mock controls disabled and can block raw sensitive egress before the provider
+receives it. It does not replace credentialed external-provider smoke for
+release signoff.
+
+After collecting loopback preflight, smoke, provider request-log, and audit
+JSONL artifacts, run the evidence verifier:
+
+```bash
+uv run aegis-provider-smoke-verify \
+  --preflight introspection/data/reports/aegis_loopback_real_provider_preflight_v2.json \
+  --smoke introspection/data/reports/aegis_loopback_real_provider_smoke_v2.json \
+  --provider-request-log introspection/data/reports/aegis_loopback_openai_provider_request_log_v2.jsonl \
+  --audit-jsonl introspection/data/reports/aegis_loopback_real_provider_smoke_audit_v2.jsonl \
+  --forbidden-marker ghp_realLookingToolSecret1234567890 \
+  --forbidden-marker fake- \
+  --output introspection/data/reports/aegis_loopback_real_provider_smoke_evidence_verification_v1.json
+```
+
+The verifier emits `aegis.provider_smoke_evidence/v1` and exits nonzero when
+the receipts disagree, the attack reaches the provider, mock controls appear in
+real-provider mode, `/ready` evidence is missing, or forbidden markers are
+present in saved artifacts.
 
 ## Follow-Up Integration
 
@@ -430,9 +602,9 @@ Future branches should add real detectors behind the existing contract:
   artifacts in a separate repository that targets Aegis through the HTTP proxy.
   The Aegis repo owns the development target contract, deterministic mock
   controls, audit readback, and reset affordances.
-- CIFT provider implementation: implement the caller-supplied extractor that
-  converts self-hosted activation capture into the feature vectors consumed by
-  `CiftFeatureVectorAnnotator`.
+- CIFT provider implementation: run the trusted extractor sidecar that converts
+  self-hosted activation capture into feature vectors and selected-choice
+  readout geometry consumed by `CiftFeatureVectorAnnotator`.
 - DP-HONEY runtime: register honeytokens and populate `sensitive_spans`.
 - Canary scanners: extend exact model-output scanning to tool arguments and
   streaming outputs.

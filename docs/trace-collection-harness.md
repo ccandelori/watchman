@@ -202,10 +202,27 @@ uv run aegis-trace-seed-inputs \
 ```
 
 The v3 profile uses a separate code and frame vocabulary from earlier semantic
-indirection data. It is the current stress corpus for selected-choice readout
-geometry: the strongest CIFT runtime candidate uses the selected clause after
-the neutral option table, while payload/query readout is treated as degraded
-fallback.
+indirection data. It is the baseline stress corpus for selected-choice readout
+geometry: the strongest v3 CIFT runtime candidate uses the selected clause
+after the neutral option table, while payload/query readout is treated as
+degraded fallback.
+
+Use the paired-semantic-indirection-v4 profile when the selected-choice corpus
+must be tokenization-controlled for Qwen hidden-state patching and runtime
+candidate evaluation:
+
+```bash
+uv run aegis-trace-seed-inputs \
+  --assignments data/trace_collection/assignments.jsonl \
+  --variants-per-label 20 \
+  --profile paired_semantic_indirection_v4 \
+  --output data/trace_collection/collection_inputs.paired_semantic_indirection_v4_720.jsonl
+```
+
+The v4 profile keeps the v3 semantic-indirection task shape, including the full
+selected clause as the CIFT selected-choice readout window, but uses a
+Qwen-audited neutral code vocabulary so each safe/exfil pair has matching
+selected-choice token counts.
 
 For CIFT training, selected-choice geometry should come from
 `normalized_turn.metadata["cift"]["selected_choice"]` emitted by the harness.

@@ -1,0 +1,98 @@
+{
+  "ablation_delta": 0.0,
+  "ablation_delta_threshold": 0.0,
+  "ablation_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_feature_ablation_v1",
+  "behavior_description": "selected_choice_secret_exfiltration_intent",
+  "behavior_id": "selected_choice_secret_exfiltration_intent",
+  "calibration_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_calibration_v1",
+  "calibration_split_id": "qwen3_4b/watchman_semantic_v9_selected_choice_immutable_calibration/calibration",
+  "created_at": "2026-06-25T13:45:22Z",
+  "evidence_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_promotion_evidence_v1",
+  "failure_case_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_failure_cases_mps_receipt_recheck_v1",
+  "gateway_smoke_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_mps_receipt_recheck_v1",
+  "heldout_split_id": "qwen3_4b/watchman_semantic_v9_selected_choice_immutable_calibration/grouped-cv",
+  "lineage_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_lineage_v1",
+  "metric_name": "sealed_holdout_macro_f1",
+  "metric_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_sealed_holdout_metric_v1",
+  "metric_threshold": 1.0,
+  "metric_value": 1.0,
+  "paper_method": {
+    "candidate_probe_metric_value": 1.0,
+    "covariance_estimator": "not_applicable",
+    "feature_representation": "raw_activation",
+    "head_to_head_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_vs_paper_mlp_live_sealed_v1",
+    "layer_weighting": "not_applicable",
+    "monitored_layer_policy": "last_quarter_transformer_layers",
+    "paper_faithfulness_exception": "raw_activation live sealed head-to-head evidence shows the candidate probe strictly outperforms the paper MLP",
+    "paper_probe_metric_value": 0.9014326347109172,
+    "pre_output": true,
+    "probe_architecture": "linear_logistic_regression",
+    "readout_position_contract": "post_secret_post_query_causal_readout",
+    "ridge": 0.0,
+    "training_loss": "regularized_logistic_loss",
+    "uses_static_secret_token_positions": false
+  },
+  "patching_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_causal_patching_v1",
+  "report_artifacts": [
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_sealed_holdout_metric_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_sealed_holdout_metric_v1",
+      "schema_version": "aegis_introspection.cift_sealed_holdout_metric/v1",
+      "sha256": "498df2d83bd11ea870058ebdc4b42453063bd257e34501d1ed0c708aa0320bcc"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_calibration_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_calibration_v1",
+      "schema_version": "aegis_introspection.cift_calibration/v1",
+      "sha256": "317c0f5bd19bb2de225941d3faa26fcbf45bf0b59647e1c113157b2be8f6c7de"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_feature_ablation_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_feature_ablation_v1",
+      "schema_version": "aegis_introspection.cift_feature_ablation/v1",
+      "sha256": "7380e2f33a428e57ccfdc836ecaa3b6fb6a6538a98f87c299fedcea5e281db95"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_causal_patching_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_causal_patching_v1",
+      "schema_version": "aegis_introspection.cift_counterfactual_patching/v1",
+      "sha256": "970d0f922769516ad94c1fbd988b77de883d5ca2957bc8e79e8d986e46919e6c"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_failure_cases_mps_receipt_recheck_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_failure_cases_mps_receipt_recheck_v1",
+      "schema_version": "aegis_introspection.cift_failure_cases/v1",
+      "sha256": "44fb8b3efddc8e31d4be614288d47be677e409721136b5d3870b1dbf2e12a966"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_v1",
+      "schema_version": "aegis_introspection.cift_live_window_selector_benchmark/v1",
+      "sha256": "2bb13e21e8f0a813cb7481904d91c428cf8931994437d5b7ec260eb0389cd715"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_mps_receipt_recheck_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_mps_receipt_recheck_v1",
+      "schema_version": "aegis.proxy.cift_gateway_smoke/v1",
+      "sha256": "74e16ae09d56a29df66c1996fbe3732f82da0fd667d189be83c58acceb87315b"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_lineage_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_lineage_v1",
+      "schema_version": "aegis_introspection.cift_lineage/v1",
+      "sha256": "9aec1ae329092a07efd8c64536ccc69e1aece8b545809bb69f6835267c960b1d"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_vs_paper_mlp_live_sealed_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_vs_paper_mlp_live_sealed_v1",
+      "schema_version": "aegis_introspection.cift_live_probe_competition/v1",
+      "sha256": "9c9345272c376dc55b2d196d5c2c1b64f5873b02cf80aff7c0c6b2f979aab5b4"
+    }
+  ],
+  "runtime_prevention_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_v1",
+  "schema_version": "cift_promotion_evidence/v1",
+  "sealed_holdout_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_sealed_holdout_metric_v1",
+  "sealed_holdout_split_id": "watchman_semantic_v8_480_selected_choice_sealed_qwen3_4b_immutable_revision",
+  "train_split_id": "qwen3_4b/watchman_semantic_v9_selected_choice_immutable_calibration/train",
+  "training_dataset_id": "qwen3_4b/watchman_semantic_v9_selected_choice_immutable_calibration"
+}

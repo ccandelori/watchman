@@ -1,0 +1,146 @@
+{
+  "checks": [
+    {
+      "detail": "Preflight must prove openai_compatible config with mock controls disabled and no network request.",
+      "name": "provider_preflight",
+      "observed": {
+        "mock_controls_enabled": false,
+        "network_access": "not_attempted",
+        "provider_kind": "openai_compatible",
+        "provider_name": "openai_compatible",
+        "ready": true,
+        "schema_version": "aegis.provider_preflight/v1"
+      },
+      "status": "pass"
+    },
+    {
+      "detail": "Smoke report must be a successful local real-provider-mode gateway run.",
+      "name": "gateway_smoke_report",
+      "observed": {
+        "base_url": "http://127.0.0.1:8773",
+        "provider_mode": "real-provider",
+        "status": "ok"
+      },
+      "status": "pass"
+    },
+    {
+      "detail": "/ready evidence must show the OpenAI-compatible provider path with mock controls disabled.",
+      "name": "gateway_readiness",
+      "observed": {
+        "cift_capability_mode": "black_box",
+        "dp_honey_status": "ready",
+        "provider_mock_controls_enabled": false,
+        "provider_name": "openai_compatible",
+        "status": "ready"
+      },
+      "status": "pass"
+    },
+    {
+      "detail": "Capabilities must advertise real-provider smoke mode with no mock response controls.",
+      "name": "gateway_capabilities",
+      "observed": {
+        "mock_response_modes": [],
+        "provider_mode": "real-provider"
+      },
+      "status": "pass"
+    },
+    {
+      "detail": "Benign protected workflow must substitute a honeytoken and complete the provider call.",
+      "name": "benign_provider_completion",
+      "observed": {
+        "credential_slot_status": "honeytoken_substituted",
+        "dp_honey_status": "active",
+        "final_action": "allow",
+        "provider_status": "completed"
+      },
+      "status": "pass"
+    },
+    {
+      "detail": "Raw credential-shaped tool payload must block before provider generation.",
+      "name": "egress_guard_pre_provider_block",
+      "observed": {
+        "final_action": "block",
+        "guard_action": "block",
+        "guard_reason": "blocked_sensitive_value_before_provider_egress",
+        "provider_reason": "pre_generation_policy_block",
+        "provider_status": "skipped"
+      },
+      "status": "pass"
+    },
+    {
+      "detail": "Real-provider smoke must skip mock-only leak controls instead of exercising mock fixtures.",
+      "name": "mock_only_probe_skip",
+      "observed": {
+        "encoded_canary_leak": "skipped",
+        "metadata_slot_canary_leak": "skipped",
+        "nimbus_partial_leak": "skipped"
+      },
+      "status": "pass"
+    },
+    {
+      "detail": "Exactly one benign provider call should be recorded; blocked attack traffic must not reach provider.",
+      "name": "provider_request_receipts",
+      "observed": {
+        "authorization_status": "matched_expected",
+        "forbidden_substring_count": 2,
+        "forbidden_substring_present": false,
+        "message_count": 2,
+        "method": "POST",
+        "path": "/v1/chat/completions",
+        "record_count": 1,
+        "schema_version": "aegis.loopback_openai_provider_request/v1"
+      },
+      "status": "pass"
+    },
+    {
+      "detail": "Durable audit must prove benign allow and egress block before provider completion.",
+      "name": "audit_trace_receipts",
+      "observed": {
+        "audit_record_count": 2,
+        "benign_policy_action": "allow",
+        "egress_policy_action": "block",
+        "egress_provider": "skipped",
+        "egress_provider_reason": "pre_generation_policy_block",
+        "has_benign_trace": true,
+        "has_egress_trace": true
+      },
+      "status": "pass"
+    },
+    {
+      "detail": "Saved provider, smoke, preflight, and audit evidence must not contain raw forbidden markers.",
+      "name": "artifact_redaction",
+      "observed": {
+        "forbidden_marker_count": 3,
+        "present_forbidden_marker_count": 0
+      },
+      "status": "pass"
+    }
+  ],
+  "evidence_scope": "local_loopback_openai_compatible_adapter",
+  "external_provider_evidence": false,
+  "input_artifacts": {
+    "audit_jsonl": {
+      "bytes": 7620,
+      "path": "introspection/data/reports/aegis_loopback_real_provider_smoke_audit_v2.jsonl",
+      "sha256": "d76b5cc76ed01b628e999bdc67a6734a851fff809a527e57eef7df6b4544cfca"
+    },
+    "preflight": {
+      "bytes": 784,
+      "path": "introspection/data/reports/aegis_loopback_real_provider_preflight_v2.json",
+      "sha256": "309a229f313f27b633dcf031813935c0f8a57d6362c79feac65a23ac2b78a793"
+    },
+    "provider_request_log": {
+      "bytes": 443,
+      "path": "introspection/data/reports/aegis_loopback_openai_provider_request_log_v2.jsonl",
+      "sha256": "1745652ee12f14404fd1db023936beb7933442bb2d67b8b4e0f8a6765581eb78"
+    },
+    "smoke": {
+      "bytes": 3223,
+      "path": "introspection/data/reports/aegis_loopback_real_provider_smoke_v2.json",
+      "sha256": "7a5e10c8b71dfa42f0353c100f32bd17dcc350e31db555feba452c73b6df7a70"
+    }
+  },
+  "production_claim": "not_external_provider_production_evidence",
+  "schema_version": "aegis.provider_smoke_evidence/v1",
+  "status": "pass"
+}

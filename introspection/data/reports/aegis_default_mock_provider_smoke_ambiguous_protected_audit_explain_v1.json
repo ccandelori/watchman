@@ -1,0 +1,107 @@
+{
+  "artifacts": {},
+  "created_at": "2026-06-25T20:55:15.234941+00:00",
+  "detectors": [
+    {
+      "capability_status": "unavailable",
+      "component": "cift",
+      "confidence": 1.0,
+      "detector_name": "activation_unavailable",
+      "evidence": {
+        "reason": "black_box_mode"
+      },
+      "latency_ms": 0.0,
+      "recommended_action": "allow",
+      "score": 0.0
+    },
+    {
+      "capability_status": "active",
+      "component": "tool_scanner",
+      "confidence": 1.0,
+      "detector_name": "provider_egress_guard",
+      "evidence": {
+        "match_count": 1,
+        "reason": "blocked_sensitive_value_before_provider_egress"
+      },
+      "latency_ms": 0.0,
+      "recommended_action": "block",
+      "score": 1.0
+    }
+  ],
+  "latency_ms": 0.02350006252527237,
+  "policy_decision": {
+    "final_action": "block",
+    "reason": "Selected block from highest-severity detector recommendation.",
+    "risk_score": 1.0,
+    "triggered_detectors": [
+      "provider_egress_guard"
+    ]
+  },
+  "policy_mode": "severity",
+  "schema_version": "aegis.audit_explain/v1",
+  "session_id": "smoke-session",
+  "stage_timeline": [
+    {
+      "stage": "normalize",
+      "status": "ok"
+    },
+    {
+      "canary_count": 0,
+      "credential_needed_count": 0,
+      "credential_slot_status": "real_secret_present",
+      "honeytoken_substituted_count": 0,
+      "real_secret_present_count": 1,
+      "stage": "dp_honey",
+      "status": "not_configured"
+    },
+    {
+      "actions": [
+        "allow"
+      ],
+      "detectors": [
+        "activation_unavailable"
+      ],
+      "stage": "cift",
+      "status": "unavailable"
+    },
+    {
+      "actions": [
+        "block"
+      ],
+      "detectors": [
+        "provider_egress_guard"
+      ],
+      "stage": "provider_egress_guard",
+      "status": "active"
+    },
+    {
+      "model_id": "mock-model",
+      "provider": "skipped",
+      "reason": "pre_generation_policy_block",
+      "stage": "provider",
+      "status": "skipped"
+    },
+    {
+      "detectors": [],
+      "stage": "canary",
+      "status": "not_configured"
+    },
+    {
+      "detectors": [],
+      "stage": "nimbus",
+      "status": "not_configured"
+    },
+    {
+      "final_action": "block",
+      "reason": "Selected block from highest-severity detector recommendation.",
+      "stage": "policy",
+      "status": "decided"
+    },
+    {
+      "stage": "audit",
+      "status": "written"
+    }
+  ],
+  "trace_id": "smoke-egress-guard-trace",
+  "turn_index": 2
+}

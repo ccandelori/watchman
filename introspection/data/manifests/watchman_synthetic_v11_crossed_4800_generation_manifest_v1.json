@@ -1,0 +1,380 @@
+{
+  "corpus_id": "watchman-synthetic-v11-crossed-4800",
+  "created_at": "2026-06-25T00:00:00Z",
+  "families": [
+    {
+      "credential_slot": "analytics_platform_slot",
+      "credential_type": "generic_api_key",
+      "family": "analytics_platform"
+    },
+    {
+      "credential_slot": "ci_cd_slot",
+      "credential_type": "generic_api_key",
+      "family": "ci_cd"
+    },
+    {
+      "credential_slot": "cloud_infra_slot",
+      "credential_type": "aws_access_key",
+      "family": "cloud_infra"
+    },
+    {
+      "credential_slot": "customer_support_slot",
+      "credential_type": "generic_api_key",
+      "family": "customer_support"
+    },
+    {
+      "credential_slot": "database_connection_slot",
+      "credential_type": "database_uri",
+      "family": "database_connection"
+    },
+    {
+      "credential_slot": "email_service_slot",
+      "credential_type": "sendgrid_key",
+      "family": "email_service"
+    },
+    {
+      "credential_slot": "oauth_session_slot",
+      "credential_type": "oauth_token",
+      "family": "oauth_session"
+    },
+    {
+      "credential_slot": "payment_processor_slot",
+      "credential_type": "stripe_key",
+      "family": "payment_processor"
+    },
+    {
+      "credential_slot": "repository_access_slot",
+      "credential_type": "github_pat",
+      "family": "repository_access"
+    },
+    {
+      "credential_slot": "sms_provider_slot",
+      "credential_type": "twilio_token",
+      "family": "sms_provider"
+    },
+    {
+      "credential_slot": "tool_payload_forwarding_slot",
+      "credential_type": "generic_api_key",
+      "family": "tool_payload_forwarding"
+    },
+    {
+      "credential_slot": "webhook_delivery_slot",
+      "credential_type": "webhook_secret",
+      "family": "webhook_delivery"
+    }
+  ],
+  "family_counts": {
+    "analytics_platform": 400,
+    "ci_cd": 400,
+    "cloud_infra": 400,
+    "customer_support": 400,
+    "database_connection": 400,
+    "email_service": 400,
+    "oauth_session": 400,
+    "payment_processor": 400,
+    "repository_access": 400,
+    "sms_provider": 400,
+    "tool_payload_forwarding": 400,
+    "webhook_delivery": 400
+  },
+  "family_label_counts": {
+    "analytics_platform": {
+      "benign": 133,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 134
+    },
+    "ci_cd": {
+      "benign": 133,
+      "exfiltration_intent": 134,
+      "secret_present_safe": 133
+    },
+    "cloud_infra": {
+      "benign": 134,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 133
+    },
+    "customer_support": {
+      "benign": 133,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 134
+    },
+    "database_connection": {
+      "benign": 133,
+      "exfiltration_intent": 134,
+      "secret_present_safe": 133
+    },
+    "email_service": {
+      "benign": 134,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 133
+    },
+    "oauth_session": {
+      "benign": 133,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 134
+    },
+    "payment_processor": {
+      "benign": 133,
+      "exfiltration_intent": 134,
+      "secret_present_safe": 133
+    },
+    "repository_access": {
+      "benign": 134,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 133
+    },
+    "sms_provider": {
+      "benign": 133,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 134
+    },
+    "tool_payload_forwarding": {
+      "benign": 133,
+      "exfiltration_intent": 134,
+      "secret_present_safe": 133
+    },
+    "webhook_delivery": {
+      "benign": 134,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 133
+    }
+  },
+  "family_record_count": 400,
+  "hard_feature_rates": {
+    "hard_near_neighbor": 0.415,
+    "multi_turn": 0.5025,
+    "tool_payload": 0.405
+  },
+  "label_counts": {
+    "benign": 1600,
+    "exfiltration_intent": 1600,
+    "secret_present_safe": 1600
+  },
+  "lineage": {
+    "certification_note": "This corpus is eligible for calibration experiments only after the strict ingestion manifest also passes. It is not live runtime evidence.",
+    "method": "deterministic_crossed_generation_from_seed_family_inventory",
+    "seed_limitations_repaired": [
+      "family_label_confounding",
+      "low_prompt_diversity",
+      "repeated_synthetic_secrets"
+    ]
+  },
+  "output_dir": "introspection/data/source/watchman_synthetic_v11_crossed_4800",
+  "outputs": {
+    "manifest": {
+      "path": "introspection/data/manifests/watchman_synthetic_v11_crossed_4800_generation_manifest_v1.json"
+    },
+    "source_shards": [
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_001.jsonl",
+        "record_count": 240,
+        "sha256": "4d5619c497e129e2d9e97dc42a0ff50fa6237d46317ff3abceb19d0aa1d161b2"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_002.jsonl",
+        "record_count": 240,
+        "sha256": "422b526b1306e65a56bcc4440cd82588ef5b64e70a6ea49b5117906b0943c378"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_003.jsonl",
+        "record_count": 240,
+        "sha256": "d10ce04f211f79a6e19ba05c2c68c73d3625eaaf83010921844749308f9ef36c"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_004.jsonl",
+        "record_count": 240,
+        "sha256": "21d632f56b8d417fbbcf53dee824e7f4f687563d12e1a384f87ad1b2ffc7152e"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_005.jsonl",
+        "record_count": 240,
+        "sha256": "ad582ec40966162617d8b02dc61d4fcbb7b7b168558d947d841e9229b4791820"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_006.jsonl",
+        "record_count": 240,
+        "sha256": "b7596708b18f8db80d319ebc71f2cc0e043b6bda7ab88e030a5b601fe9c98808"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_007.jsonl",
+        "record_count": 240,
+        "sha256": "5cd568f984e6f813b2c7fe115d5bd49db5de16ed74b21081fe7fdec1149b152a"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_008.jsonl",
+        "record_count": 240,
+        "sha256": "2d40400c44b925b614b97c5817b8f2b6ed5f24eaf14615c99373d07cbad830ad"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_009.jsonl",
+        "record_count": 240,
+        "sha256": "efc38ee02d80e431308ff94a4127ef74c22a94b0696ff1a384761830fb05414a"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_010.jsonl",
+        "record_count": 240,
+        "sha256": "e0d1667c0cfe46424742fee53bcf9dec4ce1620f19df06b512d5e8c0776d7126"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_011.jsonl",
+        "record_count": 240,
+        "sha256": "8ff60cb977d697402e6b87fb784ffe6fa2ba9f2fe2f320df573151521118d873"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_012.jsonl",
+        "record_count": 240,
+        "sha256": "5b564fa0566ce959a525806bf7d7969b9db015975686ccee8393ba3e50c54cc3"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_013.jsonl",
+        "record_count": 240,
+        "sha256": "8b3dd970a6f6fa8227b318ffa2dd7d7b07d65ebf24a9cf18029a6d956dd3e279"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_014.jsonl",
+        "record_count": 240,
+        "sha256": "2056e1363b273508a9e229ea68e3556d69da0dc4517a01c74662c0cd2386dbc6"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_015.jsonl",
+        "record_count": 240,
+        "sha256": "f8c4d75ac621937aa9d5c0f8dec75de906c5ea39b3da6de3e3efff271307d673"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_016.jsonl",
+        "record_count": 240,
+        "sha256": "e10ffbf205ad7dd43e92db43dbeb1e6067cc5ef269fa22f37ef86d26035d508e"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_017.jsonl",
+        "record_count": 240,
+        "sha256": "d2cccee75076125c7dab1759fc93709a40de0ffa55eae294ff524cb4a96fc4a1"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_018.jsonl",
+        "record_count": 240,
+        "sha256": "f75286bc15c3bb3618869b8a27323bfb5305518fba9e33ee27dec2a8512cc24c"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_019.jsonl",
+        "record_count": 240,
+        "sha256": "58eacd1a823dda7a2598de88567097c21aa0b7feef1d261682ebbb78a2e79fe0"
+      },
+      {
+        "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_020.jsonl",
+        "record_count": 240,
+        "sha256": "9e71f30cf44debcf2dd807a1cbead2b213598d5de25ffa3398b0cbca9d98f914"
+      }
+    ]
+  },
+  "record_count": 4800,
+  "records_per_shard": 240,
+  "schema_version": "aegis_introspection.watchman_synthetic_corpus/v1",
+  "seed_source_corpus_sha256": "15669ff2e6ee715ed6720816ae8381dfc14c837e06904f28c88f12b254becae2",
+  "seed_source_dir": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data",
+  "shard_count": 20,
+  "source_files": [
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_001.jsonl",
+      "record_count": 240,
+      "sha256": "4a5964016c81de926fef6ee6418f0a4c18afacc66c130f94fdb688b2819a52da"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_002.jsonl",
+      "record_count": 240,
+      "sha256": "5a984722a751540fe1d8759af9b2a6851ecaba2ae1576bee61b2b4bf718b2b83"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_003.jsonl",
+      "record_count": 240,
+      "sha256": "e0310acf1b2bc439741f0beef6cf3a3b7bf5d90070886c754976973af72385f8"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_004.jsonl",
+      "record_count": 240,
+      "sha256": "4d8b0e02fa8a07f61709a962e09789e550ae5e5d25e6f08b316165a663c0c467"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_005.jsonl",
+      "record_count": 240,
+      "sha256": "740e1cd69d1ec1ba37c98417f7e29e831dff5bc593c3033330efc9f083920b85"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_006.jsonl",
+      "record_count": 240,
+      "sha256": "fecec7eab5120f80beb24683253f6fea894f7706d50315fb607e04b313012f63"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_007.jsonl",
+      "record_count": 240,
+      "sha256": "14492b10bfd356aaa98420506fd2910269d2cce67ee9289daaf955f7a419f703"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_008.jsonl",
+      "record_count": 240,
+      "sha256": "c7953f288571672cbd1a94eccaaa58089654d1fc6e74bbe88305a7b35c724b7f"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_009.jsonl",
+      "record_count": 240,
+      "sha256": "36d4fb40ef8eff4a4563246ea16322e907916422565703968635f8ef643ce9ac"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_010.jsonl",
+      "record_count": 240,
+      "sha256": "2e8183187ac6b5b2c260177e7adaefc64d0076f24d23420e3b55c9a17a5296a6"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_011.jsonl",
+      "record_count": 240,
+      "sha256": "b958c5ce9129ce3eeea7621f1c106eece84cdbff26615c463265ea183c012f29"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_012.jsonl",
+      "record_count": 240,
+      "sha256": "ab9d841f3e6365a5a21ddc7cf625f72c08f4dc8809ec08e3bce7a130d24c7740"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_013.jsonl",
+      "record_count": 240,
+      "sha256": "a4fb8d2d6fa92d45d5d74d0554077d72e5edfb15fa786f2bf6347c369c60042d"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_014.jsonl",
+      "record_count": 240,
+      "sha256": "aae84591e20efb492b23af8769280496091c468d38e45dabf8877d2b89431728"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_015.jsonl",
+      "record_count": 240,
+      "sha256": "229498500891d9a028d20694fa841fad72027ccca45cf2c33cc437348d568201"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_016.jsonl",
+      "record_count": 240,
+      "sha256": "b0f598bdcc20c6ebee0ddd0dc713ba0920ce4b3ef0c83059e2302135ff298a6f"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_017.jsonl",
+      "record_count": 240,
+      "sha256": "ab1af1e3a857a56849092bda88542c312b5050e39f3bb453924d48fab942644b"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_018.jsonl",
+      "record_count": 240,
+      "sha256": "ca72aa9001f07ab52fc750c06f136a88ba6981e9db8fef36e96424e8b7ca8e11"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_019.jsonl",
+      "record_count": 240,
+      "sha256": "3dd505f16312db4b7703c7113aa7258f5627df3c013acb95e233257fd0159cff"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_020.jsonl",
+      "record_count": 240,
+      "sha256": "76971148405ff391653088a61923d7dcc3912d241938efe6924ccdbcb6bfd6b5"
+    }
+  ],
+  "unique_message_ratio": 1.0,
+  "unique_synthetic_secret_count": 3200
+}

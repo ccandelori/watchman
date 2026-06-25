@@ -1,0 +1,105 @@
+{
+  "all_label_splits": {
+    "calibration": {
+      "label_counts": {
+        "benign": 1276,
+        "exfiltration_intent": 1276,
+        "secret_present_safe": 1276
+      },
+      "runtime_turns": {
+        "path": "introspection/data/runtime_turns_watchman_synthetic_v11_crossed_calibration_qwen3_4b_immutable_revision.jsonl",
+        "record_count": 3828,
+        "sha256": "3f8db6b989c13c84b093e471540dec27259b8b1b43dd185356b2635952c9d402"
+      },
+      "structured_prompts": {
+        "path": "introspection/data/structured_prompts_watchman_synthetic_v11_crossed_calibration_qwen3_4b_immutable_revision.jsonl",
+        "record_count": 3828,
+        "sha256": "fc0057b33bbe2134863469f0b9ae410c1bd32558d916d3f0cbf683a9c943125a"
+      }
+    },
+    "sealed_holdout": {
+      "label_counts": {
+        "benign": 324,
+        "exfiltration_intent": 324,
+        "secret_present_safe": 324
+      },
+      "runtime_turns": {
+        "path": "introspection/data/runtime_turns_watchman_synthetic_v11_crossed_sealed_holdout_qwen3_4b_immutable_revision.jsonl",
+        "record_count": 972,
+        "sha256": "9dd3b1bc39c2dd0be3e199e8ac9640e24669ec13fab5c9afc2affe1a56bfe9c3"
+      },
+      "structured_prompts": {
+        "path": "introspection/data/structured_prompts_watchman_synthetic_v11_crossed_sealed_holdout_qwen3_4b_immutable_revision.jsonl",
+        "record_count": 972,
+        "sha256": "7fe944543e7911e4fae945eebf21ae2196a3e139c43008e8c45fbce6888af0f1"
+      }
+    }
+  },
+  "corpus_id": "watchman-synthetic-v11-crossed-4800",
+  "created_at": "2026-06-25T00:00:00Z",
+  "lineage": {
+    "generation_manifest": {
+      "path": "introspection/data/manifests/watchman_synthetic_v11_crossed_4800_generation_manifest_v1.json",
+      "sha256": "162e1e5408f529c6aca63a144dfcf0fbdf27da53f55ad2091912e678d4df3267"
+    },
+    "ingestion_manifest": {
+      "path": "introspection/data/manifests/watchman_synthetic_v11_crossed_4800_ingestion_manifest_v1.json",
+      "sha256": "ae21f79ab414fea4662adeeb11bb81e8446a4bc7ee9d3a70033cb9ed404c0514",
+      "status": "training_eligible"
+    },
+    "normalized_trace_records": {
+      "path": "introspection/data/trace_records_watchman_synthetic_v11_crossed_4800_normalized.jsonl",
+      "record_count": 4800,
+      "sha256": "4dfecd758a9caad8a8a3cf7f5aafa28151a4f2d33cd7ec5f13c79420cd96b2a8"
+    },
+    "source_corpus_sha256": "d5d8bd1a674b8f48b52c7a1c75d458ba5cd4deaf09824641884d4b50af7f6fa2"
+  },
+  "model_binding": {
+    "general_readout_token_count": 8,
+    "local_files_only": true,
+    "model_id": "Qwen/Qwen3-4B",
+    "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+    "runtime_selected_device": "mps",
+    "selected_choice_readout_token_count": 4
+  },
+  "notes": [
+    "These artifacts are prompt and runtime-turn inputs for downstream activation extraction, probe training, and live runtime evaluation.",
+    "They are not activation artifacts, trained probes, promotion evidence, or live production evidence.",
+    "The original Grok v10 shard ingest is quarantined; this v11 crossed corpus is generated from its family/credential inventory and passes strict training eligibility gates."
+  ],
+  "schema_version": "aegis_introspection.prompt_runtime_artifact_manifest/v1",
+  "selected_choice_splits": {
+    "calibration": {
+      "label_counts": {
+        "exfiltration_intent": 1276,
+        "secret_present_safe": 1276
+      },
+      "runtime_turns": {
+        "path": "introspection/data/runtime_turns_watchman_synthetic_v11_crossed_selected_choice_calibration_qwen3_4b_immutable_revision.jsonl",
+        "record_count": 2552,
+        "sha256": "5bd8ef0e588962cd211ecccdc2229b6ccd055d964b1916e260edc13373baa398"
+      },
+      "structured_prompts": {
+        "path": "introspection/data/structured_prompts_watchman_synthetic_v11_crossed_selected_choice_calibration_qwen3_4b_immutable_revision.jsonl",
+        "record_count": 2552,
+        "sha256": "6b3615f7c1572500f03597dcd69c843239f68acbf76f26c38682dcc1a9e33402"
+      }
+    },
+    "sealed_holdout": {
+      "label_counts": {
+        "exfiltration_intent": 324,
+        "secret_present_safe": 324
+      },
+      "runtime_turns": {
+        "path": "introspection/data/runtime_turns_watchman_synthetic_v11_crossed_selected_choice_sealed_holdout_qwen3_4b_immutable_revision.jsonl",
+        "record_count": 648,
+        "sha256": "789e7fa5b0dbddf1664604c47a5f879f02c7b29b77114f272b44516039a196f0"
+      },
+      "structured_prompts": {
+        "path": "introspection/data/structured_prompts_watchman_synthetic_v11_crossed_selected_choice_sealed_holdout_qwen3_4b_immutable_revision.jsonl",
+        "record_count": 648,
+        "sha256": "b3eed8efa75ce4ca7fb98641e9c158ab808a1694cee11ab56d8e0d73303cf9ae"
+      }
+    }
+  }
+}

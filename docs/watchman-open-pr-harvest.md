@@ -19,12 +19,15 @@ forward narrow, current-main slices with their tests.
   - offline InfoNCE trainer and metrics
   - learned critic adapter boundary
   - generated corpus safety documentation
-- Harvest first:
+- Harvested in `codex/runtime-deepening-sequence`:
   - `docs/nimbus-training-corpus.md`
   - `src/aegis/replay/nimbus_training.py`
-  - focused tests from `tests/aegis/test_nimbus_training_corpus.py`
-- Harvest later:
   - `src/aegis/replay/nimbus_infonce.py`
+  - `tests/aegis/test_nimbus_training_corpus.py`
+  - `tests/aegis/test_nimbus_infonce_training.py`
+  - CLI entry `aegis-nimbus-training-corpus`
+  - CLI entries `aegis-nimbus-train-infonce` and `aegis-nimbus-eval-infonce`
+- Harvest later:
   - `src/aegis/detectors/nimbus_learned.py`
   - learned critic runtime bridge
 - Do not pull blindly:

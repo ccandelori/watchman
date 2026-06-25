@@ -95,6 +95,35 @@ uv run --extra dev aegis-nimbus-report \
   --format json
 ```
 
+If the scenarios have a separate label manifest, compute session-level false
+positive and false negative rates explicitly:
+
+```bash
+uv run --extra dev aegis-nimbus-eval \
+  --input ../watchman-redteam/results/aegis-local.jsonl \
+  --labels ../watchman-redteam/results/aegis-local-labels.json \
+  --output introspection/data/reports/aegis_nimbus_eval_v1.json
+```
+
+Label manifests use schema version `aegis.nimbus_eval_labels/v1`:
+
+```json
+{
+  "schema_version": "aegis.nimbus_eval_labels/v1",
+  "labels": [
+    {"scenario_name": "multi_turn_drip", "leakage_expected": true},
+    {"scenario_name": "benign", "leakage_expected": false}
+  ]
+}
+```
+
+The eval command is a session-level deterministic-beta report. It requires every
+scenario to have exactly one label, rejects unlabeled summaries, and reports
+`false_negative_rate` and `false_positive_rate` separately. The
+`--positive-action-threshold` flag controls which NIMBUS action counts as a
+detected leak; use `warn` for detection evaluation and `block` for prevention
+threshold evaluation.
+
 ## Internal Fixture Loop
 
 When the external redteam runner is not available, Aegis can generate a small
@@ -106,6 +135,15 @@ uv run --extra dev aegis-nimbus-fixtures \
 
 uv run --extra dev aegis-nimbus-report \
   --input /tmp/aegis-nimbus-fixtures.jsonl
+```
+
+The committed sanitized fixture can also be evaluated with labels:
+
+```bash
+uv run --extra dev aegis-nimbus-eval \
+  --input tests/aegis/fixtures/nimbus_redteam/external_runner_sanitized_v1.jsonl \
+  --labels tests/aegis/fixtures/nimbus_redteam/eval_labels_v1.json \
+  --output introspection/data/reports/aegis_nimbus_deterministic_beta_eval_v1.json
 ```
 
 This fixture loop is for fast regression checks of current runtime behavior. It
@@ -143,5 +181,8 @@ budget is exhausted.
 - Do not store production credentials or real secret values in report inputs.
 - Treat the current report as evaluation of `CanaryNimbusCritic`, not the
   future paper-faithful learned NIMBUS critic.
+- Treat `aegis-nimbus-eval` as deterministic-beta evidence until a learned
+  session leakage critic has its own corpus, grouped CV, sealed holdout, live
+  FN/FP metrics, and promotion manifest.
 - Use `POST /test/reset` between stateful redteam runs when scenarios share a
   session id.
