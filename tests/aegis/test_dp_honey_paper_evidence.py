@@ -13,11 +13,15 @@ from aegis.replay.dp_honey_paper_evidence import (
     build_dp_honey_paper_evidence_report,
     main,
 )
+from detect.dp_honey.statistical_distinguisher_eval import FEATURE_NAMES
 
 SCANNER_EVAL_PATH = Path("introspection/data/reports/dp_honey_scanner_eval_v1.json")
 PROMOTED_GENERATION_REALISM_EVAL_PATH = Path("introspection/data/reports/dp_honey_generation_realism_eval_v2.json")
 PROMOTED_STATISTICAL_DISTINGUISHER_EVAL_PATH = Path(
     "introspection/data/reports/dp_honey_statistical_distinguisher_eval_v2.json"
+)
+PROVIDER_LIKE_STATISTICAL_DISTINGUISHER_EVAL_PATH = Path(
+    "introspection/data/reports/dp_honey_statistical_distinguisher_eval_v3.json"
 )
 PROMOTED_SMOKE_PATH = Path("introspection/data/reports/aegis_default_mock_provider_smoke_dp_honey_segment_v2.json")
 PROMOTED_AUDIT_JSONL_PATH = Path(
@@ -88,9 +92,10 @@ def test_dp_honey_paper_evidence_accepts_provider_like_feature_manifest_metadata
         "schema_version": "detect.dp_honey.reference_feature_corpus/v1",
         "source": "provider_like_sealed_holdout",
         "source_description": "test redacted nonfunctional provider-like feature holdout",
+        "source_generation_method": "public_provider_morphology_nonfunctional_synthetic_holdout",
         "sha256": "a" * 64,
         "raw_values_serialized": False,
-        "feature_names": ["token_length"],
+        "feature_names": list(FEATURE_NAMES),
         "format_count": payload["format_count"],
         "train_count_per_format": payload["train_count_per_format"],
         "test_count_per_format": payload["test_count_per_format"],
@@ -114,6 +119,25 @@ def test_dp_honey_paper_evidence_accepts_provider_like_feature_manifest_metadata
     assert report["statistical_distinguisher_metrics"]["paper_sufficient_reference_source"] is True
     assert checklist["statistical_realism_distinguishers"]["status"] == "met"
     assert report["checklist_summary"] == {"met": 9, "missing": 0, "partial": 0, "total": 9}
+
+
+def test_dp_honey_paper_evidence_report_accepts_provider_like_artifact() -> None:
+    report = build_dp_honey_paper_evidence_report(
+        DPHoneyPaperEvidenceConfig(
+            scanner_eval_path=SCANNER_EVAL_PATH,
+            generation_realism_eval_path=PROMOTED_GENERATION_REALISM_EVAL_PATH,
+            statistical_distinguisher_eval_path=PROVIDER_LIKE_STATISTICAL_DISTINGUISHER_EVAL_PATH,
+            smoke_path=PROMOTED_SMOKE_PATH,
+            audit_jsonl_path=PROMOTED_AUDIT_JSONL_PATH,
+        )
+    )
+
+    assert report["promotion_status"] == "paper_faithful_plus_candidate"
+    assert report["paper_faithful_plus"] is True
+    assert report["promotion_eligible"] is True
+    assert report["checklist_summary"] == {"met": 9, "missing": 0, "partial": 0, "total": 9}
+    assert report["statistical_distinguisher_metrics"]["reference_source"] == "provider_like_sealed_holdout"
+    assert report["statistical_distinguisher_metrics"]["paper_sufficient_reference_source"] is True
 
 
 def test_dp_honey_paper_evidence_report_keeps_failed_statistical_suite_as_beta() -> None:
@@ -260,6 +284,37 @@ def test_dp_honey_paper_evidence_rejects_forged_provider_like_source_without_man
     forged_path.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(DPHoneyPaperEvidenceError, match="reference_feature_corpus"):
+        build_dp_honey_paper_evidence_report(
+            DPHoneyPaperEvidenceConfig(
+                scanner_eval_path=SCANNER_EVAL_PATH,
+                generation_realism_eval_path=PROMOTED_GENERATION_REALISM_EVAL_PATH,
+                statistical_distinguisher_eval_path=forged_path,
+                smoke_path=PROMOTED_SMOKE_PATH,
+                audit_jsonl_path=PROMOTED_AUDIT_JSONL_PATH,
+        )
+    )
+
+
+def test_dp_honey_paper_evidence_rejects_forged_provider_like_source_with_wrong_features(tmp_path: Path) -> None:
+    forged_path = tmp_path / "forged-provider-like-feature-schema.json"
+    payload = json.loads(PROMOTED_STATISTICAL_DISTINGUISHER_EVAL_PATH.read_text(encoding="utf-8"))
+    payload["reference_source"] = "provider_like_sealed_holdout"
+    payload["paper_faithful_statistical_distinguisher"] = True
+    payload["reference_feature_corpus"] = {
+        "schema_version": "detect.dp_honey.reference_feature_corpus/v1",
+        "source": "provider_like_sealed_holdout",
+        "source_description": "test redacted nonfunctional provider-like feature holdout",
+        "source_generation_method": "public_provider_morphology_nonfunctional_synthetic_holdout",
+        "sha256": "a" * 64,
+        "raw_values_serialized": False,
+        "feature_names": ["token_length"],
+        "format_count": payload["format_count"],
+        "train_count_per_format": payload["train_count_per_format"],
+        "test_count_per_format": payload["test_count_per_format"],
+    }
+    forged_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(DPHoneyPaperEvidenceError, match="feature_names"):
         build_dp_honey_paper_evidence_report(
             DPHoneyPaperEvidenceConfig(
                 scanner_eval_path=SCANNER_EVAL_PATH,

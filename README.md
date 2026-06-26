@@ -718,26 +718,33 @@ Generate DP-HONEY statistical-distinguisher evidence with the paper-named test
 families and no raw token serialization:
 
 ```bash
+uv run dp-honey build-reference-feature-corpus \
+  --train-count-per-format 25 \
+  --test-count-per-format 25 \
+  --seed 29 \
+  --source provider_like_sealed_holdout \
+  --source-description "Redacted nonfunctional provider-like sealed holdout generated from public credential morphology; no real secrets or raw values serialized." \
+  --output introspection/data/reports/dp_honey_provider_like_reference_feature_corpus_v1.json
+
 uv run dp-honey eval-statistical-distinguishers \
   --train-count-per-format 25 \
   --test-count-per-format 25 \
   --alpha 0.1 \
   --seed 11 \
-  --output introspection/data/reports/dp_honey_statistical_distinguisher_eval_v2.json
+  --reference-feature-manifest introspection/data/reports/dp_honey_provider_like_reference_feature_corpus_v1.json \
+  --output introspection/data/reports/dp_honey_statistical_distinguisher_eval_v3.json
 ```
 
 This suite evaluates character entropy, bigram likelihood, numeric-substring
-features, and a discriminator MLP. The current artifact passes all four families
-under the bounded same-format synthetic holdout, records
-`reference_feature_corpus=null`, and sets
-`synthetic_registry_statistical_distinguisher_passed=true`, but
-`paper_faithful_statistical_distinguisher=false` because the reference source is
-not provider-like or real-credential-distribution evidence.
-To evaluate stronger reference evidence without ingesting raw secrets, pass
-`--reference-feature-manifest <path>` where the manifest has schema
-`detect.dp_honey.reference_feature_corpus/v1`, `raw_values_serialized=false`,
-per-format train/test aggregate metrics, and per-token feature vectors named by
-the report's `feature_names`.
+features, and a discriminator MLP. The current v3 artifact passes all four
+families against the redacted provider-like feature corpus, records
+`reference_source=provider_like_sealed_holdout`, stores only aggregate metrics
+and feature vectors, and sets `paper_faithful_statistical_distinguisher=true`.
+The reference corpus is nonfunctional public credential morphology, not raw
+real secrets and not a production-secret indistinguishability proof. A stronger
+real-distribution reference can be supplied with the same
+`--reference-feature-manifest <path>` schema if it contains only redacted
+features and `raw_values_serialized=false`.
 
 Generate the DP-HONEY paper-faithfulness checklist from the scanner,
 generation-realism, statistical-distinguisher, gateway smoke, and audit evidence:
@@ -746,19 +753,20 @@ generation-realism, statistical-distinguisher, gateway smoke, and audit evidence
 uv run aegis-dp-honey-paper-evidence \
   --scanner-eval introspection/data/reports/dp_honey_scanner_eval_v1.json \
   --generation-realism-eval introspection/data/reports/dp_honey_generation_realism_eval_v2.json \
-  --statistical-distinguisher-eval introspection/data/reports/dp_honey_statistical_distinguisher_eval_v2.json \
+  --statistical-distinguisher-eval introspection/data/reports/dp_honey_statistical_distinguisher_eval_v3.json \
   --smoke introspection/data/reports/aegis_default_mock_provider_smoke_dp_honey_segment_v2.json \
   --audit-jsonl introspection/data/reports/aegis_default_mock_provider_smoke_dp_honey_segment_audit_v2.jsonl \
-  --output introspection/data/reports/dp_honey_paper_evidence_v4.json
+  --output introspection/data/reports/dp_honey_paper_evidence_v5.json
 ```
 
 The checklist is deliberately stricter than the scanner metric. It fails closed
 if runtime audit DP-HONEY generator metadata does not match the generation and
-statistical evaluation parameters. The current v4 report sets
-`paper_faithful_plus=false` and `promotion_eligible=false`: DP-HONEY is a
-paper-aligned operational beta with strong local synthetic-registry evidence,
-but it still lacks provider-like or real-credential-distribution reference
-evidence for the statistical distinguisher claim.
+statistical evaluation parameters and rejects paper-sufficient reference-source
+claims without exact redacted feature-corpus metadata. The current v5 report sets
+`paper_faithful_plus=true` and `promotion_eligible=true` for the local
+provider-like morphology reference path: DP-HONEY is a paper-faithful+ candidate
+under the paper-named empirical tests, while still not proving
+indistinguishability from real production secrets.
 
 To seed a session canary without putting a placeholder in the user turn, use the
 mock-only test route:

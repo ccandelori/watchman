@@ -100,13 +100,23 @@ python -m detect.dp_honey eval-scanner --positive-per-format 50 --seed 11 \
 python -m detect.dp_honey eval-realism --count-per-format 25 --seed 11 \
     --output introspection/data/reports/dp_honey_generation_realism_eval_v2.json
 
-# 13. Emit the statistical-distinguisher suite evidence named by the paper
+# 13. Emit a redacted provider-like reference feature corpus
+python -m detect.dp_honey build-reference-feature-corpus \
+    --train-count-per-format 25 \
+    --test-count-per-format 25 \
+    --seed 29 \
+    --source provider_like_sealed_holdout \
+    --source-description "Redacted nonfunctional provider-like sealed holdout generated from public credential morphology; no real secrets or raw values serialized." \
+    --output introspection/data/reports/dp_honey_provider_like_reference_feature_corpus_v1.json
+
+# 14. Emit the statistical-distinguisher suite evidence named by the paper
 python -m detect.dp_honey eval-statistical-distinguishers \
     --train-count-per-format 25 \
     --test-count-per-format 25 \
     --alpha 0.1 \
     --seed 11 \
-    --output introspection/data/reports/dp_honey_statistical_distinguisher_eval_v2.json
+    --reference-feature-manifest introspection/data/reports/dp_honey_provider_like_reference_feature_corpus_v1.json \
+    --output introspection/data/reports/dp_honey_statistical_distinguisher_eval_v3.json
 ```
 
 `generate` is capped at 10000 (it streams one token at a time); `report` is
@@ -141,16 +151,20 @@ aggregate validity, duplicate-rate, character-entropy, and model-likelihood
 metrics, without serializing token values. It is a bounded sanity gate, not the
 paper's full statistical-distinguisher suite.
 
+`build-reference-feature-corpus` emits a redacted
+`detect.dp_honey.reference_feature_corpus/v1` manifest with no raw values,
+per-format train/test aggregate metrics, and per-token feature vectors. The
+built-in generator is restricted to nonfunctional `provider_like_sealed_holdout`
+morphology; real-credential-distribution feature corpora must be supplied as
+external redacted manifests.
+
 `eval-statistical-distinguishers` runs the paper-named realism tests: character
 entropy, bigram likelihood, numeric-substring features, and a discriminator MLP.
-It reports only aggregate metrics and pass/fail statuses. The current seeded v2
-artifact passes all four bounded same-format synthetic holdout tests and records
-`reference_feature_corpus=null`. That is useful local-registry evidence, but
-`paper_faithful_statistical_distinguisher` remains false until the reference
-source is provider-like or real-credential-distribution evidence. Use
-`--reference-feature-manifest` to supply a redacted
-`detect.dp_honey.reference_feature_corpus/v1` manifest with no raw values,
-per-format train/test aggregate metrics, and per-token feature vectors.
+It reports only aggregate metrics and pass/fail statuses. The current seeded v3
+artifact passes all four tests against the redacted provider-like feature corpus
+and sets `paper_faithful_statistical_distinguisher=true`. That is empirical
+morphology evidence, not a proof that generated honeytokens are
+indistinguishable from real production credentials.
 
 Prefix-less generic formats such as `aws-secret-access-key`, `oauth-bearer`, and
 `database-password` are excluded from registry classification to avoid noisy

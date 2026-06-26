@@ -18,6 +18,19 @@ GENERATION_REALISM_EVAL_STATUS = "bounded_generated_vs_reference_sanity_metrics"
 STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION = "detect.dp_honey.statistical_distinguisher_eval/v1"
 STATISTICAL_DISTINGUISHER_EVAL_STATUS = "statistical_distinguisher_suite_evaluated"
 REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION = "detect.dp_honey.reference_feature_corpus/v1"
+REFERENCE_FEATURE_NAMES = (
+    "token_length",
+    "digit_fraction",
+    "alpha_fraction",
+    "uppercase_fraction",
+    "lowercase_fraction",
+    "symbol_fraction",
+    "single_token_entropy_bits",
+    "avg_bigram_log_likelihood",
+    "numeric_run_count",
+    "numeric_run_avg_length",
+    "numeric_run_max_length",
+)
 REQUIRED_STATISTICAL_DISTINGUISHER_TESTS = (
     "character_entropy_tests",
     "bigram_likelihood_tests",
@@ -134,11 +147,17 @@ def _summary(
     statistical_distinguisher_eval: Mapping[str, object] | None,
 ) -> str:
     if paper_faithful_plus:
+        reference_source = (
+            statistical_distinguisher_eval.get("reference_source")
+            if statistical_distinguisher_eval is not None
+            else "unknown"
+        )
         return (
             "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner "
             "FP/FN evidence, gateway substitution, canary leak detection, provider-egress blocking, redacted "
-            "audit evidence, and a passed statistical distinguisher suite. This is paper-faithful+ evidence for "
-            "the local synthetic DP-HONEY registry, not a production-secret indistinguishability proof."
+            "audit evidence, and a passed statistical distinguisher suite. This is paper-faithful+ candidate "
+            f"evidence for the configured {reference_source} reference, not a production-secret "
+            "indistinguishability proof."
         )
     if statistical_distinguisher_eval is None:
         statistical_status = "the full statistical distinguisher suite has not been supplied to this gate"
@@ -884,12 +903,13 @@ def _validate_reference_feature_corpus_metadata(
             "statistical_distinguisher_eval.reference_feature_corpus.source must match reference_source."
         )
     _required_string(metadata.get("source_description"), "reference_feature_corpus.source_description")
+    _required_string(metadata.get("source_generation_method"), "reference_feature_corpus.source_generation_method")
     _required_sha256(metadata.get("sha256"), "reference_feature_corpus.sha256")
     if metadata.get("raw_values_serialized") is not False:
         raise DPHoneyPaperEvidenceError("reference_feature_corpus.raw_values_serialized must be false.")
     feature_names = _string_list(metadata.get("feature_names"), "reference_feature_corpus.feature_names")
-    if len(feature_names) == 0:
-        raise DPHoneyPaperEvidenceError("reference_feature_corpus.feature_names must not be empty.")
+    if feature_names != REFERENCE_FEATURE_NAMES:
+        raise DPHoneyPaperEvidenceError("reference_feature_corpus.feature_names must match DP-HONEY evaluator.")
     _positive_int(metadata.get("format_count"), "reference_feature_corpus.format_count")
     _consistent_int(
         metadata.get("train_count_per_format"),

@@ -1,0 +1,1807 @@
+{
+  "all_checks_passed": true,
+  "checks": {
+    "cift_status_reported": true,
+    "dp_honey_ready": true,
+    "events_present": true,
+    "gateway_online": true,
+    "gateway_ready": true,
+    "nimbus_ready": true,
+    "overview_status": true,
+    "recent_activity_has_canary": true,
+    "recent_activity_has_dp_honey": true,
+    "recent_activity_has_provider_egress_blocks": true,
+    "smoke_ok": true,
+    "trace_has_policy": true,
+    "trace_has_provider_egress_guard": true,
+    "trace_provider_skipped_before_egress": true,
+    "trace_stage_count": 9
+  },
+  "console_base_url": "http://127.0.0.1:8791",
+  "events": {
+    "detector_activity": {
+      "canary_detections": 2,
+      "cift_pre_generation_blocks": 0,
+      "dp_honey_substitutions": 5,
+      "fail_closed_events": 2,
+      "nimbus_warnings": 3,
+      "provider_egress_blocks": 1
+    },
+    "events": [
+      {
+        "created_at": "2026-06-26T08:54:05.388181+00:00",
+        "detector_results": [
+          {
+            "capability_required": "self_hosted_introspection",
+            "capability_status": "unavailable",
+            "component": "cift",
+            "confidence": 1.0,
+            "detector_name": "activation_unavailable",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "tool_scanner",
+            "confidence": 1.0,
+            "detector_name": "tool_call_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "nimbus",
+            "confidence": 1.0,
+            "detector_name": "nimbus_tool_egress",
+            "latency_ms": 0.000459025613963604,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "tool_scanner",
+            "confidence": 1.0,
+            "detector_name": "provider_egress_guard",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "text_canary",
+            "confidence": 1.0,
+            "detector_name": "text_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "text_canary",
+            "confidence": 1.0,
+            "detector_name": "encoded_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "nimbus",
+            "confidence": 0.8,
+            "detector_name": "nimbus",
+            "latency_ms": 0.04054198507219553,
+            "recommended_action": "sanitize",
+            "score": 0.38974358974358975
+          }
+        ],
+        "detectors_fired": [
+          "nimbus"
+        ],
+        "final_action": "sanitize",
+        "model": {
+          "model_id": "mock-model",
+          "provider": "mock",
+          "revision": null,
+          "selected_device": null
+        },
+        "provider": "mock",
+        "provider_status": "completed",
+        "reason": "Selected sanitize from highest-severity detector recommendation.",
+        "runtime_evidence": {
+          "artifact_hashes": {},
+          "cift": {},
+          "credential_slot_status": "honeytoken_substituted",
+          "detector_versions": {
+            "activation_unavailable": "activation-unavailable-v1",
+            "encoded_canary": "encoded-canary-v1",
+            "nimbus": "canary-v0",
+            "nimbus_tool_egress": "canary-v0",
+            "provider_egress_guard": "provider-egress-guard-v1",
+            "text_canary": "text-canary-v1",
+            "tool_call_canary": "tool-call-canary-v1"
+          },
+          "fail_closed_events": [],
+          "policy_mode": "severity",
+          "provider_state": {
+            "model_id": "mock-model",
+            "provider": "mock",
+            "status": "completed"
+          },
+          "schema_version": "aegis.audit_runtime_evidence/v1"
+        },
+        "session_id": "smoke-partial-session",
+        "stage_timeline": [
+          {
+            "original_status": "ok",
+            "stage": "normalize",
+            "status": "passed"
+          },
+          {
+            "detail": "honeytoken_substituted",
+            "stage": "credential_slot",
+            "status": "passed"
+          },
+          {
+            "canary_count": 1,
+            "original_status": "active",
+            "stage": "dp_honey",
+            "status": "passed"
+          },
+          {
+            "actions": [
+              "allow"
+            ],
+            "detectors": [
+              "activation_unavailable"
+            ],
+            "stage": "cift",
+            "status": "unavailable"
+          },
+          {
+            "actions": [
+              "allow",
+              "allow"
+            ],
+            "detectors": [
+              "tool_call_canary",
+              "provider_egress_guard"
+            ],
+            "original_status": "active",
+            "stage": "provider_egress_guard",
+            "status": "passed"
+          },
+          {
+            "model_id": "mock-model",
+            "original_status": "completed",
+            "provider": "mock",
+            "stage": "provider",
+            "status": "passed"
+          },
+          {
+            "actions": [
+              "allow",
+              "allow"
+            ],
+            "detectors": [
+              "text_canary",
+              "encoded_canary"
+            ],
+            "original_status": "active",
+            "stage": "canary",
+            "status": "passed"
+          },
+          {
+            "actions": [
+              "allow",
+              "sanitize"
+            ],
+            "detectors": [
+              "nimbus_tool_egress",
+              "nimbus"
+            ],
+            "original_status": "active",
+            "stage": "nimbus",
+            "status": "warned"
+          },
+          {
+            "final_action": "sanitize",
+            "original_status": "decided",
+            "reason": "Selected sanitize from highest-severity detector recommendation.",
+            "stage": "policy",
+            "status": "warned"
+          },
+          {
+            "original_status": "written",
+            "stage": "audit",
+            "status": "passed"
+          }
+        ],
+        "trace_id": "smoke-partial-leak-trace",
+        "turn_index": 1
+      },
+      {
+        "created_at": "2026-06-26T08:54:05.386688+00:00",
+        "detector_results": [
+          {
+            "capability_required": "self_hosted_introspection",
+            "capability_status": "unavailable",
+            "component": "cift",
+            "confidence": 1.0,
+            "detector_name": "activation_unavailable",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "tool_scanner",
+            "confidence": 1.0,
+            "detector_name": "tool_call_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "nimbus",
+            "confidence": 1.0,
+            "detector_name": "nimbus_tool_egress",
+            "latency_ms": 0.0004580942913889885,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "tool_scanner",
+            "confidence": 1.0,
+            "detector_name": "provider_egress_guard",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "text_canary",
+            "confidence": 1.0,
+            "detector_name": "text_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "escalate",
+            "score": 1.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "text_canary",
+            "confidence": 1.0,
+            "detector_name": "encoded_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "nimbus",
+            "confidence": 0.8,
+            "detector_name": "nimbus",
+            "latency_ms": 0.02020795363932848,
+            "recommended_action": "block",
+            "score": 1.0
+          }
+        ],
+        "detectors_fired": [
+          "text_canary",
+          "nimbus"
+        ],
+        "final_action": "escalate",
+        "model": {
+          "model_id": "mock-model",
+          "provider": "mock",
+          "revision": null,
+          "selected_device": null
+        },
+        "provider": "mock",
+        "provider_status": "completed",
+        "reason": "Selected escalate from highest-severity detector recommendation.",
+        "runtime_evidence": {
+          "artifact_hashes": {},
+          "cift": {},
+          "credential_slot_status": "honeytoken_substituted",
+          "detector_versions": {
+            "activation_unavailable": "activation-unavailable-v1",
+            "encoded_canary": "encoded-canary-v1",
+            "nimbus": "canary-v0",
+            "nimbus_tool_egress": "canary-v0",
+            "provider_egress_guard": "provider-egress-guard-v1",
+            "text_canary": "text-canary-v1",
+            "tool_call_canary": "tool-call-canary-v1"
+          },
+          "fail_closed_events": [],
+          "policy_mode": "severity",
+          "provider_state": {
+            "model_id": "mock-model",
+            "provider": "mock",
+            "status": "completed"
+          },
+          "schema_version": "aegis.audit_runtime_evidence/v1"
+        },
+        "session_id": "smoke-slot-session",
+        "stage_timeline": [
+          {
+            "original_status": "ok",
+            "stage": "normalize",
+            "status": "passed"
+          },
+          {
+            "detail": "honeytoken_substituted",
+            "stage": "credential_slot",
+            "status": "passed"
+          },
+          {
+            "canary_count": 1,
+            "original_status": "active",
+            "stage": "dp_honey",
+            "status": "passed"
+          },
+          {
+            "actions": [
+              "allow"
+            ],
+            "detectors": [
+              "activation_unavailable"
+            ],
+            "stage": "cift",
+            "status": "unavailable"
+          },
+          {
+            "actions": [
+              "allow",
+              "allow"
+            ],
+            "detectors": [
+              "tool_call_canary",
+              "provider_egress_guard"
+            ],
+            "original_status": "active",
+            "stage": "provider_egress_guard",
+            "status": "passed"
+          },
+          {
+            "model_id": "mock-model",
+            "original_status": "completed",
+            "provider": "mock",
+            "stage": "provider",
+            "status": "passed"
+          },
+          {
+            "actions": [
+              "escalate",
+              "allow"
+            ],
+            "detectors": [
+              "text_canary",
+              "encoded_canary"
+            ],
+            "original_status": "active",
+            "stage": "canary",
+            "status": "blocked"
+          },
+          {
+            "actions": [
+              "allow",
+              "block"
+            ],
+            "detectors": [
+              "nimbus_tool_egress",
+              "nimbus"
+            ],
+            "original_status": "active",
+            "stage": "nimbus",
+            "status": "blocked"
+          },
+          {
+            "final_action": "escalate",
+            "original_status": "decided",
+            "reason": "Selected escalate from highest-severity detector recommendation.",
+            "stage": "policy",
+            "status": "blocked"
+          },
+          {
+            "original_status": "written",
+            "stage": "audit",
+            "status": "passed"
+          }
+        ],
+        "trace_id": "smoke-slot-leak-trace",
+        "turn_index": 0
+      },
+      {
+        "created_at": "2026-06-26T08:54:05.385084+00:00",
+        "detector_results": [
+          {
+            "capability_required": "self_hosted_introspection",
+            "capability_status": "unavailable",
+            "component": "cift",
+            "confidence": 1.0,
+            "detector_name": "activation_unavailable",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "tool_scanner",
+            "confidence": 1.0,
+            "detector_name": "tool_call_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "nimbus",
+            "confidence": 1.0,
+            "detector_name": "nimbus_tool_egress",
+            "latency_ms": 0.0007079215720295906,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "tool_scanner",
+            "confidence": 1.0,
+            "detector_name": "provider_egress_guard",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "text_canary",
+            "confidence": 1.0,
+            "detector_name": "text_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "text_canary",
+            "confidence": 1.0,
+            "detector_name": "encoded_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "escalate",
+            "score": 1.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "nimbus",
+            "confidence": 0.8,
+            "detector_name": "nimbus",
+            "latency_ms": 0.02995808608829975,
+            "recommended_action": "block",
+            "score": 1.0
+          }
+        ],
+        "detectors_fired": [
+          "encoded_canary",
+          "nimbus"
+        ],
+        "final_action": "escalate",
+        "model": {
+          "model_id": "mock-model",
+          "provider": "mock",
+          "revision": null,
+          "selected_device": null
+        },
+        "provider": "mock",
+        "provider_status": "completed",
+        "reason": "Selected escalate from highest-severity detector recommendation.",
+        "runtime_evidence": {
+          "artifact_hashes": {},
+          "cift": {},
+          "credential_slot_status": "honeytoken_substituted",
+          "detector_versions": {
+            "activation_unavailable": "activation-unavailable-v1",
+            "encoded_canary": "encoded-canary-v1",
+            "nimbus": "canary-v0",
+            "nimbus_tool_egress": "canary-v0",
+            "provider_egress_guard": "provider-egress-guard-v1",
+            "text_canary": "text-canary-v1",
+            "tool_call_canary": "tool-call-canary-v1"
+          },
+          "fail_closed_events": [],
+          "policy_mode": "severity",
+          "provider_state": {
+            "model_id": "mock-model",
+            "provider": "mock",
+            "status": "completed"
+          },
+          "schema_version": "aegis.audit_runtime_evidence/v1"
+        },
+        "session_id": "smoke-session",
+        "stage_timeline": [
+          {
+            "original_status": "ok",
+            "stage": "normalize",
+            "status": "passed"
+          },
+          {
+            "detail": "honeytoken_substituted",
+            "stage": "credential_slot",
+            "status": "passed"
+          },
+          {
+            "canary_count": 1,
+            "original_status": "active",
+            "stage": "dp_honey",
+            "status": "passed"
+          },
+          {
+            "actions": [
+              "allow"
+            ],
+            "detectors": [
+              "activation_unavailable"
+            ],
+            "stage": "cift",
+            "status": "unavailable"
+          },
+          {
+            "actions": [
+              "allow",
+              "allow"
+            ],
+            "detectors": [
+              "tool_call_canary",
+              "provider_egress_guard"
+            ],
+            "original_status": "active",
+            "stage": "provider_egress_guard",
+            "status": "passed"
+          },
+          {
+            "model_id": "mock-model",
+            "original_status": "completed",
+            "provider": "mock",
+            "stage": "provider",
+            "status": "passed"
+          },
+          {
+            "actions": [
+              "allow",
+              "escalate"
+            ],
+            "detectors": [
+              "text_canary",
+              "encoded_canary"
+            ],
+            "original_status": "active",
+            "stage": "canary",
+            "status": "blocked"
+          },
+          {
+            "actions": [
+              "allow",
+              "block"
+            ],
+            "detectors": [
+              "nimbus_tool_egress",
+              "nimbus"
+            ],
+            "original_status": "active",
+            "stage": "nimbus",
+            "status": "blocked"
+          },
+          {
+            "final_action": "escalate",
+            "original_status": "decided",
+            "reason": "Selected escalate from highest-severity detector recommendation.",
+            "stage": "policy",
+            "status": "blocked"
+          },
+          {
+            "original_status": "written",
+            "stage": "audit",
+            "status": "passed"
+          }
+        ],
+        "trace_id": "smoke-leak-trace",
+        "turn_index": 1
+      },
+      {
+        "created_at": "2026-06-26T08:54:05.383497+00:00",
+        "detector_results": [
+          {
+            "capability_required": "self_hosted_introspection",
+            "capability_status": "unavailable",
+            "component": "cift",
+            "confidence": 1.0,
+            "detector_name": "activation_unavailable",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "tool_scanner",
+            "confidence": 1.0,
+            "detector_name": "tool_call_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "escalate",
+            "score": 1.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "nimbus",
+            "confidence": 0.8,
+            "detector_name": "nimbus_tool_egress",
+            "latency_ms": 0.03999995533376932,
+            "recommended_action": "block",
+            "score": 1.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "tool_scanner",
+            "confidence": 1.0,
+            "detector_name": "provider_egress_guard",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          }
+        ],
+        "detectors_fired": [
+          "tool_call_canary",
+          "nimbus_tool_egress"
+        ],
+        "final_action": "escalate",
+        "model": {
+          "model_id": "mock-model",
+          "provider": "mock",
+          "revision": null,
+          "selected_device": null
+        },
+        "provider": "skipped",
+        "provider_status": "skipped",
+        "reason": "Selected escalate from highest-severity detector recommendation.",
+        "runtime_evidence": {
+          "artifact_hashes": {},
+          "cift": {},
+          "credential_slot_status": "honeytoken_substituted",
+          "detector_versions": {
+            "activation_unavailable": "activation-unavailable-v1",
+            "nimbus_tool_egress": "canary-v0",
+            "provider_egress_guard": "provider-egress-guard-v1",
+            "tool_call_canary": "tool-call-canary-v1"
+          },
+          "fail_closed_events": [
+            {
+              "final_action": "escalate",
+              "kind": "pre_generation_policy_block",
+              "provider_status": "skipped",
+              "triggered_detectors": [
+                "tool_call_canary"
+              ]
+            }
+          ],
+          "policy_mode": "severity",
+          "provider_state": {
+            "model_id": "mock-model",
+            "provider": "skipped",
+            "reason": "pre_generation_policy_block",
+            "status": "skipped"
+          },
+          "schema_version": "aegis.audit_runtime_evidence/v1"
+        },
+        "session_id": "smoke-tool-session",
+        "stage_timeline": [
+          {
+            "original_status": "ok",
+            "stage": "normalize",
+            "status": "passed"
+          },
+          {
+            "detail": "honeytoken_substituted",
+            "stage": "credential_slot",
+            "status": "passed"
+          },
+          {
+            "canary_count": 1,
+            "original_status": "active",
+            "stage": "dp_honey",
+            "status": "passed"
+          },
+          {
+            "actions": [
+              "allow"
+            ],
+            "detectors": [
+              "activation_unavailable"
+            ],
+            "stage": "cift",
+            "status": "unavailable"
+          },
+          {
+            "actions": [
+              "escalate",
+              "allow"
+            ],
+            "detectors": [
+              "tool_call_canary",
+              "provider_egress_guard"
+            ],
+            "original_status": "active",
+            "stage": "provider_egress_guard",
+            "status": "blocked"
+          },
+          {
+            "model_id": "mock-model",
+            "provider": "skipped",
+            "reason": "pre_generation_policy_block",
+            "stage": "provider",
+            "status": "skipped"
+          },
+          {
+            "detectors": [],
+            "original_status": "not_configured",
+            "stage": "canary",
+            "status": "unavailable"
+          },
+          {
+            "actions": [
+              "block"
+            ],
+            "detectors": [
+              "nimbus_tool_egress"
+            ],
+            "original_status": "active",
+            "stage": "nimbus",
+            "status": "blocked"
+          },
+          {
+            "final_action": "escalate",
+            "original_status": "decided",
+            "reason": "Selected escalate from highest-severity detector recommendation.",
+            "stage": "policy",
+            "status": "blocked"
+          },
+          {
+            "original_status": "written",
+            "stage": "audit",
+            "status": "passed"
+          }
+        ],
+        "trace_id": "smoke-tool-canary-trace",
+        "turn_index": 0
+      },
+      {
+        "created_at": "2026-06-26T08:54:05.382255+00:00",
+        "detector_results": [
+          {
+            "capability_required": "self_hosted_introspection",
+            "capability_status": "unavailable",
+            "component": "cift",
+            "confidence": 1.0,
+            "detector_name": "activation_unavailable",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "tool_scanner",
+            "confidence": 1.0,
+            "detector_name": "provider_egress_guard",
+            "latency_ms": 0.0,
+            "recommended_action": "block",
+            "score": 1.0
+          }
+        ],
+        "detectors_fired": [
+          "provider_egress_guard"
+        ],
+        "final_action": "block",
+        "model": {
+          "model_id": "mock-model",
+          "provider": "mock",
+          "revision": null,
+          "selected_device": null
+        },
+        "provider": "skipped",
+        "provider_status": "skipped",
+        "reason": "Selected block from highest-severity detector recommendation.",
+        "runtime_evidence": {
+          "artifact_hashes": {},
+          "cift": {},
+          "credential_slot_status": "real_secret_present",
+          "detector_versions": {
+            "activation_unavailable": "activation-unavailable-v1",
+            "provider_egress_guard": "provider-egress-guard-v1"
+          },
+          "fail_closed_events": [
+            {
+              "final_action": "block",
+              "kind": "pre_generation_policy_block",
+              "provider_status": "skipped",
+              "triggered_detectors": [
+                "provider_egress_guard"
+              ]
+            }
+          ],
+          "policy_mode": "severity",
+          "provider_state": {
+            "model_id": "mock-model",
+            "provider": "skipped",
+            "reason": "pre_generation_policy_block",
+            "status": "skipped"
+          },
+          "schema_version": "aegis.audit_runtime_evidence/v1"
+        },
+        "session_id": "smoke-session",
+        "stage_timeline": [
+          {
+            "original_status": "ok",
+            "stage": "normalize",
+            "status": "passed"
+          },
+          {
+            "detail": "real_secret_present",
+            "stage": "credential_slot",
+            "status": "warned"
+          },
+          {
+            "canary_count": 0,
+            "original_status": "not_configured",
+            "stage": "dp_honey",
+            "status": "unavailable"
+          },
+          {
+            "actions": [
+              "allow"
+            ],
+            "detectors": [
+              "activation_unavailable"
+            ],
+            "stage": "cift",
+            "status": "unavailable"
+          },
+          {
+            "actions": [
+              "block"
+            ],
+            "detectors": [
+              "provider_egress_guard"
+            ],
+            "original_status": "active",
+            "stage": "provider_egress_guard",
+            "status": "blocked"
+          },
+          {
+            "model_id": "mock-model",
+            "provider": "skipped",
+            "reason": "pre_generation_policy_block",
+            "stage": "provider",
+            "status": "skipped"
+          },
+          {
+            "detectors": [],
+            "original_status": "not_configured",
+            "stage": "canary",
+            "status": "unavailable"
+          },
+          {
+            "detectors": [],
+            "original_status": "not_configured",
+            "stage": "nimbus",
+            "status": "unavailable"
+          },
+          {
+            "final_action": "block",
+            "original_status": "decided",
+            "reason": "Selected block from highest-severity detector recommendation.",
+            "stage": "policy",
+            "status": "blocked"
+          },
+          {
+            "original_status": "written",
+            "stage": "audit",
+            "status": "passed"
+          }
+        ],
+        "trace_id": "smoke-egress-guard-trace",
+        "turn_index": 2
+      },
+      {
+        "created_at": "2026-06-26T08:54:05.380763+00:00",
+        "detector_results": [
+          {
+            "capability_required": "self_hosted_introspection",
+            "capability_status": "unavailable",
+            "component": "cift",
+            "confidence": 1.0,
+            "detector_name": "activation_unavailable",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "tool_scanner",
+            "confidence": 1.0,
+            "detector_name": "tool_call_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "nimbus",
+            "confidence": 1.0,
+            "detector_name": "nimbus_tool_egress",
+            "latency_ms": 0.001416075974702835,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "tool_scanner",
+            "confidence": 1.0,
+            "detector_name": "provider_egress_guard",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "text_canary",
+            "confidence": 1.0,
+            "detector_name": "text_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "text_canary",
+            "confidence": 1.0,
+            "detector_name": "encoded_canary",
+            "latency_ms": 0.0,
+            "recommended_action": "allow",
+            "score": 0.0
+          },
+          {
+            "capability_required": null,
+            "capability_status": "active",
+            "component": "nimbus",
+            "confidence": 0.8,
+            "detector_name": "nimbus",
+            "latency_ms": 0.05904200952500105,
+            "recommended_action": "allow",
+            "score": 0.0
+          }
+        ],
+        "detectors_fired": [],
+        "final_action": "allow",
+        "model": {
+          "model_id": "mock-model",
+          "provider": "mock",
+          "revision": null,
+          "selected_device": null
+        },
+        "provider": "mock",
+        "provider_status": "completed",
+        "reason": "No detector requested intervention.",
+        "runtime_evidence": {
+          "artifact_hashes": {},
+          "cift": {},
+          "credential_slot_status": "honeytoken_substituted",
+          "detector_versions": {
+            "activation_unavailable": "activation-unavailable-v1",
+            "encoded_canary": "encoded-canary-v1",
+            "nimbus": "canary-v0",
+            "nimbus_tool_egress": "canary-v0",
+            "provider_egress_guard": "provider-egress-guard-v1",
+            "text_canary": "text-canary-v1",
+            "tool_call_canary": "tool-call-canary-v1"
+          },
+          "fail_closed_events": [],
+          "policy_mode": "severity",
+          "provider_state": {
+            "model_id": "mock-model",
+            "provider": "mock",
+            "status": "completed"
+          },
+          "schema_version": "aegis.audit_runtime_evidence/v1"
+        },
+        "session_id": "smoke-session",
+        "stage_timeline": [
+          {
+            "original_status": "ok",
+            "stage": "normalize",
+            "status": "passed"
+          },
+          {
+            "detail": "honeytoken_substituted",
+            "stage": "credential_slot",
+            "status": "passed"
+          },
+          {
+            "canary_count": 1,
+            "original_status": "active",
+            "stage": "dp_honey",
+            "status": "passed"
+          },
+          {
+            "actions": [
+              "allow"
+            ],
+            "detectors": [
+              "activation_unavailable"
+            ],
+            "stage": "cift",
+            "status": "unavailable"
+          },
+          {
+            "actions": [
+              "allow",
+              "allow"
+            ],
+            "detectors": [
+              "tool_call_canary",
+              "provider_egress_guard"
+            ],
+            "original_status": "active",
+            "stage": "provider_egress_guard",
+            "status": "passed"
+          },
+          {
+            "model_id": "mock-model",
+            "original_status": "completed",
+            "provider": "mock",
+            "stage": "provider",
+            "status": "passed"
+          },
+          {
+            "actions": [
+              "allow",
+              "allow"
+            ],
+            "detectors": [
+              "text_canary",
+              "encoded_canary"
+            ],
+            "original_status": "active",
+            "stage": "canary",
+            "status": "passed"
+          },
+          {
+            "actions": [
+              "allow",
+              "allow"
+            ],
+            "detectors": [
+              "nimbus_tool_egress",
+              "nimbus"
+            ],
+            "original_status": "active",
+            "stage": "nimbus",
+            "status": "passed"
+          },
+          {
+            "final_action": "allow",
+            "original_status": "decided",
+            "reason": "No detector requested intervention.",
+            "stage": "policy",
+            "status": "passed"
+          },
+          {
+            "original_status": "written",
+            "stage": "audit",
+            "status": "passed"
+          }
+        ],
+        "trace_id": "smoke-benign-trace",
+        "turn_index": 0
+      }
+    ],
+    "gateway_status": "ok",
+    "schema_version": "aegis.console_events/v1",
+    "source": "gateway_audit_recent"
+  },
+  "overview": {
+    "checklist": [
+      {
+        "detail": "online",
+        "label": "Gateway",
+        "status": "passed"
+      },
+      {
+        "detail": "",
+        "label": "Active model",
+        "status": "passed"
+      },
+      {
+        "detail": "not_required",
+        "label": "CIFT certificate",
+        "status": "unavailable"
+      },
+      {
+        "detail": "not attached",
+        "label": "Hidden-state extractor/device",
+        "status": "unavailable"
+      },
+      {
+        "detail": "ready",
+        "label": "DP-HONEY",
+        "status": "passed"
+      },
+      {
+        "detail": "ready",
+        "label": "Provider egress guard",
+        "status": "passed"
+      },
+      {
+        "detail": "mock",
+        "label": "Provider",
+        "status": "passed"
+      },
+      {
+        "detail": "deterministic_beta / canary / deterministic_canary_beta",
+        "label": "NIMBUS",
+        "status": "passed"
+      },
+      {
+        "detail": "introspection/data/reports/aegis_default_mock_provider_smoke_integrated_refresh_audit_v1.jsonl",
+        "label": "Audit",
+        "status": "passed"
+      },
+      {
+        "detail": "ok",
+        "label": "Last smoke",
+        "status": "passed"
+      },
+      {
+        "detail": "sanitize on smoke-partial-leak-trace",
+        "label": "Last request",
+        "status": "passed"
+      }
+    ],
+    "cift": {
+      "capability_mode": "black_box",
+      "certificate_status": "unsupported until certified",
+      "certification_id": null,
+      "certification_mode": null,
+      "chat_template_sha256": null,
+      "extractor": null,
+      "feature_key": null,
+      "readiness_status": "not_required",
+      "release_gate_report_sha256": null,
+      "runtime_model_bundle_id": null,
+      "runtime_model_sha256": null,
+      "selected_choice_readout_token_count": null,
+      "source_hidden_size": null,
+      "source_layer_count": null,
+      "source_model_id": null,
+      "source_revision": null,
+      "source_selected_device": null,
+      "special_tokens_map_sha256": null,
+      "tokenizer_fingerprint_sha256": null
+    },
+    "gateway": {
+      "base_url": "http://127.0.0.1:8790",
+      "capabilities": {
+        "error": null,
+        "payload": {
+          "audit": {
+            "durable_jsonl_enabled": true,
+            "durable_jsonl_path": "introspection/data/reports/aegis_default_mock_provider_smoke_integrated_refresh_audit_v1.jsonl",
+            "explain_route": "/audit/explain",
+            "recent_default_limit": 20,
+            "recent_supports_session_id": true
+          },
+          "cift": {
+            "capability_mode": "black_box",
+            "detectors": [
+              "activation_unavailable"
+            ],
+            "turn_annotator_count": 0
+          },
+          "contract": {
+            "chat_response_schema_version": "aegis.chat_response/v1",
+            "error_schema_version": "aegis.proxy_error/v1",
+            "runtime_trace_schema_version": "aegis.runtime_trace/v1"
+          },
+          "detectors": [
+            "activation_unavailable",
+            "tool_call_canary",
+            "nimbus_tool_egress",
+            "provider_egress_guard",
+            "text_canary",
+            "encoded_canary",
+            "nimbus"
+          ],
+          "mock_response_modes": [
+            "base64_first_honeytoken",
+            "default",
+            "echo_last_user",
+            "leak_first_honeytoken",
+            "partial_first_honeytoken"
+          ],
+          "nimbus": {
+            "budget_bits": 1.0,
+            "critic": {
+              "confidence": 0.8,
+              "encoded_match_leakage_bits": 1.0,
+              "exact_match_leakage_bits": 1.0,
+              "partial_match_leakage_bits": 0.8,
+              "partial_match_threshold": 0.4
+            },
+            "critic_kind": "canary",
+            "critic_version": "canary-v0",
+            "max_turns": 20,
+            "paper_faithful_learned_critic": false,
+            "promotion_status": "deterministic_canary_beta",
+            "status": "deterministic_beta",
+            "thresholds": {
+              "block": 0.9,
+              "sanitize": 0.6,
+              "warn": 0.3
+            },
+            "tool_argument_pre_dispatch_accounting": true
+          },
+          "provider": {
+            "mock_controls_enabled": true,
+            "name": "mock"
+          },
+          "routes": [
+            {
+              "method": "GET",
+              "path": "/health"
+            },
+            {
+              "method": "GET",
+              "path": "/ready"
+            },
+            {
+              "method": "GET",
+              "path": "/aegis/capabilities"
+            },
+            {
+              "method": "POST",
+              "path": "/v1/chat/completions"
+            },
+            {
+              "method": "GET",
+              "path": "/audit/recent"
+            },
+            {
+              "method": "GET",
+              "path": "/audit/explain"
+            },
+            {
+              "method": "POST",
+              "path": "/test/reset"
+            },
+            {
+              "method": "POST",
+              "path": "/test/seed-canary"
+            }
+          ],
+          "schema_version": "aegis.proxy_capabilities/v1",
+          "test_controls": {
+            "seed_canary": {
+              "enabled": true,
+              "request_fields": [
+                "credential_type",
+                "session_id",
+                "slot_name",
+                "turn_index"
+              ],
+              "route": "/test/seed-canary",
+              "schema_version": "aegis.test_seed_canary/v1",
+              "supported_credential_types": [
+                "aws_access_key",
+                "github_pat",
+                "oauth_token",
+                "openai_key",
+                "stripe_key"
+              ]
+            }
+          }
+        },
+        "status": "ok"
+      },
+      "health": {
+        "error": null,
+        "payload": {
+          "status": "ok"
+        },
+        "status": "ok"
+      },
+      "readiness": {
+        "error": null,
+        "payload": {
+          "canary": {
+            "detectors": [
+              "tool_call_canary",
+              "text_canary",
+              "encoded_canary"
+            ],
+            "ready": true,
+            "status": "ready"
+          },
+          "cift": {
+            "capability_mode": "black_box",
+            "ready": true,
+            "status": "not_required"
+          },
+          "dp_honey": {
+            "fail_closed_on_ambiguous_protected_workflow": true,
+            "generator": "detect.dp_honey",
+            "provider_valid": false,
+            "ready": true,
+            "registered_canary_substitution": true,
+            "source": "dp_honey",
+            "status": "ready"
+          },
+          "nimbus": {
+            "budget_bits": 1.0,
+            "critic": {
+              "confidence": 0.8,
+              "encoded_match_leakage_bits": 1.0,
+              "exact_match_leakage_bits": 1.0,
+              "partial_match_leakage_bits": 0.8,
+              "partial_match_threshold": 0.4
+            },
+            "critic_kind": "canary",
+            "critic_version": "canary-v0",
+            "max_turns": 20,
+            "paper_faithful_learned_critic": false,
+            "promotion_status": "deterministic_canary_beta",
+            "ready": true,
+            "status": "deterministic_beta",
+            "thresholds": {
+              "block": 0.9,
+              "sanitize": 0.6,
+              "warn": 0.3
+            },
+            "tool_argument_pre_dispatch_accounting": true
+          },
+          "provider": {
+            "mock_controls_enabled": true,
+            "name": "mock",
+            "ready": true,
+            "status": "ready"
+          },
+          "provider_egress_guard": {
+            "blocks_non_honeytoken_sensitive_spans_before_provider": true,
+            "ready": true,
+            "status": "ready"
+          },
+          "ready": true,
+          "schema_version": "aegis.proxy_readiness/v1",
+          "status": "ready",
+          "strict_protected_mode": {
+            "cift_fails_closed": true,
+            "enabled": false,
+            "raw_secret_egress_fails_closed": true
+          }
+        },
+        "status": "ok"
+      }
+    },
+    "last_request": {
+      "created_at": "2026-06-26T08:54:05.388181+00:00",
+      "detector_results": [
+        {
+          "capability_required": "self_hosted_introspection",
+          "capability_status": "unavailable",
+          "component": "cift",
+          "confidence": 1.0,
+          "detector_name": "activation_unavailable",
+          "latency_ms": 0.0,
+          "recommended_action": "allow",
+          "score": 0.0
+        },
+        {
+          "capability_required": null,
+          "capability_status": "active",
+          "component": "tool_scanner",
+          "confidence": 1.0,
+          "detector_name": "tool_call_canary",
+          "latency_ms": 0.0,
+          "recommended_action": "allow",
+          "score": 0.0
+        },
+        {
+          "capability_required": null,
+          "capability_status": "active",
+          "component": "nimbus",
+          "confidence": 1.0,
+          "detector_name": "nimbus_tool_egress",
+          "latency_ms": 0.000459025613963604,
+          "recommended_action": "allow",
+          "score": 0.0
+        },
+        {
+          "capability_required": null,
+          "capability_status": "active",
+          "component": "tool_scanner",
+          "confidence": 1.0,
+          "detector_name": "provider_egress_guard",
+          "latency_ms": 0.0,
+          "recommended_action": "allow",
+          "score": 0.0
+        },
+        {
+          "capability_required": null,
+          "capability_status": "active",
+          "component": "text_canary",
+          "confidence": 1.0,
+          "detector_name": "text_canary",
+          "latency_ms": 0.0,
+          "recommended_action": "allow",
+          "score": 0.0
+        },
+        {
+          "capability_required": null,
+          "capability_status": "active",
+          "component": "text_canary",
+          "confidence": 1.0,
+          "detector_name": "encoded_canary",
+          "latency_ms": 0.0,
+          "recommended_action": "allow",
+          "score": 0.0
+        },
+        {
+          "capability_required": null,
+          "capability_status": "active",
+          "component": "nimbus",
+          "confidence": 0.8,
+          "detector_name": "nimbus",
+          "latency_ms": 0.04054198507219553,
+          "recommended_action": "sanitize",
+          "score": 0.38974358974358975
+        }
+      ],
+      "detectors_fired": [
+        "nimbus"
+      ],
+      "final_action": "sanitize",
+      "model": {
+        "model_id": "mock-model",
+        "provider": "mock",
+        "revision": null,
+        "selected_device": null
+      },
+      "provider": "mock",
+      "provider_status": "completed",
+      "reason": "Selected sanitize from highest-severity detector recommendation.",
+      "runtime_evidence": {
+        "artifact_hashes": {},
+        "cift": {},
+        "credential_slot_status": "honeytoken_substituted",
+        "detector_versions": {
+          "activation_unavailable": "activation-unavailable-v1",
+          "encoded_canary": "encoded-canary-v1",
+          "nimbus": "canary-v0",
+          "nimbus_tool_egress": "canary-v0",
+          "provider_egress_guard": "provider-egress-guard-v1",
+          "text_canary": "text-canary-v1",
+          "tool_call_canary": "tool-call-canary-v1"
+        },
+        "fail_closed_events": [],
+        "policy_mode": "severity",
+        "provider_state": {
+          "model_id": "mock-model",
+          "provider": "mock",
+          "status": "completed"
+        },
+        "schema_version": "aegis.audit_runtime_evidence/v1"
+      },
+      "session_id": "smoke-partial-session",
+      "stage_timeline": [
+        {
+          "original_status": "ok",
+          "stage": "normalize",
+          "status": "passed"
+        },
+        {
+          "detail": "honeytoken_substituted",
+          "stage": "credential_slot",
+          "status": "passed"
+        },
+        {
+          "canary_count": 1,
+          "original_status": "active",
+          "stage": "dp_honey",
+          "status": "passed"
+        },
+        {
+          "actions": [
+            "allow"
+          ],
+          "detectors": [
+            "activation_unavailable"
+          ],
+          "stage": "cift",
+          "status": "unavailable"
+        },
+        {
+          "actions": [
+            "allow",
+            "allow"
+          ],
+          "detectors": [
+            "tool_call_canary",
+            "provider_egress_guard"
+          ],
+          "original_status": "active",
+          "stage": "provider_egress_guard",
+          "status": "passed"
+        },
+        {
+          "model_id": "mock-model",
+          "original_status": "completed",
+          "provider": "mock",
+          "stage": "provider",
+          "status": "passed"
+        },
+        {
+          "actions": [
+            "allow",
+            "allow"
+          ],
+          "detectors": [
+            "text_canary",
+            "encoded_canary"
+          ],
+          "original_status": "active",
+          "stage": "canary",
+          "status": "passed"
+        },
+        {
+          "actions": [
+            "allow",
+            "sanitize"
+          ],
+          "detectors": [
+            "nimbus_tool_egress",
+            "nimbus"
+          ],
+          "original_status": "active",
+          "stage": "nimbus",
+          "status": "warned"
+        },
+        {
+          "final_action": "sanitize",
+          "original_status": "decided",
+          "reason": "Selected sanitize from highest-severity detector recommendation.",
+          "stage": "policy",
+          "status": "warned"
+        },
+        {
+          "original_status": "written",
+          "stage": "audit",
+          "status": "passed"
+        }
+      ],
+      "trace_id": "smoke-partial-leak-trace",
+      "turn_index": 1
+    },
+    "last_smoke": {
+      "gateway_readiness": {
+        "capability_mode": null,
+        "certification_id": null,
+        "certification_mode": null,
+        "feature_key": null,
+        "model_bundle_id": null,
+        "release_gate_report_sha256": null,
+        "runtime_model_sha256": null,
+        "source_model_id": null,
+        "source_revision": null,
+        "source_selected_device": null,
+        "status": "ready"
+      },
+      "nimbus_profile": "default",
+      "path": "introspection/data/reports/aegis_default_mock_provider_smoke_integrated_refresh_v1.json",
+      "provider_mode": "mock",
+      "report_id": null,
+      "schema_version": null,
+      "status": "ok"
+    },
+    "model": {
+      "device": null,
+      "model_id": "mock-model",
+      "provider": "mock",
+      "revision": null
+    },
+    "nimbus": {
+      "critic_kind": "canary",
+      "critic_version": "canary-v0",
+      "infonce_model_path": null,
+      "label": "deterministic beta",
+      "paper_faithful_learned_critic": false,
+      "promotion_status": "deterministic_canary_beta",
+      "status": "deterministic_beta",
+      "thresholds": {
+        "block": 0.9,
+        "sanitize": 0.6,
+        "warn": 0.3
+      }
+    },
+    "protection": {
+      "active_profile": "balanced",
+      "cift_capability_mode": "black_box",
+      "gateway_online": true,
+      "gateway_ready": true,
+      "severity": "degraded",
+      "state": "Degraded"
+    },
+    "schema_version": "aegis.console_overview/v1"
+  },
+  "schema_version": "aegis.console_live_verification/v1",
+  "trace": {
+    "artifacts": {},
+    "created_at": "2026-06-26T08:54:05.382255+00:00",
+    "detectors": [
+      {
+        "capability_status": "unavailable",
+        "component": "cift",
+        "confidence": 1.0,
+        "detector_name": "activation_unavailable",
+        "evidence": {
+          "reason": "black_box_mode"
+        },
+        "latency_ms": 0.0,
+        "recommended_action": "allow",
+        "score": 0.0
+      },
+      {
+        "capability_status": "active",
+        "component": "tool_scanner",
+        "confidence": 1.0,
+        "detector_name": "provider_egress_guard",
+        "evidence": {
+          "match_count": 1,
+          "reason": "blocked_sensitive_value_before_provider_egress"
+        },
+        "latency_ms": 0.0,
+        "recommended_action": "block",
+        "score": 1.0
+      }
+    ],
+    "latency_ms": 0.02174999099224806,
+    "policy_decision": {
+      "final_action": "block",
+      "reason": "Selected block from highest-severity detector recommendation.",
+      "risk_score": 1.0,
+      "triggered_detectors": [
+        "provider_egress_guard"
+      ]
+    },
+    "policy_mode": "severity",
+    "runtime_evidence": {
+      "artifact_hashes": {},
+      "cift": {},
+      "credential_slot_status": "real_secret_present",
+      "detector_latency_ms": {
+        "activation_unavailable": 0.0,
+        "provider_egress_guard": 0.0
+      },
+      "detector_versions": {
+        "activation_unavailable": "activation-unavailable-v1",
+        "provider_egress_guard": "provider-egress-guard-v1"
+      },
+      "fail_closed_events": [
+        {
+          "final_action": "block",
+          "kind": "pre_generation_policy_block",
+          "provider_status": "skipped",
+          "triggered_detectors": [
+            "provider_egress_guard"
+          ]
+        }
+      ],
+      "final_action": "block",
+      "latency_ms": 0.02174999099224806,
+      "policy_mode": "severity",
+      "provider_state": {
+        "model_id": "mock-model",
+        "provider": "skipped",
+        "reason": "pre_generation_policy_block",
+        "status": "skipped"
+      },
+      "schema_version": "aegis.audit_runtime_evidence/v1"
+    },
+    "schema_version": "aegis.audit_explain/v1",
+    "session_id": "smoke-session",
+    "stage_timeline": [
+      {
+        "stage": "normalize",
+        "status": "ok"
+      },
+      {
+        "canary_count": 0,
+        "stage": "dp_honey",
+        "status": "not_configured"
+      },
+      {
+        "actions": [
+          "allow"
+        ],
+        "detectors": [
+          "activation_unavailable"
+        ],
+        "stage": "cift",
+        "status": "unavailable"
+      },
+      {
+        "actions": [
+          "block"
+        ],
+        "detectors": [
+          "provider_egress_guard"
+        ],
+        "stage": "provider_egress_guard",
+        "status": "active"
+      },
+      {
+        "model_id": "mock-model",
+        "provider": "skipped",
+        "reason": "pre_generation_policy_block",
+        "stage": "provider",
+        "status": "skipped"
+      },
+      {
+        "detectors": [],
+        "stage": "canary",
+        "status": "not_configured"
+      },
+      {
+        "detectors": [],
+        "stage": "nimbus",
+        "status": "not_configured"
+      },
+      {
+        "final_action": "block",
+        "reason": "Selected block from highest-severity detector recommendation.",
+        "stage": "policy",
+        "status": "decided"
+      },
+      {
+        "stage": "audit",
+        "status": "written"
+      }
+    ],
+    "trace_id": "smoke-egress-guard-trace",
+    "turn_index": 2
+  }
+}

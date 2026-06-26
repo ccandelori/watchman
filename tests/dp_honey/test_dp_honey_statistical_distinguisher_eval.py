@@ -15,10 +15,12 @@ from detect.dp_honey.statistical_distinguisher_eval import (
     REQUIRED_TESTS,
     STATISTICAL_DISTINGUISHER_EVAL_MAX_PER_FORMAT,
     STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION,
+    DPHoneyReferenceFeatureCorpusConfig,
     DPHoneyStatisticalDistinguisherEvalConfig,
     DPHoneyStatisticalDistinguisherEvalError,
     _numeric_profile,
     _token_features,
+    build_reference_feature_corpus_report,
     build_statistical_distinguisher_eval_report,
 )
 
@@ -123,6 +125,31 @@ def test_statistical_distinguisher_eval_accepts_redacted_provider_like_features(
     assert "sk_live_" not in rendered
 
 
+def test_reference_feature_corpus_builder_emits_redacted_provider_like_features() -> None:
+    report = build_reference_feature_corpus_report(
+        DPHoneyReferenceFeatureCorpusConfig(
+            train_count_per_format=2,
+            test_count_per_format=2,
+            seed=17,
+            source="provider_like_sealed_holdout",
+            source_description="test redacted nonfunctional provider-like feature holdout",
+        )
+    )
+    rendered = json.dumps(report, sort_keys=True)
+
+    assert report["schema_version"] == REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION
+    assert report["source"] == "provider_like_sealed_holdout"
+    assert report["source_generation_method"] == "public_provider_morphology_nonfunctional_synthetic_holdout"
+    assert report["raw_values_serialized"] is False
+    assert report["feature_names"] == list(FEATURE_NAMES)
+    assert report["train_count_per_format"] == 2
+    assert report["test_count_per_format"] == 2
+    assert len(report["format_features"]) == len(list_formats())
+    assert "ghp_" not in rendered
+    assert "xoxb-" not in rendered
+    assert "sk_live_" not in rendered
+
+
 def test_statistical_distinguisher_eval_rejects_raw_reference_fields(tmp_path) -> None:
     manifest_path = tmp_path / "raw-reference-features.json"
     payload = _reference_feature_manifest(
@@ -185,6 +212,40 @@ def test_cli_eval_statistical_distinguishers_writes_report_file(tmp_path, capsys
     assert set(file_payload["statistical_distinguisher_suite"]) == set(REQUIRED_TESTS)
 
 
+def test_cli_build_reference_feature_corpus_writes_report_file(tmp_path, capsys) -> None:
+    output_path = tmp_path / "provider-like-reference-features.json"
+
+    assert (
+        main(
+            [
+                "build-reference-feature-corpus",
+                "--train-count-per-format",
+                "2",
+                "--test-count-per-format",
+                "2",
+                "--seed",
+                "3",
+                "--source",
+                "provider_like_sealed_holdout",
+                "--source-description",
+                "test redacted nonfunctional provider-like feature holdout",
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
+
+    stdout_payload = json.loads(capsys.readouterr().out)
+    file_payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert stdout_payload == file_payload
+    assert file_payload["schema_version"] == REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION
+    assert file_payload["source"] == "provider_like_sealed_holdout"
+    assert file_payload["source_generation_method"] == "public_provider_morphology_nonfunctional_synthetic_holdout"
+    assert file_payload["feature_names"] == list(FEATURE_NAMES)
+
+
 def _write_reference_feature_manifest(
     path,
     train_count_per_format: int,
@@ -212,6 +273,7 @@ def _reference_feature_manifest(
         "schema_version": REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION,
         "source": source,
         "source_description": "test redacted nonfunctional provider-like feature holdout",
+        "source_generation_method": "public_provider_morphology_nonfunctional_synthetic_holdout",
         "raw_values_serialized": False,
         "feature_names": list(FEATURE_NAMES),
         "format_features": [

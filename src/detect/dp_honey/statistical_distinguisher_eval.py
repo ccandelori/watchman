@@ -40,6 +40,7 @@ REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION = "detect.dp_honey.reference_feature_cor
 STATISTICAL_DISTINGUISHER_EVAL_STATUS = "statistical_distinguisher_suite_evaluated"
 STATISTICAL_DISTINGUISHER_EVAL_MAX_PER_FORMAT = 1000
 SAME_FORMAT_REFERENCE_SOURCE = "same_format_uniform_synthetic_holdout"
+GENERATED_REFERENCE_FEATURE_CORPUS_SOURCE = "provider_like_sealed_holdout"
 PAPER_SUFFICIENT_REFERENCE_SOURCES = frozenset(
     ("provider_like_sealed_holdout", "real_credential_distribution_redacted_features")
 )
@@ -99,6 +100,26 @@ class DPHoneyStatisticalDistinguisherEvalConfig:
 
 
 @dataclass(frozen=True)
+class DPHoneyReferenceFeatureCorpusConfig:
+    train_count_per_format: int
+    test_count_per_format: int
+    seed: int
+    source: str
+    source_description: str
+
+    def __post_init__(self) -> None:
+        _validate_count(self.train_count_per_format, "train_count_per_format")
+        _validate_count(self.test_count_per_format, "test_count_per_format")
+        if self.source != GENERATED_REFERENCE_FEATURE_CORPUS_SOURCE:
+            raise DPHoneyStatisticalDistinguisherEvalError(
+                f"source must be {GENERATED_REFERENCE_FEATURE_CORPUS_SOURCE}; real-distribution manifests must be "
+                "supplied as external redacted feature corpora."
+            )
+        if self.source_description == "":
+            raise DPHoneyStatisticalDistinguisherEvalError("source_description must not be empty.")
+
+
+@dataclass(frozen=True)
 class _NumericProfile:
     digit_fraction: float
     numeric_run_count_per_token: float
@@ -127,6 +148,7 @@ class _ReferenceFeatureFormat:
 class _ReferenceFeatureCorpus:
     source: str
     source_description: str
+    source_generation_method: str
     corpus_sha256: str
     formats: Mapping[str, _ReferenceFeatureFormat]
 
@@ -193,11 +215,41 @@ def build_statistical_distinguisher_eval_report(
     }
 
 
+def build_reference_feature_corpus_report(config: DPHoneyReferenceFeatureCorpusConfig) -> dict[str, JsonValue]:
+    specs = tuple(list_formats())
+    if len(specs) == 0:
+        raise DPHoneyStatisticalDistinguisherEvalError("no DP-HONEY formats are registered.")
+    return {
+        "schema_version": REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION,
+        "source": config.source,
+        "source_description": config.source_description,
+        "source_generation_method": "public_provider_morphology_nonfunctional_synthetic_holdout",
+        "registry_version": REGISTRY_VERSION,
+        "seed": config.seed,
+        "train_count_per_format": config.train_count_per_format,
+        "test_count_per_format": config.test_count_per_format,
+        "raw_values_serialized": False,
+        "feature_names": list(FEATURE_NAMES),
+        "format_features": [_build_reference_feature_record(spec=spec, config=config) for spec in specs],
+        "limits": [
+            "The corpus stores only redacted aggregate metrics and feature vectors; raw credential values are not "
+            "serialized.",
+            "Generated examples are nonfunctional provider-like morphology samples, not real or provider-valid "
+            "secrets.",
+        ],
+    }
+
+
 def render_statistical_distinguisher_eval_report_json(report: dict[str, JsonValue]) -> str:
     return json.dumps(report, allow_nan=False, indent=2, sort_keys=True) + "\n"
 
 
 def write_statistical_distinguisher_eval_report(path: Path, report: dict[str, JsonValue]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(render_statistical_distinguisher_eval_report_json(report), encoding="utf-8")
+
+
+def write_reference_feature_corpus_report(path: Path, report: dict[str, JsonValue]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(render_statistical_distinguisher_eval_report_json(report), encoding="utf-8")
 
@@ -221,6 +273,10 @@ def _load_reference_feature_corpus(
     source_description = _required_string(
         payload.get("source_description"),
         "reference_feature_corpus.source_description",
+    )
+    source_generation_method = _required_string(
+        payload.get("source_generation_method"),
+        "reference_feature_corpus.source_generation_method",
     )
     feature_names = tuple(_string_list(payload.get("feature_names"), "reference_feature_corpus.feature_names"))
     if feature_names != FEATURE_NAMES:
@@ -259,9 +315,46 @@ def _load_reference_feature_corpus(
     return _ReferenceFeatureCorpus(
         source=source,
         source_description=source_description,
+        source_generation_method=source_generation_method,
         corpus_sha256=_sha256_file(path),
         formats=formats_by_slug,
     )
+
+
+def _build_reference_feature_record(
+    spec: FormatSpec,
+    config: DPHoneyReferenceFeatureCorpusConfig,
+) -> dict[str, JsonValue]:
+    slug_offset = _stable_slug_offset(spec.slug)
+    train_rng = np.random.default_rng(config.seed + 90_000 + slug_offset)
+    test_rng = np.random.default_rng(config.seed + 91_000 + slug_offset)
+    train_tokens = tuple(spec.random_example(train_rng) for _ in range(config.train_count_per_format))
+    test_tokens = tuple(spec.random_example(test_rng) for _ in range(config.test_count_per_format))
+    model = build_model(spec)
+    return {
+        "format_slug": spec.slug,
+        "provider_valid": False,
+        "train": _build_reference_feature_split(tokens=train_tokens, model=model),
+        "test": _build_reference_feature_split(tokens=test_tokens, model=model),
+    }
+
+
+def _build_reference_feature_split(tokens: tuple[str, ...], model: object) -> dict[str, JsonValue]:
+    report = compute_report(list(tokens), model)
+    numeric = _numeric_profile(tokens)
+    return {
+        "count": len(tokens),
+        "char_entropy_bits": _finite_report_float(report, "char_entropy_bits", "reference_feature_corpus"),
+        "avg_log_likelihood": _finite_report_float(report, "avg_log_likelihood", "reference_feature_corpus"),
+        "numeric_profile": {
+            "digit_fraction": numeric.digit_fraction,
+            "numeric_run_count_per_token": numeric.numeric_run_count_per_token,
+            "numeric_run_avg_length": numeric.numeric_run_avg_length,
+            "numeric_run_p95_length": numeric.numeric_run_p95_length,
+            "numeric_run_max_length": numeric.numeric_run_max_length,
+        },
+        "features": [_token_features(token, model) for token in tokens],
+    }
 
 
 def _read_reference_feature_corpus_payload(path: Path) -> Mapping[str, object]:
@@ -350,6 +443,7 @@ def _reference_feature_corpus_metadata(corpus: _ReferenceFeatureCorpus | None) -
         "schema_version": REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION,
         "source": corpus.source,
         "source_description": corpus.source_description,
+        "source_generation_method": corpus.source_generation_method,
         "sha256": corpus.corpus_sha256,
         "raw_values_serialized": False,
         "feature_names": list(FEATURE_NAMES),
