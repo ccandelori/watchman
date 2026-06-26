@@ -325,10 +325,14 @@ def run_cift_live_window_selector_benchmark(
         )
     )
     model_load_ms = _elapsed_ms(started_load)
+    selected_choice_model = load_cift_runtime_model(config.selected_choice_runtime_model_path)
     model_metadata = cift_model_metadata_report_from_loaded_objects(
         config=CiftModelMetadataConfig(
             model_id=config.model_id,
             revision=config.revision,
+            requested_device=config.requested_device,
+            dtype_name=config.dtype_name,
+            selected_readout_candidates=(selected_choice_model.feature_key,),
             local_files_only=config.local_files_only,
             trust_remote_code=config.trust_remote_code,
         ),

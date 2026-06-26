@@ -186,10 +186,11 @@ console can still show the strict smoke stage timeline without replaying it as
 production evidence.
 
 `GET /aegis/capabilities` returns the machine-readable development contract:
-provider kind, whether mock controls are enabled, supported mock response modes,
-route list, schema versions, and mock-only test controls. Redteam tooling
-should call this route before assuming that `mock_response_mode` or
-`/test/seed-canary` is accepted.
+provider kind, whether mock controls are enabled, CIFT support tier/scope,
+supported mock response modes, route list, schema versions, and mock-only test
+controls. Redteam tooling should call this route before assuming that
+`mock_response_mode`, `/test/seed-canary`, or model-specific CIFT enforcement is
+available.
 
 By default, `aegis-proxy` runs with the deterministic mock provider. To point
 the development proxy at an OpenAI-compatible model endpoint, configure the
@@ -338,20 +339,24 @@ Production CIFT certification rejects mutable revisions such as `main`;
 `source_revision` must be a resolved lowercase 40-character Git commit SHA or a
 `sha256:<64 lowercase hex digest>` content revision.
 
-Aegis CIFT supports model-specific certification for local models that expose
-hidden states. `Qwen/Qwen3-4B` is the certified reference model. Other models
-are unsupported until they pass their own calibration, sealed holdout, live
-runtime, gateway smoke, and hardened release-gate certification. The nested
-runtime-candidate promotion gate is intentionally scoped to candidate promotion;
-final release eligibility comes only from the certification-bound release gate.
+Aegis CIFT provides a workflow for model-specific certification of local models
+that expose hidden states. `Qwen/Qwen3-4B` on MPS is the certified reference
+model. Other models are `unsupported` until they pass their own calibration,
+sealed holdout, live runtime, gateway smoke, and hardened release-gate
+certification. The support-state vocabulary is `unsupported`, `discovered`,
+`hidden-state capable`, `calibration-ready`, `certified`,
+`runtime-enforceable`, and `failed certification`; readiness, capabilities, and
+the console expose these states so `self_hosted_introspection` is not mistaken
+for universal model support. The nested runtime-candidate promotion gate is
+intentionally scoped to candidate promotion; final release eligibility comes
+only from the certification-bound release gate.
 
 Use the local-model certification wrapper as the single operator entry point.
 For the certified Qwen3-4B MPS reference, verify the existing model-bound
 evidence chain without replaying offline evidence:
 
 ```bash
-PYTHONPATH=src:introspection/src \
-.venv-mps313/bin/python introspection/scripts/certify_cift_local_model.py verify-existing \
+uv run certify-cift-local-model verify-existing \
   --repository-root . \
   --runtime-model introspection/data/models/cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_v1.json \
   --expected-runtime-sha256 b7efb486c369d0745533c49b608970f5e5b3a5c12a1ecee343856b13b4a02d60 \
@@ -388,8 +393,7 @@ or verifies the workflow, and fails release certification unless every required
 artifact is materialized and the hardened gate passes:
 
 ```bash
-PYTHONPATH=src:introspection/src \
-.venv-mps313/bin/python introspection/scripts/certify_cift_local_model.py \
+uv run certify-cift-local-model \
   --repository-root . \
   --certification-id <certification-id> \
   --model-id <model-id> \
@@ -424,6 +428,23 @@ PYTHONPATH=src:introspection/src \
   --template-value gateway_model=mock-model \
   --template-value extractor_id=trusted-activation-sidecar
 ```
+
+Activation extraction, probe training, and live hidden-state benchmarking must
+run in an environment with `torch`, `transformers`, and the requested device
+available. The current Qwen3-4B reference evidence was produced in the local
+MPS environment (`.venv-mps313`); a missing dependency or unavailable MPS/CUDA
+device is recorded as `failed certification`, not silently downgraded to CPU.
+
+Portability evidence is intentionally lower-status than release evidence.
+`introspection/data/reports/qwen3_0_6b_portability_check_mps_env_certification_workflow_run_v1.json`
+records that `Qwen/Qwen3-0.6B` at mutable revision `main` fails certification.
+`introspection/data/reports/qwen3_0_6b_portability_resolved_revision_certification_workflow_v1.json`
+and its run report show that the same generic workflow reaches
+`calibration-ready` for resolved revision
+`c1899de289a04d12100db370d81485cdf75e47ca` on MPS, but the model remains
+unsupported for enforcement because the required extraction, probe competition,
+sealed holdout, live runtime, gateway smoke, promotion, and release-gate
+artifacts are not materialized.
 
 `AEGIS_CIFT_CERTIFICATION_MANIFEST_PATH` and
 `AEGIS_CIFT_CERTIFICATION_REPORT_PATH` must match their pinned SHA-256 values,

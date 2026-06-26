@@ -25,6 +25,12 @@ def test_console_overview_summarizes_protected_cift_state() -> None:
     assert overview["model"]["model_id"] == "Qwen/Qwen3-4B"
     assert overview["model"]["device"] == "mps"
     assert overview["cift"]["certificate_status"] == "certified"
+    assert overview["cift"]["support_tier"] == "runtime-enforceable"
+    assert overview["cift"]["support_scope"] == "model-specific CIFT enforcement for Qwen/Qwen3-4B on mps"
+    assert (
+        overview["cift"]["support_reason"]
+        == "strict certification binding and live extractor readiness are satisfied."
+    )
     assert overview["nimbus"]["label"] == "deterministic beta"
     assert overview["last_request"]["final_action"] == "block"
 
@@ -94,6 +100,54 @@ def test_console_overview_surfaces_cift_smoke_metrics(tmp_path: Path) -> None:
         "exfiltration_provider_status": "skipped",
         "hidden_state_device_observed": "mps:0",
     }
+
+
+def test_console_overview_marks_black_box_cift_as_unsupported() -> None:
+    ready_payload = {
+        **_ready_payload(),
+        "strict_protected_mode": {"enabled": False},
+        "cift": {
+            "ready": True,
+            "status": "not_required",
+            "capability_mode": "black_box",
+            "support_tier": "unsupported",
+            "support_scope": "model-specific CIFT enforcement unavailable",
+            "support_reason": (
+                "black-box provider mode has no certified hidden-state extractor binding; "
+                "DP-HONEY, NIMBUS, and provider egress remain available."
+            ),
+        },
+    }
+    capabilities_payload = {
+        **_capabilities_payload(),
+        "cift": {
+            "capability_mode": "black_box",
+            "detectors": ["activation_unavailable"],
+            "support_tier": "unsupported",
+            "support_scope": "model-specific CIFT enforcement unavailable",
+            "support_reason": (
+                "black-box provider mode has no certified hidden-state extractor binding; "
+                "DP-HONEY, NIMBUS, and provider egress remain available."
+            ),
+            "turn_annotator_count": 0,
+        },
+    }
+
+    overview = console_overview(
+        settings=_settings(),
+        fetcher=_gateway_fetcher_with_payloads(
+            events=(),
+            ready_payload=ready_payload,
+            capabilities_payload=capabilities_payload,
+        ),
+    )
+
+    assert overview["protection"]["state"] == "Degraded"
+    assert overview["cift"]["certificate_status"] == "unsupported"
+    assert overview["cift"]["support_tier"] == "unsupported"
+    assert overview["cift"]["support_scope"] == "model-specific CIFT enforcement unavailable"
+    checklist = {item["label"]: item for item in overview["checklist"]}
+    assert checklist["CIFT certificate"]["detail"] == "unsupported: model-specific CIFT enforcement unavailable"
 
 
 def test_console_events_use_sample_audit_when_live_audit_is_empty(tmp_path: Path) -> None:
@@ -199,6 +253,9 @@ def _ready_payload() -> dict[str, JsonValue]:
         "cift": {
             "status": "ready",
             "capability_mode": "self_hosted_introspection",
+            "support_tier": "runtime-enforceable",
+            "support_scope": "model-specific CIFT enforcement for Qwen/Qwen3-4B on mps",
+            "support_reason": "strict certification binding and live extractor readiness are satisfied.",
             "certification_id": "cert-qwen3-4b",
             "certification_mode": "strict",
             "runtime_model_sha256": "a" * 64,
@@ -223,6 +280,11 @@ def _capabilities_payload() -> dict[str, JsonValue]:
         },
         "cift": {
             "capability_mode": "self_hosted_introspection",
+            "support_tier": "runtime-enforceable",
+            "support_scope": "model-specific CIFT enforcement for Qwen/Qwen3-4B on mps",
+            "support_reason": (
+                "strict certification binding is loaded; readiness still depends on trusted extractor attestation."
+            ),
             "runtime_binding": {
                 "certification_id": "cert-qwen3-4b",
                 "certification_mode": "strict",

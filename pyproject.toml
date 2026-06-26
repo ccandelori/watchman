@@ -51,6 +51,8 @@ aegis-trace-seed-inputs = "aegis.trace_collection.main:seed_input_main"
 aegis-trace-validate-pairs = "aegis.trace_collection.main:pair_validation_main"
 aegis-trace-pair-work-items = "aegis.trace_collection.main:pair_work_item_main"
 aegis-trace-build-pair-inputs = "aegis.trace_collection.main:pair_input_builder_main"
+certify-cift-local-model = "aegis_introspection.cli.certify_cift_local_model:main"
+discover-cift-model-metadata = "aegis_introspection.cli.discover_cift_model_metadata:main"
 dp-honey = "detect.dp_honey.__main__:main"
 dp-honey-ui = "detect.dp_honey.webui.__main__:main"
 
@@ -59,7 +61,7 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["src", "introspection/src"]
 
 [tool.setuptools.package-data]
 "aegis.console" = ["static/*"]

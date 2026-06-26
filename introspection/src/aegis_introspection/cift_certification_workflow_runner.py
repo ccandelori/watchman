@@ -94,6 +94,8 @@ class CiftCertificationWorkflowRunReport:
     workflow_manifest_path: str
     certification_id: str
     mode: WorkflowRunMode
+    support_state: str
+    model_identity: Mapping[str, JsonValue]
     command_timeout_seconds: float | None
     plan_eligible: bool
     evidence_eligible: bool
@@ -138,6 +140,8 @@ def run_cift_certification_workflow(
     output_path = _resolve_inside_root(repository_root, config.output_path, "output_path")
     manifest = _load_json_object(manifest_path, "workflow manifest")
     certification_id = _manifest_string(manifest, "certification_id", "workflow manifest")
+    support_state = _optional_record_string(manifest, "support_state") or "unsupported"
+    model_identity = _manifest_model_identity(manifest)
     workflow_policy_failures = (
         *_execution_timeout_policy_failures(
             execute=config.execute,
@@ -187,6 +191,8 @@ def run_cift_certification_workflow(
         workflow_manifest_path=_repository_relative_path(repository_root, manifest_path),
         certification_id=certification_id,
         mode="execute" if config.execute else "dry_run",
+        support_state=support_state,
+        model_identity=model_identity,
         command_timeout_seconds=float(config.command_timeout_seconds)
         if config.command_timeout_seconds is not None
         else None,
@@ -216,6 +222,8 @@ def cift_certification_workflow_run_report_to_json(
         "workflow_manifest_path": report.workflow_manifest_path,
         "certification_id": report.certification_id,
         "mode": report.mode,
+        "support_state": report.support_state,
+        "model_identity": dict(report.model_identity),
         "command_timeout_seconds": report.command_timeout_seconds,
         "plan_eligible": report.plan_eligible,
         "evidence_eligible": report.evidence_eligible,
@@ -273,6 +281,13 @@ def _load_json_object(path: Path, label: str) -> Mapping[str, object]:
     if not isinstance(decoded, dict):
         raise CiftCertificationWorkflowRunnerError(f"{label} must contain a JSON object: {path}.")
     return cast(Mapping[str, object], decoded)
+
+
+def _manifest_model_identity(manifest: Mapping[str, object]) -> Mapping[str, JsonValue]:
+    raw_identity = manifest.get("model_identity")
+    if not isinstance(raw_identity, dict):
+        raise CiftCertificationWorkflowRunnerError("workflow manifest model_identity must be an object.")
+    return cast(Mapping[str, JsonValue], raw_identity)
 
 
 def _artifact_checks(

@@ -39,5 +39,6 @@
   "schema_version": "aegis_introspection.cift_local_model_certification_verification/v1",
   "status": "certified",
   "support_claim_status": "model_specific_certified_reference_only",
+  "support_state": "runtime-enforceable",
   "unsupported_model_policy": "Other local models are unsupported until they pass their own calibration, sealed holdout, live runtime, gateway smoke, and hardened release-gate certification."
 }

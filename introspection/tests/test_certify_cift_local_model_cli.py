@@ -106,7 +106,9 @@ class CertifyCiftLocalModelCliTest(unittest.TestCase):
             module.discover_cift_model_metadata = original_discover
 
         self.assertEqual(0, exit_code)
+        self.assertEqual("calibration-ready", workflow_manifest["support_state"])
         self.assertEqual("not_certified_until_release_gate_passes", workflow_manifest["support_claim_status"])
+        self.assertEqual("calibration-ready", workflow_manifest["model_identity"]["support_state"])
         self.assertEqual("Local/Test-Model", workflow_manifest["model_identity"]["model_id"])
         self.assertEqual("selected_choice_window_layer_1", workflow_manifest["training"]["candidate_feature_key"])
         self.assertEqual("dry_run", run_report["mode"])
@@ -215,6 +217,7 @@ class CertifyCiftLocalModelCliTest(unittest.TestCase):
 
         self.assertEqual(0, exit_code)
         self.assertEqual("certified", verification_report["status"])
+        self.assertEqual("runtime-enforceable", verification_report["support_state"])
         self.assertEqual("certification_bound", verification_report["release_gate"]["evidence_mode"])
         self.assertEqual(runtime_sha256, verification_report["runtime_binding"]["runtime_model_sha256"])
         binding_config = calls["binding_config"]
@@ -225,6 +228,80 @@ class CertifyCiftLocalModelCliTest(unittest.TestCase):
         self.assertEqual("f" * 64, binding_config.expected_release_gate_report_sha256)
         self.assertEqual("mps", release_gate_config.required_runtime_prevention_device)
         self.assertFalse(release_gate_config.allow_embedded_artifact_only)
+
+    def test_certification_writes_failed_report_when_discovery_fails(self) -> None:
+        module = _load_cli_module()
+        original_discover = module.discover_cift_model_metadata
+
+        def fail_discovery(config: object) -> object:
+            raise ValueError("model files are not available locally")
+
+        module.discover_cift_model_metadata = fail_discovery
+        try:
+            with tempfile.TemporaryDirectory() as temporary_directory:
+                root = Path(temporary_directory)
+                corpus_path = root / "data" / "calibration.jsonl"
+                runtime_turns_path = root / "data" / "runtime_turns.jsonl"
+                fallback_runtime_path = root / "models" / "fallback_runtime.json"
+                workflow_manifest_path = root / "reports" / "workflow.json"
+                run_report_path = root / "reports" / "workflow_run.json"
+                output_dir = root / "introspection" / "data"
+                corpus_path.parent.mkdir(parents=True)
+                fallback_runtime_path.parent.mkdir(parents=True)
+                corpus_path.write_text('{"id":"calibration-safe"}\n', encoding="utf-8")
+                runtime_turns_path.write_text('{"trace_id":"runtime-safe"}\n', encoding="utf-8")
+                fallback_runtime_path.write_text("{}\n", encoding="utf-8")
+
+                exit_code = module.run_cli(
+                    module.CertifyCiftLocalModelCliConfig(
+                        repository_root=root,
+                        certification_id="qwen3_0_6b_portability_check",
+                        model_id="Qwen/Qwen3-0.6B",
+                        revision=_IMMUTABLE_MODEL_REVISION,
+                        corpus_path=corpus_path,
+                        runtime_turns_path=runtime_turns_path,
+                        fallback_runtime_model_path=fallback_runtime_path,
+                        output_dir=output_dir,
+                        workflow_manifest_path=workflow_manifest_path,
+                        run_report_path=run_report_path,
+                        training_dataset_id="synthetic-training",
+                        task_name="safe_secret_vs_exfiltration",
+                        positive_label="exfiltration_intent",
+                        behavior_id="secret-exfiltration-intent",
+                        behavior_description=(
+                            "User request attempts to move a protected secret into an external channel."
+                        ),
+                        layer_indices=(1, 2),
+                        pooling_methods=("selected_choice_window",),
+                        candidate_feature_key="selected_choice_window_layer_1",
+                        requested_device="mps",
+                        prompt_renderer=CIFT_PROMPT_RENDERER_TRACE_BRIDGE_V1,
+                        selected_choice_geometry=CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
+                        selected_choice_readout_token_count=4,
+                        dtype_name="device",
+                        metric_threshold=1.0,
+                        ablation_delta_threshold=0.0,
+                        created_at="2026-06-25T00:00:00Z",
+                        allow_download=False,
+                        trust_remote_code=False,
+                        execute=False,
+                        allow_sealed_holdout_execution=False,
+                        overwrite_existing_outputs=False,
+                        template_values={},
+                        command_timeout_seconds=30.0,
+                    )
+                )
+                run_report = json.loads(run_report_path.read_text(encoding="utf-8"))
+                workflow_manifest_exists = workflow_manifest_path.exists()
+        finally:
+            module.discover_cift_model_metadata = original_discover
+
+        self.assertEqual(1, exit_code)
+        self.assertFalse(workflow_manifest_exists)
+        self.assertEqual("failed certification", run_report["support_state"])
+        self.assertFalse(run_report["certification_eligible"])
+        self.assertIn("model_metadata_discovery_failed", run_report["failed_requirements"][0])
+        self.assertEqual("Qwen/Qwen3-0.6B", run_report["model_identity"]["model_id"])
 
     def test_verify_existing_certification_fails_on_model_identity_mismatch(self) -> None:
         module = _load_cli_module()
@@ -386,11 +463,21 @@ def _load_cli_module() -> ModuleType:
 def _fake_discover_cift_model_metadata(config: object) -> CiftModelMetadataReport:
     return CiftModelMetadataReport(
         schema_version="aegis_introspection.cift_model_metadata/v1",
+        support_state="calibration-ready",
         model_id="Local/Test-Model",
         revision=_IMMUTABLE_MODEL_REVISION,
+        resolved_revision=_IMMUTABLE_MODEL_REVISION,
         model_type="local_test",
         hidden_size=128,
         layer_count=4,
+        requested_device="mps",
+        selected_device="mps",
+        dtype_name="device",
+        resolved_torch_dtype="torch.float16",
+        hidden_state_support="configurable_output_hidden_states",
+        hidden_state_capable=True,
+        selected_readout_candidates=("selected_choice_window_layer_1",),
+        failure_reason=None,
         tokenizer_class="LocalTokenizer",
         tokenizer_vocab_size=32000,
         tokenizer_fingerprint_sha256="b" * 64,

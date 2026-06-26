@@ -100,6 +100,15 @@ _CAPABILITIES_SCHEMA_VERSION = "aegis.proxy_capabilities/v1"
 _READINESS_SCHEMA_VERSION = "aegis.proxy_readiness/v1"
 _AEGIS_RESPONSE_SCHEMA_VERSION = "aegis.chat_response/v1"
 _TEST_SEED_CANARY_SCHEMA_VERSION = "aegis.test_seed_canary/v1"
+_CIFT_SUPPORT_TIER_UNSUPPORTED = "unsupported"
+_CIFT_SUPPORT_TIER_CERTIFIED = "certified"
+_CIFT_SUPPORT_TIER_CALIBRATION_READY = "calibration-ready"
+_CIFT_SUPPORT_TIER_RUNTIME_ENFORCEABLE = "runtime-enforceable"
+_CIFT_UNSUPPORTED_SUPPORT_SCOPE = "model-specific CIFT enforcement unavailable"
+_CIFT_BLACK_BOX_SUPPORT_REASON = (
+    "black-box provider mode has no certified hidden-state extractor binding; "
+    "DP-HONEY, NIMBUS, and provider egress remain available."
+)
 _RESERVED_METADATA_KEYS = frozenset(("cift", "secret_context_handle"))
 _RESERVED_METADATA_PREFIXES = ("aegis_", "cift_", "dp_honey_", "nimbus_")
 _TEST_SEEDED_CANARY_SOURCE = "test_seed_canary"
@@ -186,6 +195,7 @@ class CiftReadinessProbe:
                 "ready": True,
                 "status": "not_required",
                 "capability_mode": self.capability.capability_mode.value,
+                **_cift_black_box_support(),
             }
         binding = self.capability.runtime_binding
         if binding is None:
@@ -193,9 +203,13 @@ class CiftReadinessProbe:
                 "ready": False,
                 "status": "uncertified",
                 "capability_mode": self.capability.capability_mode.value,
+                **_cift_unbound_support(),
                 "error": "self-hosted CIFT readiness requires a strict certification runtime binding.",
             }
-        base = _cift_readiness_binding_summary(binding)
+        base = {
+            **_cift_readiness_binding_summary(binding),
+            **_cift_readiness_binding_pending_support(binding),
+        }
         if self.extractor is None:
             return {
                 **base,
@@ -256,6 +270,7 @@ class CiftReadinessProbe:
             }
         return {
             **base,
+            **_cift_readiness_binding_ready_support(binding),
             "ready": True,
             "status": "ready",
             "feature_vector_length": observed_feature_count,
@@ -1725,11 +1740,86 @@ def _cift_capabilities(capability: ProxyCiftCapability) -> dict[str, JsonValue]:
     capabilities: dict[str, JsonValue] = {
         "capability_mode": capability.capability_mode.value,
         "detectors": list(capability.detector_names),
+        **_cift_capability_support(capability),
         "turn_annotator_count": len(capability.turn_annotators),
     }
     if capability.runtime_binding is not None:
         capabilities["runtime_binding"] = _cift_runtime_binding(capability.runtime_binding)
     return capabilities
+
+
+def _cift_capability_support(capability: ProxyCiftCapability) -> dict[str, JsonValue]:
+    binding = capability.runtime_binding
+    if binding is None:
+        if capability.capability_mode == CapabilityMode.BLACK_BOX:
+            return _cift_black_box_support()
+        return _cift_unbound_support()
+    if binding.certification_mode == CiftCertificationMode.GATEWAY_SMOKE_BOOTSTRAP:
+        return _cift_calibration_ready_support(binding)
+    return {
+        "support_tier": _CIFT_SUPPORT_TIER_RUNTIME_ENFORCEABLE,
+        "support_scope": _cift_enforcement_support_scope(binding),
+        "support_reason": (
+            "strict certification binding is loaded; readiness still depends on trusted extractor attestation."
+        ),
+    }
+
+
+def _cift_black_box_support() -> dict[str, JsonValue]:
+    return {
+        "support_tier": _CIFT_SUPPORT_TIER_UNSUPPORTED,
+        "support_scope": _CIFT_UNSUPPORTED_SUPPORT_SCOPE,
+        "support_reason": _CIFT_BLACK_BOX_SUPPORT_REASON,
+    }
+
+
+def _cift_unbound_support() -> dict[str, JsonValue]:
+    return {
+        "support_tier": _CIFT_SUPPORT_TIER_UNSUPPORTED,
+        "support_scope": _CIFT_UNSUPPORTED_SUPPORT_SCOPE,
+        "support_reason": (
+            "self-hosted CIFT has no certified runtime binding; "
+            "DP-HONEY, NIMBUS, and provider egress remain available."
+        ),
+    }
+
+
+def _cift_readiness_binding_pending_support(binding: ProxyCiftRuntimeBinding) -> dict[str, JsonValue]:
+    if binding.certification_mode == CiftCertificationMode.GATEWAY_SMOKE_BOOTSTRAP:
+        return _cift_calibration_ready_support(binding)
+    return {
+        "support_tier": _CIFT_SUPPORT_TIER_CERTIFIED,
+        "support_scope": _cift_enforcement_support_scope(binding),
+        "support_reason": (
+            "strict certification binding is loaded; readiness still depends on trusted extractor attestation."
+        ),
+    }
+
+
+def _cift_readiness_binding_ready_support(binding: ProxyCiftRuntimeBinding) -> dict[str, JsonValue]:
+    if binding.certification_mode == CiftCertificationMode.GATEWAY_SMOKE_BOOTSTRAP:
+        return _cift_calibration_ready_support(binding)
+    return {
+        "support_tier": _CIFT_SUPPORT_TIER_RUNTIME_ENFORCEABLE,
+        "support_scope": _cift_enforcement_support_scope(binding),
+        "support_reason": "strict certification binding and live extractor readiness are satisfied.",
+    }
+
+
+def _cift_calibration_ready_support(binding: ProxyCiftRuntimeBinding) -> dict[str, JsonValue]:
+    return {
+        "support_tier": _CIFT_SUPPORT_TIER_CALIBRATION_READY,
+        "support_scope": _cift_calibration_support_scope(binding),
+        "support_reason": "gateway-smoke bootstrap is calibration evidence only, not release certification.",
+    }
+
+
+def _cift_enforcement_support_scope(binding: ProxyCiftRuntimeBinding) -> str:
+    return f"model-specific CIFT enforcement for {binding.source_model_id} on {binding.source_selected_device}"
+
+
+def _cift_calibration_support_scope(binding: ProxyCiftRuntimeBinding) -> str:
+    return f"model-specific CIFT calibration for {binding.source_model_id} on {binding.source_selected_device}"
 
 
 def _cift_runtime_binding(binding: ProxyCiftRuntimeBinding) -> dict[str, JsonValue]:

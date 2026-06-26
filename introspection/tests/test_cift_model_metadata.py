@@ -19,10 +19,19 @@ class CiftModelMetadataTest(unittest.TestCase):
         config = CiftModelMetadataConfig(
             model_id="Qwen/Qwen3-test",
             revision="main",
+            requested_device="cpu",
+            dtype_name="device",
+            selected_readout_candidates=("selected_choice_window_layer_1",),
             local_files_only=True,
             trust_remote_code=False,
         )
-        model_config = SimpleNamespace(model_type="qwen3", hidden_size=4096, num_hidden_layers=36)
+        model_config = SimpleNamespace(
+            model_type="qwen3",
+            hidden_size=4096,
+            num_hidden_layers=36,
+            output_hidden_states=False,
+            _commit_hash="0123456789abcdef0123456789abcdef01234567",
+        )
         tokenizer = _FakeTokenizer()
 
         report = cift_model_metadata_report_from_loaded_objects(
@@ -33,11 +42,21 @@ class CiftModelMetadataTest(unittest.TestCase):
         decoded = cift_model_metadata_report_to_json(report)
 
         self.assertEqual("aegis_introspection.cift_model_metadata/v1", decoded["schema_version"])
+        self.assertEqual("calibration-ready", decoded["support_state"])
         self.assertEqual("Qwen/Qwen3-test", decoded["model_id"])
         self.assertEqual("main", decoded["revision"])
+        self.assertEqual("0123456789abcdef0123456789abcdef01234567", decoded["resolved_revision"])
         self.assertEqual("qwen3", decoded["model_type"])
         self.assertEqual(4096, decoded["hidden_size"])
         self.assertEqual(36, decoded["layer_count"])
+        self.assertEqual("cpu", decoded["requested_device"])
+        self.assertEqual("cpu", decoded["selected_device"])
+        self.assertEqual("device", decoded["dtype_name"])
+        self.assertEqual("torch.float32", decoded["resolved_torch_dtype"])
+        self.assertEqual("configurable_output_hidden_states", decoded["hidden_state_support"])
+        self.assertTrue(decoded["hidden_state_capable"])
+        self.assertEqual(["selected_choice_window_layer_1"], decoded["selected_readout_candidates"])
+        self.assertIsNone(decoded["failure_reason"])
         self.assertEqual("_FakeTokenizer", decoded["tokenizer_class"])
         self.assertEqual(32000, decoded["tokenizer_vocab_size"])
         self.assertEqual(hashlib.sha256(b'{"model":"tokenizer"}').hexdigest(), decoded["tokenizer_fingerprint_sha256"])
@@ -48,10 +67,13 @@ class CiftModelMetadataTest(unittest.TestCase):
         config = CiftModelMetadataConfig(
             model_id="Qwen/Qwen3-test",
             revision="main",
+            requested_device="cpu",
+            dtype_name="device",
+            selected_readout_candidates=("selected_choice_window_layer_1",),
             local_files_only=True,
             trust_remote_code=False,
         )
-        model_config = SimpleNamespace(model_type="qwen3", num_hidden_layers=36)
+        model_config = SimpleNamespace(model_type="qwen3", num_hidden_layers=36, output_hidden_states=False)
 
         with self.assertRaisesRegex(CiftModelMetadataError, "hidden_size"):
             cift_model_metadata_report_from_loaded_objects(
@@ -64,10 +86,18 @@ class CiftModelMetadataTest(unittest.TestCase):
         config = CiftModelMetadataConfig(
             model_id="Qwen/Qwen3-test",
             revision="main",
+            requested_device="cpu",
+            dtype_name="device",
+            selected_readout_candidates=("selected_choice_window_layer_1",),
             local_files_only=True,
             trust_remote_code=False,
         )
-        model_config = SimpleNamespace(model_type="qwen3", hidden_size=1024, num_hidden_layers=24)
+        model_config = SimpleNamespace(
+            model_type="qwen3",
+            hidden_size=1024,
+            num_hidden_layers=24,
+            output_hidden_states=False,
+        )
         tokenizer = _FakeSlowTokenizer()
 
         report = cift_model_metadata_report_from_loaded_objects(

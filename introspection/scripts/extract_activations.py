@@ -210,6 +210,12 @@ def run_extraction(config: ExtractionScriptConfig) -> None:
         config=CiftModelMetadataConfig(
             model_id=config.model_id,
             revision=config.revision,
+            requested_device=config.requested_device,
+            dtype_name=config.dtype_name,
+            selected_readout_candidates=_candidate_feature_keys(
+                layer_indices=config.layer_indices,
+                pooling_methods=config.pooling_methods,
+            ),
             local_files_only=config.local_files_only,
             trust_remote_code=config.trust_remote_code,
         ),
@@ -247,6 +253,17 @@ def run_extraction(config: ExtractionScriptConfig) -> None:
         feature_tensors=feature_tensors,
     )
     print(f"Wrote activation features to {config.output_path}")
+
+
+def _candidate_feature_keys(
+    layer_indices: tuple[int, ...],
+    pooling_methods: tuple[PoolingMethod, ...],
+) -> tuple[str, ...]:
+    return tuple(
+        f"{pooling_method}_layer_{layer_index}"
+        for layer_index in layer_indices
+        for pooling_method in pooling_methods
+    )
 
 
 def main(argv: Sequence[str]) -> None:

@@ -11,6 +11,7 @@ from typing import TypeAlias, cast
 from aegis.cift_contract import (
     CIFT_PROMPT_RENDERER_TRACE_BRIDGE_V1,
     CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
+    CIFT_SUPPORT_STATE_CALIBRATION_READY,
     is_cift_immutable_model_revision,
 )
 from aegis.core.action_severity import action_severity
@@ -1141,11 +1142,23 @@ def _optional_model_metadata_report(path: Path | None) -> CiftModelMetadataRepor
     try:
         return CiftModelMetadataReport(
             schema_version=_required_string(record, "schema_version"),
+            support_state=_optional_string_field(record, "support_state") or CIFT_SUPPORT_STATE_CALIBRATION_READY,
             model_id=_required_string(record, "model_id"),
             revision=_required_string(record, "revision"),
+            resolved_revision=_optional_string_field(record, "resolved_revision")
+            or _required_string(record, "revision"),
             model_type=_required_string(record, "model_type"),
             hidden_size=_required_int(record, "hidden_size"),
             layer_count=_required_int(record, "layer_count"),
+            requested_device=_optional_string_field(record, "requested_device") or "mps",
+            selected_device=_optional_string_field(record, "selected_device") or "mps",
+            dtype_name=_optional_string_field(record, "dtype_name") or "device",
+            resolved_torch_dtype=_optional_string_field(record, "resolved_torch_dtype") or "torch.float16",
+            hidden_state_support=_optional_string_field(record, "hidden_state_support")
+            or "legacy_v1_assumed_configurable_output_hidden_states",
+            hidden_state_capable=_optional_bool_field(record, "hidden_state_capable", True),
+            selected_readout_candidates=_optional_string_tuple_field(record, "selected_readout_candidates"),
+            failure_reason=_optional_string_field(record, "failure_reason"),
             tokenizer_class=_required_string(record, "tokenizer_class"),
             tokenizer_vocab_size=_required_int(record, "tokenizer_vocab_size"),
             tokenizer_fingerprint_sha256=_required_string(record, "tokenizer_fingerprint_sha256"),
@@ -1325,6 +1338,26 @@ def _optional_string_field(record: Mapping[str, object], field_name: str) -> str
     if isinstance(value, str) and value != "":
         return value
     return None
+
+
+def _optional_bool_field(record: Mapping[str, object], field_name: str, fallback_value: bool) -> bool:
+    value = record.get(field_name)
+    if value is None:
+        return fallback_value
+    if isinstance(value, bool):
+        return value
+    return fallback_value
+
+
+def _optional_string_tuple_field(record: Mapping[str, object], field_name: str) -> tuple[str, ...]:
+    value = record.get(field_name)
+    if not isinstance(value, list):
+        return ()
+    candidates: list[str] = []
+    for item in value:
+        if isinstance(item, str) and item != "":
+            candidates.append(item)
+    return tuple(candidates)
 
 
 def _number_field(record: Mapping[str, object], field_name: str) -> float | None:

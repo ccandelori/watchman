@@ -177,6 +177,9 @@ def run_cli(config: PlanCiftCertificationWorkflowCliConfig) -> None:
         CiftModelMetadataConfig(
             model_id=config.model_id,
             revision=config.revision,
+            requested_device=config.requested_device,
+            dtype_name=config.dtype_name,
+            selected_readout_candidates=(config.candidate_feature_key,),
             local_files_only=config.local_files_only,
             trust_remote_code=config.trust_remote_code,
         )

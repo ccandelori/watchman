@@ -17,6 +17,10 @@ from aegis.core.contracts import Action, JsonValue
 CONSOLE_OVERVIEW_SCHEMA_VERSION = "aegis.console_overview/v1"
 CONSOLE_EVENTS_SCHEMA_VERSION = "aegis.console_events/v1"
 CONSOLE_SETUP_SCHEMA_VERSION = "aegis.console_setup/v1"
+_CIFT_SUPPORT_TIER_UNSUPPORTED = "unsupported"
+_CIFT_SUPPORT_TIER_CALIBRATION_READY = "calibration-ready"
+_CIFT_SUPPORT_TIER_RUNTIME_ENFORCEABLE = "runtime-enforceable"
+_CIFT_UNSUPPORTED_SUPPORT_SCOPE = "model-specific CIFT enforcement unavailable"
 _DEFAULT_REQUIRED_STAGE_NAMES = (
     "normalize",
     "credential_slot",
@@ -375,16 +379,24 @@ def _cift_summary(readiness: Mapping[str, JsonValue], capabilities: Mapping[str,
     ready_payload = _payload(readiness)
     capabilities_payload = _payload(capabilities)
     cift_ready = _optional_mapping(ready_payload.get("cift"))
+    cift_capability = _optional_mapping(capabilities_payload.get("cift"))
     binding = _cift_binding(capabilities_payload)
-    if len(binding) == 0:
-        certificate_status = "unsupported until certified"
+    support = _cift_support_summary(cift_ready=cift_ready, cift_capability=cift_capability, binding=binding)
+    support_tier = _optional_string(support.get("support_tier"))
+    if support_tier == _CIFT_SUPPORT_TIER_UNSUPPORTED:
+        certificate_status = _CIFT_SUPPORT_TIER_UNSUPPORTED
+    elif support_tier == _CIFT_SUPPORT_TIER_CALIBRATION_READY:
+        certificate_status = _CIFT_SUPPORT_TIER_CALIBRATION_READY
     elif binding.get("certification_mode") == "strict" and cift_ready.get("status") == "ready":
         certificate_status = "certified"
     else:
         certificate_status = "degraded"
     return {
         "certificate_status": certificate_status,
-        "capability_mode": _nested_string(capabilities_payload, ("cift", "capability_mode")),
+        "capability_mode": cift_capability.get("capability_mode") or cift_ready.get("capability_mode"),
+        "support_tier": support.get("support_tier"),
+        "support_scope": support.get("support_scope"),
+        "support_reason": support.get("support_reason"),
         "readiness_status": cift_ready.get("status"),
         "certification_id": binding.get("certification_id"),
         "certification_mode": binding.get("certification_mode"),
@@ -403,6 +415,70 @@ def _cift_summary(readiness: Mapping[str, JsonValue], capabilities: Mapping[str,
         "chat_template_sha256": binding.get("chat_template_sha256"),
         "extractor": cift_ready.get("extractor"),
     }
+
+
+def _cift_support_summary(
+    cift_ready: Mapping[str, JsonValue],
+    cift_capability: Mapping[str, JsonValue],
+    binding: Mapping[str, JsonValue],
+) -> dict[str, JsonValue]:
+    explicit = _explicit_cift_support(cift_ready)
+    if len(explicit) == 3:
+        return explicit
+    explicit = _explicit_cift_support(cift_capability)
+    if len(explicit) == 3:
+        return explicit
+    if len(binding) > 0:
+        certification_mode = _optional_string(binding.get("certification_mode"))
+        if certification_mode == "gateway_smoke_bootstrap":
+            return {
+                "support_tier": _CIFT_SUPPORT_TIER_CALIBRATION_READY,
+                "support_scope": _cift_calibration_support_scope(binding),
+                "support_reason": "gateway-smoke bootstrap is calibration evidence only, not release certification.",
+            }
+        if certification_mode == "strict" and cift_ready.get("status") == "ready":
+            return {
+                "support_tier": _CIFT_SUPPORT_TIER_RUNTIME_ENFORCEABLE,
+                "support_scope": _cift_enforcement_support_scope(binding),
+                "support_reason": "strict certification binding and live extractor readiness are satisfied.",
+            }
+        return {
+            "support_tier": "certified",
+            "support_scope": _cift_enforcement_support_scope(binding),
+            "support_reason": (
+                "strict certification binding is loaded; readiness still depends on trusted extractor attestation."
+            ),
+        }
+    return {
+        "support_tier": _CIFT_SUPPORT_TIER_UNSUPPORTED,
+        "support_scope": _CIFT_UNSUPPORTED_SUPPORT_SCOPE,
+        "support_reason": "no model-specific CIFT runtime binding is available.",
+    }
+
+
+def _explicit_cift_support(payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    support_tier = _optional_string(payload.get("support_tier"))
+    support_scope = _optional_string(payload.get("support_scope"))
+    support_reason = _optional_string(payload.get("support_reason"))
+    if support_tier is None or support_scope is None or support_reason is None:
+        return {}
+    return {
+        "support_tier": support_tier,
+        "support_scope": support_scope,
+        "support_reason": support_reason,
+    }
+
+
+def _cift_enforcement_support_scope(binding: Mapping[str, JsonValue]) -> str:
+    model_id = _optional_string(binding.get("source_model_id")) or "unknown model"
+    selected_device = _optional_string(binding.get("source_selected_device")) or "unknown device"
+    return f"model-specific CIFT enforcement for {model_id} on {selected_device}"
+
+
+def _cift_calibration_support_scope(binding: Mapping[str, JsonValue]) -> str:
+    model_id = _optional_string(binding.get("source_model_id")) or "unknown model"
+    selected_device = _optional_string(binding.get("source_selected_device")) or "unknown device"
+    return f"model-specific CIFT calibration for {model_id} on {selected_device}"
 
 
 def _nimbus_summary(readiness: Mapping[str, JsonValue], capabilities: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
@@ -792,7 +868,11 @@ def _cift_binding(capabilities_payload: Mapping[str, JsonValue]) -> Mapping[str,
 
 
 def _cift_status_text(cift_ready: Mapping[str, JsonValue]) -> str:
-    status = _optional_string(cift_ready.get("status")) or "unsupported until certified"
+    support_tier = _optional_string(cift_ready.get("support_tier"))
+    support_scope = _optional_string(cift_ready.get("support_scope"))
+    if support_tier == _CIFT_SUPPORT_TIER_UNSUPPORTED and support_scope is not None:
+        return f"{support_tier}: {support_scope}"
+    status = support_tier or _optional_string(cift_ready.get("status")) or _CIFT_SUPPORT_TIER_UNSUPPORTED
     certification_id = _optional_string(cift_ready.get("certification_id"))
     if certification_id is None:
         return status

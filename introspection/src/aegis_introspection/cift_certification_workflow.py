@@ -11,6 +11,8 @@ from typing import TypeAlias, cast
 from aegis.cift_contract import (
     CIFT_PROMPT_RENDERER_TRACE_BRIDGE_V1,
     CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
+    CIFT_SUPPORT_STATE_CALIBRATION_READY,
+    CIFT_SUPPORT_STATE_CERTIFIED,
     is_cift_immutable_model_revision,
 )
 from aegis_introspection.cift_model_metadata import (
@@ -106,6 +108,7 @@ def build_cift_certification_workflow_manifest(
         "certification_id": config.certification_id,
         "created_at": config.created_at,
         "status": "planned",
+        "support_state": CIFT_SUPPORT_STATE_CALIBRATION_READY,
         "support_claim_status": "not_certified_until_release_gate_passes",
         "model_identity": cift_model_metadata_report_to_json(model_metadata),
         "corpus": {
@@ -206,6 +209,7 @@ def build_cift_certification_evidence_manifest(
         "certification_id": config.certification_id,
         "created_at": config.created_at,
         "status": "evidence_bound",
+        "support_state": CIFT_SUPPORT_STATE_CERTIFIED,
         "support_claim_status": "model_specific_certified_only_if_release_gate_passes",
         "model_identity": cift_model_metadata_report_to_json(model_metadata),
         "training": {
@@ -1086,6 +1090,12 @@ def _command_plan(
                 config.revision,
                 "--output",
                 _artifact_path(artifact_paths, "model_metadata_report_path"),
+                "--device",
+                config.requested_device,
+                "--dtype",
+                config.dtype_name,
+                "--selected-readout-candidate",
+                config.candidate_feature_key,
                 *_model_access_flags(config),
             ),
             produces=(_artifact_path(artifact_paths, "model_metadata_report_path"),),
@@ -2158,6 +2168,18 @@ def _validate_model_metadata(
         raise CiftCertificationWorkflowError("model_id must match discovered model metadata.")
     if model_metadata.revision != config.revision:
         raise CiftCertificationWorkflowError("revision must match discovered model metadata.")
+    if model_metadata.support_state != CIFT_SUPPORT_STATE_CALIBRATION_READY:
+        raise CiftCertificationWorkflowError("model metadata support_state must be calibration-ready.")
+    if model_metadata.requested_device != config.requested_device:
+        raise CiftCertificationWorkflowError("model metadata requested_device must match certification config.")
+    if model_metadata.selected_device != config.requested_device and config.requested_device != "auto":
+        raise CiftCertificationWorkflowError("model metadata selected_device must match requested_device.")
+    if model_metadata.dtype_name != config.dtype_name:
+        raise CiftCertificationWorkflowError("model metadata dtype_name must match certification config.")
+    if config.candidate_feature_key not in model_metadata.selected_readout_candidates:
+        raise CiftCertificationWorkflowError(
+            "candidate_feature_key must be present in model metadata selected_readout_candidates."
+        )
     _validate_model_revision_policy(model_metadata.revision, "model metadata revision")
     if model_metadata.hidden_size < 1:
         raise CiftCertificationWorkflowError("model metadata hidden_size must be positive.")
@@ -2245,11 +2267,45 @@ def _model_metadata_report_from_path(path: Path) -> CiftModelMetadataReport:
     record = _json_object_from_path(path, "model metadata report")
     return CiftModelMetadataReport(
         schema_version=_json_string(record, "schema_version", "model metadata report"),
+        support_state=_optional_json_string(
+            record,
+            "support_state",
+            "model metadata report",
+            CIFT_SUPPORT_STATE_CALIBRATION_READY,
+        ),
         model_id=_json_string(record, "model_id", "model metadata report"),
         revision=_json_string(record, "revision", "model metadata report"),
+        resolved_revision=_optional_json_string(
+            record,
+            "resolved_revision",
+            "model metadata report",
+            _json_string(record, "revision", "model metadata report"),
+        ),
         model_type=_json_string(record, "model_type", "model metadata report"),
         hidden_size=_json_int(record, "hidden_size", "model metadata report"),
         layer_count=_json_int(record, "layer_count", "model metadata report"),
+        requested_device=_optional_json_string(record, "requested_device", "model metadata report", "mps"),
+        selected_device=_optional_json_string(record, "selected_device", "model metadata report", "mps"),
+        dtype_name=_optional_json_string(record, "dtype_name", "model metadata report", "device"),
+        resolved_torch_dtype=_optional_json_string(
+            record,
+            "resolved_torch_dtype",
+            "model metadata report",
+            "torch.float16",
+        ),
+        hidden_state_support=_optional_json_string(
+            record,
+            "hidden_state_support",
+            "model metadata report",
+            "legacy_v1_assumed_configurable_output_hidden_states",
+        ),
+        hidden_state_capable=_optional_json_bool(record, "hidden_state_capable", "model metadata report", True),
+        selected_readout_candidates=_optional_json_string_tuple(
+            record,
+            "selected_readout_candidates",
+            "model metadata report",
+        ),
+        failure_reason=_optional_json_nullable_string(record, "failure_reason", "model metadata report"),
         tokenizer_class=_json_string(record, "tokenizer_class", "model metadata report"),
         tokenizer_vocab_size=_json_int(record, "tokenizer_vocab_size", "model metadata report"),
         tokenizer_fingerprint_sha256=_json_string(record, "tokenizer_fingerprint_sha256", "model metadata report"),
@@ -2279,6 +2335,61 @@ def _json_string(record: Mapping[str, object], field_name: str, label: str) -> s
     if not isinstance(value, str) or value == "":
         raise CiftCertificationWorkflowError(f"{label} {field_name} must be a non-empty string.")
     return value
+
+
+def _optional_json_string(
+    record: Mapping[str, object],
+    field_name: str,
+    label: str,
+    fallback_value: str,
+) -> str:
+    value = record.get(field_name)
+    if value is None:
+        return fallback_value
+    if not isinstance(value, str) or value == "":
+        raise CiftCertificationWorkflowError(f"{label} {field_name} must be a non-empty string when present.")
+    return value
+
+
+def _optional_json_nullable_string(record: Mapping[str, object], field_name: str, label: str) -> str | None:
+    value = record.get(field_name)
+    if value is None:
+        return None
+    if not isinstance(value, str) or value == "":
+        raise CiftCertificationWorkflowError(f"{label} {field_name} must be a non-empty string when present.")
+    return value
+
+
+def _optional_json_bool(
+    record: Mapping[str, object],
+    field_name: str,
+    label: str,
+    fallback_value: bool,
+) -> bool:
+    value = record.get(field_name)
+    if value is None:
+        return fallback_value
+    if not isinstance(value, bool):
+        raise CiftCertificationWorkflowError(f"{label} {field_name} must be a boolean when present.")
+    return value
+
+
+def _optional_json_string_tuple(
+    record: Mapping[str, object],
+    field_name: str,
+    label: str,
+) -> tuple[str, ...]:
+    value = record.get(field_name)
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise CiftCertificationWorkflowError(f"{label} {field_name} must be a list when present.")
+    candidates: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or item == "":
+            raise CiftCertificationWorkflowError(f"{label} {field_name}[{index}] must be a non-empty string.")
+        candidates.append(item)
+    return tuple(candidates)
 
 
 def _json_int(record: dict[str, object], field_name: str, label: str) -> int:

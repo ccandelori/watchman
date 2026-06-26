@@ -135,6 +135,9 @@ function renderModel() {
     ["Layer count", model.layer_count || cift.source_layer_count],
     ["Tokenizer hash", model.tokenizer_fingerprint_sha256 || cift.tokenizer_fingerprint_sha256],
     ["Chat-template hash", model.chat_template_sha256 || cift.chat_template_sha256],
+    ["CIFT support tier", cift.support_tier],
+    ["CIFT support scope", cift.support_scope],
+    ["CIFT support reason", cift.support_reason],
     ["CIFT certificate", cift.certificate_status],
     ["Certification id", cift.certification_id],
     ["Certification mode", cift.certification_mode],
@@ -187,6 +190,8 @@ function renderSetup() {
     ["Current /ready status", readyPayload.status],
     ["Current /ready boolean", readyPayload.ready],
     ["Protection state", overview.protection?.state],
+    ["CIFT support tier", ciftReady.support_tier],
+    ["CIFT support scope", ciftReady.support_scope],
     ["CIFT /ready status", ciftReady.status],
     ["CIFT device", ciftReady.source_selected_device || ciftReady.extractor?.selected_device],
   ];
@@ -235,6 +240,9 @@ function keyValueTable(rows) {
 
 function ciftRows(cift) {
   return [
+    ["Support tier", cift.support_tier],
+    ["Support scope", cift.support_scope],
+    ["Support reason", cift.support_reason],
     ["Status", cift.certificate_status],
     ["Mode", cift.capability_mode],
     ["Certification", cift.certification_id],

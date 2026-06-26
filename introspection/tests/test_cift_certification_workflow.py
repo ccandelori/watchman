@@ -358,6 +358,13 @@ class CiftCertificationWorkflowTest(unittest.TestCase):
             step_ids.index("run_hardened_release_gate"),
         )
         steps_by_id = {step["step_id"]: step for step in command_plan}
+        self.assertEqual("calibration-ready", manifest["support_state"])
+        self.assertIn("--device", steps_by_id["discover_model_metadata"]["argv"])
+        self.assertIn("mps", steps_by_id["discover_model_metadata"]["argv"])
+        self.assertIn("--dtype", steps_by_id["discover_model_metadata"]["argv"])
+        self.assertIn("float16", steps_by_id["discover_model_metadata"]["argv"])
+        self.assertIn("--selected-readout-candidate", steps_by_id["discover_model_metadata"]["argv"])
+        self.assertIn("selected_choice_window_layer_19", steps_by_id["discover_model_metadata"]["argv"])
         self.assertIn(
             manifest["planned_artifacts"]["device_preflight_report_path"],
             steps_by_id["run_device_preflight"]["argv"],
@@ -808,11 +815,21 @@ def _metadata(
 ) -> CiftModelMetadataReport:
     return CiftModelMetadataReport(
         schema_version="aegis_introspection.cift_model_metadata/v1",
+        support_state="calibration-ready",
         model_id=model_id,
         revision=revision,
+        resolved_revision=revision,
         model_type="qwen3",
         hidden_size=2560,
         layer_count=layer_count,
+        requested_device="mps",
+        selected_device="mps",
+        dtype_name="float16",
+        resolved_torch_dtype="torch.float16",
+        hidden_state_support="configurable_output_hidden_states",
+        hidden_state_capable=True,
+        selected_readout_candidates=("selected_choice_window_layer_19",),
+        failure_reason=None,
         tokenizer_class="Qwen2Tokenizer",
         tokenizer_vocab_size=151643,
         tokenizer_fingerprint_sha256="a" * 64,

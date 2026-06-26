@@ -57,6 +57,12 @@ def test_http_ready_route_returns_ok_when_cift_is_not_required() -> None:
         "ready": True,
         "status": "not_required",
         "capability_mode": "black_box",
+        "support_tier": "unsupported",
+        "support_scope": "model-specific CIFT enforcement unavailable",
+        "support_reason": (
+            "black-box provider mode has no certified hidden-state extractor binding; "
+            "DP-HONEY, NIMBUS, and provider egress remain available."
+        ),
     }
     assert payload["dp_honey"]["status"] == "ready"
     assert payload["dp_honey"]["source"] == "dp_honey"
@@ -302,6 +308,12 @@ def test_ready_route_probes_configured_self_hosted_cift_sidecar(monkeypatch) -> 
     assert payload["cift"]["status"] == "ready"
     assert payload["cift"]["certification_id"] == "synthetic-certified-cift"
     assert payload["cift"]["model_bundle_id"] == "selected-choice-bundle"
+    assert payload["cift"]["support_tier"] == "runtime-enforceable"
+    assert payload["cift"]["support_scope"] == "model-specific CIFT enforcement for test-model on mps"
+    assert (
+        payload["cift"]["support_reason"]
+        == "strict certification binding and live extractor readiness are satisfied."
+    )
     assert payload["cift"]["feature_key"] == "selected_choice_window_layer_15"
     assert payload["cift"]["feature_count"] == 2
     assert payload["cift"]["feature_vector_length"] == 2
@@ -554,6 +566,12 @@ def test_default_http_app_bootstraps_gateway_smoke_from_preview_candidate(monkey
     assert readiness_cift["certification_id"] is None
     assert readiness_cift["release_gate_report_sha256"] is None
     assert readiness_cift["model_bundle_id"] == "selected-choice-preview-bundle"
+    assert readiness_cift["support_tier"] == "calibration-ready"
+    assert readiness_cift["support_scope"] == "model-specific CIFT calibration for test-model on mps"
+    assert (
+        readiness_cift["support_reason"]
+        == "gateway-smoke bootstrap is calibration evidence only, not release certification."
+    )
     assert readiness_cift["runtime_model_sha256"] == expected_runtime_sha256
     assert readiness_cift["source_model_id"] == "test-model"
     assert readiness_cift["source_selected_device"] == "mps"

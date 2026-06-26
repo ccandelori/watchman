@@ -27,6 +27,12 @@ def test_default_proxy_reports_black_box_cift_capability() -> None:
     assert payload["cift"] == {
         "capability_mode": "black_box",
         "detectors": ["activation_unavailable"],
+        "support_reason": (
+            "black-box provider mode has no certified hidden-state extractor binding; "
+            "DP-HONEY, NIMBUS, and provider egress remain available."
+        ),
+        "support_scope": "model-specific CIFT enforcement unavailable",
+        "support_tier": "unsupported",
         "turn_annotator_count": 0,
     }
 
@@ -67,6 +73,11 @@ def test_proxy_reports_strict_cift_runtime_binding_in_capabilities() -> None:
     assert payload["cift"] == {
         "capability_mode": "self_hosted_introspection",
         "detectors": ["cift_runtime"],
+        "support_reason": (
+            "strict certification binding is loaded; readiness still depends on trusted extractor attestation."
+        ),
+        "support_scope": "model-specific CIFT enforcement for Qwen/Qwen3-4B on mps",
+        "support_tier": "runtime-enforceable",
         "turn_annotator_count": 0,
         "runtime_binding": {
             "certification_mode": "strict",

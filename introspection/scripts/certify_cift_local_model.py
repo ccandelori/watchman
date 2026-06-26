@@ -28,9 +28,18 @@ from aegis_introspection.cift_certification_workflow_runner import (  # noqa: E4
     CiftCertificationWorkflowRunnerError,
     run_cift_certification_workflow,
 )
-from aegis_introspection.cift_model_metadata import CiftModelMetadataConfig, discover_cift_model_metadata  # noqa: E402
+from aegis_introspection.cift_model_metadata import (  # noqa: E402
+    CiftModelMetadataConfig,
+    CiftModelMetadataReport,
+    cift_model_metadata_report_to_json,
+    discover_cift_model_metadata,
+)
 from aegis_introspection.cift_release_gate import CiftReleaseGateConfig, evaluate_cift_release_gate  # noqa: E402
 
+from aegis.cift_contract import (  # noqa: E402
+    CIFT_SUPPORT_STATE_FAILED_CERTIFICATION,
+    CIFT_SUPPORT_STATE_RUNTIME_ENFORCEABLE,
+)
 from aegis.proxy.cift_certification import (  # noqa: E402
     CiftCertificationBindingConfig,
     validate_cift_certification_binding,
@@ -437,24 +446,54 @@ def _binding_config(config: VerifyExistingCiftCertificationCliConfig) -> CiftCer
 
 
 def run_cli(config: CertifyCiftLocalModelCliConfig) -> int:
-    model_metadata = discover_cift_model_metadata(
-        CiftModelMetadataConfig(
-            model_id=config.model_id,
-            revision=config.revision,
-            local_files_only=not config.allow_download,
-            trust_remote_code=config.trust_remote_code,
+    try:
+        model_metadata = discover_cift_model_metadata(
+            CiftModelMetadataConfig(
+                model_id=config.model_id,
+                revision=config.revision,
+                requested_device=config.requested_device,
+                dtype_name=config.dtype_name,
+                selected_readout_candidates=(config.candidate_feature_key,),
+                local_files_only=not config.allow_download,
+                trust_remote_code=config.trust_remote_code,
+            )
         )
-    )
-    manifest = build_cift_certification_workflow_manifest(
-        config=_workflow_config(config),
-        model_metadata=model_metadata,
-    )
+    except (ModuleNotFoundError, OSError, RuntimeError, ValueError) as exc:
+        _write_certification_failure_report(
+            config=config,
+            failure_stage="model_metadata_discovery_failed",
+            failure_reason=str(exc),
+            model_identity=_partial_model_identity(config=config, failure_reason=str(exc)),
+        )
+        print(f"CIFT local-model certification discovery failed: {config.model_id}@{config.revision}")
+        print(f"Run report: {config.run_report_path}")
+        print(f"- model_metadata_discovery_failed: {exc}")
+        return 1
+    try:
+        manifest = build_cift_certification_workflow_manifest(
+            config=_workflow_config(config),
+            model_metadata=model_metadata,
+        )
+    except ValueError as exc:
+        _write_certification_failure_report(
+            config=config,
+            failure_stage="workflow_manifest_build_failed",
+            failure_reason=str(exc),
+            model_identity=_discovered_model_identity(model_metadata=model_metadata, failure_reason=str(exc)),
+        )
+        print(f"CIFT local-model certification workflow validation failed: {config.model_id}@{config.revision}")
+        print(f"Run report: {config.run_report_path}")
+        print(f"- workflow_manifest_build_failed: {exc}")
+        return 1
     config.workflow_manifest_path.parent.mkdir(parents=True, exist_ok=True)
     config.workflow_manifest_path.write_text(
         json.dumps(manifest, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",
     )
     print(f"Wrote CIFT certification workflow manifest to {config.workflow_manifest_path}")
+    print(f"Support state: {model_metadata.support_state}")
+    print(f"Model binding: {model_metadata.model_id}@{model_metadata.resolved_revision}")
+    print(f"Device/dtype: {model_metadata.selected_device}/{model_metadata.resolved_torch_dtype}")
     report = run_cift_certification_workflow(_runner_config(config))
     mode = "execute" if config.execute else "dry-run"
     if report.eligible:
@@ -611,6 +650,9 @@ def _verification_report_to_json(
     return {
         "schema_version": _VERIFY_EXISTING_SCHEMA_VERSION,
         "status": "certified" if release_gate_eligible else "failed",
+        "support_state": CIFT_SUPPORT_STATE_RUNTIME_ENFORCEABLE
+        if release_gate_eligible
+        else CIFT_SUPPORT_STATE_FAILED_CERTIFICATION,
         "support_claim_status": "model_specific_certified_reference_only",
         "unsupported_model_policy": (
             "Other local models are unsupported until they pass their own calibration, sealed holdout, "
@@ -667,6 +709,62 @@ def _write_verification_report(
     )
     report_path.parent.mkdir(parents=True, exist_ok=True)
     report_path.write_text(json.dumps(verification_report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _write_certification_failure_report(
+    config: CertifyCiftLocalModelCliConfig,
+    failure_stage: str,
+    failure_reason: str,
+    model_identity: Mapping[str, JsonValue],
+) -> None:
+    report_path = _path_inside_repository_root(
+        repository_root=config.repository_root,
+        path=config.run_report_path,
+        label="run_report",
+    )
+    report = {
+        "schema_version": "aegis_introspection.cift_certification_workflow_run/v1",
+        "workflow_manifest_path": str(config.workflow_manifest_path),
+        "certification_id": config.certification_id,
+        "mode": "execute" if config.execute else "dry_run",
+        "support_state": CIFT_SUPPORT_STATE_FAILED_CERTIFICATION,
+        "model_identity": dict(model_identity),
+        "command_timeout_seconds": config.command_timeout_seconds,
+        "plan_eligible": False,
+        "evidence_eligible": False,
+        "certification_eligible": False,
+        "eligible": False,
+        "failed_requirements": [f"{failure_stage}: {failure_reason}"],
+        "step_count": 0,
+        "artifact_count": 0,
+        "artifacts": [],
+        "steps": [],
+    }
+    report_path.parent.mkdir(parents=True, exist_ok=True)
+    report_path.write_text(json.dumps(report, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _partial_model_identity(
+    config: CertifyCiftLocalModelCliConfig,
+    failure_reason: str,
+) -> Mapping[str, JsonValue]:
+    return {
+        "model_id": config.model_id,
+        "revision": config.revision,
+        "requested_device": config.requested_device,
+        "dtype_name": config.dtype_name,
+        "selected_readout_candidates": [config.candidate_feature_key],
+        "failure_reason": failure_reason,
+    }
+
+
+def _discovered_model_identity(
+    model_metadata: CiftModelMetadataReport,
+    failure_reason: str,
+) -> Mapping[str, JsonValue]:
+    identity = cift_model_metadata_report_to_json(model_metadata)
+    identity["failure_reason"] = failure_reason
+    return identity
 
 
 def _path_inside_repository_root(repository_root: Path, path: Path, label: str) -> Path:

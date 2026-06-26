@@ -194,6 +194,9 @@ def _model_attestation_from_loaded_model(
         config=CiftModelMetadataConfig(
             model_id=config.model_id,
             revision=config.revision,
+            requested_device=config.requested_device,
+            dtype_name=config.dtype_name,
+            selected_readout_candidates=config.feature_keys,
             local_files_only=config.local_files_only,
             trust_remote_code=config.trust_remote_code,
         ),
