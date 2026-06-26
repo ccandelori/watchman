@@ -230,7 +230,7 @@ def console_setup(settings: ConsoleSettings) -> dict[str, JsonValue]:
             "protected credential slot receives a registered DP-HONEY substitution",
             "strict CIFT blocks exfiltration intent before provider generation when the certified sidecar is ready",
             "provider egress guard blocks raw or tool-carried sensitive values before provider completion",
-            "canary and NIMBUS checks run after provider output when generation is allowed",
+            "mock-provider leak smoke exercises post-generation canary and NIMBUS leakage checks",
             "audit events and console traces show the allow/block decision and detector evidence",
         ],
         "common_degraded_states": [

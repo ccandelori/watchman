@@ -326,6 +326,25 @@ Expected smoke output is a single JSON object with `status="ok"`. The
 provider completion. When `--output` is set, the same JSON is written to the
 report path.
 
+`--provider-mode real-provider` intentionally skips mock-only forced leak probes
+because Aegis cannot force an arbitrary provider to leak a planted canary. To
+prove encoded/text canary and NIMBUS leakage handling in the same gateway
+contract, run the mock-provider smoke below as a separate detector-path check:
+
+```bash
+uv run aegis-proxy-smoke \
+  --url http://127.0.0.1:8000 \
+  --timeout 120 \
+  --require-cift-pre-generation-block \
+  --output introspection/data/reports/aegis_local_agent_detector_paths_smoke_v1.json
+```
+
+Expected output again has `status="ok"`. The mock-provider report should include
+non-skipped `checks.encoded_canary_leak`,
+`checks.metadata_slot_canary_leak`, and `checks.nimbus_partial_leak` objects
+with NIMBUS/canary detector evidence. Use this as detector-path evidence, not as
+real-provider forwarding evidence.
+
 By default, `aegis-proxy` runs with the deterministic mock provider. To point
 the development proxy at an OpenAI-compatible model endpoint, configure the
 provider explicitly:
