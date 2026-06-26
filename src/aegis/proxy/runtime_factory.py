@@ -19,6 +19,7 @@ from aegis.detectors.canary import (
     InMemoryCanaryRegistry,
     NoopCanaryDetector,
     TextCanaryDetector,
+    ToolCallCanaryDetector,
 )
 from aegis.detectors.cift_runtime import (
     CiftFeatureExtractor,
@@ -30,7 +31,7 @@ from aegis.detectors.cift_runtime import (
     load_cift_runtime_model_with_sha256,
 )
 from aegis.detectors.egress import ProviderEgressGuardDetector
-from aegis.detectors.nimbus import NimbusDetector
+from aegis.detectors.nimbus import NimbusDetector, NimbusToolEgressDetector
 from aegis.policy.engine import SeverityPolicyEngine
 from aegis.proxy.cift_certification import (
     CiftCertificationBindingConfig,
@@ -105,6 +106,7 @@ class _CiftRuntimeBindingDetector:
 class ProxyRuntimeFactory:
     audit_sink: InMemoryAuditSink
     nimbus_detector: NimbusDetector
+    nimbus_tool_egress_detector: NimbusToolEgressDetector
     cift_capability: ProxyCiftCapability
     model_provider: ModelProvider
 
@@ -113,6 +115,10 @@ class ProxyRuntimeFactory:
             turn_annotators=self.cift_capability.turn_annotators,
             pre_generation_detectors=(
                 *self.cift_capability.pre_generation_detectors,
+                *_pre_generation_canary_detectors(
+                    canary_records=canary_records,
+                    nimbus_tool_egress_detector=self.nimbus_tool_egress_detector,
+                ),
                 ProviderEgressGuardDetector(),
             ),
             post_generation_detectors=_post_generation_detectors(canary_records),
@@ -359,4 +365,17 @@ def _post_generation_detectors(canary_records: tuple[CanaryRecord, ...]) -> tupl
     return (
         TextCanaryDetector(detector_name="text_canary", registry=registry),
         EncodedCanaryDetector(detector_name="encoded_canary", registry=registry, partial_match_threshold=0.75),
+    )
+
+
+def _pre_generation_canary_detectors(
+    canary_records: tuple[CanaryRecord, ...],
+    nimbus_tool_egress_detector: NimbusToolEgressDetector,
+) -> tuple[Detector, ...]:
+    if len(canary_records) == 0:
+        return ()
+    registry = InMemoryCanaryRegistry(records=canary_records)
+    return (
+        ToolCallCanaryDetector(detector_name="tool_call_canary", registry=registry),
+        nimbus_tool_egress_detector,
     )

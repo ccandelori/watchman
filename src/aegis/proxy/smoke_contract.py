@@ -12,7 +12,13 @@ class GatewaySmokeContract:
 
 def gateway_smoke_contract() -> GatewaySmokeContract:
     return GatewaySmokeContract(
-        reset_session_ids=("smoke-session", "smoke-cift-session", "smoke-slot-session", "smoke-partial-session"),
+        reset_session_ids=(
+            "smoke-session",
+            "smoke-cift-session",
+            "smoke-slot-session",
+            "smoke-tool-session",
+            "smoke-partial-session",
+        ),
         check_names=(
             "health",
             "gateway_readiness",
@@ -21,6 +27,7 @@ def gateway_smoke_contract() -> GatewaySmokeContract:
             "ambiguous_protected_workflow",
             "cift_pre_generation_block",
             "provider_egress_guard_block",
+            "tool_argument_canary_leak",
             "encoded_canary_leak",
             "metadata_slot_canary_leak",
             "nimbus_partial_leak",

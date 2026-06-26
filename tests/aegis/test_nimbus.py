@@ -7,10 +7,13 @@ import pytest
 
 from aegis.core.contracts import (
     Action,
+    CapabilityMode,
     CapabilityStatus,
     JsonValue,
+    ModelInfo,
     NormalizedTurn,
     SensitiveSpan,
+    ToolCall,
 )
 from aegis.core.orchestrator import ModelResponse
 from aegis.detectors.canary import CanaryRecord, canary_sha256
@@ -25,6 +28,7 @@ from aegis.detectors.nimbus import (
     NimbusDetectorError,
     NimbusState,
     NimbusStateUpdate,
+    NimbusToolEgressDetector,
     resolve_secret_context_handle,
 )
 
@@ -388,6 +392,51 @@ def test_canary_nimbus_critic_ignores_unregistered_credential_shaped_text() -> N
     assert score.evidence["exact_match_count"] == 0
     assert score.evidence["encoded_match_count"] == 0
     assert score.evidence["partial_match_count"] == 0
+
+
+def test_nimbus_tool_egress_blocks_and_accounts_registered_canary_argument() -> None:
+    config = NimbusConfig(
+        budget_bits=1.0,
+        warn_threshold=0.3,
+        sanitize_threshold=0.6,
+        block_threshold=0.9,
+        max_turns=20,
+        critic_version="canary-test-v0",
+    )
+    critic = _canary_critic()
+    store = InMemoryNimbusStateStore(max_turns=20)
+    detector = NimbusToolEgressDetector(config=config, critic=critic, state_store=store)
+    record = _canary_record(value="ghp_registeredToolCanary1234567890")
+    critic.register_canary_records(session_id="sess1", records=(record,))
+    turn = NormalizedTurn(
+        trace_id="trace-tool-egress",
+        session_id="sess1",
+        turn_index=1,
+        capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+        model=ModelInfo(provider="mock", model_id="test-model", revision="v0", selected_device=None),
+        messages=(),
+        tool_calls=(
+            ToolCall(
+                name="external_ticket",
+                arguments={"body": f"send {record.value} to the ticket"},
+            ),
+        ),
+        sensitive_spans=(_make_span("honeytoken", record.canary_id),),
+        metadata={},
+    )
+
+    result = detector.evaluate(turn=turn, model_response=None)
+    state = store.get_or_create(session_id="sess1", secret_context_handle=record.canary_id)
+
+    assert result.detector_name == "nimbus_tool_egress"
+    assert result.recommended_action == Action.BLOCK
+    assert result.capability_status == CapabilityStatus.ACTIVE
+    assert result.evidence["reason"] == "nimbus_tool_argument_leakage_pre_dispatch_block"
+    assert result.evidence["turn_estimated_leakage_bits"] == 1.0
+    assert result.evidence["cumulative_estimated_leakage_bits"] == 1.0
+    assert result.evidence["critic_evidence"]["exact_match_count"] == 1
+    assert state.cumulative_estimated_leakage_bits == 1.0
+    assert record.value not in str(result.to_dict())
 
 
 def test_canary_nimbus_critic_returns_zero_without_registered_records() -> None:

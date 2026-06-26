@@ -63,8 +63,8 @@ def build_dp_honey_paper_evidence_report(config: DPHoneyPaperEvidenceConfig) -> 
         "summary": (
             "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner "
             "FP/FN evidence, gateway substitution, canary leak detection, provider-egress blocking, and redacted "
-            "audit evidence. It is still not paper-faithful+ because statistical distinguisher realism and "
-            "tool-argument canary/leakage accounting remain incomplete."
+            "audit evidence. It is still not paper-faithful+ because statistical distinguisher realism remains "
+            "incomplete."
         ),
         "artifact_hashes": {
             "scanner_eval_sha256": _sha256_file(config.scanner_eval_path),
@@ -260,23 +260,43 @@ def _output_leak_detection_check(checks: Mapping[str, object]) -> dict[str, Json
 
 def _tool_argument_check(checks: Mapping[str, object]) -> dict[str, JsonValue]:
     guard = _mapping(checks.get("provider_egress_guard_block"), "checks.provider_egress_guard_block")
+    tool_canary = _mapping(checks.get("tool_argument_canary_leak"), "checks.tool_argument_canary_leak")
     blocks_raw_tool_secret = guard.get("provider_status") == "skipped" and guard.get("final_action") == "block"
+    blocks_tool_canary = (
+        tool_canary.get("provider_status") == "skipped"
+        and tool_canary.get("final_action") in {"block", "escalate"}
+        and tool_canary.get("tool_canary_action") in {"block", "escalate"}
+        and tool_canary.get("nimbus_tool_action") == "block"
+        and _positive_number(tool_canary.get("nimbus_tool_turn_estimated_leakage_bits"))
+    )
+    if blocks_raw_tool_secret and blocks_tool_canary:
+        status = "met"
+        gaps: tuple[str, ...] = ()
+    elif blocks_raw_tool_secret or blocks_tool_canary:
+        status = "partial"
+        gaps = ("tool argument leakage evidence is incomplete across raw-secret and planted-canary paths",)
+    else:
+        status = "missing"
+        gaps = ("tool argument leakage evidence is missing",)
     return _checklist_item(
         requirement_id="tool_argument_leakage",
         paper_requirement=(
             "Apply canary and leakage-accounting logic to serialized tool-call arguments before dispatch."
         ),
-        status="partial" if blocks_raw_tool_secret else "missing",
+        status=status,
         evidence={
             "raw_tool_payload_blocked_before_provider": blocks_raw_tool_secret,
+            "planted_canary_tool_payload_blocked_before_provider": blocks_tool_canary,
+            "tool_canary_final_action": _json_value_or_none(tool_canary.get("final_action")),
+            "tool_canary_detector_action": _json_value_or_none(tool_canary.get("tool_canary_action")),
+            "nimbus_tool_detector_action": _json_value_or_none(tool_canary.get("nimbus_tool_action")),
+            "nimbus_tool_turn_estimated_leakage_bits": _json_value_or_none(
+                tool_canary.get("nimbus_tool_turn_estimated_leakage_bits")
+            ),
             "tool_call_name": _first_match_field(guard, "tool_call_name"),
             "argument_path": _first_match_field(guard, "argument_path"),
         },
-        gaps=(
-            "Provider egress guard blocks raw credential-shaped tool payloads, but DP-HONEY canary detection and "
-            "NIMBUS-style leakage accounting are not yet applied to outbound serialized tool-call arguments before "
-            "tool dispatch.",
-        ),
+        gaps=gaps,
     )
 
 
@@ -326,6 +346,7 @@ def _gateway_metrics(
     slot_leak = _mapping(checks.get("metadata_slot_canary_leak"), "checks.metadata_slot_canary_leak")
     encoded_leak = _mapping(checks.get("encoded_canary_leak"), "checks.encoded_canary_leak")
     guard = _mapping(checks.get("provider_egress_guard_block"), "checks.provider_egress_guard_block")
+    tool_canary = _mapping(checks.get("tool_argument_canary_leak"), "checks.tool_argument_canary_leak")
     return {
         "audit_event_count": len(audit_records),
         "benign_credential_slot_status": _json_value_or_none(benign_chat.get("credential_slot_status")),
@@ -334,6 +355,9 @@ def _gateway_metrics(
         "encoded_canary_leak_final_action": _json_value_or_none(encoded_leak.get("final_action")),
         "tool_payload_block_final_action": _json_value_or_none(guard.get("final_action")),
         "tool_payload_provider_status": _json_value_or_none(guard.get("provider_status")),
+        "tool_canary_leak_final_action": _json_value_or_none(tool_canary.get("final_action")),
+        "tool_canary_leak_provider_status": _json_value_or_none(tool_canary.get("provider_status")),
+        "tool_canary_nimbus_action": _json_value_or_none(tool_canary.get("nimbus_tool_action")),
     }
 
 
@@ -456,6 +480,12 @@ def _int(value: object, field_name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise DPHoneyPaperEvidenceError(f"{field_name} must be an integer.")
     return value
+
+
+def _positive_number(value: object) -> bool:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        return False
+    return value > 0.0
 
 
 def _sha256_file(path: Path) -> str:

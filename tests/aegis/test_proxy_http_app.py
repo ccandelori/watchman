@@ -21,6 +21,7 @@ from aegis.detectors.nimbus import (
     InMemoryNimbusStateStore,
     NimbusConfig,
     NimbusDetector,
+    NimbusToolEgressDetector,
 )
 from aegis.providers.openai_compatible import OpenAICompatibleProviderError
 from aegis.proxy.config import ProxyConfigError, ProxyNimbusConfig
@@ -66,6 +67,7 @@ def test_http_ready_route_returns_ok_when_cift_is_not_required() -> None:
     }
     assert payload["provider_egress_guard"]["blocks_non_honeytoken_sensitive_spans_before_provider"] is True
     assert payload["nimbus"]["status"] == "deterministic_beta"
+    assert payload["nimbus"]["tool_argument_pre_dispatch_accounting"] is True
 
 
 def test_http_capabilities_route_returns_redteam_discovery_contract() -> None:
@@ -85,6 +87,9 @@ def test_http_capabilities_route_returns_redteam_discovery_contract() -> None:
     assert payload["nimbus"]["status"] == "deterministic_beta"
     assert payload["nimbus"]["critic_kind"] == "canary"
     assert payload["nimbus"]["paper_faithful_learned_critic"] is False
+    assert payload["nimbus"]["tool_argument_pre_dispatch_accounting"] is True
+    assert "tool_call_canary" in payload["detectors"]
+    assert "nimbus_tool_egress" in payload["detectors"]
     assert {"method": "GET", "path": "/ready"} in payload["routes"]
     assert {"method": "GET", "path": "/audit/explain"} in payload["routes"]
     assert {"method": "POST", "path": "/test/seed-canary"} in payload["routes"]
@@ -2552,17 +2557,24 @@ def _proxy_with_provider(model_provider: FailingProvider) -> MockProxyApp:
             confidence=0.8,
         )
     )
+    nimbus_runtime_config = NimbusConfig(
+        budget_bits=1.0,
+        warn_threshold=0.3,
+        sanitize_threshold=0.6,
+        block_threshold=0.9,
+        max_turns=20,
+        critic_version="canary-v0",
+    )
+    nimbus_state_store = InMemoryNimbusStateStore(max_turns=20)
     nimbus_detector = NimbusDetector(
-        NimbusConfig(
-            budget_bits=1.0,
-            warn_threshold=0.3,
-            sanitize_threshold=0.6,
-            block_threshold=0.9,
-            max_turns=20,
-            critic_version="canary-v0",
-        ),
+        nimbus_runtime_config,
         nimbus_critic,
-        InMemoryNimbusStateStore(max_turns=20),
+        nimbus_state_store,
+    )
+    nimbus_tool_egress_detector = NimbusToolEgressDetector(
+        nimbus_runtime_config,
+        nimbus_critic,
+        nimbus_state_store,
     )
     nimbus_config = ProxyNimbusConfig(
         exact_match_leakage_bits=1.0,
@@ -2584,6 +2596,7 @@ def _proxy_with_provider(model_provider: FailingProvider) -> MockProxyApp:
         runtime_factory=ProxyRuntimeFactory(
             audit_sink=audit_sink,
             nimbus_detector=nimbus_detector,
+            nimbus_tool_egress_detector=nimbus_tool_egress_detector,
             cift_capability=black_box_cift_capability(),
             model_provider=model_provider,
         ),

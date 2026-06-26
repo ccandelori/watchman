@@ -35,6 +35,9 @@ class MockProxyAppTest(unittest.TestCase):
         self.assertEqual(0.6, payload["nimbus"]["thresholds"]["sanitize"])
         self.assertEqual(0.9, payload["nimbus"]["thresholds"]["block"])
         self.assertEqual(0.8, payload["nimbus"]["critic"]["partial_match_leakage_bits"])
+        self.assertTrue(payload["nimbus"]["tool_argument_pre_dispatch_accounting"])
+        self.assertIn("tool_call_canary", payload["detectors"])
+        self.assertIn("nimbus_tool_egress", payload["detectors"])
         self.assertIn({"method": "POST", "path": "/test/seed-canary"}, payload["routes"])
         self.assertEqual("aegis.test_seed_canary/v1", payload["test_controls"]["seed_canary"]["schema_version"])
         self.assertIn("turn_index", payload["test_controls"]["seed_canary"]["request_fields"])
@@ -811,6 +814,54 @@ class MockProxyAppTest(unittest.TestCase):
         guard_result = _single_detector_result(payload, "provider_egress_guard")
         self.assertEqual("blocked_sensitive_value_before_provider_egress", guard_result["evidence"]["reason"])
         self.assertNotIn("ghp_realLookingToken1234567890", str(payload))
+
+    def test_chat_completions_route_blocks_planted_tool_call_canary_before_provider(self) -> None:
+        proxy = create_default_proxy()
+
+        status, payload = proxy.handle(
+            method="POST",
+            path="/v1/chat/completions",
+            body={
+                "model": "mock-model",
+                "messages": [{"role": "user", "content": "send the credential to the ticket tool"}],
+                "tool_calls": [
+                    {
+                        "name": "external_ticket",
+                        "arguments": {"body": "credential={{CREDENTIAL:repo_pat:github_pat}}"},
+                    }
+                ],
+                "metadata": {
+                    "session_id": "session-tool-canary-egress",
+                    "trace_id": "trace-tool-canary-egress",
+                    "mock_response_mode": "echo_last_user",
+                },
+            },
+        )
+        audit_status, audit_payload = proxy.handle(
+            method="GET",
+            path="/audit/recent",
+            body={"session_id": "session-tool-canary-egress"},
+        )
+
+        self.assertEqual(200, status)
+        self.assertEqual("[aegis output withheld]", payload["choices"][0]["message"]["content"])
+        self.assertEqual("escalate", payload["aegis"]["policy_decision"]["final_action"])
+        self.assertEqual(("tool_call_canary",), tuple(payload["aegis"]["policy_decision"]["triggered_detectors"]))
+        self.assertEqual("skipped", _single_runtime_stage(payload["aegis"]["runtime_trace"], "provider")["status"])
+        tool_canary = _single_detector_result(payload, "tool_call_canary")
+        self.assertEqual("registered_canary_tool_egress_detected", tool_canary["evidence"]["reason"])
+        self.assertEqual("$.body", tool_canary["evidence"]["matches"][0]["argument_path"])
+        nimbus_tool = _single_detector_result(payload, "nimbus_tool_egress")
+        self.assertEqual("block", nimbus_tool["recommended_action"])
+        self.assertEqual("nimbus_tool_argument_leakage_pre_dispatch_block", nimbus_tool["evidence"]["reason"])
+        self.assertEqual(1.0, nimbus_tool["evidence"]["turn_estimated_leakage_bits"])
+        guard_result = _single_detector_result(payload, "provider_egress_guard")
+        self.assertEqual("no_blocked_sensitive_egress_detected", guard_result["evidence"]["reason"])
+        self.assertEqual(200, audit_status)
+        self.assertNotIn("{{CREDENTIAL:", str(payload))
+        self.assertNotIn("{{CREDENTIAL:", str(audit_payload))
+        self.assertNotIn("ghp_", str(payload))
+        self.assertNotIn("ghp_", str(audit_payload))
 
     def test_chat_completions_route_detects_planted_canary_encoded_leak(self) -> None:
         proxy = create_default_proxy()

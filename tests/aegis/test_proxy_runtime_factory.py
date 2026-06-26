@@ -21,7 +21,13 @@ from aegis.detectors.cift_runtime import (
     cift_runtime_model_to_dict,
     load_cift_runtime_model,
 )
-from aegis.detectors.nimbus import BaselineNimbusCritic, InMemoryNimbusStateStore, NimbusConfig, NimbusDetector
+from aegis.detectors.nimbus import (
+    BaselineNimbusCritic,
+    InMemoryNimbusStateStore,
+    NimbusConfig,
+    NimbusDetector,
+    NimbusToolEgressDetector,
+)
 from aegis.providers.mock import MockModelProvider
 from aegis.proxy.config import CiftCertificationMode, CiftProfile, ProxyCiftConfig, ProxyConfigError
 from aegis.proxy.runtime_factory import ProxyRuntimeFactory, black_box_cift_capability, cift_capability_from_config
@@ -41,6 +47,7 @@ def test_proxy_runtime_factory_builds_canary_aware_runtime() -> None:
     runtime = ProxyRuntimeFactory(
         audit_sink=InMemoryAuditSink(),
         nimbus_detector=_nimbus_detector(),
+        nimbus_tool_egress_detector=_nimbus_tool_egress_detector(),
         cift_capability=black_box_cift_capability(),
         model_provider=MockModelProvider(default_content=canary.value),
     ).build(canary_records=(canary,))
@@ -50,6 +57,8 @@ def test_proxy_runtime_factory_builds_canary_aware_runtime() -> None:
 
     assert detector_names == (
         "activation_unavailable",
+        "tool_call_canary",
+        "nimbus_tool_egress",
         "provider_egress_guard",
         "text_canary",
         "encoded_canary",
@@ -2332,17 +2341,30 @@ def test_cift_capability_from_config_builds_self_hosted_window_selector_without_
 
 
 def _nimbus_detector() -> NimbusDetector:
+    config = _nimbus_config()
     return NimbusDetector(
-        config=NimbusConfig(
-            budget_bits=1.0,
-            warn_threshold=0.3,
-            sanitize_threshold=0.6,
-            block_threshold=0.9,
-            max_turns=20,
-            critic_version="baseline-test",
-        ),
+        config=config,
         critic=BaselineNimbusCritic(fixed_estimated_leakage_bits=0.0, fixed_confidence=0.5),
         state_store=InMemoryNimbusStateStore(max_turns=20),
+    )
+
+
+def _nimbus_tool_egress_detector() -> NimbusToolEgressDetector:
+    return NimbusToolEgressDetector(
+        config=_nimbus_config(),
+        critic=BaselineNimbusCritic(fixed_estimated_leakage_bits=0.0, fixed_confidence=0.5),
+        state_store=InMemoryNimbusStateStore(max_turns=20),
+    )
+
+
+def _nimbus_config() -> NimbusConfig:
+    return NimbusConfig(
+        budget_bits=1.0,
+        warn_threshold=0.3,
+        sanitize_threshold=0.6,
+        block_threshold=0.9,
+        max_turns=20,
+        critic_version="baseline-test",
     )
 
 

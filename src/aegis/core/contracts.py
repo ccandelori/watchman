@@ -28,9 +28,11 @@ _AUDIT_CIFT_KEYS = (
 _DETECTOR_VERSION_BY_NAME = {
     "activation_unavailable": "activation-unavailable-v1",
     "provider_egress_guard": "provider-egress-guard-v1",
+    "tool_call_canary": "tool-call-canary-v1",
     "text_canary": "text-canary-v1",
     "encoded_canary": "encoded-canary-v1",
     "noop_canary": "noop-canary-v1",
+    "nimbus_tool_egress": "nimbus-tool-egress-v1",
 }
 
 

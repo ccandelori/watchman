@@ -70,6 +70,7 @@ def nimbus_capabilities(config: ProxyNimbusConfig) -> dict[str, JsonValue]:
         "critic_kind": "canary",
         "critic_version": config.critic_version,
         "paper_faithful_learned_critic": False,
+        "tool_argument_pre_dispatch_accounting": True,
         "budget_bits": config.budget_bits,
         "max_turns": config.max_turns,
         "thresholds": {

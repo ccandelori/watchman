@@ -12,9 +12,9 @@ from aegis.replay.dp_honey_paper_evidence import (
 )
 
 SCANNER_EVAL_PATH = Path("introspection/data/reports/dp_honey_scanner_eval_v1.json")
-SMOKE_PATH = Path("introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v1.json")
+SMOKE_PATH = Path("introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json")
 AUDIT_JSONL_PATH = Path(
-    "introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_audit_v1.jsonl"
+    "introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_audit_v2.jsonl"
 )
 
 
@@ -40,10 +40,10 @@ def test_dp_honey_paper_evidence_report_separates_met_and_partial_requirements()
     assert checklist["output_leak_detection"]["status"] == "met"
     assert checklist["redacted_audit"]["status"] == "met"
     assert checklist["format_fidelity"]["status"] == "partial"
-    assert checklist["tool_argument_leakage"]["status"] == "partial"
-    assert report["checklist_summary"] == {"met": 6, "missing": 0, "partial": 2, "total": 8}
+    assert checklist["tool_argument_leakage"]["status"] == "met"
+    assert report["checklist_summary"] == {"met": 7, "missing": 0, "partial": 1, "total": 8}
     assert "statistical distinguisher" in " ".join(report["missing_before_paper_faithful_plus"])
-    assert "tool-call arguments" in " ".join(report["missing_before_paper_faithful_plus"])
+    assert "tool-call arguments" not in " ".join(report["missing_before_paper_faithful_plus"])
 
 
 def test_dp_honey_paper_evidence_cli_writes_json(tmp_path: Path, monkeypatch) -> None:

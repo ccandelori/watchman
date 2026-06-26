@@ -38,6 +38,16 @@ class FakeSmokeClient:
         return response
 
 
+def _reset_responses() -> tuple[HttpJsonResponse, ...]:
+    return (
+        HttpJsonResponse(status_code=200, payload={"status": "reset"}),
+        HttpJsonResponse(status_code=200, payload={"status": "reset"}),
+        HttpJsonResponse(status_code=200, payload={"status": "reset"}),
+        HttpJsonResponse(status_code=200, payload={"status": "reset"}),
+        HttpJsonResponse(status_code=200, payload={"status": "reset"}),
+    )
+
+
 def test_gateway_smoke_parses_explicit_url_and_timeout() -> None:
     config = parse_args(("--url", "http://127.0.0.1:8000/", "--timeout", "2.5"))
 
@@ -145,12 +155,7 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
             ("GET", f"{base_url}/aegis/capabilities"): (
                 HttpJsonResponse(status_code=200, payload=_capabilities_response(include_seed_route=True)),
             ),
-            ("POST", f"{base_url}/test/reset"): (
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-            ),
+            ("POST", f"{base_url}/test/reset"): _reset_responses(),
             ("POST", f"{base_url}/v1/chat/completions"): (
                 HttpJsonResponse(
                     status_code=200,
@@ -163,6 +168,7 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
                 ),
                 HttpJsonResponse(status_code=400, payload=_ambiguous_protected_workflow_error_response()),
                 HttpJsonResponse(status_code=200, payload=_egress_guard_chat_response()),
+                HttpJsonResponse(status_code=200, payload=_tool_argument_canary_chat_response()),
                 HttpJsonResponse(
                     status_code=200,
                     payload=_chat_response(
@@ -228,15 +234,18 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
     assert client.requests[4][0:2] == ("POST", f"{base_url}/test/reset")
     assert client.requests[5][0:2] == ("POST", f"{base_url}/test/reset")
     assert client.requests[6][0:2] == ("POST", f"{base_url}/test/reset")
-    benign_request = client.requests[7][2]
-    ambiguous_request = client.requests[8][2]
-    egress_request = client.requests[9][2]
-    leak_request = client.requests[10][2]
-    slot_leak_request = client.requests[11][2]
-    partial_leak_request = client.requests[12][2]
+    assert client.requests[7][0:2] == ("POST", f"{base_url}/test/reset")
+    benign_request = client.requests[8][2]
+    ambiguous_request = client.requests[9][2]
+    egress_request = client.requests[10][2]
+    tool_argument_request = client.requests[11][2]
+    leak_request = client.requests[12][2]
+    slot_leak_request = client.requests[13][2]
+    partial_leak_request = client.requests[14][2]
     assert isinstance(benign_request, dict)
     assert isinstance(ambiguous_request, dict)
     assert isinstance(egress_request, dict)
+    assert isinstance(tool_argument_request, dict)
     assert isinstance(leak_request, dict)
     assert isinstance(slot_leak_request, dict)
     assert isinstance(partial_leak_request, dict)
@@ -260,6 +269,13 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
             "arguments": {"body": "credential=ghp_realLookingToolSecret1234567890"},
         }
     ]
+    assert tool_argument_request["metadata"]["session_id"] == "smoke-tool-session"
+    assert tool_argument_request["tool_calls"] == [
+        {
+            "name": "external_ticket",
+            "arguments": {"body": "credential={{CREDENTIAL:repo_pat:github_pat}}"},
+        }
+    ]
     assert slot_leak_request["metadata"]["session_id"] == "smoke-slot-session"
     assert slot_leak_request["metadata"]["credential_slots"] == [
         {"slot_name": "repo_pat", "credential_type": "github_pat"}
@@ -276,12 +292,7 @@ def test_gateway_smoke_accepts_required_self_hosted_cift_pre_generation_block() 
             ("GET", f"{base_url}/aegis/capabilities"): (
                 HttpJsonResponse(status_code=200, payload=_self_hosted_capabilities_response()),
             ),
-            ("POST", f"{base_url}/test/reset"): (
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-            ),
+            ("POST", f"{base_url}/test/reset"): _reset_responses(),
             ("POST", f"{base_url}/v1/chat/completions"): (
                 HttpJsonResponse(
                     status_code=200,
@@ -295,6 +306,7 @@ def test_gateway_smoke_accepts_required_self_hosted_cift_pre_generation_block() 
                 HttpJsonResponse(status_code=400, payload=_ambiguous_protected_workflow_error_response()),
                 HttpJsonResponse(status_code=200, payload=_cift_block_chat_response()),
                 HttpJsonResponse(status_code=200, payload=_egress_guard_chat_response()),
+                HttpJsonResponse(status_code=200, payload=_tool_argument_canary_chat_response()),
                 HttpJsonResponse(
                     status_code=200,
                     payload=_chat_response(
@@ -351,7 +363,7 @@ def test_gateway_smoke_accepts_required_self_hosted_cift_pre_generation_block() 
     assert cift_summary["cift_action"] == "block"
     assert cift_summary["provider_status"] == "skipped"
     assert cift_summary["provider_reason"] == "pre_generation_policy_block"
-    cift_request = client.requests[9][2]
+    cift_request = client.requests[10][2]
     assert isinstance(cift_request, dict)
     assert cift_request["metadata"]["session_id"] == "smoke-cift-session"
     assert cift_request["metadata"]["protected_workflow"] is True
@@ -398,12 +410,7 @@ def test_gateway_smoke_accepts_real_provider_mode_without_mock_leak_controls() -
             ("GET", f"{base_url}/aegis/capabilities"): (
                 HttpJsonResponse(status_code=200, payload=_real_provider_capabilities_response()),
             ),
-            ("POST", f"{base_url}/test/reset"): (
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-            ),
+            ("POST", f"{base_url}/test/reset"): _reset_responses(),
             ("POST", f"{base_url}/v1/chat/completions"): (
                 HttpJsonResponse(
                     status_code=200,
@@ -443,6 +450,7 @@ def test_gateway_smoke_accepts_real_provider_mode_without_mock_leak_controls() -
     assert isinstance(readiness, dict)
     assert readiness["provider_name"] == "openai_compatible"
     assert readiness["provider_mock_controls_enabled"] is False
+    assert report["checks"]["tool_argument_canary_leak"]["status"] == "skipped"
     assert report["checks"]["encoded_canary_leak"]["status"] == "skipped"
     assert report["checks"]["metadata_slot_canary_leak"]["status"] == "skipped"
     assert report["checks"]["nimbus_partial_leak"]["status"] == "skipped"
@@ -529,12 +537,7 @@ def test_gateway_smoke_rejects_missing_encoded_canary_result() -> None:
             ("GET", f"{base_url}/aegis/capabilities"): (
                 HttpJsonResponse(status_code=200, payload=_capabilities_response(include_seed_route=True)),
             ),
-            ("POST", f"{base_url}/test/reset"): (
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-            ),
+            ("POST", f"{base_url}/test/reset"): _reset_responses(),
             ("POST", f"{base_url}/v1/chat/completions"): (
                 HttpJsonResponse(
                     status_code=200,
@@ -547,6 +550,7 @@ def test_gateway_smoke_rejects_missing_encoded_canary_result() -> None:
                 ),
                 HttpJsonResponse(status_code=400, payload=_ambiguous_protected_workflow_error_response()),
                 HttpJsonResponse(status_code=200, payload=_egress_guard_chat_response()),
+                HttpJsonResponse(status_code=200, payload=_tool_argument_canary_chat_response()),
                 HttpJsonResponse(
                     status_code=200,
                     payload=_chat_response(
@@ -587,12 +591,7 @@ def _healthy_smoke_client(
             ("GET", f"{base_url}/aegis/capabilities"): (
                 HttpJsonResponse(status_code=200, payload=_capabilities_response(include_seed_route=True)),
             ),
-            ("POST", f"{base_url}/test/reset"): (
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-                HttpJsonResponse(status_code=200, payload={"status": "reset"}),
-            ),
+            ("POST", f"{base_url}/test/reset"): _reset_responses(),
             ("POST", f"{base_url}/v1/chat/completions"): (
                 HttpJsonResponse(
                     status_code=200,
@@ -605,6 +604,7 @@ def _healthy_smoke_client(
                 ),
                 HttpJsonResponse(status_code=400, payload=_ambiguous_protected_workflow_error_response()),
                 HttpJsonResponse(status_code=200, payload=_egress_guard_chat_response()),
+                HttpJsonResponse(status_code=200, payload=_tool_argument_canary_chat_response()),
                 HttpJsonResponse(
                     status_code=200,
                     payload=_chat_response(
@@ -976,6 +976,88 @@ def _egress_guard_chat_response() -> dict[str, JsonValue]:
     }
 
 
+def _tool_argument_canary_chat_response() -> dict[str, JsonValue]:
+    return {
+        "id": "chatcmpl-smoke-tool-canary",
+        "object": "chat.completion",
+        "model": "mock-model",
+        "choices": [{"index": 0, "message": {"role": "assistant", "content": ""}, "finish_reason": "stop"}],
+        "aegis": {
+            "trace_id": "smoke-tool-canary-trace",
+            "runtime_trace": _tool_argument_canary_runtime_trace(),
+            "policy_decision": {
+                "final_action": "escalate",
+                "reason": "test",
+                "triggered_detectors": ["tool_call_canary"],
+                "risk_score": 1.0,
+                "sanitized_output": "",
+            },
+            "detector_results": [
+                {
+                    "detector_name": "activation_unavailable",
+                    "component": "cift",
+                    "score": 0.0,
+                    "confidence": 0.0,
+                    "recommended_action": "allow",
+                    "capability_required": None,
+                    "capability_status": "unavailable",
+                    "evidence": {},
+                    "latency_ms": 0.0,
+                },
+                {
+                    "detector_name": "tool_call_canary",
+                    "component": "tool_scanner",
+                    "score": 1.0,
+                    "confidence": 1.0,
+                    "recommended_action": "escalate",
+                    "capability_required": None,
+                    "capability_status": "active",
+                    "evidence": {
+                        "reason": "registered_canary_tool_egress_detected",
+                        "match_count": 1,
+                        "matches": [
+                            {
+                                "tool_name": "external_ticket",
+                                "argument_path": "$.body",
+                                "credential_type": "github_pat",
+                                "sha256": "a" * 64,
+                            }
+                        ],
+                    },
+                    "latency_ms": 0.0,
+                },
+                {
+                    "detector_name": "nimbus_tool_egress",
+                    "component": "nimbus",
+                    "score": 1.0,
+                    "confidence": 0.8,
+                    "recommended_action": "block",
+                    "capability_required": None,
+                    "capability_status": "active",
+                    "evidence": {
+                        "reason": "nimbus_tool_argument_leakage_pre_dispatch_block",
+                        "turn_estimated_leakage_bits": 1.0,
+                        "cumulative_estimated_leakage_bits": 1.0,
+                        "budget_fraction": 1.0,
+                    },
+                    "latency_ms": 0.0,
+                },
+                {
+                    "detector_name": "provider_egress_guard",
+                    "component": "tool_scanner",
+                    "score": 0.0,
+                    "confidence": 1.0,
+                    "recommended_action": "allow",
+                    "capability_required": None,
+                    "capability_status": "active",
+                    "evidence": {"reason": "no_blocked_sensitive_egress_detected"},
+                    "latency_ms": 0.0,
+                },
+            ],
+        },
+    }
+
+
 def _audit_explain_response() -> dict[str, JsonValue]:
     return {
         "schema_version": "aegis.audit_explain/v1",
@@ -1039,6 +1121,38 @@ def _egress_guard_runtime_trace() -> dict[str, JsonValue]:
             {"stage": "canary", "status": "not_configured", "detectors": []},
             {"stage": "nimbus", "status": "not_configured", "detectors": []},
             {"stage": "policy", "status": "decided", "final_action": "block"},
+            {"stage": "audit", "status": "written"},
+        ],
+    }
+
+
+def _tool_argument_canary_runtime_trace() -> dict[str, JsonValue]:
+    return {
+        "schema_version": "aegis.runtime_trace/v1",
+        "stages": [
+            {"stage": "normalize", "status": "ok"},
+            {
+                "stage": "dp_honey",
+                "status": "active",
+                "canary_count": 1,
+                "credential_slot_status": "honeytoken_substituted",
+            },
+            {"stage": "cift", "status": "unavailable", "detectors": ["activation_unavailable"]},
+            {
+                "stage": "provider_egress_guard",
+                "status": "active",
+                "detectors": ["tool_call_canary", "provider_egress_guard"],
+            },
+            {
+                "stage": "provider",
+                "status": "skipped",
+                "provider": "skipped",
+                "model_id": "mock-model",
+                "reason": "pre_generation_policy_block",
+            },
+            {"stage": "canary", "status": "not_configured", "detectors": []},
+            {"stage": "nimbus", "status": "active", "detectors": ["nimbus_tool_egress"]},
+            {"stage": "policy", "status": "decided", "final_action": "escalate"},
             {"stage": "audit", "status": "written"},
         ],
     }

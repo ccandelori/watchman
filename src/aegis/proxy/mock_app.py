@@ -49,6 +49,7 @@ from aegis.detectors.nimbus import (
     InMemoryNimbusStateStore,
     NimbusConfig,
     NimbusDetector,
+    NimbusToolEgressDetector,
 )
 from aegis.providers.mock import SUPPORTED_MOCK_RESPONSE_MODES
 from aegis.providers.openai_compatible import OpenAICompatibleProviderError
@@ -391,6 +392,8 @@ class MockProxyApp:
             }
         detectors: list[JsonValue] = [
             *self._runtime_factory.cift_capability.detector_names,
+            "tool_call_canary",
+            "nimbus_tool_egress",
             "provider_egress_guard",
             "text_canary",
             "encoded_canary",
@@ -452,13 +455,14 @@ class MockProxyApp:
             "canary": {
                 "ready": True,
                 "status": "ready",
-                "detectors": ["text_canary", "encoded_canary"],
+                "detectors": ["tool_call_canary", "text_canary", "encoded_canary"],
             },
             "nimbus": {
                 "ready": True,
                 "status": "deterministic_beta",
                 "critic_version": self._nimbus_config.critic_version,
                 "paper_faithful_learned_critic": False,
+                "tool_argument_pre_dispatch_accounting": True,
             },
             "strict_protected_mode": {
                 "enabled": (
@@ -1844,21 +1848,29 @@ def create_proxy(
             confidence=nimbus_config.confidence,
         )
     )
+    nimbus_runtime_config = NimbusConfig(
+        budget_bits=nimbus_config.budget_bits,
+        warn_threshold=nimbus_config.warn_threshold,
+        sanitize_threshold=nimbus_config.sanitize_threshold,
+        block_threshold=nimbus_config.block_threshold,
+        max_turns=nimbus_config.max_turns,
+        critic_version=nimbus_config.critic_version,
+    )
+    nimbus_state_store = InMemoryNimbusStateStore(max_turns=nimbus_config.max_turns)
     nimbus_detector = NimbusDetector(
-        NimbusConfig(
-            budget_bits=nimbus_config.budget_bits,
-            warn_threshold=nimbus_config.warn_threshold,
-            sanitize_threshold=nimbus_config.sanitize_threshold,
-            block_threshold=nimbus_config.block_threshold,
-            max_turns=nimbus_config.max_turns,
-            critic_version=nimbus_config.critic_version,
-        ),
+        nimbus_runtime_config,
         nimbus_critic,
-        InMemoryNimbusStateStore(max_turns=nimbus_config.max_turns),
+        nimbus_state_store,
+    )
+    nimbus_tool_egress_detector = NimbusToolEgressDetector(
+        nimbus_runtime_config,
+        nimbus_critic,
+        nimbus_state_store,
     )
     runtime_factory = ProxyRuntimeFactory(
         audit_sink=audit_sink,
         nimbus_detector=nimbus_detector,
+        nimbus_tool_egress_detector=nimbus_tool_egress_detector,
         cift_capability=cift_capability,
         model_provider=provider_config.model_provider,
     )

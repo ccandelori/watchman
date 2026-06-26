@@ -701,15 +701,15 @@ smoke, and audit evidence:
 ```bash
 uv run aegis-dp-honey-paper-evidence \
   --scanner-eval introspection/data/reports/dp_honey_scanner_eval_v1.json \
-  --smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v1.json \
-  --audit-jsonl introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_audit_v1.jsonl \
-  --output introspection/data/reports/dp_honey_paper_evidence_v1.json
+  --smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json \
+  --audit-jsonl introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_audit_v2.jsonl \
+  --output introspection/data/reports/dp_honey_paper_evidence_v2.json
 ```
 
 The checklist is deliberately stricter than the scanner metric. A report can
 pass as operational beta while still setting `paper_faithful_plus=false` and
-`promotion_eligible=false` until generator realism and serialized tool-argument
-leakage accounting are proven.
+`promotion_eligible=false` until generator realism is proven. The v2 smoke path
+also exercises planted-canary tool arguments and NIMBUS pre-dispatch accounting.
 
 To seed a session canary without putting a placeholder in the user turn, use the
 mock-only test route:

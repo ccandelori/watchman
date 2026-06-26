@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import time
 from dataclasses import dataclass, field
 from math import isfinite
@@ -17,6 +18,7 @@ from aegis.core.contracts import (
     ModelInfo,
     NormalizedTurn,
     SensitiveSpan,
+    ToolCall,
 )
 from aegis.core.orchestrator import ModelResponse
 from aegis.detectors.canary import CanaryRecord, EncodedCanaryDetector, InMemoryCanaryRegistry, TextCanaryDetector
@@ -390,6 +392,166 @@ class NimbusDetector:
         self._state_store.clear()
 
 
+class NimbusToolEgressDetector:
+    def __init__(self, config: NimbusConfig, critic: NimbusCritic, state_store: NimbusStateStore) -> None:
+        self._config = config
+        self._critic = critic
+        self._state_store = state_store
+
+    def evaluate(self, turn: NormalizedTurn, model_response: ModelResponse | None) -> DetectorResult:
+        started_at = time.perf_counter()
+        if len(turn.tool_calls) == 0:
+            return DetectorResult(
+                detector_name="nimbus_tool_egress",
+                component=DetectorComponent.NIMBUS,
+                score=0.0,
+                confidence=1.0,
+                recommended_action=Action.ALLOW,
+                capability_required=None,
+                capability_status=CapabilityStatus.ACTIVE,
+                evidence={
+                    "reason": "no_tool_arguments_to_score",
+                    "turn_index": turn.turn_index,
+                    "tool_call_count": 0,
+                    "critic_version": self._config.critic_version,
+                    "critic_kind": "canary",
+                    "paper_faithful_learned_critic": False,
+                    "promotion_status": "deterministic_canary_beta",
+                },
+                latency_ms=_elapsed_ms(started_at),
+            )
+
+        secret_context_handle = resolve_secret_context_handle(turn)
+        if secret_context_handle is None:
+            return DetectorResult(
+                detector_name="nimbus_tool_egress",
+                component=DetectorComponent.NIMBUS,
+                score=0.0,
+                confidence=0.0,
+                recommended_action=Action.ALLOW,
+                capability_required="secret_context_handle",
+                capability_status=CapabilityStatus.UNAVAILABLE,
+                evidence={
+                    "capability_reason": "no_secret_context_handle",
+                    "turn_index": turn.turn_index,
+                    "tool_call_count": len(turn.tool_calls),
+                    "critic_kind": "unavailable",
+                    "paper_faithful_learned_critic": False,
+                    "promotion_status": "unscored_runtime_precondition_missing",
+                },
+                latency_ms=_elapsed_ms(started_at),
+            )
+
+        prior_state = self._state_store.get_or_create(
+            session_id=turn.session_id,
+            secret_context_handle=secret_context_handle,
+        )
+        critic_score = self._critic.score_turn(
+            NimbusCriticInput(
+                session_id=turn.session_id,
+                turn_index=turn.turn_index,
+                output_text=_serialized_tool_call_arguments(turn.tool_calls),
+                secret_context_handle=secret_context_handle,
+                messages=turn.messages,
+                sensitive_spans=turn.sensitive_spans,
+                prior_state=prior_state,
+            )
+        )
+        if not isinstance(critic_score, NimbusCriticScore):
+            raise NimbusDetectorError("critic.score_turn must return NimbusCriticScore.")
+        if critic_score.estimated_leakage_bits == 0.0:
+            return DetectorResult(
+                detector_name="nimbus_tool_egress",
+                component=DetectorComponent.NIMBUS,
+                score=min(1.0, prior_state.cumulative_estimated_leakage_bits / self._config.budget_bits),
+                confidence=critic_score.confidence,
+                recommended_action=Action.ALLOW,
+                capability_required=None,
+                capability_status=CapabilityStatus.ACTIVE,
+                evidence={
+                    "reason": "no_tool_argument_leakage_detected",
+                    "turn_index": turn.turn_index,
+                    "tool_call_count": len(turn.tool_calls),
+                    "turn_estimated_leakage_bits": 0.0,
+                    "cumulative_estimated_leakage_bits": prior_state.cumulative_estimated_leakage_bits,
+                    "budget_bits": self._config.budget_bits,
+                    "budget_fraction": min(
+                        1.0,
+                        prior_state.cumulative_estimated_leakage_bits / self._config.budget_bits,
+                    ),
+                    "critic_version": self._config.critic_version,
+                    "critic_kind": _optional_string(critic_score.evidence, "critic_kind", "unknown"),
+                    "paper_faithful_learned_critic": _optional_bool(
+                        critic_score.evidence,
+                        "paper_faithful_learned_critic",
+                        False,
+                    ),
+                    "promotion_status": _optional_string(
+                        critic_score.evidence,
+                        "promotion_status",
+                        "unknown",
+                    ),
+                    "critic_evidence": critic_score.evidence,
+                },
+                latency_ms=_elapsed_ms(started_at),
+            )
+
+        new_cumulative_bits = prior_state.cumulative_estimated_leakage_bits + critic_score.estimated_leakage_bits
+        updated_state = self._state_store.update(
+            session_id=turn.session_id,
+            update=NimbusStateUpdate(
+                turn_estimated_leakage_bits=critic_score.estimated_leakage_bits,
+                new_cumulative_bits=new_cumulative_bits,
+            ),
+        )
+        budget_fraction = min(1.0, updated_state.cumulative_estimated_leakage_bits / self._config.budget_bits)
+        budget_action = _budget_action(
+            budget_fraction=budget_fraction,
+            warn_threshold=self._config.warn_threshold,
+            sanitize_threshold=self._config.sanitize_threshold,
+            block_threshold=self._config.block_threshold,
+        )
+        recommended_action = highest_action((budget_action, Action.BLOCK))
+        return DetectorResult(
+            detector_name="nimbus_tool_egress",
+            component=DetectorComponent.NIMBUS,
+            score=budget_fraction,
+            confidence=critic_score.confidence,
+            recommended_action=recommended_action,
+            capability_required=None,
+            capability_status=CapabilityStatus.ACTIVE,
+            evidence={
+                "reason": "nimbus_tool_argument_leakage_pre_dispatch_block",
+                "turn_index": turn.turn_index,
+                "turn_count": updated_state.turn_count,
+                "tool_call_count": len(turn.tool_calls),
+                "turn_estimated_leakage_bits": critic_score.estimated_leakage_bits,
+                "cumulative_estimated_leakage_bits": updated_state.cumulative_estimated_leakage_bits,
+                "budget_bits": self._config.budget_bits,
+                "budget_fraction": budget_fraction,
+                "budget_recommended_action": budget_action.value,
+                "pre_dispatch_action_floor": Action.BLOCK.value,
+                "warn_threshold": self._config.warn_threshold,
+                "sanitize_threshold": self._config.sanitize_threshold,
+                "block_threshold": self._config.block_threshold,
+                "critic_version": self._config.critic_version,
+                "critic_kind": _optional_string(critic_score.evidence, "critic_kind", "unknown"),
+                "paper_faithful_learned_critic": _optional_bool(
+                    critic_score.evidence,
+                    "paper_faithful_learned_critic",
+                    False,
+                ),
+                "promotion_status": _optional_string(
+                    critic_score.evidence,
+                    "promotion_status",
+                    "unknown",
+                ),
+                "critic_evidence": critic_score.evidence,
+            },
+            latency_ms=_elapsed_ms(started_at),
+        )
+
+
 class NimbusLeakageDetector:
     """Legacy canary-signal accumulator kept for demos and compatibility tests."""
 
@@ -573,6 +735,18 @@ def _turn_for_critic_input(critic_input: NimbusCriticInput) -> NormalizedTurn:
         sensitive_spans=critic_input.sensitive_spans,
         metadata={},
     )
+
+
+def _serialized_tool_call_arguments(tool_calls: tuple[ToolCall, ...]) -> str:
+    payload = [
+        {
+            "tool_call_index": index,
+            "tool_name": tool_call.name,
+            "arguments": tool_call.arguments,
+        }
+        for index, tool_call in enumerate(tool_calls)
+    ]
+    return json.dumps(payload, ensure_ascii=True, sort_keys=True, separators=(",", ":"))
 
 
 def _matches_from_result(result: DetectorResult) -> tuple[dict[str, JsonValue], ...]:

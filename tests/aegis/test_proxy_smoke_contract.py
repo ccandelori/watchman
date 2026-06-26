@@ -10,6 +10,7 @@ def test_gateway_smoke_contract_names_checks_resets_and_runtime_stages() -> None
         "smoke-session",
         "smoke-cift-session",
         "smoke-slot-session",
+        "smoke-tool-session",
         "smoke-partial-session",
     )
     assert contract.check_names == (
@@ -20,6 +21,7 @@ def test_gateway_smoke_contract_names_checks_resets_and_runtime_stages() -> None
         "ambiguous_protected_workflow",
         "cift_pre_generation_block",
         "provider_egress_guard_block",
+        "tool_argument_canary_leak",
         "encoded_canary_leak",
         "metadata_slot_canary_leak",
         "nimbus_partial_leak",
