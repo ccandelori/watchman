@@ -45,10 +45,14 @@ def test_nimbus_promotion_evidence_keeps_learned_scaffold_non_promotable() -> No
     assert report["comparison"]["offline_learned_session_signal_observed"] is True
     assert report["comparison"]["learned_session_signal_complements_deterministic"] is False
     assert report["comparison"]["learned_runtime_adapter_evidence_present"] is True
+    assert report["comparison"]["runtime_beta_paper_session_false_blocks_clean"] is True
     assert report["learned_runtime_beta_metrics"]["false_negative_rate"] == 0.027450980392156862
     assert report["learned_runtime_beta_metrics"]["false_positive_rate"] == 0.4389261744966443
     assert report["learned_runtime_beta_metrics"]["session_false_negative_rate"] == 0.0
     assert report["learned_runtime_beta_metrics"]["session_false_positive_rate"] == 0.0
+    assert report["learned_runtime_beta_metrics"]["session_block_false_negative_rate"] == 0.0
+    assert report["learned_runtime_beta_metrics"]["session_block_false_positive_rate"] == 0.0
+    assert report["learned_runtime_beta_metrics"]["paper_conversation_metrics"]["false_block_rate"] == 0.0
     assert report["gateway_runtime_evidence"]["readiness_nimbus_status"] == "deterministic_beta"
     assert report["gateway_runtime_evidence"]["learned_runtime_evidence_present"] is False
     assert report["gateway_runtime_evidence"]["learned_gateway_metrics"]["sample_count"] == 0

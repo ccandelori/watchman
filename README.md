@@ -965,7 +965,10 @@ FP/FN and session-level FP/FN separately: turn FPR `0.438926`, turn FNR
 registers the sealed record's positive secret context and 16 negative contexts
 instead of synthesizing runtime negatives. It reports turn FP=327, turn FN=7,
 turn FPR `0.438926`, turn FNR `0.027451`, session FP=0, session FN=0, session
-FPR `0.0`, and session FNR `0.0`. The runtime beta artifact includes a
+FPR `0.0`, and session FNR `0.0`. It also reports paper-shaped conversation
+block metrics separately: 42/42 attack sessions detected, 0/8 benign-only
+sessions false-blocked, false-block rate `0.0`, and mean first block turn index
+`4.095238`. The runtime beta artifact includes a
 threshold sweep and error slices; no threshold satisfies the 5% turn/session
 FP/FN operating policy. At `3.5` bits, turn FPR drops to `0.001342` but turn FNR
 rises to `0.192157`. The scaffold remains non-promotable because turn-level

@@ -144,7 +144,10 @@ too high for promotion. The runtime beta adapter now registers each sealed
 record's positive secret context and 16 negative contexts instead of synthesizing
 runtime negatives, so its in-process runtime metrics match the sealed scaffold:
 turn FP rate `0.438926`, turn FN rate `0.027451`, session FP rate `0.0`, and
-session FN rate `0.0`. Its diagnostic threshold sweep still does not find an
+session FN rate `0.0`. It also reports paper-shaped conversation block metrics:
+42/42 attack sessions detected, 0/8 benign-only sessions false-blocked,
+false-block rate `0.0`, and mean first block turn index `4.095238`. Its
+diagnostic threshold sweep still does not find an
 acceptable 5% turn/session FP/FN operating point: at `3.5` bits turn FPR falls
 to `0.001342`, but turn FNR rises to `0.192157`. The artifact remains a
 non-promotable beta rather than a promotion artifact.

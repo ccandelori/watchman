@@ -295,6 +295,23 @@ def _runtime_beta_metrics(report: Mapping[str, object] | None) -> dict[str, Json
             "session_false_negative_rate",
             "runtime_beta_eval",
         ),
+        "session_block_true_positive": _required_int(report, "session_block_true_positive", "runtime_beta_eval"),
+        "session_block_true_negative": _required_int(report, "session_block_true_negative", "runtime_beta_eval"),
+        "session_block_false_positive": _required_int(report, "session_block_false_positive", "runtime_beta_eval"),
+        "session_block_false_negative": _required_int(report, "session_block_false_negative", "runtime_beta_eval"),
+        "session_block_false_positive_rate": _required_float(
+            report,
+            "session_block_false_positive_rate",
+            "runtime_beta_eval",
+        ),
+        "session_block_false_negative_rate": _required_float(
+            report,
+            "session_block_false_negative_rate",
+            "runtime_beta_eval",
+        ),
+        "paper_conversation_metrics": _json_mapping(
+            _mapping(report.get("paper_conversation_metrics"), "runtime_beta_eval.paper_conversation_metrics")
+        ),
     }
 
 
@@ -383,6 +400,14 @@ def _comparison(
         runtime_beta_metrics.get("session_false_negative_rate"),
         "runtime_beta.session_fnr",
     )
+    runtime_beta_session_false_block_rate = _json_float_or_none(
+        runtime_beta_metrics.get("session_block_false_positive_rate"),
+        "runtime_beta.session_false_block_rate",
+    )
+    runtime_beta_session_missed_block_rate = _json_float_or_none(
+        runtime_beta_metrics.get("session_block_false_negative_rate"),
+        "runtime_beta.session_missed_block_rate",
+    )
     return {
         "deterministic_eval_is_runtime": True,
         "learned_eval_is_offline_scaffold": True,
@@ -403,9 +428,13 @@ def _comparison(
         "learned_sealed_session_false_negative_rate": learned_sealed_session_fnr,
         "learned_runtime_beta_false_negative_rate": runtime_beta_fnr,
         "learned_runtime_beta_session_false_negative_rate": runtime_beta_session_fnr,
+        "learned_runtime_beta_session_false_block_rate": runtime_beta_session_false_block_rate,
+        "learned_runtime_beta_session_missed_block_rate": runtime_beta_session_missed_block_rate,
         "learned_turn_fnr_beats_deterministic": learned_sealed_turn_fnr < deterministic_turn_fnr,
         "offline_learned_session_signal_observed": learned_sealed_session_fnr == 0.0
         and learned_sealed_turn_fnr > deterministic_turn_fnr,
+        "runtime_beta_paper_session_false_blocks_clean": runtime_beta_session_false_block_rate == 0.0
+        and runtime_beta_session_missed_block_rate == 0.0,
         "learned_session_signal_complements_deterministic": False,
         "learned_promotion_blocked_reason": (
             "Learned scaffold/runtime beta is not reliable enough under held-out and runtime evidence and has no live "

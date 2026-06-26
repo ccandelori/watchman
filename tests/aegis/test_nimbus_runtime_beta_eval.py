@@ -37,12 +37,21 @@ def test_nimbus_runtime_beta_eval_reports_fn_fp_without_raw_contexts() -> None:
     assert report["session_true_negative"] == 8
     assert report["session_false_positive"] == 0
     assert report["session_false_negative"] == 0
+    assert report["session_block_true_positive"] == 42
+    assert report["session_block_true_negative"] == 8
+    assert report["session_block_false_positive"] == 0
+    assert report["session_block_false_negative"] == 0
     assert report["false_positive_rate"] is not None
     assert report["false_negative_rate"] is not None
     assert report["session_false_positive_rate"] is not None
     assert report["session_false_negative_rate"] is not None
     assert report["session_false_positive_rate"] == 0.0
     assert report["session_false_negative_rate"] == 0.0
+    assert report["session_block_false_positive_rate"] == 0.0
+    assert report["session_block_false_negative_rate"] == 0.0
+    assert report["paper_conversation_metrics"]["detection_rate"] == 1.0
+    assert report["paper_conversation_metrics"]["false_block_rate"] == 0.0
+    assert report["paper_conversation_metrics"]["mean_first_block_turn_index"] is not None
     assert isinstance(report["threshold_sweep"], list)
     assert len(report["threshold_sweep"]) > 1
     assert report["threshold_sweep"][0]["threshold_bits"] == 0.0
