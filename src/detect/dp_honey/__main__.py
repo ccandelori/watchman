@@ -2,7 +2,7 @@
 
 Subcommands: ``list-formats``, ``preview-corpus``, ``train``, ``generate``,
 ``inspect-model``, ``validate``, ``report``, ``scan``, ``auto-decoy``,
-``eval-scanner``, and ``eval-realism``.
+``eval-scanner``, ``eval-realism``, and ``eval-statistical-distinguishers``.
 
 Every :class:`DPHoneyError` is mapped to a concise stderr message and exit code 1;
 argparse handles usage errors with exit code 2. Commands that emit token-like
@@ -51,6 +51,11 @@ from .operations import (
 )
 from .realism import REPORT_MAX, enforce_count_limit
 from .scanner_eval import DPHoneyScannerEvalConfig, build_scanner_eval_report, write_scanner_eval_report
+from .statistical_distinguisher_eval import (
+    DPHoneyStatisticalDistinguisherEvalConfig,
+    build_statistical_distinguisher_eval_report,
+    write_statistical_distinguisher_eval_report,
+)
 
 DESCRIPTION = (
     "DP-HONEY: generate synthetic, shape-only honeytokens for credential-leak "
@@ -142,6 +147,17 @@ def build_parser() -> argparse.ArgumentParser:
     p_realism.add_argument("--seed", type=int, default=0)
     p_realism.add_argument("--output", type=Path, required=False, help="optional JSON report output path")
     p_realism.set_defaults(func=cmd_eval_realism)
+
+    p_dist = sub.add_parser(
+        "eval-statistical-distinguishers",
+        help="emit DP-HONEY statistical distinguisher suite evidence",
+    )
+    p_dist.add_argument("--train-count-per-format", type=int, required=True, dest="train_count_per_format")
+    p_dist.add_argument("--test-count-per-format", type=int, required=True, dest="test_count_per_format")
+    p_dist.add_argument("--alpha", type=float, required=True)
+    p_dist.add_argument("--seed", type=int, default=0)
+    p_dist.add_argument("--output", type=Path, required=False, help="optional JSON report output path")
+    p_dist.set_defaults(func=cmd_eval_statistical_distinguishers)
 
     return parser
 
@@ -331,6 +347,21 @@ def cmd_eval_realism(args: argparse.Namespace) -> int:
     )
     if args.output is not None:
         write_generation_realism_eval_report(args.output, report)
+    print(json.dumps(report, allow_nan=False, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_eval_statistical_distinguishers(args: argparse.Namespace) -> int:
+    report = build_statistical_distinguisher_eval_report(
+        DPHoneyStatisticalDistinguisherEvalConfig(
+            train_count_per_format=args.train_count_per_format,
+            test_count_per_format=args.test_count_per_format,
+            seed=args.seed,
+            alpha=args.alpha,
+        )
+    )
+    if args.output is not None:
+        write_statistical_distinguisher_eval_report(args.output, report)
     print(json.dumps(report, allow_nan=False, indent=2, sort_keys=True))
     return 0
 

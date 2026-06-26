@@ -25,6 +25,9 @@ CLI_COMMANDS = [
     "report",
     "scan",
     "auto-decoy",
+    "eval-scanner",
+    "eval-realism",
+    "eval-statistical-distinguishers",
 ]
 
 OUT_OF_SCOPE_KEYWORDS = ["calibration", "accounting", "gateway", "tool-call"]

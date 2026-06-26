@@ -16,6 +16,9 @@ from aegis.replay.dp_honey_paper_evidence import (
 
 SCANNER_EVAL_PATH = Path("introspection/data/reports/dp_honey_scanner_eval_v1.json")
 GENERATION_REALISM_EVAL_PATH = Path("introspection/data/reports/dp_honey_generation_realism_eval_v1.json")
+STATISTICAL_DISTINGUISHER_EVAL_PATH = Path(
+    "introspection/data/reports/dp_honey_statistical_distinguisher_eval_v1.json"
+)
 SMOKE_PATH = Path("introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json")
 AUDIT_JSONL_PATH = Path(
     "introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_audit_v2.jsonl"
@@ -27,6 +30,7 @@ def test_dp_honey_paper_evidence_report_separates_met_and_partial_requirements()
         DPHoneyPaperEvidenceConfig(
             scanner_eval_path=SCANNER_EVAL_PATH,
             generation_realism_eval_path=GENERATION_REALISM_EVAL_PATH,
+            statistical_distinguisher_eval_path=STATISTICAL_DISTINGUISHER_EVAL_PATH,
             smoke_path=SMOKE_PATH,
             audit_jsonl_path=AUDIT_JSONL_PATH,
         )
@@ -41,6 +45,11 @@ def test_dp_honey_paper_evidence_report_separates_met_and_partial_requirements()
     assert report["scanner_metrics"]["false_negative_rate"] == 0.0
     assert report["generation_realism_metrics"]["bounded_sanity_gate_passed"] is True
     assert report["generation_realism_metrics"]["paper_faithful_statistical_distinguisher"] is False
+    assert report["statistical_distinguisher_metrics"]["present"] is True
+    assert report["statistical_distinguisher_metrics"]["all_required_tests_passed"] is False
+    assert report["statistical_distinguisher_metrics"]["test_statuses"]["character_entropy_tests"] == "passed"
+    assert report["statistical_distinguisher_metrics"]["test_statuses"]["bigram_likelihood_tests"] == "failed"
+    assert report["statistical_distinguisher_metrics"]["test_statuses"]["discriminator_mlp"] == "failed"
     assert checklist["split_conformal_calibration"]["status"] == "met"
     assert checklist["scanner_fn_fp"]["status"] == "met"
     assert checklist["gateway_substitution_and_ledger"]["status"] == "met"
@@ -50,7 +59,9 @@ def test_dp_honey_paper_evidence_report_separates_met_and_partial_requirements()
     assert checklist["statistical_realism_distinguishers"]["status"] == "partial"
     assert checklist["tool_argument_leakage"]["status"] == "met"
     assert report["checklist_summary"] == {"met": 8, "missing": 0, "partial": 1, "total": 9}
-    assert "statistical distinguisher" in " ".join(report["missing_before_paper_faithful_plus"])
+    assert "statistical distinguisher suite ran but did not pass" in " ".join(
+        report["missing_before_paper_faithful_plus"]
+    )
     assert "tool-call arguments" not in " ".join(report["missing_before_paper_faithful_plus"])
 
 
@@ -65,6 +76,8 @@ def test_dp_honey_paper_evidence_cli_writes_json(tmp_path: Path, monkeypatch) ->
             str(SCANNER_EVAL_PATH),
             "--generation-realism-eval",
             str(GENERATION_REALISM_EVAL_PATH),
+            "--statistical-distinguisher-eval",
+            str(STATISTICAL_DISTINGUISHER_EVAL_PATH),
             "--smoke",
             str(SMOKE_PATH),
             "--audit-jsonl",
@@ -82,6 +95,25 @@ def test_dp_honey_paper_evidence_cli_writes_json(tmp_path: Path, monkeypatch) ->
     assert payload["promotion_eligible"] is False
     assert payload["artifact_hashes"]["scanner_eval_sha256"]
     assert payload["artifact_hashes"]["generation_realism_eval_sha256"]
+    assert payload["artifact_hashes"]["statistical_distinguisher_eval_sha256"]
+    assert payload["statistical_distinguisher_metrics"]["present"] is True
+
+
+def test_dp_honey_paper_evidence_missing_statistical_suite_stays_partial() -> None:
+    report = build_dp_honey_paper_evidence_report(
+        DPHoneyPaperEvidenceConfig(
+            scanner_eval_path=SCANNER_EVAL_PATH,
+            generation_realism_eval_path=GENERATION_REALISM_EVAL_PATH,
+            statistical_distinguisher_eval_path=None,
+            smoke_path=SMOKE_PATH,
+            audit_jsonl_path=AUDIT_JSONL_PATH,
+        )
+    )
+    checklist = {str(item["requirement_id"]): item for item in _checklist(report)}
+
+    assert report["paper_faithful_plus"] is False
+    assert report["statistical_distinguisher_metrics"]["present"] is False
+    assert checklist["statistical_realism_distinguishers"]["status"] == "partial"
 
 
 def test_dp_honey_paper_evidence_rejects_forged_generation_realism_eval(tmp_path: Path) -> None:
@@ -103,6 +135,7 @@ def test_dp_honey_paper_evidence_rejects_forged_generation_realism_eval(tmp_path
             DPHoneyPaperEvidenceConfig(
                 scanner_eval_path=SCANNER_EVAL_PATH,
                 generation_realism_eval_path=forged_path,
+                statistical_distinguisher_eval_path=STATISTICAL_DISTINGUISHER_EVAL_PATH,
                 smoke_path=SMOKE_PATH,
                 audit_jsonl_path=AUDIT_JSONL_PATH,
             )
@@ -120,6 +153,26 @@ def test_dp_honey_paper_evidence_rejects_unproven_paper_faithful_realism_flag(tm
             DPHoneyPaperEvidenceConfig(
                 scanner_eval_path=SCANNER_EVAL_PATH,
                 generation_realism_eval_path=forged_path,
+                statistical_distinguisher_eval_path=STATISTICAL_DISTINGUISHER_EVAL_PATH,
+                smoke_path=SMOKE_PATH,
+                audit_jsonl_path=AUDIT_JSONL_PATH,
+            )
+        )
+
+
+def test_dp_honey_paper_evidence_rejects_forged_statistical_distinguisher_flag(tmp_path: Path) -> None:
+    forged_path = tmp_path / "forged-statistical-distinguisher.json"
+    payload = json.loads(STATISTICAL_DISTINGUISHER_EVAL_PATH.read_text(encoding="utf-8"))
+    payload["paper_faithful_statistical_distinguisher"] = True
+    payload["all_required_tests_passed"] = True
+    forged_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(DPHoneyPaperEvidenceError, match="all_required_tests_passed"):
+        build_dp_honey_paper_evidence_report(
+            DPHoneyPaperEvidenceConfig(
+                scanner_eval_path=SCANNER_EVAL_PATH,
+                generation_realism_eval_path=GENERATION_REALISM_EVAL_PATH,
+                statistical_distinguisher_eval_path=forged_path,
                 smoke_path=SMOKE_PATH,
                 audit_jsonl_path=AUDIT_JSONL_PATH,
             )

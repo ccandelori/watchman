@@ -15,6 +15,14 @@ JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dic
 DP_HONEY_PAPER_EVIDENCE_SCHEMA_VERSION = "aegis.dp_honey_paper_evidence/v1"
 GENERATION_REALISM_EVAL_SCHEMA_VERSION = "detect.dp_honey.generation_realism_eval/v1"
 GENERATION_REALISM_EVAL_STATUS = "bounded_generated_vs_reference_sanity_metrics"
+STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION = "detect.dp_honey.statistical_distinguisher_eval/v1"
+STATISTICAL_DISTINGUISHER_EVAL_STATUS = "statistical_distinguisher_suite_evaluated"
+REQUIRED_STATISTICAL_DISTINGUISHER_TESTS = (
+    "character_entropy_tests",
+    "bigram_likelihood_tests",
+    "numeric_substring_tests",
+    "discriminator_mlp",
+)
 _FORBIDDEN_AUDIT_MARKERS = ("{{CREDENTIAL:", "ghp_", "github_pat_", "sk_live_", "AKIA")
 
 
@@ -26,6 +34,7 @@ class DPHoneyPaperEvidenceError(ValueError):
 class DPHoneyPaperEvidenceConfig:
     scanner_eval_path: Path
     generation_realism_eval_path: Path
+    statistical_distinguisher_eval_path: Path | None
     smoke_path: Path
     audit_jsonl_path: Path
 
@@ -33,6 +42,9 @@ class DPHoneyPaperEvidenceConfig:
 def build_dp_honey_paper_evidence_report(config: DPHoneyPaperEvidenceConfig) -> dict[str, JsonValue]:
     scanner_eval = _read_json_mapping(config.scanner_eval_path)
     generation_realism_eval = _validate_generation_realism_eval(_read_json_mapping(config.generation_realism_eval_path))
+    statistical_distinguisher_eval = _read_optional_statistical_distinguisher_eval(
+        config.statistical_distinguisher_eval_path
+    )
     smoke = _read_json_mapping(config.smoke_path)
     audit_records = _read_jsonl_mappings(config.audit_jsonl_path)
     audit_text = config.audit_jsonl_path.read_text(encoding="utf-8")
@@ -42,7 +54,7 @@ def build_dp_honey_paper_evidence_report(config: DPHoneyPaperEvidenceConfig) -> 
     checklist = (
         _dp_noised_bigram_check(generator_metadata),
         _format_fidelity_check(scanner_eval, generation_realism_eval),
-        _statistical_realism_check(generation_realism_eval),
+        _statistical_realism_check(generation_realism_eval, statistical_distinguisher_eval),
         _conformal_check(scanner_eval),
         _scanner_fn_fp_check(scanner_eval),
         _gateway_substitution_check(checks, audit_records),
@@ -59,27 +71,31 @@ def build_dp_honey_paper_evidence_report(config: DPHoneyPaperEvidenceConfig) -> 
     met_count = sum(1 for item in checklist if item["status"] == "met")
     partial_count = sum(1 for item in checklist if item["status"] == "partial")
     missing_count = sum(1 for item in checklist if item["status"] == "missing")
+    paper_faithful_plus = all(item["status"] == "met" for item in checklist)
+    artifact_hashes: dict[str, JsonValue] = {
+        "scanner_eval_sha256": _sha256_file(config.scanner_eval_path),
+        "generation_realism_eval_sha256": _sha256_file(config.generation_realism_eval_path),
+        "smoke_sha256": _sha256_file(config.smoke_path),
+        "audit_jsonl_sha256": _sha256_file(config.audit_jsonl_path),
+    }
+    if config.statistical_distinguisher_eval_path is not None:
+        artifact_hashes["statistical_distinguisher_eval_sha256"] = _sha256_file(
+            config.statistical_distinguisher_eval_path
+        )
     return {
         "schema_version": DP_HONEY_PAPER_EVIDENCE_SCHEMA_VERSION,
         "component": "dp_honey",
         "paper_source": "Research/2606.04141v1.pdf sections 4.3, 5.3, and 6",
-        "promotion_status": "paper_aligned_operational_beta",
-        "paper_faithful_plus": False,
-        "promotion_eligible": False,
-        "summary": (
-            "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner "
-            "FP/FN evidence, gateway substitution, canary leak detection, provider-egress blocking, and redacted "
-            "audit evidence. It now includes bounded generated-vs-reference aggregate realism metrics. It is "
-            "still not paper-faithful+ because the full statistical distinguisher suite remains incomplete."
+        "promotion_status": (
+            "paper_faithful_plus_candidate" if paper_faithful_plus else "paper_aligned_operational_beta"
         ),
-        "artifact_hashes": {
-            "scanner_eval_sha256": _sha256_file(config.scanner_eval_path),
-            "generation_realism_eval_sha256": _sha256_file(config.generation_realism_eval_path),
-            "smoke_sha256": _sha256_file(config.smoke_path),
-            "audit_jsonl_sha256": _sha256_file(config.audit_jsonl_path),
-        },
+        "paper_faithful_plus": paper_faithful_plus,
+        "promotion_eligible": paper_faithful_plus,
+        "summary": _summary(paper_faithful_plus, statistical_distinguisher_eval),
+        "artifact_hashes": artifact_hashes,
         "scanner_metrics": _scanner_metrics(scanner_eval),
         "generation_realism_metrics": _generation_realism_metrics(generation_realism_eval),
+        "statistical_distinguisher_metrics": _statistical_distinguisher_metrics(statistical_distinguisher_eval),
         "gateway_metrics": _gateway_metrics(checks, audit_records),
         "generator_metadata": _json_mapping_or_empty(generator_metadata),
         "checklist": [dict(item) for item in checklist],
@@ -102,6 +118,34 @@ def render_dp_honey_paper_evidence_report_json(report: Mapping[str, JsonValue]) 
     return json.dumps(report, allow_nan=False, indent=2, sort_keys=True) + "\n"
 
 
+def _summary(
+    paper_faithful_plus: bool,
+    statistical_distinguisher_eval: Mapping[str, object] | None,
+) -> str:
+    if paper_faithful_plus:
+        return (
+            "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner "
+            "FP/FN evidence, gateway substitution, canary leak detection, provider-egress blocking, redacted "
+            "audit evidence, and a passed statistical distinguisher suite. This is paper-faithful+ evidence for "
+            "the local synthetic DP-HONEY registry, not a production-secret indistinguishability proof."
+        )
+    if statistical_distinguisher_eval is None:
+        statistical_status = "the full statistical distinguisher suite has not been supplied to this gate"
+    else:
+        suite = _mapping(statistical_distinguisher_eval.get("statistical_distinguisher_suite"), "statistical suite")
+        failed_tests = tuple(
+            test_name
+            for test_name in REQUIRED_STATISTICAL_DISTINGUISHER_TESTS
+            if _mapping(suite.get(test_name), f"statistical suite.{test_name}").get("status") != "passed"
+        )
+        statistical_status = "the statistical distinguisher suite failed: " + ", ".join(failed_tests)
+    return (
+        "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner FP/FN "
+        "evidence, gateway substitution, canary leak detection, provider-egress blocking, and redacted audit "
+        f"evidence. It remains a paper-aligned operational beta because {statistical_status}."
+    )
+
+
 def parse_args(argv: Sequence[str]) -> tuple[DPHoneyPaperEvidenceConfig, Path | None]:
     parser = argparse.ArgumentParser(description="Build a DP-HONEY paper-faithfulness evidence report.")
     parser.add_argument("--scanner-eval", required=True, type=Path, help="Path to dp_honey_scanner_eval_v1.json.")
@@ -111,6 +155,12 @@ def parse_args(argv: Sequence[str]) -> tuple[DPHoneyPaperEvidenceConfig, Path | 
         type=Path,
         help="Path to dp_honey_generation_realism_eval_v1.json.",
     )
+    parser.add_argument(
+        "--statistical-distinguisher-eval",
+        required=False,
+        type=Path,
+        help="Optional path to dp_honey_statistical_distinguisher_eval_v1.json.",
+    )
     parser.add_argument("--smoke", required=True, type=Path, help="Path to default mock-provider smoke JSON.")
     parser.add_argument("--audit-jsonl", required=True, type=Path, help="Path to matching smoke audit JSONL.")
     parser.add_argument("--output", required=False, type=Path, help="Optional JSON output path.")
@@ -119,6 +169,7 @@ def parse_args(argv: Sequence[str]) -> tuple[DPHoneyPaperEvidenceConfig, Path | 
         DPHoneyPaperEvidenceConfig(
             scanner_eval_path=args.scanner_eval,
             generation_realism_eval_path=args.generation_realism_eval,
+            statistical_distinguisher_eval_path=args.statistical_distinguisher_eval,
             smoke_path=args.smoke,
             audit_jsonl_path=args.audit_jsonl,
         ),
@@ -195,18 +246,37 @@ def _format_fidelity_check(
     )
 
 
-def _statistical_realism_check(generation_realism_eval: Mapping[str, object]) -> dict[str, JsonValue]:
+def _statistical_realism_check(
+    generation_realism_eval: Mapping[str, object],
+    statistical_distinguisher_eval: Mapping[str, object] | None,
+) -> dict[str, JsonValue]:
     bounded_gate = generation_realism_eval.get("bounded_sanity_gate_passed") is True
-    paper_faithful_distinguisher = _full_statistical_distinguisher_suite_passed(generation_realism_eval)
-    if bounded_gate and paper_faithful_distinguisher:
+    statistical_suite_passed = _statistical_distinguisher_eval_passed(statistical_distinguisher_eval)
+    if bounded_gate and statistical_suite_passed:
         status = "met"
         gaps: tuple[str, ...] = ()
-    elif bounded_gate:
+    elif bounded_gate and statistical_distinguisher_eval is None:
         status = "partial"
         gaps = (
             "Paper evaluates statistical distinguishers such as character-entropy tests, bigram likelihood, "
             "numeric-substring tests, and a discriminator MLP; this report provides bounded aggregate sanity "
             "metrics but not the full sealed distinguisher suite.",
+        )
+    elif bounded_gate:
+        status = "partial"
+        suite = _mapping(
+            statistical_distinguisher_eval.get("statistical_distinguisher_suite"),
+            "statistical_distinguisher_eval.statistical_distinguisher_suite",
+        )
+        failed_tests = tuple(
+            test_name
+            for test_name in REQUIRED_STATISTICAL_DISTINGUISHER_TESTS
+            if _mapping(suite.get(test_name), f"statistical_distinguisher_eval.{test_name}").get("status")
+            != "passed"
+        )
+        gaps = (
+            "The statistical distinguisher suite ran but did not pass all required tests: "
+            + ", ".join(failed_tests),
         )
     else:
         status = "missing"
@@ -221,7 +291,7 @@ def _statistical_realism_check(generation_realism_eval: Mapping[str, object]) ->
             "generation_realism_schema_version": _json_value_or_none(generation_realism_eval.get("schema_version")),
             "generation_realism_status": _json_value_or_none(generation_realism_eval.get("status")),
             "bounded_sanity_gate_passed": bounded_gate,
-            "paper_faithful_statistical_distinguisher": paper_faithful_distinguisher,
+            "paper_faithful_statistical_distinguisher": statistical_suite_passed,
             "declared_paper_faithful_statistical_distinguisher": _json_value_or_none(
                 generation_realism_eval.get("paper_faithful_statistical_distinguisher")
             ),
@@ -229,6 +299,11 @@ def _statistical_realism_check(generation_realism_eval: Mapping[str, object]) ->
             "all_metrics_finite": _json_value_or_none(generation_realism_eval.get("all_metrics_finite")),
             "count_per_format": _json_value_or_none(generation_realism_eval.get("count_per_format")),
             "format_count": _json_value_or_none(generation_realism_eval.get("format_count")),
+            "statistical_distinguisher_eval_present": statistical_distinguisher_eval is not None,
+            "statistical_distinguisher_eval_passed": statistical_suite_passed,
+            "statistical_distinguisher_test_statuses": _statistical_distinguisher_test_statuses(
+                statistical_distinguisher_eval
+            ),
         },
         gaps=gaps,
     )
@@ -416,6 +491,33 @@ def _generation_realism_metrics(generation_realism_eval: Mapping[str, object]) -
     }
 
 
+def _statistical_distinguisher_metrics(
+    statistical_distinguisher_eval: Mapping[str, object] | None,
+) -> dict[str, JsonValue]:
+    if statistical_distinguisher_eval is None:
+        return {
+            "present": False,
+            "all_required_tests_passed": False,
+            "paper_faithful_statistical_distinguisher": False,
+            "test_statuses": {},
+        }
+    return {
+        "present": True,
+        "status": _json_value_or_none(statistical_distinguisher_eval.get("status")),
+        "reference_source": _json_value_or_none(statistical_distinguisher_eval.get("reference_source")),
+        "train_count_per_format": _json_value_or_none(statistical_distinguisher_eval.get("train_count_per_format")),
+        "test_count_per_format": _json_value_or_none(statistical_distinguisher_eval.get("test_count_per_format")),
+        "alpha": _json_value_or_none(statistical_distinguisher_eval.get("alpha")),
+        "all_required_tests_passed": _json_value_or_none(
+            statistical_distinguisher_eval.get("all_required_tests_passed")
+        ),
+        "paper_faithful_statistical_distinguisher": _json_value_or_none(
+            statistical_distinguisher_eval.get("paper_faithful_statistical_distinguisher")
+        ),
+        "test_statuses": _statistical_distinguisher_test_statuses(statistical_distinguisher_eval),
+    }
+
+
 def _gateway_metrics(
     checks: Mapping[str, object],
     audit_records: tuple[Mapping[str, object], ...],
@@ -460,6 +562,12 @@ def _checklist_item(
 def _read_json_mapping(path: Path) -> Mapping[str, object]:
     decoded = json.loads(path.read_text(encoding="utf-8"))
     return _mapping(decoded, str(path))
+
+
+def _read_optional_statistical_distinguisher_eval(path: Path | None) -> Mapping[str, object] | None:
+    if path is None:
+        return None
+    return _validate_statistical_distinguisher_eval(_read_json_mapping(path))
 
 
 def _validate_generation_realism_eval(report: Mapping[str, object]) -> Mapping[str, object]:
@@ -554,6 +662,84 @@ def _validate_generation_realism_eval(report: Mapping[str, object]) -> Mapping[s
             "generation_realism_eval.paper_faithful_statistical_distinguisher requires a passed "
             "statistical_distinguisher_suite."
         )
+    return report
+
+
+def _validate_statistical_distinguisher_eval(report: Mapping[str, object]) -> Mapping[str, object]:
+    if report.get("schema_version") != STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION:
+        raise DPHoneyPaperEvidenceError(
+            "statistical_distinguisher_eval.schema_version must be "
+            f"{STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION}."
+        )
+    if report.get("status") != STATISTICAL_DISTINGUISHER_EVAL_STATUS:
+        raise DPHoneyPaperEvidenceError(
+            f"statistical_distinguisher_eval.status must be {STATISTICAL_DISTINGUISHER_EVAL_STATUS}."
+        )
+    _positive_int(report.get("train_count_per_format"), "statistical_distinguisher_eval.train_count_per_format")
+    _positive_int(report.get("test_count_per_format"), "statistical_distinguisher_eval.test_count_per_format")
+    format_count = _positive_int(report.get("format_count"), "statistical_distinguisher_eval.format_count")
+    scannable_count = _nonnegative_int(
+        report.get("scannable_format_count"), "statistical_distinguisher_eval.scannable_format_count"
+    )
+    if scannable_count > format_count:
+        raise DPHoneyPaperEvidenceError(
+            "statistical_distinguisher_eval.scannable_format_count must be <= format_count."
+        )
+    _finite_number(report.get("alpha"), "statistical_distinguisher_eval.alpha")
+    if report.get("raw_values_serialized") is not False:
+        raise DPHoneyPaperEvidenceError("statistical_distinguisher_eval.raw_values_serialized must be false.")
+    audit_safety = _mapping(report.get("audit_safety"), "statistical_distinguisher_eval.audit_safety")
+    if audit_safety.get("raw_secret_values_in_report") is not False:
+        raise DPHoneyPaperEvidenceError(
+            "statistical_distinguisher_eval.audit_safety.raw_secret_values_in_report must be false."
+        )
+    if audit_safety.get("finding_payload_redacted") is not True:
+        raise DPHoneyPaperEvidenceError(
+            "statistical_distinguisher_eval.audit_safety.finding_payload_redacted must be true."
+        )
+    required_tests = frozenset(
+        _string_list(report.get("required_tests"), "statistical_distinguisher_eval.required_tests")
+    )
+    missing_required_tests = frozenset(REQUIRED_STATISTICAL_DISTINGUISHER_TESTS) - required_tests
+    if len(missing_required_tests) > 0:
+        missing = ", ".join(sorted(missing_required_tests))
+        raise DPHoneyPaperEvidenceError(f"statistical_distinguisher_eval.required_tests missing: {missing}.")
+    suite = _mapping(
+        report.get("statistical_distinguisher_suite"),
+        "statistical_distinguisher_eval.statistical_distinguisher_suite",
+    )
+    test_statuses: list[bool] = []
+    for test_name in REQUIRED_STATISTICAL_DISTINGUISHER_TESTS:
+        test_result = _mapping(suite.get(test_name), f"statistical_distinguisher_eval.{test_name}")
+        status = test_result.get("status")
+        if status not in {"passed", "failed"}:
+            raise DPHoneyPaperEvidenceError(f"statistical_distinguisher_eval.{test_name}.status is invalid.")
+        _mapping(test_result.get("aggregate"), f"statistical_distinguisher_eval.{test_name}.aggregate")
+        _required_string(
+            test_result.get("pass_criterion"),
+            f"statistical_distinguisher_eval.{test_name}.pass_criterion",
+        )
+        if test_name != "discriminator_mlp":
+            format_metrics = _mapping_list(
+                test_result.get("format_metrics"),
+                f"statistical_distinguisher_eval.{test_name}.format_metrics",
+            )
+            if len(format_metrics) != format_count:
+                raise DPHoneyPaperEvidenceError(
+                    f"statistical_distinguisher_eval.{test_name}.format_metrics length must equal format_count."
+                )
+        test_statuses.append(status == "passed")
+    all_tests_passed = all(test_statuses)
+    _consistent_bool(
+        report.get("all_required_tests_passed"),
+        all_tests_passed,
+        "statistical_distinguisher_eval.all_required_tests_passed",
+    )
+    _consistent_bool(
+        report.get("paper_faithful_statistical_distinguisher"),
+        all_tests_passed,
+        "statistical_distinguisher_eval.paper_faithful_statistical_distinguisher",
+    )
     return report
 
 
@@ -666,6 +852,38 @@ def _full_statistical_distinguisher_suite_passed(generation_realism_eval: Mappin
         if not isinstance(test_result, Mapping) or test_result.get("status") != "passed":
             return False
     return True
+
+
+def _statistical_distinguisher_eval_passed(statistical_distinguisher_eval: Mapping[str, object] | None) -> bool:
+    if statistical_distinguisher_eval is None:
+        return False
+    if statistical_distinguisher_eval.get("all_required_tests_passed") is not True:
+        return False
+    if statistical_distinguisher_eval.get("paper_faithful_statistical_distinguisher") is not True:
+        return False
+    suite = statistical_distinguisher_eval.get("statistical_distinguisher_suite")
+    if not isinstance(suite, Mapping):
+        return False
+    return all(
+        isinstance(suite.get(test_name), Mapping) and suite[test_name].get("status") == "passed"
+        for test_name in REQUIRED_STATISTICAL_DISTINGUISHER_TESTS
+    )
+
+
+def _statistical_distinguisher_test_statuses(
+    statistical_distinguisher_eval: Mapping[str, object] | None,
+) -> dict[str, JsonValue]:
+    if statistical_distinguisher_eval is None:
+        return {}
+    suite = _mapping(
+        statistical_distinguisher_eval.get("statistical_distinguisher_suite"),
+        "statistical_distinguisher_eval.statistical_distinguisher_suite",
+    )
+    statuses: dict[str, JsonValue] = {}
+    for test_name in REQUIRED_STATISTICAL_DISTINGUISHER_TESTS:
+        test_result = _mapping(suite.get(test_name), f"statistical_distinguisher_eval.{test_name}")
+        statuses[test_name] = _json_value_or_none(test_result.get("status"))
+    return statuses
 
 
 def _consistent_bool(value: object, expected: bool, field_name: str) -> None:

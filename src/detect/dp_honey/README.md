@@ -97,6 +97,14 @@ python -m detect.dp_honey eval-scanner --positive-per-format 25 --seed 11 \
 # 12. Emit all-format generation-realism evidence without raw token values
 python -m detect.dp_honey eval-realism --count-per-format 25 --seed 11 \
     --output introspection/data/reports/dp_honey_generation_realism_eval_v1.json
+
+# 13. Emit the statistical-distinguisher suite evidence named by the paper
+python -m detect.dp_honey eval-statistical-distinguishers \
+    --train-count-per-format 25 \
+    --test-count-per-format 25 \
+    --alpha 0.1 \
+    --seed 11 \
+    --output introspection/data/reports/dp_honey_statistical_distinguisher_eval_v1.json
 ```
 
 `generate` is capped at 10000 (it streams one token at a time); `report` is
@@ -130,6 +138,12 @@ compares generated batches with same-format synthetic reference batches using
 aggregate validity, duplicate-rate, character-entropy, and model-likelihood
 metrics, without serializing token values. It is a bounded sanity gate, not the
 paper's full statistical-distinguisher suite.
+
+`eval-statistical-distinguishers` runs the paper-named realism tests: character
+entropy, bigram likelihood, numeric-substring features, and a discriminator MLP.
+It reports only aggregate metrics and pass/fail statuses. The current seeded
+artifact is non-promoting because the present generator remains distinguishable
+under bigram likelihood, numeric-substring, and MLP tests.
 
 Prefix-less generic formats such as `aws-secret-access-key`, `oauth-bearer`, and
 `database-password` are excluded from registry classification to avoid noisy

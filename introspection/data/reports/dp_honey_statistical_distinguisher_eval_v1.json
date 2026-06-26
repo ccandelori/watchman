@@ -1,0 +1,653 @@
+{
+  "all_required_tests_passed": false,
+  "alpha": 0.1,
+  "audit_safety": {
+    "finding_payload_redacted": true,
+    "raw_secret_values_in_report": false
+  },
+  "format_count": 23,
+  "generator_parameters": {
+    "clip": 1.0,
+    "corpus_size": 200,
+    "epsilon": 1.0,
+    "train_seed": 0
+  },
+  "limits": [
+    "No generated or reference token values are serialized.",
+    "Reference tokens are same-format synthetic holdout examples, not provider-valid production secrets.",
+    "Passing means these bounded distinguishers did not separate generated tokens from the synthetic reference beyond configured thresholds; it is not a computational indistinguishability proof."
+  ],
+  "paper_faithful_statistical_distinguisher": false,
+  "raw_values_serialized": false,
+  "reference_source": "same_format_uniform_synthetic_holdout",
+  "registry_version": "2",
+  "required_tests": [
+    "character_entropy_tests",
+    "bigram_likelihood_tests",
+    "numeric_substring_tests",
+    "discriminator_mlp"
+  ],
+  "scannable_format_count": 20,
+  "schema_version": "detect.dp_honey.statistical_distinguisher_eval/v1",
+  "seed": 11,
+  "statistical_distinguisher_suite": {
+    "bigram_likelihood_tests": {
+      "aggregate": {
+        "max_abs_delta": 7.822499,
+        "mean_abs_delta": 3.314242,
+        "threshold_format_abs_delta": 3.0,
+        "threshold_mean_abs_delta": 1.25
+      },
+      "alpha": 0.1,
+      "format_metrics": [
+        {
+          "abs_delta": 1.170621,
+          "format_slug": "anthropic-api-key",
+          "generated_avg_log_likelihood": -3.992876,
+          "reference_avg_log_likelihood": -5.163497,
+          "status": "passed"
+        },
+        {
+          "abs_delta": 2.76829,
+          "format_slug": "aws-access-key-id",
+          "generated_avg_log_likelihood": -3.304167,
+          "reference_avg_log_likelihood": -6.072457,
+          "status": "passed"
+        },
+        {
+          "abs_delta": 3.647764,
+          "format_slug": "aws-secret-access-key",
+          "generated_avg_log_likelihood": -3.781749,
+          "reference_avg_log_likelihood": -7.429512,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 7.822499,
+          "format_slug": "database-password",
+          "generated_avg_log_likelihood": -3.630794,
+          "reference_avg_log_likelihood": -11.453294,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 2.682506,
+          "format_slug": "generic-sk",
+          "generated_avg_log_likelihood": -3.8201,
+          "reference_avg_log_likelihood": -6.502606,
+          "status": "passed"
+        },
+        {
+          "abs_delta": 1.104601,
+          "format_slug": "github-fine-grained",
+          "generated_avg_log_likelihood": -3.925357,
+          "reference_avg_log_likelihood": -5.029958,
+          "status": "passed"
+        },
+        {
+          "abs_delta": 5.659834,
+          "format_slug": "github-ghp",
+          "generated_avg_log_likelihood": -3.645193,
+          "reference_avg_log_likelihood": -9.305027,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 5.078102,
+          "format_slug": "github-oauth",
+          "generated_avg_log_likelihood": -3.652979,
+          "reference_avg_log_likelihood": -8.731081,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 5.183436,
+          "format_slug": "github-refresh",
+          "generated_avg_log_likelihood": -3.676278,
+          "reference_avg_log_likelihood": -8.859714,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 4.827926,
+          "format_slug": "github-server-to-server",
+          "generated_avg_log_likelihood": -3.667484,
+          "reference_avg_log_likelihood": -8.49541,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 4.738615,
+          "format_slug": "github-user-to-server",
+          "generated_avg_log_likelihood": -3.61148,
+          "reference_avg_log_likelihood": -8.350094,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 4.983628,
+          "format_slug": "google-api-key",
+          "generated_avg_log_likelihood": -3.733391,
+          "reference_avg_log_likelihood": -8.717018,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 0.89227,
+          "format_slug": "jwt",
+          "generated_avg_log_likelihood": -3.997071,
+          "reference_avg_log_likelihood": -4.889341,
+          "status": "passed"
+        },
+        {
+          "abs_delta": 3.957351,
+          "format_slug": "oauth-bearer",
+          "generated_avg_log_likelihood": -3.788082,
+          "reference_avg_log_likelihood": -7.745433,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 3.182416,
+          "format_slug": "openai-project-key",
+          "generated_avg_log_likelihood": -3.826992,
+          "reference_avg_log_likelihood": -7.009408,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 2.15614,
+          "format_slug": "sendgrid-key",
+          "generated_avg_log_likelihood": -3.920933,
+          "reference_avg_log_likelihood": -6.077074,
+          "status": "passed"
+        },
+        {
+          "abs_delta": 2.948323,
+          "format_slug": "slack-bot-token",
+          "generated_avg_log_likelihood": -2.790514,
+          "reference_avg_log_likelihood": -5.738837,
+          "status": "passed"
+        },
+        {
+          "abs_delta": 3.299168,
+          "format_slug": "slack-user-token",
+          "generated_avg_log_likelihood": -2.79191,
+          "reference_avg_log_likelihood": -6.091078,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 2.495102,
+          "format_slug": "slack-webhook-url",
+          "generated_avg_log_likelihood": -3.572571,
+          "reference_avg_log_likelihood": -6.067673,
+          "status": "passed"
+        },
+        {
+          "abs_delta": 1.989842,
+          "format_slug": "ssh-private-key",
+          "generated_avg_log_likelihood": -3.907538,
+          "reference_avg_log_likelihood": -5.897379,
+          "status": "passed"
+        },
+        {
+          "abs_delta": 5.546506,
+          "format_slug": "stripe-sk-live",
+          "generated_avg_log_likelihood": -3.607116,
+          "reference_avg_log_likelihood": -9.153622,
+          "status": "failed"
+        },
+        {
+          "abs_delta": 0.039492,
+          "format_slug": "twilio-account-sid",
+          "generated_avg_log_likelihood": -2.760884,
+          "reference_avg_log_likelihood": -2.800375,
+          "status": "passed"
+        },
+        {
+          "abs_delta": 0.053126,
+          "format_slug": "twilio-api-key-sid",
+          "generated_avg_log_likelihood": -2.748645,
+          "reference_avg_log_likelihood": -2.801771,
+          "status": "passed"
+        }
+      ],
+      "pass_criterion": "mean_abs_delta <= 1.25 and every format abs_delta <= 3.0 on held-out samples",
+      "status": "failed"
+    },
+    "character_entropy_tests": {
+      "aggregate": {
+        "max_abs_delta_bits": 0.468541,
+        "mean_abs_delta_bits": 0.055638,
+        "threshold_format_abs_delta_bits": 1.25,
+        "threshold_mean_abs_delta_bits": 0.75
+      },
+      "alpha": 0.1,
+      "format_metrics": [
+        {
+          "abs_delta_bits": 0.008087,
+          "format_slug": "anthropic-api-key",
+          "generated_char_entropy_bits": 5.913299,
+          "reference_char_entropy_bits": 5.921386,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.038511,
+          "format_slug": "aws-access-key-id",
+          "generated_char_entropy_bits": 4.914222,
+          "reference_char_entropy_bits": 4.87571,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.019501,
+          "format_slug": "aws-secret-access-key",
+          "generated_char_entropy_bits": 5.944472,
+          "reference_char_entropy_bits": 5.963973,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.001037,
+          "format_slug": "database-password",
+          "generated_char_entropy_bits": 6.147602,
+          "reference_char_entropy_bits": 6.148639,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.026774,
+          "format_slug": "generic-sk",
+          "generated_char_entropy_bits": 5.890362,
+          "reference_char_entropy_bits": 5.917136,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.019223,
+          "format_slug": "github-fine-grained",
+          "generated_char_entropy_bits": 5.893586,
+          "reference_char_entropy_bits": 5.912809,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.032918,
+          "format_slug": "github-ghp",
+          "generated_char_entropy_bits": 5.849238,
+          "reference_char_entropy_bits": 5.882156,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.02211,
+          "format_slug": "github-oauth",
+          "generated_char_entropy_bits": 5.858765,
+          "reference_char_entropy_bits": 5.880875,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.009588,
+          "format_slug": "github-refresh",
+          "generated_char_entropy_bits": 5.877405,
+          "reference_char_entropy_bits": 5.867816,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.014342,
+          "format_slug": "github-server-to-server",
+          "generated_char_entropy_bits": 5.863727,
+          "reference_char_entropy_bits": 5.878069,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.027768,
+          "format_slug": "github-user-to-server",
+          "generated_char_entropy_bits": 5.857807,
+          "reference_char_entropy_bits": 5.885575,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.018744,
+          "format_slug": "google-api-key",
+          "generated_char_entropy_bits": 5.880714,
+          "reference_char_entropy_bits": 5.899458,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.005164,
+          "format_slug": "jwt",
+          "generated_char_entropy_bits": 6.002084,
+          "reference_char_entropy_bits": 6.007248,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.008294,
+          "format_slug": "oauth-bearer",
+          "generated_char_entropy_bits": 5.947696,
+          "reference_char_entropy_bits": 5.939403,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.004397,
+          "format_slug": "openai-project-key",
+          "generated_char_entropy_bits": 5.8592,
+          "reference_char_entropy_bits": 5.863597,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.012421,
+          "format_slug": "sendgrid-key",
+          "generated_char_entropy_bits": 5.964092,
+          "reference_char_entropy_bits": 5.976513,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.468541,
+          "format_slug": "slack-bot-token",
+          "generated_char_entropy_bits": 4.846497,
+          "reference_char_entropy_bits": 5.315038,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.450176,
+          "format_slug": "slack-user-token",
+          "generated_char_entropy_bits": 4.865078,
+          "reference_char_entropy_bits": 5.315254,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.030828,
+          "format_slug": "slack-webhook-url",
+          "generated_char_entropy_bits": 5.624216,
+          "reference_char_entropy_bits": 5.655044,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.023184,
+          "format_slug": "ssh-private-key",
+          "generated_char_entropy_bits": 5.323552,
+          "reference_char_entropy_bits": 5.346735,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.035118,
+          "format_slug": "stripe-sk-live",
+          "generated_char_entropy_bits": 5.703653,
+          "reference_char_entropy_bits": 5.668536,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.001734,
+          "format_slug": "twilio-account-sid",
+          "generated_char_entropy_bits": 4.132434,
+          "reference_char_entropy_bits": 4.1307,
+          "status": "passed"
+        },
+        {
+          "abs_delta_bits": 0.001223,
+          "format_slug": "twilio-api-key-sid",
+          "generated_char_entropy_bits": 4.134719,
+          "reference_char_entropy_bits": 4.133496,
+          "status": "passed"
+        }
+      ],
+      "pass_criterion": "mean_abs_delta_bits <= 0.75 and every format abs_delta_bits <= 1.25 on held-out samples",
+      "status": "passed"
+    },
+    "discriminator_mlp": {
+      "aggregate": {
+        "test_accuracy": 0.910435,
+        "test_balanced_accuracy": 0.910435,
+        "threshold_max_test_balanced_accuracy": 0.68
+      },
+      "alpha": 0.1,
+      "architecture": "K->16->1",
+      "epochs": 350,
+      "feature_names": [
+        "token_length",
+        "digit_fraction",
+        "alpha_fraction",
+        "uppercase_fraction",
+        "lowercase_fraction",
+        "symbol_fraction",
+        "single_token_entropy_bits",
+        "avg_bigram_log_likelihood",
+        "numeric_run_count",
+        "numeric_run_avg_length",
+        "numeric_run_max_length"
+      ],
+      "learning_rate": 0.035,
+      "pass_criterion": "held-out balanced accuracy <= 0.68 when distinguishing generated from reference",
+      "status": "failed",
+      "test_count": 1150,
+      "test_metrics": {
+        "accuracy": 0.910435,
+        "balanced_accuracy": 0.910435,
+        "generated_false_negative_rate": 0.0,
+        "generated_recall": 1.0,
+        "reference_false_positive_rate": 0.17913,
+        "reference_recall": 0.82087
+      },
+      "threshold_max_test_balanced_accuracy": 0.68,
+      "train_count": 1150,
+      "train_metrics": {
+        "accuracy": 0.913913,
+        "balanced_accuracy": 0.913913,
+        "generated_false_negative_rate": 0.0,
+        "generated_recall": 1.0,
+        "reference_false_positive_rate": 0.172174,
+        "reference_recall": 0.827826
+      }
+    },
+    "numeric_substring_tests": {
+      "aggregate": {
+        "max_digit_fraction_abs_delta": 0.138909,
+        "max_numeric_run_count_per_token_abs_delta": 1.0,
+        "max_numeric_run_length_abs_delta": 9.0,
+        "threshold_digit_fraction_abs_delta": 0.25,
+        "threshold_numeric_run_count_per_token_abs_delta": 2.0,
+        "threshold_numeric_run_length_abs_delta": 8.0
+      },
+      "alpha": 0.1,
+      "format_metrics": [
+        {
+          "digit_fraction_abs_delta": 0.005926,
+          "format_slug": "anthropic-api-key",
+          "generated_digit_fraction": 0.158519,
+          "numeric_run_count_per_token_abs_delta": 0.08,
+          "numeric_run_length_abs_delta": 1.0,
+          "reference_digit_fraction": 0.152593,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.022,
+          "format_slug": "aws-access-key-id",
+          "generated_digit_fraction": 0.228,
+          "numeric_run_count_per_token_abs_delta": 0.36,
+          "numeric_run_length_abs_delta": 0.014087,
+          "reference_digit_fraction": 0.206,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.017,
+          "format_slug": "aws-secret-access-key",
+          "generated_digit_fraction": 0.175,
+          "numeric_run_count_per_token_abs_delta": 0.4,
+          "numeric_run_length_abs_delta": 0.038095,
+          "reference_digit_fraction": 0.158,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.014,
+          "format_slug": "database-password",
+          "generated_digit_fraction": 0.156,
+          "numeric_run_count_per_token_abs_delta": 0.0,
+          "numeric_run_length_abs_delta": 0.104478,
+          "reference_digit_fraction": 0.142,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.020392,
+          "format_slug": "generic-sk",
+          "generated_digit_fraction": 0.159216,
+          "numeric_run_count_per_token_abs_delta": 0.4,
+          "numeric_run_length_abs_delta": 1.0,
+          "reference_digit_fraction": 0.138824,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.011613,
+          "format_slug": "github-fine-grained",
+          "generated_digit_fraction": 0.135054,
+          "numeric_run_count_per_token_abs_delta": 0.68,
+          "numeric_run_length_abs_delta": 2.0,
+          "reference_digit_fraction": 0.146667,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.005,
+          "format_slug": "github-ghp",
+          "generated_digit_fraction": 0.178,
+          "numeric_run_count_per_token_abs_delta": 0.32,
+          "numeric_run_length_abs_delta": 1.0,
+          "reference_digit_fraction": 0.183,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.023,
+          "format_slug": "github-oauth",
+          "generated_digit_fraction": 0.171,
+          "numeric_run_count_per_token_abs_delta": 0.92,
+          "numeric_run_length_abs_delta": 0.032019,
+          "reference_digit_fraction": 0.148,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.006,
+          "format_slug": "github-refresh",
+          "generated_digit_fraction": 0.174,
+          "numeric_run_count_per_token_abs_delta": 0.32,
+          "numeric_run_length_abs_delta": 0.02561,
+          "reference_digit_fraction": 0.168,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.023,
+          "format_slug": "github-server-to-server",
+          "generated_digit_fraction": 0.171,
+          "numeric_run_count_per_token_abs_delta": 0.8,
+          "numeric_run_length_abs_delta": 0.000845,
+          "reference_digit_fraction": 0.148,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.012,
+          "format_slug": "github-user-to-server",
+          "generated_digit_fraction": 0.166,
+          "numeric_run_count_per_token_abs_delta": 0.52,
+          "numeric_run_length_abs_delta": 2.0,
+          "reference_digit_fraction": 0.154,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.02359,
+          "format_slug": "google-api-key",
+          "generated_digit_fraction": 0.180513,
+          "numeric_run_count_per_token_abs_delta": 0.8,
+          "numeric_run_length_abs_delta": 0.013133,
+          "reference_digit_fraction": 0.156923,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.001143,
+          "format_slug": "jwt",
+          "generated_digit_fraction": 0.149714,
+          "numeric_run_count_per_token_abs_delta": 0.64,
+          "numeric_run_length_abs_delta": 3.0,
+          "reference_digit_fraction": 0.148571,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.014,
+          "format_slug": "oauth-bearer",
+          "generated_digit_fraction": 0.161,
+          "numeric_run_count_per_token_abs_delta": 0.12,
+          "numeric_run_length_abs_delta": 1.0,
+          "reference_digit_fraction": 0.147,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.018571,
+          "format_slug": "openai-project-key",
+          "generated_digit_fraction": 0.155,
+          "numeric_run_count_per_token_abs_delta": 0.56,
+          "numeric_run_length_abs_delta": 1.0,
+          "reference_digit_fraction": 0.136429,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.015072,
+          "format_slug": "sendgrid-key",
+          "generated_digit_fraction": 0.165217,
+          "numeric_run_count_per_token_abs_delta": 0.6,
+          "numeric_run_length_abs_delta": 1.0,
+          "reference_digit_fraction": 0.150145,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.136727,
+          "format_slug": "slack-bot-token",
+          "generated_digit_fraction": 0.643636,
+          "numeric_run_count_per_token_abs_delta": 0.52,
+          "numeric_run_length_abs_delta": 4.0,
+          "reference_digit_fraction": 0.506909,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.138909,
+          "format_slug": "slack-user-token",
+          "generated_digit_fraction": 0.646545,
+          "numeric_run_count_per_token_abs_delta": 1.0,
+          "numeric_run_length_abs_delta": 9.0,
+          "reference_digit_fraction": 0.507636,
+          "status": "failed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.013333,
+          "format_slug": "slack-webhook-url",
+          "generated_digit_fraction": 0.13037,
+          "numeric_run_count_per_token_abs_delta": 0.12,
+          "numeric_run_length_abs_delta": 1.0,
+          "reference_digit_fraction": 0.117037,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.00597,
+          "format_slug": "ssh-private-key",
+          "generated_digit_fraction": 0.071045,
+          "numeric_run_count_per_token_abs_delta": 0.72,
+          "numeric_run_length_abs_delta": 0.006514,
+          "reference_digit_fraction": 0.077015,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.03125,
+          "format_slug": "stripe-sk-live",
+          "generated_digit_fraction": 0.10125,
+          "numeric_run_count_per_token_abs_delta": 0.72,
+          "numeric_run_length_abs_delta": 0.050166,
+          "reference_digit_fraction": 0.1325,
+          "status": "passed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.005882,
+          "format_slug": "twilio-account-sid",
+          "generated_digit_fraction": 0.557647,
+          "numeric_run_count_per_token_abs_delta": 0.12,
+          "numeric_run_length_abs_delta": 9.0,
+          "reference_digit_fraction": 0.563529,
+          "status": "failed"
+        },
+        {
+          "digit_fraction_abs_delta": 0.003529,
+          "format_slug": "twilio-api-key-sid",
+          "generated_digit_fraction": 0.581176,
+          "numeric_run_count_per_token_abs_delta": 0.16,
+          "numeric_run_length_abs_delta": 3.0,
+          "reference_digit_fraction": 0.584706,
+          "status": "passed"
+        }
+      ],
+      "pass_criterion": "every format digit/run-count/run-length delta must remain within configured numeric thresholds",
+      "status": "failed"
+    }
+  },
+  "status": "statistical_distinguisher_suite_evaluated",
+  "test_count_per_format": 25,
+  "train_count_per_format": 25
+}
