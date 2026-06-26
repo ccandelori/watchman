@@ -1,0 +1,396 @@
+{
+  "certification_id": "qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_linear_promoted_runtime",
+  "command_plan": [],
+  "created_at": "2026-06-24T00:00:00Z",
+  "model_identity": {
+    "chat_template_present": true,
+    "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+    "hidden_size": 2560,
+    "layer_count": 36,
+    "model_id": "Qwen/Qwen3-4B",
+    "model_type": "qwen3",
+    "revision": "main",
+    "schema_version": "aegis_introspection.cift_model_metadata/v1",
+    "special_tokens_map_sha256": "edcb2fc2acbbe77f858a9c4fe51295ffdb84711efba5703ec5906b3d67282569",
+    "tokenizer_class": "Qwen2Tokenizer",
+    "tokenizer_fingerprint_sha256": "41e00eccf531cffc2e562d38bdd879d41e5044ea279af5b73c6a32aabcc8fe04",
+    "tokenizer_vocab_size": 151643
+  },
+  "planned_artifacts": {
+    "activation_artifact_path": "introspection/data/activations/qwen3_4b_watchman_semantic_v7_480_selected_choice_windows_l19_l22.pt",
+    "calibration_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_calibration_v1.json",
+    "device_preflight_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_device_preflight_v1.json",
+    "evidence_chain_verification_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_linear_promoted_runtime_evidence_chain_verification_v1.json",
+    "failure_cases_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_failure_cases_v1.json",
+    "feature_ablation_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_feature_ablation_v1.json",
+    "gateway_smoke_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_gateway_smoke_v1.json",
+    "head_to_head_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_linear_vs_paper_mlp_5seed_v1.json",
+    "lineage_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_lineage_v1.json",
+    "linear_bundle_path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_linear_promoted_bound_runtime_candidate_v1.pkl",
+    "linear_sealed_holdout_metric_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_linear_promoted_runtime_sealed_holdout_metric_v1.json",
+    "live_runtime_prevention_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_linear_promoted_runtime_prevention_v1.json",
+    "live_sealed_head_to_head_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_linear_promoted_runtime_vs_paper_mlp_live_sealed_v1.json",
+    "model_metadata_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_model_metadata_v1.json",
+    "paper_mlp_runtime_prevention_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_paper_mlp_from_v7_runtime_prevention_v1.json",
+    "paper_mlp_sealed_holdout_metric_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_paper_mlp_from_v7_sealed_holdout_metric_v1.json",
+    "patching_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_causal_patching_v1.json",
+    "promoted_runtime_artifact_path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_linear_promoted_runtime_v1.json",
+    "promotion_evidence_path": "introspection/data/reports/cift_promotion/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_linear_promoted_runtime_promotion_evidence_v1.json",
+    "promotion_report_output_dir": "introspection/data/reports/cift_promotion/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_linear_promoted_runtime"
+  },
+  "release_rule": "This manifest binds exact model-specific CIFT evidence. Do not claim broader model support unless that model has its own calibration evidence and release-gate pass.",
+  "required_evidence_artifacts": [
+    {
+      "artifact_key": "model_metadata_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "verify_evidence_chain_identity"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_model_metadata_v1.json",
+      "producer_step_id": "discover_model_metadata",
+      "report_id": null,
+      "required_for_release": true,
+      "role": "model_metadata",
+      "schema_version": "aegis_introspection.cift_model_metadata/v1",
+      "sha256": "4a1eda763e31b951fb2da4e8d906067216ec9cf23a57a3e71ea5adaed70f215e",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "device_preflight_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "discover_model_metadata",
+        "extract_activation_artifact",
+        "run_linear_live_runtime_prevention",
+        "run_paper_mlp_live_runtime_prevention",
+        "verify_evidence_chain_identity",
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_device_preflight_v1.json",
+      "producer_step_id": "run_device_preflight",
+      "report_id": null,
+      "required_for_release": true,
+      "role": "device_preflight",
+      "schema_version": "aegis_introspection.device_preflight/v1",
+      "sha256": "781ef7ce3b2d8b98585cc6c3125f2feac89501bfadf52c8bce07a70ac8df4b7f",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "activation_artifact_path",
+      "artifact_kind": "activation_tensor",
+      "consumer_step_ids": [
+        "train_linear_runtime_candidate"
+      ],
+      "path": "introspection/data/activations/qwen3_4b_watchman_semantic_v7_480_selected_choice_windows_l19_l22.pt",
+      "producer_step_id": "extract_activation_artifact",
+      "report_id": null,
+      "required_for_release": true,
+      "role": "calibration_activation_artifact",
+      "schema_version": null,
+      "sha256": "ed9ce55b5279a5fc21778291e594d5c6417a036a450096fc5e342e470ce77b25",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "linear_bundle_path",
+      "artifact_kind": "model_bundle",
+      "consumer_step_ids": [
+        "materialize_promotion_evidence",
+        "export_promoted_runtime"
+      ],
+      "path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_linear_promoted_bound_runtime_candidate_v1.pkl",
+      "producer_step_id": "train_linear_runtime_candidate",
+      "report_id": null,
+      "required_for_release": true,
+      "role": "linear_candidate_bundle",
+      "schema_version": "cift_model_bundle/v1",
+      "sha256": "fe1b177bd5fb029ff7b2dd70caa77969dd1235851b44b3444b03b4e6dcd30dd0",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "calibration_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "materialize_promotion_evidence",
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_calibration_v1.json",
+      "producer_step_id": "materialize_calibration_report",
+      "report_id": "qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_calibration_v1",
+      "required_for_release": true,
+      "role": "calibration",
+      "schema_version": "aegis_introspection.cift_calibration/v1",
+      "sha256": "be9683212bd623f1b626c4ae81feea379ca5427bf8c9f8c190d8af2e79364d4a",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "feature_ablation_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "materialize_promotion_evidence",
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_feature_ablation_v1.json",
+      "producer_step_id": "materialize_feature_ablation_report",
+      "report_id": "qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_feature_ablation_v1",
+      "required_for_release": true,
+      "role": "feature_ablation",
+      "schema_version": "aegis_introspection.cift_feature_ablation/v1",
+      "sha256": "c588fc496ee52f437f261e3095d72fa26b69dc6084b641dc6405da93af78062f",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "patching_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "materialize_promotion_evidence",
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_causal_patching_v1.json",
+      "producer_step_id": "run_counterfactual_patching",
+      "report_id": "qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_causal_patching_v1",
+      "required_for_release": true,
+      "role": "counterfactual_patching",
+      "schema_version": "aegis_introspection.cift_counterfactual_patching/v1",
+      "sha256": "3dfddaa4266a208a46629a21e9571d8670b36342f9526654052939879a35f9b2",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "failure_cases_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "materialize_promotion_evidence",
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_failure_cases_v1.json",
+      "producer_step_id": "materialize_failure_cases_report",
+      "report_id": "qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_failure_cases_v1",
+      "required_for_release": true,
+      "role": "failure_cases",
+      "schema_version": "aegis_introspection.cift_failure_cases/v1",
+      "sha256": "b78a47b00a59ed063112850179f0a6f56821ea48cb551486caa0b62da43ffbb4",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "lineage_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "materialize_promotion_evidence",
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_lineage_v1.json",
+      "producer_step_id": "materialize_lineage_report",
+      "report_id": "qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_lineage_v1",
+      "required_for_release": true,
+      "role": "lineage",
+      "schema_version": "aegis_introspection.cift_lineage/v1",
+      "sha256": "e5c55c3c6302b5681d045d94b9b2d955c5ece48f76de58c94500b301eb74d85e",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "live_runtime_prevention_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "materialize_linear_sealed_holdout_metric",
+        "materialize_promotion_evidence",
+        "verify_evidence_chain_identity",
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_linear_promoted_runtime_prevention_v1.json",
+      "producer_step_id": "run_linear_live_runtime_prevention",
+      "report_id": "qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_linear_promoted_runtime_prevention_v1",
+      "required_for_release": true,
+      "role": "linear_live_runtime_prevention",
+      "schema_version": "aegis_introspection.cift_live_window_selector_benchmark/v1",
+      "sha256": "65ec2a16eb5935a432e1a512c7ddb44299740201685a970235213d960f680143",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "linear_sealed_holdout_metric_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "compare_live_sealed_linear_and_paper_mlp",
+        "materialize_promotion_evidence",
+        "verify_evidence_chain_identity",
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_linear_promoted_runtime_sealed_holdout_metric_v1.json",
+      "producer_step_id": "materialize_linear_sealed_holdout_metric",
+      "report_id": "qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_linear_promoted_runtime_sealed_holdout_metric_v1",
+      "required_for_release": true,
+      "role": "linear_sealed_holdout_metric",
+      "schema_version": "aegis_introspection.cift_sealed_holdout_metric/v1",
+      "sha256": "5fd07139e0c8982e6e070c1a7558e07ca7bb38409e067747cad89670108ac521",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "gateway_smoke_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "materialize_promotion_evidence",
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_gateway_smoke_v1.json",
+      "producer_step_id": "run_linear_gateway_smoke",
+      "report_id": "qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_gateway_smoke_v1",
+      "required_for_release": true,
+      "role": "linear_gateway_smoke",
+      "schema_version": "aegis.proxy.cift_gateway_smoke/v1",
+      "sha256": "a61355ea65698c070b602d709f4107966b7ad4c27871d332842819b729e1a6ba",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "paper_mlp_runtime_prevention_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "materialize_paper_mlp_sealed_holdout_metric",
+        "compare_live_sealed_linear_and_paper_mlp"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_paper_mlp_from_v7_runtime_prevention_v1.json",
+      "producer_step_id": "run_paper_mlp_live_runtime_prevention",
+      "report_id": "qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_paper_mlp_from_v7_runtime_prevention_v1",
+      "required_for_release": true,
+      "role": "paper_mlp_live_runtime_prevention",
+      "schema_version": "aegis_introspection.cift_live_window_selector_benchmark/v1",
+      "sha256": "45e12b8eebe722de48f172d8c7b52e148012ea5af9618ae1cdbb671f92b2dd67",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "paper_mlp_sealed_holdout_metric_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "compare_live_sealed_linear_and_paper_mlp"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_paper_mlp_from_v7_sealed_holdout_metric_v1.json",
+      "producer_step_id": "materialize_paper_mlp_sealed_holdout_metric",
+      "report_id": "qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_paper_mlp_from_v7_sealed_holdout_metric_v1",
+      "required_for_release": true,
+      "role": "paper_mlp_sealed_holdout_metric",
+      "schema_version": "aegis_introspection.cift_sealed_holdout_metric/v1",
+      "sha256": "9b3b0cd320d629b925d67315a3b1210f51d17580562a65cedabcd62f1cc34bd4",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "live_sealed_head_to_head_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "materialize_promotion_evidence",
+        "verify_evidence_chain_identity"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_linear_promoted_runtime_vs_paper_mlp_live_sealed_v1.json",
+      "producer_step_id": "compare_live_sealed_linear_and_paper_mlp",
+      "report_id": "qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_linear_promoted_runtime_vs_paper_mlp_live_sealed_v1",
+      "required_for_release": true,
+      "role": "live_sealed_linear_vs_paper_mlp",
+      "schema_version": "aegis_introspection.cift_live_probe_competition/v1",
+      "sha256": "a40e03dc5cedf3e78cf20d68cc27744d4b0ca5c3611ce07ed26f7d8d25bcaba4",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "promotion_evidence_path",
+      "artifact_kind": "promotion_evidence",
+      "consumer_step_ids": [
+        "export_promoted_runtime",
+        "verify_evidence_chain_identity",
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/reports/cift_promotion/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_linear_promoted_runtime_promotion_evidence_v1.json",
+      "producer_step_id": "materialize_promotion_evidence",
+      "report_id": null,
+      "required_for_release": true,
+      "role": "promotion_evidence",
+      "schema_version": "cift_promotion_evidence/v1",
+      "sha256": "f8b6d01ecbdcae04a0d56e0358d5ffb09056bec633e7d319973e6952a555ed6d",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "promoted_runtime_artifact_path",
+      "artifact_kind": "runtime_model",
+      "consumer_step_ids": [
+        "verify_evidence_chain_identity",
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_linear_promoted_runtime_v1.json",
+      "producer_step_id": "export_promoted_runtime",
+      "report_id": null,
+      "required_for_release": true,
+      "role": "promoted_runtime",
+      "schema_version": "aegis.cift_runtime_linear/v1",
+      "sha256": "b6b6b67d50d8683a12dfbd57f5fa3758a767356931c5d333e2fe265fb5a3fe38",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "evidence_chain_verification_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "run_hardened_release_gate"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v8_480_selected_choice_l21_raw_linear_promoted_runtime_evidence_chain_verification_v1.json",
+      "producer_step_id": "verify_evidence_chain_identity",
+      "report_id": null,
+      "required_for_release": true,
+      "role": "evidence_chain_verification",
+      "schema_version": "aegis_introspection.cift_evidence_chain_verification/v1",
+      "sha256": "5edaf747f7fa8a8cebace5d42bdd1e78a23cba5abb807d4f6650f45f13a5ba67",
+      "status": "materialized"
+    },
+    {
+      "artifact_key": "head_to_head_report_path",
+      "artifact_kind": "json_report",
+      "consumer_step_ids": [
+        "human_promotion_review"
+      ],
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_linear_vs_paper_mlp_5seed_v1.json",
+      "producer_step_id": "compare_linear_and_paper_mlp_grouped_cv",
+      "report_id": "qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw_linear_vs_paper_mlp_5seed_v1",
+      "required_for_release": true,
+      "role": "grouped_cv_linear_vs_paper_mlp",
+      "schema_version": "cift_probe_competition/v1",
+      "sha256": "fc0bc154a2d9943390c4dc6bd5fd440577c948d71c0703b1bc8475ece7e8e2b5",
+      "status": "materialized"
+    }
+  ],
+  "required_release_evidence": [
+    "device_preflight_passed",
+    "model_metadata_discovered",
+    "activation_artifact_bound_to_model_identity",
+    "linear_vs_paper_mlp_head_to_head",
+    "grouped_cv_metrics",
+    "sealed_holdout_metrics",
+    "paper_mlp_sealed_holdout_metrics",
+    "false_negative_rate_reported",
+    "false_positive_rate_reported",
+    "live_hidden_state_runtime_prevention",
+    "paper_mlp_live_hidden_state_runtime_prevention",
+    "live_gateway_sidecar_runtime_prevention",
+    "fail_closed_hidden_state_and_selected_choice_metadata",
+    "promotion_evidence_materialized",
+    "runtime_artifact_bound_to_model_tokenizer_template_hashes",
+    "evidence_chain_identity_verification",
+    "hardened_release_gate_pass"
+  ],
+  "schema_version": "aegis_introspection.cift_certification_workflow/v1",
+  "status": "evidence_bound",
+  "support_claim_status": "model_specific_certified_only_if_release_gate_passes",
+  "training": {
+    "ablation_delta_threshold": 0,
+    "behavior_description": "User request attempts to move a protected secret into an external channel.",
+    "behavior_id": "secret-exfiltration-intent",
+    "candidate_feature_key": "selected_choice_window_layer_21",
+    "dtype_name": "not_recorded_in_existing_live_report",
+    "fallback_runtime_model_path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_readout_l22_raw_linear_fallback_preview_v1.json",
+    "layer_indices": [
+      21
+    ],
+    "metric_threshold": 1,
+    "pooling_methods": [
+      "selected_choice_window"
+    ],
+    "positive_label": "exfiltration_intent",
+    "prompt_renderer": "aegis_trace_bridge_v1",
+    "requested_device": "mps",
+    "selected_choice_geometry": "semantic_indirection_v1",
+    "selected_choice_readout_token_count": 4,
+    "task_name": "safe_secret_vs_exfiltration",
+    "training_dataset_id": "qwen3_4b_watchman_semantic_v7_480_selected_choice_l21_raw"
+  }
+}

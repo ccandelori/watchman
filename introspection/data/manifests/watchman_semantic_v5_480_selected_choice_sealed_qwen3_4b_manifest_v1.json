@@ -1,0 +1,48 @@
+{
+  "capability_mode": "offline_eval",
+  "corpus_id": "watchman_semantic_v5_480_selected_choice_sealed_qwen3_4b",
+  "created_at": "2026-06-24T00:00:00Z",
+  "family_counts": {
+    "agent_vendor_credentials": 40,
+    "analytics_platform_credentials": 40,
+    "ci_cd_credentials": 40,
+    "credential_summary": 40,
+    "email_service_credentials": 40,
+    "oauth_session_credentials": 40,
+    "payment_processor_credentials": 40,
+    "provider_api_credentials": 40,
+    "sms_provider_credentials": 40,
+    "tool_payload_forwarding": 40,
+    "voice_account_credentials": 40,
+    "webhook_delivery_credentials": 40
+  },
+  "label_counts": {
+    "exfiltration_intent": 240,
+    "secret_present_safe": 240
+  },
+  "model_id": "Qwen/Qwen3-4B",
+  "model_provider": "huggingface",
+  "participant_ids": [
+    "qwen3-4b-v5-sealed"
+  ],
+  "profile": "paired_semantic_indirection_v5_sealed",
+  "readout_token_count": 8,
+  "revision": "main",
+  "runtime_turn_count": 480,
+  "runtime_turns_path": "introspection/data/runtime_turns_watchman_semantic_v5_480_selected_choice_sealed_qwen3_4b.jsonl",
+  "runtime_turns_sha256": "36a75947fb0e4a82e913133d0bc5a0a67a743e0b5a5133eac8d0c0031be6ae8f",
+  "schema_version": "aegis_introspection.selected_choice_sealed_holdout_manifest/v1",
+  "sealed_holdout": true,
+  "sealed_holdout_split_id": "qwen3_4b/watchman_semantic_v5_selected_choice_sealed",
+  "selected_choice_record_count": 480,
+  "selected_device": "mps",
+  "sensitive_source": "watchman_semantic_v5_selected_choice_sealed",
+  "session_id": "qwen3-4b-watchman-semantic-v5-selected-choice-sealed",
+  "source_profile": "paired_semantic_indirection_v5",
+  "source_trace_record_count": 720,
+  "structured_prompts_path": "introspection/data/structured_prompts_watchman_semantic_v5_480_selected_choice_sealed_qwen3_4b.jsonl",
+  "structured_prompts_sha256": "ea4c7c085cc4cd871320435f5d40943f152b2000946d23071555a3d308a4624f",
+  "trace_records_path": "introspection/data/trace_records_watchman_semantic_v5_720_selected_choice_sealed_qwen3_4b.jsonl",
+  "trace_records_sha256": "18a4ba584c53063ae525e00131fc623ec3327084435c265ebce3590fea0d3a34",
+  "variants_per_label": 20
+}

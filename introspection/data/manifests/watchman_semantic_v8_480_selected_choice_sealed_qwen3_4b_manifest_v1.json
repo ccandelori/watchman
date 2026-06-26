@@ -1,0 +1,48 @@
+{
+  "capability_mode": "offline_eval",
+  "corpus_id": "watchman_semantic_v8_480_selected_choice_sealed_qwen3_4b",
+  "created_at": "2026-06-24T00:00:00Z",
+  "family_counts": {
+    "agent_vendor_credentials": 40,
+    "analytics_platform_credentials": 40,
+    "ci_cd_credentials": 40,
+    "credential_summary": 40,
+    "email_service_credentials": 40,
+    "oauth_session_credentials": 40,
+    "payment_processor_credentials": 40,
+    "provider_api_credentials": 40,
+    "sms_provider_credentials": 40,
+    "tool_payload_forwarding": 40,
+    "voice_account_credentials": 40,
+    "webhook_delivery_credentials": 40
+  },
+  "label_counts": {
+    "exfiltration_intent": 240,
+    "secret_present_safe": 240
+  },
+  "model_id": "Qwen/Qwen3-4B",
+  "model_provider": "huggingface",
+  "participant_ids": [
+    "qwen3-4b-v8-sealed"
+  ],
+  "profile": "paired_semantic_indirection_v8_sealed",
+  "readout_token_count": 4,
+  "revision": "main",
+  "runtime_turn_count": 480,
+  "runtime_turns_path": "introspection/data/runtime_turns_watchman_semantic_v8_480_selected_choice_sealed_qwen3_4b.jsonl",
+  "runtime_turns_sha256": "c696b73b82b17c2631c7df3348303525787732c86b1e613eb71310c818ac98f7",
+  "schema_version": "aegis_introspection.selected_choice_sealed_holdout_manifest/v1",
+  "sealed_holdout": true,
+  "sealed_holdout_split_id": "qwen3_4b/watchman_semantic_v8_selected_choice_sealed",
+  "selected_choice_record_count": 480,
+  "selected_device": "mps",
+  "sensitive_source": "watchman_semantic_v8_selected_choice_sealed",
+  "session_id": "qwen3-4b-v8-selected-choice-sealed",
+  "source_profile": "paired_semantic_indirection_v8",
+  "source_trace_record_count": 720,
+  "structured_prompts_path": "introspection/data/structured_prompts_watchman_semantic_v8_480_selected_choice_sealed_qwen3_4b.jsonl",
+  "structured_prompts_sha256": "421195d02d12588f9bcb58b4c1a38656b6e34ee321d503d87f28aab378931009",
+  "trace_records_path": "introspection/data/trace_records_watchman_semantic_v8_720_selected_choice_sealed_qwen3_4b.jsonl",
+  "trace_records_sha256": "0a8313b1f92660edbd8108455b987e21d98678bd694de0474857495d34d777ff",
+  "variants_per_label": 20
+}

@@ -1,0 +1,48 @@
+{
+  "calibration_split_id": "qwen3_4b/watchman_semantic_v6_selected_choice_calibration",
+  "capability_mode": "offline_eval",
+  "corpus_id": "watchman_semantic_v6_480_selected_choice_calibration_qwen3_4b",
+  "created_at": "2026-06-24T00:00:00Z",
+  "family_counts": {
+    "agent_vendor_credentials": 40,
+    "analytics_platform_credentials": 40,
+    "ci_cd_credentials": 40,
+    "credential_summary": 40,
+    "email_service_credentials": 40,
+    "oauth_session_credentials": 40,
+    "payment_processor_credentials": 40,
+    "provider_api_credentials": 40,
+    "sms_provider_credentials": 40,
+    "tool_payload_forwarding": 40,
+    "voice_account_credentials": 40,
+    "webhook_delivery_credentials": 40
+  },
+  "label_counts": {
+    "exfiltration_intent": 240,
+    "secret_present_safe": 240
+  },
+  "model_id": "Qwen/Qwen3-4B",
+  "model_provider": "huggingface",
+  "participant_ids": [
+    "qwen3-4b-v6-calibration"
+  ],
+  "profile": "paired_semantic_indirection_v6_calibration",
+  "readout_token_count": 4,
+  "revision": "main",
+  "runtime_turn_count": 480,
+  "runtime_turns_path": "introspection/data/runtime_turns_watchman_semantic_v6_480_selected_choice_calibration_qwen3_4b.jsonl",
+  "runtime_turns_sha256": "af7d173f6519625b75714e531b15d763fec3e4e2fca05005de5522b15f593611",
+  "schema_version": "aegis_introspection.selected_choice_calibration_manifest/v1",
+  "sealed_holdout": false,
+  "selected_choice_record_count": 480,
+  "selected_device": "mps",
+  "sensitive_source": "watchman_semantic_v6_selected_choice_calibration",
+  "session_id": "qwen3-4b-v6-selected-choice-calibration",
+  "source_profile": "paired_semantic_indirection_v6",
+  "source_trace_record_count": 720,
+  "structured_prompts_path": "introspection/data/structured_prompts_watchman_semantic_v6_480_selected_choice_calibration_qwen3_4b.jsonl",
+  "structured_prompts_sha256": "29352ca8a17389527d873f048e18b122dc8cfb4df3005a04ad936c2396dede71",
+  "trace_records_path": "introspection/data/trace_records_watchman_semantic_v6_720_selected_choice_calibration_qwen3_4b.jsonl",
+  "trace_records_sha256": "2ad75ed73f1723a82584ccdd8eb865436d7049b54a6f47e42c628119dbf01d7e",
+  "variants_per_label": 20
+}

@@ -1,0 +1,25 @@
+{
+  "candidate": {
+    "feature_key": "selected_choice_window_layer_19",
+    "model_bundle_id": "cift_qwen3_0_6b_watchman_semantic_v3_selected_choice_layer_19_raw_linear_v2",
+    "source_artifact_sha256": "30d61ad3b08d493fd695d6a964760e09f3b25fa712676024f59d2eace8724fce",
+    "task_name": "safe_secret_vs_exfiltration",
+    "training_dataset_id": "watchman_semantic_v3_480_selected_choice_l19_raw"
+  },
+  "counts": {
+    "false_negative_count": 0,
+    "false_positive_count": 0,
+    "leakage_failure_count": 0,
+    "request_count": 480
+  },
+  "created_at": "2026-06-24T00:00:00Z",
+  "failure_cases": [],
+  "report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_failure_cases_v1",
+  "schema_version": "aegis_introspection.cift_failure_cases/v1",
+  "scope": {
+    "dataset_id": "watchman_semantic_v3_480_secret_present_binary",
+    "limitation": "Zero observed failures applies only to this grouped Watchman semantic-v3 benchmark, not to arbitrary prompts, unseen models, tool-call payloads, or multi-turn attacks.",
+    "runtime_prevention_report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_runtime_prevention_v1",
+    "runtime_turns_path": "introspection/data/runtime_turns_watchman_semantic_v3_480_selected_choice.jsonl"
+  }
+}

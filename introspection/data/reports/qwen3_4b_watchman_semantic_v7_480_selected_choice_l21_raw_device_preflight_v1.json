@@ -1,0 +1,12 @@
+{
+  "eligible": true,
+  "macos_version": "26.5",
+  "mps_built": "True",
+  "python_machine": "arm64",
+  "requested_device": "mps",
+  "schema_version": "aegis_introspection.device_preflight/v1",
+  "selected_device": "mps",
+  "smoke_tensor_device": "mps:0",
+  "torch_device": "mps",
+  "torch_version": "2.14.0.dev20260622"
+}

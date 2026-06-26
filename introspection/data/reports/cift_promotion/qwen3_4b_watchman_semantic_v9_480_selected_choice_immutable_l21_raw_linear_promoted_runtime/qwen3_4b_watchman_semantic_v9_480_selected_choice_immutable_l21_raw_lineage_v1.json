@@ -1,0 +1,120 @@
+{
+  "artifacts": [
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_windows_l19_l22",
+      "path": "introspection/data/activations/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_windows_l19_l22.pt",
+      "sha256": "07647a294f3bcf023b78a023b7800c732e53f3e31f95176694214f511e02e388"
+    },
+    {
+      "name": "runtime_turns_watchman_semantic_v7_480_selected_choice_calibration_qwen3_4b_immutable_revision",
+      "path": "introspection/data/runtime_turns_watchman_semantic_v7_480_selected_choice_calibration_qwen3_4b_immutable_revision.jsonl",
+      "sha256": "588c7b6287365ca265ea05c0b53495e9d60e2c33037dab8f9a04de6521aceeaa"
+    },
+    {
+      "name": "runtime_turns_watchman_semantic_v8_480_selected_choice_sealed_qwen3_4b_immutable_revision",
+      "path": "introspection/data/runtime_turns_watchman_semantic_v8_480_selected_choice_sealed_qwen3_4b_immutable_revision.jsonl",
+      "sha256": "20ebbb1df0f03e90f78ab7f32946c423080800e0af21d83e0b74ea2296e80cd1"
+    },
+    {
+      "name": "cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_v1",
+      "path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_v1.json",
+      "sha256": "677721f638ddfc2ee64e1dcf342eb60b5ad59fbd8428345274bbacb23dfb7026"
+    },
+    {
+      "name": "cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_paper_mlp_preview_v1",
+      "path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_paper_mlp_preview_v1.json",
+      "sha256": "0f0236bf3db630df62462fd50536fe52a303abc51eab635ea4b126a63bdf3135"
+    },
+    {
+      "name": "cift_qwen3_4b_watchman_semantic_v9_480_readout_immutable_l22_raw_linear_fallback_preview_v1",
+      "path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v9_480_readout_immutable_l22_raw_linear_fallback_preview_v1.json",
+      "sha256": "5b39da20466d39264033114fadddd44b596523d242743fb859c34948af835c7d"
+    }
+  ],
+  "candidate": {
+    "feature_key": "selected_choice_window_layer_21",
+    "model_bundle_id": "cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_v1",
+    "source_artifact_sha256": "07647a294f3bcf023b78a023b7800c732e53f3e31f95176694214f511e02e388",
+    "source_model_id": "Qwen/Qwen3-4B",
+    "source_revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+    "source_selected_device": "mps",
+    "task_name": "safe_secret_vs_exfiltration",
+    "training_dataset_id": "qwen3_4b/watchman_semantic_v9_selected_choice_immutable_calibration"
+  },
+  "created_at": "2026-06-25T00:00:00Z",
+  "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_lineage_v1",
+  "reports": [
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_model_metadata_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_model_metadata_v1.json",
+      "sha256": "95db8b9312082632c2d555f1fb8d264e525d2ee049907e20dd66570a52e6cb75"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_calibration_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_calibration_v1.json",
+      "sha256": "317c0f5bd19bb2de225941d3faa26fcbf45bf0b59647e1c113157b2be8f6c7de"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_feature_ablation_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_feature_ablation_v1.json",
+      "sha256": "7380e2f33a428e57ccfdc836ecaa3b6fb6a6538a98f87c299fedcea5e281db95"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_causal_patching_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_causal_patching_v1.json",
+      "sha256": "970d0f922769516ad94c1fbd988b77de883d5ca2957bc8e79e8d986e46919e6c"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_failure_cases_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_failure_cases_v1.json",
+      "sha256": "22e5a52e1064f3ec1904c883cae3ad812e6dffd65575328c09d7ac6f094cd2eb"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_device_preflight_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_device_preflight_v1.json",
+      "sha256": "781ef7ce3b2d8b98585cc6c3125f2feac89501bfadf52c8bce07a70ac8df4b7f"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_prevention_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_prevention_v1.json",
+      "sha256": "f79644026cff86a10993c68f9f01156e575d058a0e4f61568101ce3144d07b58"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_sealed_holdout_metric_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_sealed_holdout_metric_v1.json",
+      "sha256": "9685351d465d505ed51c9da3e6dfff6ab984b608bd03f5ea3981bd7b2c3068e6"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_v1.json",
+      "sha256": "05b47b55ae99ad7c72807a62b1020f816cba3d825547447868416d838cd80a94"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_paper_mlp_runtime_prevention_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_paper_mlp_runtime_prevention_v1.json",
+      "sha256": "56386666a62107885dea441658b6b38176117f719c9cb9b686837dabb61986b2"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_paper_mlp_sealed_holdout_metric_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_paper_mlp_sealed_holdout_metric_v1.json",
+      "sha256": "f43e4a84f2994bd2d4659e6180058f8c5e8c15a7d7cffb485f0f497d2c1af38a"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_vs_paper_mlp_live_sealed_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_vs_paper_mlp_live_sealed_v1.json",
+      "sha256": "6df240252f8d36251dd0bbc57772862ded680a824dcb71dbbcd06bee66a27d99"
+    },
+    {
+      "name": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_vs_paper_mlp_5seed_v1",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_vs_paper_mlp_5seed_v1.json",
+      "sha256": "fedbdc72090749661aabbe3b0c734fdbe24552bf2de6debe5ce14406196a581f"
+    }
+  ],
+  "reproduction_commands": [
+    "extract_activations.py --model-id Qwen/Qwen3-4B --revision 1cfa9a7208912126459214e8b04321603b3df60c --device mps",
+    "train_cift_model_bundle.py --classifier-family linear_logistic_regression --candidate-status runtime_candidate",
+    "benchmark_live_cift_window_selector.py --selected-choice-runtime-model cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_v1.json --device mps",
+    "run_cift_extractor_sidecar.py --device mps plus aegis-proxy-cift-smoke in gateway_smoke_bootstrap mode"
+  ],
+  "schema_version": "aegis_introspection.cift_lineage/v1"
+}

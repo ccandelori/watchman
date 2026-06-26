@@ -1,0 +1,87 @@
+{
+  "artifacts": [
+    {
+      "name": "activation_artifact",
+      "path": "introspection/data/activations/qwen3_0_6b_watchman_semantic_v4_480_windows_l19_l22.pt",
+      "sha256": "3582c127bcda7bb8ee934691b998985c21fd41c9158805cfc661a50ffbb2c31a"
+    },
+    {
+      "name": "structured_prompts",
+      "path": "data/trace_collection/structured_prompts.paired_semantic_indirection_v4_480_secret_present_binary.jsonl",
+      "sha256": "6a3923f29f26c37f49b2291b8b70c7faddad712a9a7c8d5fd6a2c9dbd96790d6"
+    },
+    {
+      "name": "runtime_turns",
+      "path": "introspection/data/runtime_turns_watchman_semantic_v4_480_selected_clause_expected_window.jsonl",
+      "sha256": "ef5d2961577b515cabcd2e55dbd0a9e33a07c0734e02219992e79028466f6c55"
+    },
+    {
+      "name": "model_bundle",
+      "path": "introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v4_selected_clause_layer_19_raw_linear_candidate_v2.pkl",
+      "sha256": "9ac39a253cda032f942e801c820938bccde9dc6867f1ed513093936332c0c064"
+    },
+    {
+      "name": "runtime_preview",
+      "path": "introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v4_selected_clause_layer_19_raw_linear_preview_v2.json",
+      "sha256": "ec7a5ddf7b29a893dc154cab1e27e000c5fde2bac2946d2c6d51967591436db0"
+    },
+    {
+      "name": "fallback_runtime",
+      "path": "introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v4_readout_layer_19_raw_linear_fallback_v1.json",
+      "sha256": "a87269265428a09cfff1cf7f194601c9ca99802c52402a7fa8a02c2478b8a98a"
+    },
+    {
+      "name": "head_to_head_report",
+      "path": "introspection/data/reports/qwen3_0_6b_watchman_semantic_v4_selected_clause_l19_raw_linear_vs_paper_mlp_5seed_v1.json",
+      "sha256": "c86604717e540f379bbbc171d0143849cf50ae322b27bf6008a384eced8f4b6a"
+    },
+    {
+      "name": "l20_head_to_head_nonselected_report",
+      "path": "introspection/data/reports/qwen3_0_6b_watchman_semantic_v4_selected_clause_l20_raw_linear_vs_paper_mlp_5seed_v1.json",
+      "sha256": "29a60f45916fd83a4da1c9627e5eae5c18de419a767703731962a12b348654e4"
+    },
+    {
+      "name": "calibration_report",
+      "path": "introspection/data/reports/watchman_semantic_v4_480_selected_clause_l19_raw_calibration_v1.json",
+      "sha256": "1b21e98a2a35b90699b2e65ea539b69bb2af18df9349a46dfb0a2b5bcc79569a"
+    },
+    {
+      "name": "feature_ablation_report",
+      "path": "introspection/data/reports/watchman_semantic_v4_480_selected_clause_l19_raw_feature_ablation_v1.json",
+      "sha256": "0779618b3f04b8d53a1adf93419fd7f40470f7674d028fbf639bbf7260e1061f"
+    },
+    {
+      "name": "runtime_prevention_report",
+      "path": "introspection/data/reports/watchman_semantic_v4_480_selected_clause_l19_raw_runtime_prevention_v1.json",
+      "sha256": "9bcf28df6f83bcb715698671f529d209f10b2d83cc5d779d77b3c8da13ffa1aa"
+    },
+    {
+      "name": "counterfactual_patching_report",
+      "path": "introspection/data/reports/watchman_semantic_v4_480_selected_clause_l19_raw_causal_patching_v1.json",
+      "sha256": "1ebd2b01ab1354726accaa91f575c5531de7b2744291de9d3f0b5f75749e62e3"
+    },
+    {
+      "name": "failure_case_report",
+      "path": "introspection/data/reports/watchman_semantic_v4_480_selected_clause_l19_raw_failure_cases_v1.json",
+      "sha256": "f3b9c00e986871e6adbfd71359ebed9de382cd96c83db7d0786fdf2c52957b16"
+    }
+  ],
+  "candidate": {
+    "feature_key": "selected_choice_window_layer_19",
+    "model_bundle_id": "cift_qwen3_0_6b_watchman_semantic_v4_selected_clause_layer_19_raw_linear_v2",
+    "source_artifact_sha256": "3582c127bcda7bb8ee934691b998985c21fd41c9158805cfc661a50ffbb2c31a",
+    "task_name": "safe_secret_vs_exfiltration",
+    "training_dataset_id": "watchman_semantic_v4_480_selected_clause_l19_raw"
+  },
+  "created_at": "2026-06-24T00:00:00Z",
+  "report_id": "watchman_semantic_v4_480_selected_clause_l19_raw_lineage_v1",
+  "reproduction_commands": [
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/extract_activations.py --prompts data/trace_collection/structured_prompts.paired_semantic_indirection_v4_480_secret_present_binary.jsonl --output introspection/data/activations/qwen3_0_6b_watchman_semantic_v4_480_windows_l19_l22.pt --model-id Qwen/Qwen3-0.6B --revision main --device auto --dtype auto --layers 19,20,21,22 --pooling readout_window,query_tail_window,selected_choice_window,combined_readout_window",
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/ablate_cift_selector_window_features.py --artifact introspection/data/activations/qwen3_0_6b_watchman_semantic_v4_480_windows_l19_l22.pt --output-json introspection/data/reports/watchman_semantic_v4_480_selected_clause_l19_raw_feature_ablation_v1.json --output-md introspection/data/reports/watchman_semantic_v4_480_selected_clause_l19_raw_feature_ablation_v1_summary.md --task safe_secret_vs_exfiltration --baseline-variant selected_choice_l19 --variant selected_choice_l19=selected_choice_window_layer_19 --variant selected_choice_l20=selected_choice_window_layer_20 --variant selected_choice_l21=selected_choice_window_layer_21 --variant selected_choice_l22=selected_choice_window_layer_22 --variant readout_l19=readout_window_layer_19 --variant readout_l20=readout_window_layer_20 --variant readout_l21=readout_window_layer_21 --variant readout_l22=readout_window_layer_22 --variant query_tail_l19=query_tail_window_layer_19 --variant query_tail_l20=query_tail_window_layer_20 --variant query_tail_l21=query_tail_window_layer_21 --variant query_tail_l22=query_tail_window_layer_22 --variant combined_l19=combined_readout_window_layer_19 --variant combined_l20=combined_readout_window_layer_20 --variant combined_l21=combined_readout_window_layer_21 --variant combined_l22=combined_readout_window_layer_22 --folds 5 --seed 42 --max-iter 1000 --regularization-c 1.0",
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/train_cift_model_bundle.py --artifact introspection/data/activations/qwen3_0_6b_watchman_semantic_v4_480_windows_l19_l22.pt --output-bundle introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v4_selected_clause_layer_19_raw_linear_candidate_v2.pkl --training-dataset-id watchman_semantic_v4_480_selected_clause_l19_raw --task safe_secret_vs_exfiltration --positive-label exfiltration_intent --activation-feature selected_choice_window_layer_19 --decision-threshold 0.5 --seed 17 --max-iter 1000 --regularization-c 1.0 --classifier-family linear_logistic_regression --evaluation-report-ids qwen3_0_6b_watchman_semantic_v4_selected_clause_l19_raw_linear_vs_paper_mlp_5seed_v1,watchman_semantic_v4_480_selected_clause_l19_raw_calibration_v1,watchman_semantic_v4_480_selected_clause_l19_raw_feature_ablation_v1,watchman_semantic_v4_480_selected_clause_l19_raw_causal_patching_v1,watchman_semantic_v4_480_selected_clause_l19_raw_failure_cases_v1,watchman_semantic_v4_480_selected_clause_l19_raw_runtime_prevention_v1,watchman_semantic_v4_480_selected_clause_l19_raw_lineage_v1 --score-semantics full_train_classifier_probability --candidate-status runtime_candidate --created-at 2026-06-24T00:00:00Z",
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/export_cift_runtime_model.py --bundle introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v4_selected_clause_layer_19_raw_linear_candidate_v2.pkl --output introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v4_selected_clause_layer_19_raw_linear_preview_v2.json --model-bundle-id cift_qwen3_0_6b_watchman_semantic_v4_selected_clause_layer_19_raw_linear_v2 --confidence 0.991667 --negative-action allow --positive-action block --allow-preview-without-promotion",
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/run_cift_counterfactual_patching.py --activation-artifact introspection/data/activations/qwen3_0_6b_watchman_semantic_v4_480_windows_l19_l22.pt --runtime-model introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v4_selected_clause_layer_19_raw_linear_preview_v2.json --output introspection/data/reports/watchman_semantic_v4_480_selected_clause_l19_raw_causal_patching_v1.json --report-id watchman_semantic_v4_480_selected_clause_l19_raw_causal_patching_v1 --created-at 2026-06-24T00:00:00Z --minimum-flip-rate 0.95",
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/benchmark_live_cift_window_selector.py --runtime-turns introspection/data/runtime_turns_watchman_semantic_v4_480_selected_clause_expected_window.jsonl --selected-choice-runtime-model introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v4_selected_clause_layer_19_raw_linear_promoted_v2.json --fallback-runtime-model introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v4_readout_layer_19_raw_linear_fallback_v1.json --output-json introspection/data/reports/watchman_semantic_v4_480_selected_clause_l19_raw_runtime_prevention_v1.json --output-markdown introspection/data/reports/watchman_semantic_v4_480_selected_clause_l19_raw_runtime_prevention_v1_summary.md --detector-name cift_runtime --feature-source live_hidden_state_runner --mock-response ok --model-id Qwen/Qwen3-0.6B --revision main --device auto --dtype auto"
+  ],
+  "schema_version": "aegis_introspection.cift_lineage/v1"
+}

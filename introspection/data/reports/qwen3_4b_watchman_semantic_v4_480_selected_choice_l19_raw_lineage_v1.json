@@ -1,0 +1,108 @@
+{
+  "artifacts": [
+    {
+      "name": "activation_artifact",
+      "path": "introspection/data/activations/qwen3_4b_watchman_semantic_v4_480_windows_l19_l22.pt",
+      "sha256": "ec715c28e781b26b4ca05c2014ef2168f4c20fa66a55f9d72d0e4263abe335a9"
+    },
+    {
+      "name": "structured_prompts",
+      "path": "data/trace_collection/structured_prompts.paired_semantic_indirection_v4_480_secret_present_binary.jsonl",
+      "sha256": "6a3923f29f26c37f49b2291b8b70c7faddad712a9a7c8d5fd6a2c9dbd96790d6"
+    },
+    {
+      "name": "runtime_turns",
+      "path": "introspection/data/runtime_turns_watchman_semantic_v4_480_selected_clause_expected_window.jsonl",
+      "sha256": "ef5d2961577b515cabcd2e55dbd0a9e33a07c0734e02219992e79028466f6c55"
+    },
+    {
+      "name": "linear_model_bundle",
+      "path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_linear_candidate_v1.pkl",
+      "sha256": "3006b79d942d875ed4c76fa0175971a9273cd653ab7187119252391e87cf8f79"
+    },
+    {
+      "name": "paper_mlp_model_bundle",
+      "path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_paper_mlp_candidate_v1.pkl",
+      "sha256": "56ce0a46049f4929ef35567b0616537294b60f0e669605e934dc13274e49dbf1"
+    },
+    {
+      "name": "linear_runtime_preview",
+      "path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_linear_preview_v1.json",
+      "sha256": "5bd0a8e1b774acb2db74a7578edbe90836c9d596593f4c1df557c32c81aa1204"
+    },
+    {
+      "name": "paper_mlp_runtime_preview",
+      "path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_paper_mlp_preview_v1.json",
+      "sha256": "ac27c46d4d428a8fa413c3e752ecc5288b6b3282b97ddf99a9d3448184bb20e4"
+    },
+    {
+      "name": "fallback_runtime_preview",
+      "path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_readout_l22_raw_linear_fallback_preview_v1.json",
+      "sha256": "af571cdbd83f46ccd6a8cc3bf755eee80f1fa483fc448c36413407e1f3f88fec"
+    },
+    {
+      "name": "head_to_head_report",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_linear_vs_paper_mlp_5seed_v1.json",
+      "sha256": "7e529a99a4e542b25e78cd636eaa593bdb13e8a0e21fa0fd9a2df45820a3d602"
+    },
+    {
+      "name": "calibration_report",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_calibration_v1.json",
+      "sha256": "7f4455ef1efe0e8b0df5814855b078c946f201b2b3c47956eff1db72b54af9ea"
+    },
+    {
+      "name": "feature_ablation_report",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_l19_l22_feature_ablation_v1.json",
+      "sha256": "3752488aa038345686a9f8d289a62ae974787f24b0b5c5eb00a37b95d027be2b"
+    },
+    {
+      "name": "runtime_prevention_report",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_linear_runtime_prevention_v1.json",
+      "sha256": "97146c8f760f11bb4918c564fe787169fec352a4b953622e463f52822bd4c4b5"
+    },
+    {
+      "name": "counterfactual_patching_report",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_causal_patching_v1.json",
+      "sha256": "4ae95afb2fda9bbb7eba8409c18ebdb39c02ddfebcdea9d21d54792456dec304"
+    },
+    {
+      "name": "failure_case_report",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_failure_cases_v1.json",
+      "sha256": "c3309375f7ddd76d4797a35b821ab720c786d28450c2deb0b3a79672248411a4"
+    },
+    {
+      "name": "certification_workflow_manifest",
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_certification_workflow_v1.json",
+      "sha256": "1e0b30957122c979fa40e58b8eb807a278b49f5f184cdca5c89bdb064a95a7d5"
+    }
+  ],
+  "candidate": {
+    "feature_key": "selected_choice_window_layer_19",
+    "linear_model_bundle_id": "cift_qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_linear_v1",
+    "paper_mlp_model_bundle_id": "cift_qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_paper_mlp_v1",
+    "source_artifact_sha256": "ec715c28e781b26b4ca05c2014ef2168f4c20fa66a55f9d72d0e4263abe335a9",
+    "source_hidden_size": 2560,
+    "source_layer_count": 36,
+    "source_model_id": "Qwen/Qwen3-4B",
+    "source_revision": "main",
+    "source_selected_device": "mps",
+    "task_name": "safe_secret_vs_exfiltration",
+    "training_dataset_id": "qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw"
+  },
+  "created_at": "2026-06-24T00:00:00Z",
+  "promotion_readiness": {
+    "head_to_head_result": "linear_logistic_regression_tied_paper_mlp",
+    "recommended_promotion_path": "paper_mlp_after_model_specific_sealed_holdout_and_live_runtime_evidence",
+    "status": "blocked_pending_model_specific_sealed_holdout",
+    "strict_gate_reason": "Raw-activation linear challenger tied the paper MLP, so it does not qualify as a paper-faithful+ challenger win. The available DP-HONEY v4.3 sealed corpus lacks selected-choice metadata and cannot be used as sealed evidence for this Qwen3-4B selected-choice candidate."
+  },
+  "report_id": "qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_lineage_v1",
+  "reproduction_commands": [
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/extract_activations.py --prompts data/trace_collection/structured_prompts.paired_semantic_indirection_v4_480_secret_present_binary.jsonl --output introspection/data/activations/qwen3_4b_watchman_semantic_v4_480_windows_l19_l22.pt --model-id Qwen/Qwen3-4B --revision main --device mps --dtype device --layers 19,20,21,22 --pooling readout_window,query_tail_window,selected_choice_window,combined_readout_window",
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/ablate_cift_selector_window_features.py --artifact introspection/data/activations/qwen3_4b_watchman_semantic_v4_480_windows_l19_l22.pt --output-json introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_l19_l22_feature_ablation_v1.json --output-md introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_l19_l22_feature_ablation_v1_summary.md --task safe_secret_vs_exfiltration --baseline-variant selected_choice_l19 --variant selected_choice_l19=selected_choice_window_layer_19 --variant selected_choice_l20=selected_choice_window_layer_20 --variant selected_choice_l21=selected_choice_window_layer_21 --variant selected_choice_l22=selected_choice_window_layer_22 --variant readout_l19=readout_window_layer_19 --variant readout_l20=readout_window_layer_20 --variant readout_l21=readout_window_layer_21 --variant readout_l22=readout_window_layer_22 --variant query_tail_l19=query_tail_window_layer_19 --variant query_tail_l20=query_tail_window_layer_20 --variant query_tail_l21=query_tail_window_layer_21 --variant query_tail_l22=query_tail_window_layer_22 --variant combined_l19=combined_readout_window_layer_19 --variant combined_l20=combined_readout_window_layer_20 --variant combined_l21=combined_readout_window_layer_21 --variant combined_l22=combined_readout_window_layer_22 --folds 5 --seed 42 --max-iter 1000 --regularization-c 1.0",
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/compare_cift_probe_head_to_head.py --artifact introspection/data/activations/qwen3_4b_watchman_semantic_v4_480_windows_l19_l22.pt --output-json introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_linear_vs_paper_mlp_5seed_v1.json --task safe_secret_vs_exfiltration --activation-feature selected_choice_window_layer_19 --feature-representation raw_activation --paper-probe mlp_128_64_1 --candidate-probe linear_logistic_regression --seeds 11,17,23,29,31",
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/train_cift_model_bundle.py --artifact introspection/data/activations/qwen3_4b_watchman_semantic_v4_480_windows_l19_l22.pt --output-bundle introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_paper_mlp_candidate_v1.pkl --training-dataset-id qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw --task safe_secret_vs_exfiltration --positive-label exfiltration_intent --activation-feature selected_choice_window_layer_19 --decision-threshold 0.5 --seed 17 --classifier-family paper_mlp --evaluation-report-ids qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_linear_vs_paper_mlp_5seed_v1,qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_calibration_v1,qwen3_4b_watchman_semantic_v4_480_l19_l22_feature_ablation_v1,qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_causal_patching_v1,qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_failure_cases_v1,qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_linear_runtime_prevention_v1,qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_lineage_v1 --score-semantics full_train_classifier_probability --candidate-status runtime_candidate --created-at 2026-06-24T00:00:00Z",
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/benchmark_live_cift_window_selector.py --runtime-turns introspection/data/runtime_turns_watchman_semantic_v4_480_selected_clause_expected_window.jsonl --selected-choice-runtime-model introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_linear_preview_v1.json --fallback-runtime-model introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_readout_l22_raw_linear_fallback_preview_v1.json --output-json introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_linear_runtime_prevention_v1.json --output-markdown introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_selected_choice_l19_raw_linear_runtime_prevention_v1_summary.md --detector-name cift_qwen3_4b_watchman_semantic_v4_480_window_selector --feature-source live_hidden_state_qwen3_4b --mock-response ok --model-id Qwen/Qwen3-4B --revision main --device mps --dtype device"
+  ],
+  "schema_version": "aegis_introspection.cift_lineage/v1"
+}

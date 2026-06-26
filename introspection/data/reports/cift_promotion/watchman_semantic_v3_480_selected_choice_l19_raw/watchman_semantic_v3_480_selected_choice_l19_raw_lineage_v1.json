@@ -1,0 +1,74 @@
+{
+  "artifacts": [
+    {
+      "name": "activation_artifact",
+      "path": "data/trace_collection/qwen3_0_6b_watchman_semantic_v3_480_windows_l19_l22.pt",
+      "sha256": "30d61ad3b08d493fd695d6a964760e09f3b25fa712676024f59d2eace8724fce"
+    },
+    {
+      "name": "structured_prompts",
+      "path": "data/trace_collection/structured_prompts.paired_semantic_indirection_v3_480_secret_present_binary.jsonl",
+      "sha256": "cd30510407f0dd96cb090cc057b7e8ab69e0679b40d48708202d2ec0e3405a5c"
+    },
+    {
+      "name": "runtime_turns",
+      "path": "introspection/data/runtime_turns_watchman_semantic_v3_480_selected_choice.jsonl",
+      "sha256": "f5cb8efa9b06daed854044e2ebd9a26a8f24f1436f2cb625e2d9aa8ff4e569bc"
+    },
+    {
+      "name": "model_bundle",
+      "path": "introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v3_selected_choice_layer_19_raw_linear_candidate_v2.pkl",
+      "sha256": "57b8f6f696acd3723ed1336f2e831e5ca92b042dfddf507d89a033ff0cae4d4e"
+    },
+    {
+      "name": "runtime_preview",
+      "path": "introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v3_selected_choice_layer_19_raw_linear_preview_v2.json",
+      "sha256": "f71e5c4f01fd0aef2ef5d17f66c5bad33cd70a39d2f6303412523b54e96f71c3"
+    },
+    {
+      "name": "head_to_head_report",
+      "path": "introspection/data/reports/qwen3_0_6b_watchman_semantic_v3_cift_probe_competition_l19_raw_5seed_v1.json",
+      "sha256": "e38b0d20fefe02e32fad2ec10401b6cf2e1d8960124cfcd72ce94c7b90f6204d"
+    },
+    {
+      "name": "calibration_report",
+      "path": "introspection/data/reports/watchman_semantic_v3_480_selected_choice_l19_raw_calibration_v1.json",
+      "sha256": "98ecc3a14b4714545876cbfb8163c11894beedd0b73562f9c6b737675fe90c22"
+    },
+    {
+      "name": "feature_ablation_report",
+      "path": "introspection/data/reports/watchman_semantic_v3_480_selected_choice_l19_raw_feature_ablation_v1.json",
+      "sha256": "e9e4196391091614aa022e865c5e02b31123e84481136bcadf96b2d0898051b2"
+    },
+    {
+      "name": "runtime_prevention_report",
+      "path": "introspection/data/reports/watchman_semantic_v3_480_selected_choice_l19_raw_runtime_prevention_v1.json",
+      "sha256": "4066401ece3633d7e19faa234f3143fd83164df7b2022cc709c5ba89aa78ee93"
+    },
+    {
+      "name": "counterfactual_patching_report",
+      "path": "introspection/data/reports/watchman_semantic_v3_480_selected_choice_l19_raw_causal_patching_v1.json",
+      "sha256": "5a0ba1e174a40392d6473661e5104f1b02995589a6967e6a2685f93939699acd"
+    },
+    {
+      "name": "failure_case_report",
+      "path": "introspection/data/reports/watchman_semantic_v3_480_selected_choice_l19_raw_failure_cases_v1.json",
+      "sha256": "2f218efefb7e69f09e0fc195fea7728f9fbbf088d04481ee9840eaa676ef18ea"
+    }
+  ],
+  "candidate": {
+    "feature_key": "selected_choice_window_layer_19",
+    "model_bundle_id": "cift_qwen3_0_6b_watchman_semantic_v3_selected_choice_layer_19_raw_linear_v2",
+    "source_artifact_sha256": "30d61ad3b08d493fd695d6a964760e09f3b25fa712676024f59d2eace8724fce",
+    "task_name": "safe_secret_vs_exfiltration",
+    "training_dataset_id": "watchman_semantic_v3_480_selected_choice_l19_raw"
+  },
+  "created_at": "2026-06-24T00:00:00Z",
+  "report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_lineage_v1",
+  "reproduction_commands": [
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/train_cift_model_bundle.py --artifact data/trace_collection/qwen3_0_6b_watchman_semantic_v3_480_windows_l19_l22.pt --output-bundle introspection/data/models/cift_qwen3_0_6b_watchman_semantic_v3_selected_choice_layer_19_raw_linear_candidate_v2.pkl --training-dataset-id watchman_semantic_v3_480_selected_choice_l19_raw --task safe_secret_vs_exfiltration --positive-label exfiltration_intent --activation-feature selected_choice_window_layer_19 --decision-threshold 0.5 --seed 17 --max-iter 1000 --regularization-c 1.0 --classifier-family linear_logistic_regression --evaluation-report-ids watchman_semantic_v3_480_selected_choice_l19_raw_linear_vs_paper_mlp_5seed_v1,watchman_semantic_v3_480_selected_choice_l19_raw_calibration_v1,watchman_semantic_v3_480_selected_choice_l19_raw_feature_ablation_v1,watchman_semantic_v3_480_selected_choice_l19_raw_causal_patching_v1,watchman_semantic_v3_480_selected_choice_l19_raw_failure_cases_v1,watchman_semantic_v3_480_selected_choice_l19_raw_runtime_prevention_v1,watchman_semantic_v3_480_selected_choice_l19_raw_lineage_v1 --score-semantics full_train_classifier_probability --candidate-status runtime_candidate --created-at 2026-06-24T00:00:00Z",
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/calibrate_cift_detector.py --artifact data/trace_collection/qwen3_0_6b_watchman_semantic_v3_480_windows_l19_l22.pt --output-json introspection/data/reports/watchman_semantic_v3_480_selected_choice_l19_raw_calibration_v1.json --output-markdown introspection/data/reports/watchman_semantic_v3_480_selected_choice_l19_raw_calibration_v1_summary.md --task safe_secret_vs_exfiltration --positive-label exfiltration_intent --activation-feature selected_choice_window_layer_19 --folds 4 --inner-folds 3 --seed 17 --max-iter 1000 --regularization-c 1.0 --decision-threshold 0.5",
+    "env PYTHONPATH=src:introspection/src .venv-introspection/bin/python introspection/scripts/ablate_cift_selector_window_features.py --artifact data/trace_collection/qwen3_0_6b_watchman_semantic_v3_480_windows_l19_l22.pt --output-json introspection/data/reports/watchman_semantic_v3_480_selected_choice_l19_raw_feature_ablation_v1.json --output-md introspection/data/reports/watchman_semantic_v3_480_selected_choice_l19_raw_feature_ablation_v1_summary.md --task safe_secret_vs_exfiltration --baseline-variant selected_choice_l19 --variant selected_choice_l19=selected_choice_window_layer_19 --variant selected_choice_l20=selected_choice_window_layer_20 --variant selected_choice_l21=selected_choice_window_layer_21 --variant selected_choice_l22=selected_choice_window_layer_22 --variant readout_l19=readout_window_layer_19 --variant query_tail_l19=query_tail_window_layer_19 --variant combined_readout_l19=combined_readout_window_layer_19 --folds 4 --seed 17 --max-iter 1000 --regularization-c 1.0"
+  ],
+  "schema_version": "aegis_introspection.cift_lineage/v1"
+}

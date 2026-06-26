@@ -1,0 +1,98 @@
+{
+  "ablation_delta": 0.0,
+  "ablation_delta_threshold": 0.0,
+  "ablation_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_feature_ablation_v1",
+  "behavior_description": "selected_choice_secret_exfiltration_intent",
+  "behavior_id": "selected_choice_secret_exfiltration_intent",
+  "calibration_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_calibration_v1",
+  "calibration_split_id": "qwen3_4b/watchman_semantic_v9_selected_choice_immutable_calibration/calibration",
+  "created_at": "2026-06-25T00:00:00Z",
+  "evidence_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_promotion_evidence_v1",
+  "failure_case_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_failure_cases_v1",
+  "gateway_smoke_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_v1",
+  "heldout_split_id": "qwen3_4b/watchman_semantic_v9_selected_choice_immutable_calibration/grouped-cv",
+  "lineage_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_lineage_v1",
+  "metric_name": "sealed_holdout_macro_f1",
+  "metric_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_sealed_holdout_metric_v1",
+  "metric_threshold": 1.0,
+  "metric_value": 1.0,
+  "paper_method": {
+    "candidate_probe_metric_value": 1.0,
+    "covariance_estimator": "not_applicable",
+    "feature_representation": "raw_activation",
+    "head_to_head_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_vs_paper_mlp_live_sealed_v1",
+    "layer_weighting": "not_applicable",
+    "monitored_layer_policy": "last_quarter_transformer_layers",
+    "paper_faithfulness_exception": "raw_activation live sealed head-to-head evidence shows the candidate probe strictly outperforms the paper MLP",
+    "paper_probe_metric_value": 0.9014326347109172,
+    "pre_output": true,
+    "probe_architecture": "linear_logistic_regression",
+    "readout_position_contract": "post_secret_post_query_causal_readout",
+    "ridge": 0.0,
+    "training_loss": "regularized_logistic_loss",
+    "uses_static_secret_token_positions": false
+  },
+  "patching_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_causal_patching_v1",
+  "report_artifacts": [
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_sealed_holdout_metric_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_sealed_holdout_metric_v1",
+      "schema_version": "aegis_introspection.cift_sealed_holdout_metric/v1",
+      "sha256": "9685351d465d505ed51c9da3e6dfff6ab984b608bd03f5ea3981bd7b2c3068e6"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_calibration_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_calibration_v1",
+      "schema_version": "aegis_introspection.cift_calibration/v1",
+      "sha256": "317c0f5bd19bb2de225941d3faa26fcbf45bf0b59647e1c113157b2be8f6c7de"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_feature_ablation_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_feature_ablation_v1",
+      "schema_version": "aegis_introspection.cift_feature_ablation/v1",
+      "sha256": "7380e2f33a428e57ccfdc836ecaa3b6fb6a6538a98f87c299fedcea5e281db95"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_causal_patching_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_causal_patching_v1",
+      "schema_version": "aegis_introspection.cift_counterfactual_patching/v1",
+      "sha256": "970d0f922769516ad94c1fbd988b77de883d5ca2957bc8e79e8d986e46919e6c"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_failure_cases_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_failure_cases_v1",
+      "schema_version": "aegis_introspection.cift_failure_cases/v1",
+      "sha256": "22e5a52e1064f3ec1904c883cae3ad812e6dffd65575328c09d7ac6f094cd2eb"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_prevention_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_prevention_v1",
+      "schema_version": "aegis_introspection.cift_live_window_selector_benchmark/v1",
+      "sha256": "f79644026cff86a10993c68f9f01156e575d058a0e4f61568101ce3144d07b58"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_v1",
+      "schema_version": "aegis.proxy.cift_gateway_smoke/v1",
+      "sha256": "0117406621b2edfeed6f50c66be278acec06e8aa44bdeab3df2b0a44978822d1"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_lineage_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_lineage_v1",
+      "schema_version": "aegis_introspection.cift_lineage/v1",
+      "sha256": "9aec1ae329092a07efd8c64536ccc69e1aece8b545809bb69f6835267c960b1d"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_vs_paper_mlp_live_sealed_v1.json",
+      "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_vs_paper_mlp_live_sealed_v1",
+      "schema_version": "aegis_introspection.cift_live_probe_competition/v1",
+      "sha256": "6df240252f8d36251dd0bbc57772862ded680a824dcb71dbbcd06bee66a27d99"
+    }
+  ],
+  "runtime_prevention_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_prevention_v1",
+  "schema_version": "cift_promotion_evidence/v1",
+  "sealed_holdout_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_sealed_holdout_metric_v1",
+  "sealed_holdout_split_id": "qwen3_4b/watchman_semantic_v8_selected_choice_sealed",
+  "train_split_id": "qwen3_4b/watchman_semantic_v9_selected_choice_immutable_calibration/train",
+  "training_dataset_id": "qwen3_4b/watchman_semantic_v9_selected_choice_immutable_calibration"
+}

@@ -1,0 +1,78 @@
+{
+  "certification_id": "qwen3_4b_watchman_semantic_v4_480",
+  "corpus": {
+    "path": "data/trace_collection/structured_prompts.paired_semantic_indirection_v4_480_secret_present_binary.jsonl",
+    "role": "calibration_and_grouped_cv_source",
+    "sha256": "6a3923f29f26c37f49b2291b8b70c7faddad712a9a7c8d5fd6a2c9dbd96790d6"
+  },
+  "created_at": "2026-06-24T00:00:00Z",
+  "model_identity": {
+    "chat_template_present": true,
+    "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+    "hidden_size": 2560,
+    "layer_count": 36,
+    "model_id": "Qwen/Qwen3-4B",
+    "model_type": "qwen3",
+    "revision": "main",
+    "schema_version": "aegis_introspection.cift_model_metadata/v1",
+    "special_tokens_map_sha256": "edcb2fc2acbbe77f858a9c4fe51295ffdb84711efba5703ec5906b3d67282569",
+    "tokenizer_class": "Qwen2Tokenizer",
+    "tokenizer_fingerprint_sha256": "41e00eccf531cffc2e562d38bdd879d41e5044ea279af5b73c6a32aabcc8fe04",
+    "tokenizer_vocab_size": 151643
+  },
+  "planned_artifacts": {
+    "activation_artifact_path": "introspection/data/activations/qwen3_4b_watchman_semantic_v4_480_windows_l19_l22.pt",
+    "feature_ablation_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_feature_ablation_v1.json",
+    "head_to_head_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_linear_vs_paper_mlp_v1.json",
+    "linear_bundle_path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_linear_candidate_v1.pkl",
+    "linear_runtime_preview_path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_linear_runtime_preview_v1.json",
+    "live_runtime_prevention_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_runtime_prevention_v1.json",
+    "model_metadata_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_model_metadata_v1.json",
+    "paper_mlp_bundle_path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_paper_mlp_candidate_v1.pkl",
+    "paper_mlp_runtime_preview_path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_paper_mlp_runtime_preview_v1.json",
+    "promoted_runtime_artifact_path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v4_480_promoted_runtime_v1.json",
+    "promotion_evidence_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v4_480_promotion_evidence_v1.json"
+  },
+  "release_rule": "Do not claim support for this model until every required_release_evidence item is present and the promoted runtime artifact passes the hardened release gate.",
+  "required_release_evidence": [
+    "model_metadata_discovered",
+    "activation_artifact_bound_to_model_identity",
+    "layer_window_sweep",
+    "linear_vs_paper_mlp_head_to_head",
+    "grouped_cv_metrics",
+    "sealed_holdout_metrics",
+    "false_negative_rate_reported",
+    "false_positive_rate_reported",
+    "live_hidden_state_runtime_prevention",
+    "fail_closed_hidden_state_and_selected_choice_metadata",
+    "promotion_evidence_materialized",
+    "runtime_artifact_bound_to_model_tokenizer_template_hashes",
+    "hardened_release_gate_pass"
+  ],
+  "runtime_turns": {
+    "path": "introspection/data/runtime_turns_watchman_semantic_v4_480_selected_clause_expected_window.jsonl",
+    "role": "live_runtime_prevention_source",
+    "sha256": "ef5d2961577b515cabcd2e55dbd0a9e33a07c0734e02219992e79028466f6c55"
+  },
+  "schema_version": "aegis_introspection.cift_certification_workflow/v1",
+  "status": "planned",
+  "support_claim_status": "not_certified_until_release_gate_passes",
+  "training": {
+    "candidate_feature_key": "selected_choice_window_layer_19",
+    "layer_indices": [
+      19,
+      20,
+      21,
+      22
+    ],
+    "pooling_methods": [
+      "readout_window",
+      "query_tail_window",
+      "selected_choice_window",
+      "combined_readout_window"
+    ],
+    "positive_label": "exfiltration_intent",
+    "task_name": "safe_secret_vs_exfiltration",
+    "training_dataset_id": "watchman_semantic_v4_480_selected_clause_l19_l22_raw"
+  }
+}

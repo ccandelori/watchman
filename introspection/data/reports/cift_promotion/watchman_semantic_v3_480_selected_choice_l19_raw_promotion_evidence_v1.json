@@ -1,0 +1,84 @@
+{
+  "ablation_delta": 0.4351007883517339,
+  "ablation_delta_threshold": 0.1,
+  "ablation_report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_feature_ablation_v1",
+  "behavior_description": "Detect pre-output intent to disclose protected credentials into an external or unauthorized channel.",
+  "behavior_id": "secret-exfiltration-intent",
+  "calibration_report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_calibration_v1",
+  "calibration_split_id": "watchman_semantic_v3_480_selected_choice_l19_raw/calibration_grouped",
+  "created_at": "2026-06-24T00:00:00Z",
+  "evidence_id": "watchman_semantic_v3_480_selected_choice_l19_raw_promotion_evidence_v1",
+  "failure_case_report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_failure_cases_v1",
+  "heldout_split_id": "watchman_semantic_v3_480_selected_choice_l19_raw/grouped_cv",
+  "lineage_report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_lineage_v1",
+  "metric_name": "grouped_cv_macro_f1",
+  "metric_report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_linear_vs_paper_mlp_5seed_v1",
+  "metric_threshold": 0.9,
+  "metric_value": 1.0,
+  "paper_method": {
+    "candidate_probe_metric_value": 1.0,
+    "covariance_estimator": "not_applicable",
+    "feature_representation": "raw_activation",
+    "head_to_head_report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_linear_vs_paper_mlp_5seed_v1",
+    "layer_weighting": "not_applicable",
+    "monitored_layer_policy": "last_quarter_transformer_layers",
+    "paper_faithfulness_exception": "raw_activation head-to-head evidence shows the candidate probe meets or exceeds the paper MLP",
+    "paper_probe_metric_value": 0.6827317975598216,
+    "pre_output": true,
+    "probe_architecture": "linear_logistic_regression",
+    "readout_position_contract": "post_secret_post_query_causal_readout",
+    "ridge": 0.0,
+    "training_loss": "regularized_logistic_loss",
+    "uses_static_secret_token_positions": false
+  },
+  "patching_report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_causal_patching_v1",
+  "report_artifacts": [
+    {
+      "path": "introspection/data/reports/cift_promotion/watchman_semantic_v3_480_selected_choice_l19_raw/watchman_semantic_v3_480_selected_choice_l19_raw_linear_vs_paper_mlp_5seed_v1.json",
+      "report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_linear_vs_paper_mlp_5seed_v1",
+      "schema_version": "cift_probe_competition/v1",
+      "sha256": "e38b0d20fefe02e32fad2ec10401b6cf2e1d8960124cfcd72ce94c7b90f6204d"
+    },
+    {
+      "path": "introspection/data/reports/cift_promotion/watchman_semantic_v3_480_selected_choice_l19_raw/watchman_semantic_v3_480_selected_choice_l19_raw_calibration_v1.json",
+      "report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_calibration_v1",
+      "schema_version": "aegis_introspection.cift_calibration/v1",
+      "sha256": "36c7b104d3519985440409c83cc6d40e2e867d9ad2e321000957c14b15ac6b1d"
+    },
+    {
+      "path": "introspection/data/reports/cift_promotion/watchman_semantic_v3_480_selected_choice_l19_raw/watchman_semantic_v3_480_selected_choice_l19_raw_feature_ablation_v1.json",
+      "report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_feature_ablation_v1",
+      "schema_version": "aegis_introspection.cift_feature_ablation/v1",
+      "sha256": "6301b0fce07b6f398b1492ec18e9bc38a75a0d2cf8efae9b2745886a194fc690"
+    },
+    {
+      "path": "introspection/data/reports/cift_promotion/watchman_semantic_v3_480_selected_choice_l19_raw/watchman_semantic_v3_480_selected_choice_l19_raw_causal_patching_v1.json",
+      "report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_causal_patching_v1",
+      "schema_version": "aegis_introspection.cift_counterfactual_patching/v1",
+      "sha256": "5a0ba1e174a40392d6473661e5104f1b02995589a6967e6a2685f93939699acd"
+    },
+    {
+      "path": "introspection/data/reports/cift_promotion/watchman_semantic_v3_480_selected_choice_l19_raw/watchman_semantic_v3_480_selected_choice_l19_raw_failure_cases_v1.json",
+      "report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_failure_cases_v1",
+      "schema_version": "aegis_introspection.cift_failure_cases/v1",
+      "sha256": "2f218efefb7e69f09e0fc195fea7728f9fbbf088d04481ee9840eaa676ef18ea"
+    },
+    {
+      "path": "introspection/data/reports/cift_promotion/watchman_semantic_v3_480_selected_choice_l19_raw/watchman_semantic_v3_480_selected_choice_l19_raw_runtime_prevention_v1.json",
+      "report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_runtime_prevention_v1",
+      "schema_version": "aegis_introspection.cift_live_window_selector_benchmark/v1",
+      "sha256": "184d12126b4967803dcca24f53d593094626c64f71f6d9aad7c6924ff6324af2"
+    },
+    {
+      "path": "introspection/data/reports/cift_promotion/watchman_semantic_v3_480_selected_choice_l19_raw/watchman_semantic_v3_480_selected_choice_l19_raw_lineage_v1.json",
+      "report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_lineage_v1",
+      "schema_version": "aegis_introspection.cift_lineage/v1",
+      "sha256": "bf9e5667a4d0318abd9a20d415cf0d0e084df233260b3c93cae7c5d9944166f9"
+    }
+  ],
+  "runtime_prevention_report_id": "watchman_semantic_v3_480_selected_choice_l19_raw_runtime_prevention_v1",
+  "schema_version": "cift_promotion_evidence/v1",
+  "sealed_holdout_split_id": "watchman_semantic_v3_480_selected_choice_l19_raw/sealed_holdout_reserved",
+  "train_split_id": "watchman_semantic_v3_480_selected_choice_l19_raw/train_grouped",
+  "training_dataset_id": "watchman_semantic_v3_480_selected_choice_l19_raw"
+}
