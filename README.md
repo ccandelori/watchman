@@ -51,6 +51,54 @@ keeps future detector and proxy work compatible.
 For the current hardening assessment and component-by-component release table,
 see [`docs/aegis-watchman-release-readiness-2026-06-25.md`](docs/aegis-watchman-release-readiness-2026-06-25.md).
 
+## Capstone Release Rehearsal
+
+The safe capstone claim is:
+
+> Aegis/Watchman operationalizes the paper's vision as a local sentinel:
+> certified CIFT for Qwen3-4B/MPS, paper-faithful+ candidate DP-HONEY,
+> explicit-slot credential substitution, provider egress prevention,
+> deterministic NIMBUS plus learned NIMBUS live beta, redacted audit/explain
+> evidence, and a local console.
+
+Do not claim universal model support, production/commercial readiness,
+paper-faithful+ learned NIMBUS, external real-provider production evidence, or
+autonomous semantic credential-need inference beyond deterministic v1.
+
+For the short evaluator-facing package, start with
+[`docs/aegis-watchman-capstone-release-2026-06-26.md`](docs/aegis-watchman-capstone-release-2026-06-26.md).
+It lists the exact demo commands, evidence artifacts, hashes, component
+readiness, and remaining gaps.
+
+The local rehearsal has two modes:
+
+1. **Certified CIFT sentinel path**: run the Qwen3-4B MPS sidecar, source the
+   strict CIFT deployment env, start the gateway, open the console, then run
+   `aegis-proxy-cift-smoke` and `aegis-proxy-smoke --require-cift-pre-generation-block`.
+   This proves certified hidden-state pre-generation prevention for the
+   Qwen3-4B/MPS reference profile.
+2. **Learned NIMBUS beta path**: start a gateway with
+   `AEGIS_NIMBUS_CRITIC_KIND=learned_infonce_beta` and run
+   `aegis-proxy-smoke --nimbus-profile strict-partial-block`. This proves the
+   learned critic is live, observable, and still labeled
+   `learned_runtime_beta_not_promotable`.
+
+Open the console with:
+
+```bash
+uv run aegis-console \
+  --gateway-url http://127.0.0.1:8000 \
+  --host 127.0.0.1 \
+  --port 8780 \
+  --smoke-report introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_integrated_refresh_v1.json \
+  --sample-audit-jsonl introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_integrated_refresh_audit_v1.jsonl
+```
+
+Then visit `http://127.0.0.1:8780`. The console should show gateway readiness,
+protected/degraded status, CIFT certification/model binding, DP-HONEY status,
+NIMBUS critic kind and promotion status, recent allow/block decisions, detector
+activity, and stage timelines.
+
 ## Runtime Shape
 
 ```text

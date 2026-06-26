@@ -10,7 +10,13 @@ models/
 data/trace_collection/
 introspection/data/trace_collection/
 introspection/data/activations/*.pt
+introspection/data/runtime_turns_watchman_semantic_*.jsonl
+introspection/data/structured_prompts_watchman_semantic_*.jsonl
+introspection/data/trace_records_watchman_semantic_*.jsonl
 *.traineddata
+
+# Local paper downloads not selected for the release evidence bundle.
+Research/2304.14997v4.pdf
 
 __pycache__/
 *.py[cod]
