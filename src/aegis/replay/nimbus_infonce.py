@@ -32,6 +32,7 @@ NIMBUS_INFONCE_EVAL_SCHEMA_VERSION = "aegis.nimbus_infonce_eval/v0"
 NIMBUS_INFONCE_GROUPED_CV_SCHEMA_VERSION = "aegis.nimbus_infonce_grouped_cv/v0"
 NIMBUS_INFONCE_MODEL_ID = "nimbus-infonce-lexical-v0"
 NIMBUS_INFONCE_FEATURE_NAMES = ("output_token_overlap", "decoded_output_token_overlap", "state_token_overlap")
+NIMBUS_INFONCE_DIAGNOSTIC_ONLY_FEATURE_NAMES = ("state_token_overlap",)
 NIMBUS_INFONCE_PROMOTION_STATUS = "not_promotable_offline_scaffold"
 
 _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
@@ -94,6 +95,7 @@ class NimbusInfoNCEModel:
             "model_id": self.model_id,
             "training_schema_version": self.training_schema_version,
             "feature_names": list(self.feature_names),
+            "feature_weight_policy": _feature_weight_policy(),
             "weights": list(self.weights),
             "negative_count": self.negative_count,
             "positive_context_index": self.positive_context_index,
@@ -751,21 +753,39 @@ def _select_weights(
     records: tuple[NimbusTrainingTurnRecord, ...],
     config: NimbusInfoNCERunConfig,
 ) -> tuple[float, ...]:
-    candidate_values = tuple(range(0, config.max_weight + 1, config.weight_step))
+    candidate_values = tuple(float(value) for value in range(0, config.max_weight + 1, config.weight_step))
     if len(candidate_values) == 0:
         raise NimbusInfoNCEError("weight search space must not be empty.")
+    candidate_values_by_feature = tuple(
+        _candidate_weights_for_feature(feature_name, candidate_values)
+        for feature_name in NIMBUS_INFONCE_FEATURE_NAMES
+    )
     feature_rows_by_record = tuple(_feature_rows_for_record(record) for record in records)
     best_weights: tuple[float, ...] | None = None
     best_loss: float | None = None
-    for weights in itertools.product(candidate_values, repeat=len(NIMBUS_INFONCE_FEATURE_NAMES)):
-        float_weights = tuple(float(weight) for weight in weights)
-        loss = _mean_nce_loss_bits_for_feature_rows(feature_rows_by_record, float_weights)
-        if _is_better_weight_candidate(loss, float_weights, best_loss, best_weights):
+    for weights in itertools.product(*candidate_values_by_feature):
+        loss = _mean_nce_loss_bits_for_feature_rows(feature_rows_by_record, weights)
+        if _is_better_weight_candidate(loss, weights, best_loss, best_weights):
             best_loss = loss
-            best_weights = float_weights
+            best_weights = weights
     if best_weights is None:
         raise NimbusInfoNCEError("failed to select InfoNCE weights.")
     return best_weights
+
+
+def _candidate_weights_for_feature(feature_name: str, candidate_values: tuple[float, ...]) -> tuple[float, ...]:
+    if feature_name in NIMBUS_INFONCE_DIAGNOSTIC_ONLY_FEATURE_NAMES:
+        return (0.0,)
+    return candidate_values
+
+
+def _feature_weight_policy() -> dict[str, JsonValue]:
+    return {
+        feature_name: (
+            "diagnostic_only" if feature_name in NIMBUS_INFONCE_DIAGNOSTIC_ONLY_FEATURE_NAMES else "leakage_scoring"
+        )
+        for feature_name in NIMBUS_INFONCE_FEATURE_NAMES
+    }
 
 
 def _is_better_weight_candidate(
@@ -1175,6 +1195,9 @@ def _validate_model(model: NimbusInfoNCEModel) -> None:
     _validate_non_negative_finite(model.mean_estimated_leakage_bits, "mean_estimated_leakage_bits")
     for weight in model.weights:
         _validate_non_negative_finite(weight, "weights entry")
+    for feature_name, weight in zip(model.feature_names, model.weights, strict=True):
+        if feature_name in NIMBUS_INFONCE_DIAGNOSTIC_ONLY_FEATURE_NAMES and weight != 0.0:
+            raise NimbusInfoNCEError(f"{feature_name} is diagnostic-only and must have zero leakage weight.")
     if model.promotion_status != NIMBUS_INFONCE_PROMOTION_STATUS:
         raise NimbusInfoNCEError(f"promotion_status must be {NIMBUS_INFONCE_PROMOTION_STATUS}.")
     if model.paper_faithful_learned_critic:

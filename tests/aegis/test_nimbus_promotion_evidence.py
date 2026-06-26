@@ -21,9 +21,7 @@ SEALED_MANIFEST_PATH = Path("introspection/data/reports/aegis_nimbus_sealed_hold
 INFONCE_MODEL_PATH = Path("introspection/data/reports/aegis_nimbus_infonce_model_v0.json")
 GROUPED_CV_PATH = Path("introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json")
 SEALED_HOLDOUT_PATH = Path("introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json")
-GATEWAY_SMOKE_PATH = Path(
-    "introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json"
-)
+GATEWAY_SMOKE_PATH = Path("introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v1.json")
 RUNTIME_BETA_EVAL_PATH = Path("introspection/data/reports/aegis_nimbus_runtime_beta_eval_v0.json")
 
 
@@ -38,24 +36,30 @@ def test_nimbus_promotion_evidence_keeps_learned_scaffold_non_promotable() -> No
     assert report["paper_faithful_learned_critic"] is False
     assert report["recommended_runtime_critic"] == "deterministic_canary_beta"
     assert report["deterministic_baseline_metrics"]["false_negative_rate"] == 0.0
-    assert report["learned_sealed_holdout_metrics"]["false_negative_rate"] == 0.027450980392156862
+    assert report["learned_sealed_holdout_metrics"]["false_negative_rate"] == 0.0
+    assert report["learned_sealed_holdout_metrics"]["false_positive_rate"] == 0.005369127516778523
     assert report["learned_sealed_holdout_metrics"]["training_eval_reused"] is False
     assert report["learned_sealed_holdout_metrics"]["training_eval_allowed"] is False
     assert report["comparison"]["learned_turn_fnr_beats_deterministic"] is False
-    assert report["comparison"]["offline_learned_session_signal_observed"] is True
+    assert report["comparison"]["learned_turn_fnr_matches_deterministic"] is True
+    assert report["comparison"]["learned_runtime_beta_turn_rates_within_policy"] is True
+    assert report["comparison"]["offline_learned_session_signal_observed"] is False
     assert report["comparison"]["learned_session_signal_complements_deterministic"] is False
     assert report["comparison"]["learned_runtime_adapter_evidence_present"] is True
+    assert report["comparison"]["learned_runtime_gateway_evidence_present"] is True
     assert report["comparison"]["runtime_beta_paper_session_false_blocks_clean"] is True
-    assert report["learned_runtime_beta_metrics"]["false_negative_rate"] == 0.027450980392156862
-    assert report["learned_runtime_beta_metrics"]["false_positive_rate"] == 0.4389261744966443
+    assert report["learned_runtime_beta_metrics"]["false_negative_rate"] == 0.0
+    assert report["learned_runtime_beta_metrics"]["false_positive_rate"] == 0.005369127516778523
     assert report["learned_runtime_beta_metrics"]["session_false_negative_rate"] == 0.0
     assert report["learned_runtime_beta_metrics"]["session_false_positive_rate"] == 0.0
     assert report["learned_runtime_beta_metrics"]["session_block_false_negative_rate"] == 0.0
     assert report["learned_runtime_beta_metrics"]["session_block_false_positive_rate"] == 0.0
     assert report["learned_runtime_beta_metrics"]["paper_conversation_metrics"]["false_block_rate"] == 0.0
-    assert report["gateway_runtime_evidence"]["readiness_nimbus_status"] == "deterministic_beta"
-    assert report["gateway_runtime_evidence"]["learned_runtime_evidence_present"] is False
-    assert report["gateway_runtime_evidence"]["learned_gateway_metrics"]["sample_count"] == 0
+    assert report["gateway_runtime_evidence"]["readiness_nimbus_status"] == "learned_runtime_beta"
+    assert report["gateway_runtime_evidence"]["learned_runtime_evidence_present"] is True
+    assert report["gateway_runtime_evidence"]["learned_gateway_metrics"]["sample_count"] == 5
+    assert report["gateway_runtime_evidence"]["learned_gateway_metrics"]["false_positive_rate"] == 0.0
+    assert report["gateway_runtime_evidence"]["learned_gateway_metrics"]["false_negative_rate"] == 0.0
     assert checklist["session_level_corpus_coverage"]["status"] == "met"
     assert checklist["negative_contexts_for_infonce"]["status"] == "met"
     assert checklist["grouped_cross_validation"]["status"] == "met"
@@ -63,13 +67,15 @@ def test_nimbus_promotion_evidence_keeps_learned_scaffold_non_promotable() -> No
     assert checklist["fn_fp_reported_separately"]["status"] == "met"
     assert checklist["learned_beats_or_complements_deterministic"]["status"] == "partial"
     assert checklist["runtime_learned_critic_adapter"]["status"] == "met"
-    assert checklist["live_gateway_learned_fn_fp"]["status"] == "missing"
+    assert checklist["live_gateway_learned_fn_fp"]["status"] == "met"
     assert checklist["promotion_manifest"]["status"] == "missing"
-    assert report["checklist_summary"] == {"met": 6, "missing": 2, "partial": 1, "total": 9}
+    assert report["checklist_summary"] == {"met": 7, "missing": 1, "partial": 1, "total": 9}
     missing = " ".join(str(item) for item in report["missing_before_paper_faithful_learned_promotion"])
+    assert "ties deterministic beta" in missing
     assert "live runtime head-to-head" in missing
     assert "promotion manifest" in missing
     assert "runtime adapter" not in missing
+    assert "gateway smoke proves deterministic beta" not in missing
 
 
 def test_nimbus_promotion_evidence_recognizes_opt_in_learned_gateway_metrics(tmp_path: Path) -> None:

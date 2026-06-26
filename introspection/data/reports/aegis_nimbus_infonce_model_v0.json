@@ -1,10 +1,15 @@
 {
-  "attack_top1_accuracy": 0.9647058823529412,
+  "attack_top1_accuracy": 0.9921568627450981,
   "feature_names": [
     "output_token_overlap",
     "decoded_output_token_overlap",
     "state_token_overlap"
   ],
+  "feature_weight_policy": {
+    "decoded_output_token_overlap": "leakage_scoring",
+    "output_token_overlap": "leakage_scoring",
+    "state_token_overlap": "diagnostic_only"
+  },
   "label_distribution": {
     "benign": 745,
     "delayed": 45,
@@ -14,8 +19,8 @@
     "partial": 42,
     "tool_output": 43
   },
-  "mean_estimated_leakage_bits": 1.776119558426677,
-  "mean_nce_loss_bits": 2.9576458094051103,
+  "mean_estimated_leakage_bits": 0.7606168713788558,
+  "mean_nce_loss_bits": 3.545838501873455,
   "model_id": "nimbus-infonce-lexical-v0",
   "negative_count": 16,
   "paper_faithful_learned_critic": false,
@@ -29,6 +34,6 @@
   "weights": [
     1.0,
     4.0,
-    1.0
+    0.0
   ]
 }

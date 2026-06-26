@@ -8,6 +8,7 @@ from pathlib import Path
 import pytest
 
 from aegis.replay.nimbus_infonce import (
+    NIMBUS_INFONCE_DIAGNOSTIC_ONLY_FEATURE_NAMES,
     NIMBUS_INFONCE_EVAL_SCHEMA_VERSION,
     NIMBUS_INFONCE_GROUPED_CV_SCHEMA_VERSION,
     NIMBUS_INFONCE_MODEL_SCHEMA_VERSION,
@@ -47,6 +48,7 @@ def test_trained_nimbus_infonce_model_scores_leaks_above_benign() -> None:
     assert model.training_record_count == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
     assert model.training_split_group_count == NIMBUS_REFERENCE_CONVERSATION_COUNT
     assert model.feature_names == ("output_token_overlap", "decoded_output_token_overlap", "state_token_overlap")
+    assert model.weights == (1.0, 4.0, 0.0)
     assert model.promotion_status == NIMBUS_INFONCE_PROMOTION_STATUS
     assert model.paper_faithful_learned_critic is False
     assert report.schema_version == NIMBUS_INFONCE_EVAL_SCHEMA_VERSION
@@ -165,7 +167,20 @@ def test_nimbus_infonce_model_artifact_round_trips_without_raw_contexts(tmp_path
     assert "safe-decoy-marker" not in raw_artifact
     assert "{{CREDENTIAL:" not in raw_artifact
     assert "paper_faithful_learned_critic" in raw_artifact
+    assert "diagnostic_only" in raw_artifact
     json.loads(raw_artifact)
+
+
+def test_nimbus_infonce_model_rejects_diagnostic_only_leakage_weight(tmp_path: Path) -> None:
+    output_path = tmp_path / "nimbus-infonce-model.json"
+    records = generate_default_nimbus_training_records()
+    model = train_nimbus_infonce_model(records, NimbusInfoNCERunConfig(max_weight=4, weight_step=1))
+    invalid_model = replace(model, weights=(1.0, 4.0, 1.0))
+
+    with pytest.raises(NimbusInfoNCEError, match="diagnostic-only"):
+        save_nimbus_infonce_model(output_path, invalid_model)
+
+    assert NIMBUS_INFONCE_DIAGNOSTIC_ONLY_FEATURE_NAMES == ("state_token_overlap",)
 
 
 def test_nimbus_infonce_train_and_eval_clis_write_json(

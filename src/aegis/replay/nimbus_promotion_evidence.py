@@ -92,8 +92,9 @@ def build_nimbus_promotion_evidence_report(config: NimbusPromotionEvidenceConfig
         "recommended_runtime_critic": _RECOMMENDED_RUNTIME_CRITIC,
         "summary": (
             "The learned InfoNCE NIMBUS path now has grouped-CV, sealed-holdout, and in-process runtime-adapter "
-            "evidence, but it is a small lexical scaffold with held-out false negatives, high runtime false positives, "
-            "and no live gateway FN/FP or promotion manifest. Keep deterministic canary NIMBUS active."
+            "evidence with low sealed/runtime beta FP and FN rates plus live learned-gateway smoke FN/FP evidence, "
+            "but it is still a small lexical scaffold with no common live head-to-head corpus or promotion manifest. "
+            "Keep deterministic canary NIMBUS active."
         ),
         "artifact_hashes": _artifact_hashes(config),
         "deterministic_baseline_metrics": deterministic_metrics,
@@ -235,6 +236,9 @@ def _learned_model_evidence(model: Mapping[str, object]) -> dict[str, JsonValue]
         "promotion_status": _required_string(model, "promotion_status", "infonce_model"),
         "paper_faithful_learned_critic": _required_bool(model, "paper_faithful_learned_critic", "infonce_model"),
         "feature_names": list(feature_names),
+        "feature_weight_policy": _json_mapping(
+            _mapping(model.get("feature_weight_policy"), "infonce_model.feature_weight_policy")
+        ),
         "weights": list(weights),
         "negative_count": _required_int(model, "negative_count", "infonce_model"),
         "positive_context_index": _required_int(model, "positive_context_index", "infonce_model"),
@@ -390,8 +394,12 @@ def _comparison(
     gateway_evidence: Mapping[str, JsonValue],
 ) -> dict[str, JsonValue]:
     deterministic_turn_fnr = _json_float(deterministic_metrics.get("false_negative_rate"), "deterministic.fnr")
+    deterministic_turn_fpr = _json_float(deterministic_metrics.get("false_positive_rate"), "deterministic.fpr")
     learned_sealed_turn_fnr = _json_float(sealed_metrics.get("false_negative_rate"), "sealed.fnr")
+    learned_sealed_turn_fpr = _json_float(sealed_metrics.get("false_positive_rate"), "sealed.fpr")
     learned_grouped_turn_fnr = _json_float(grouped_metrics.get("false_negative_rate"), "grouped.fnr")
+    learned_grouped_turn_fpr = _json_float(grouped_metrics.get("false_positive_rate"), "grouped.fpr")
+    runtime_beta_fpr = _json_float_or_none(runtime_beta_metrics.get("false_positive_rate"), "runtime_beta.fpr")
     learned_sealed_session_fnr = _json_float(
         sealed_metrics.get("session_false_negative_rate"), "sealed.session_fnr"
     )
@@ -422,25 +430,50 @@ def _comparison(
             gateway_evidence,
             "false_negative_rate",
         ),
+        "deterministic_false_positive_rate": deterministic_turn_fpr,
         "deterministic_false_negative_rate": deterministic_turn_fnr,
+        "learned_grouped_cv_false_positive_rate": learned_grouped_turn_fpr,
         "learned_grouped_cv_false_negative_rate": learned_grouped_turn_fnr,
+        "learned_sealed_false_positive_rate": learned_sealed_turn_fpr,
         "learned_sealed_false_negative_rate": learned_sealed_turn_fnr,
         "learned_sealed_session_false_negative_rate": learned_sealed_session_fnr,
+        "learned_runtime_beta_false_positive_rate": runtime_beta_fpr,
         "learned_runtime_beta_false_negative_rate": runtime_beta_fnr,
         "learned_runtime_beta_session_false_negative_rate": runtime_beta_session_fnr,
         "learned_runtime_beta_session_false_block_rate": runtime_beta_session_false_block_rate,
         "learned_runtime_beta_session_missed_block_rate": runtime_beta_session_missed_block_rate,
         "learned_turn_fnr_beats_deterministic": learned_sealed_turn_fnr < deterministic_turn_fnr,
+        "learned_turn_fnr_matches_deterministic": learned_sealed_turn_fnr == deterministic_turn_fnr,
+        "learned_runtime_beta_turn_rates_within_policy": runtime_beta_fpr is not None
+        and runtime_beta_fpr <= 0.05
+        and runtime_beta_fnr is not None
+        and runtime_beta_fnr <= 0.05,
         "offline_learned_session_signal_observed": learned_sealed_session_fnr == 0.0
         and learned_sealed_turn_fnr > deterministic_turn_fnr,
         "runtime_beta_paper_session_false_blocks_clean": runtime_beta_session_false_block_rate == 0.0
         and runtime_beta_session_missed_block_rate == 0.0,
         "learned_session_signal_complements_deterministic": False,
         "learned_promotion_blocked_reason": (
-            "Learned scaffold/runtime beta is not reliable enough under held-out and runtime evidence and has no live "
-            "learned gateway FN/FP evidence or promotion manifest."
+            "Learned scaffold/runtime beta has improved held-out, in-process runtime, and learned-gateway smoke "
+            "metrics, but still lacks a common live head-to-head corpus and a promotion manifest."
         ),
     }
+
+
+def _learned_comparison_gaps(comparison: Mapping[str, JsonValue]) -> tuple[str, ...]:
+    gaps: list[str] = []
+    if comparison.get("learned_turn_fnr_beats_deterministic") is not True:
+        if comparison.get("learned_turn_fnr_matches_deterministic") is True:
+            gaps.append("learned sealed turn false-negative rate ties deterministic beta but does not beat it")
+        else:
+            gaps.append("learned sealed turn false-negative rate is worse than deterministic beta")
+    if comparison.get("learned_runtime_beta_turn_rates_within_policy") is not True:
+        gaps.append("learned runtime beta turn FP/FN rates do not satisfy the local operating policy")
+    if comparison.get("learned_session_signal_complements_deterministic") is not True:
+        gaps.append("no live evidence proves a meaningful learned complement to deterministic beta")
+    if comparison.get("head_to_head_common_live_corpus") is not True:
+        gaps.append("no common live runtime head-to-head corpus exists")
+    return tuple(gaps)
 
 
 def _checklist(
@@ -517,16 +550,17 @@ def _checklist(
             status="partial",
             evidence={
                 "learned_turn_fnr_beats_deterministic": comparison["learned_turn_fnr_beats_deterministic"],
+                "learned_turn_fnr_matches_deterministic": comparison["learned_turn_fnr_matches_deterministic"],
+                "learned_runtime_beta_turn_rates_within_policy": comparison[
+                    "learned_runtime_beta_turn_rates_within_policy"
+                ],
                 "offline_learned_session_signal_observed": comparison["offline_learned_session_signal_observed"],
                 "learned_session_signal_complements_deterministic": comparison[
                     "learned_session_signal_complements_deterministic"
                 ],
                 "head_to_head_common_live_corpus": comparison["head_to_head_common_live_corpus"],
             },
-            gaps=(
-                "learned sealed turn false-negative rate is worse than deterministic beta on current evidence",
-                "no common live runtime head-to-head corpus exists",
-            ),
+            gaps=_learned_comparison_gaps(comparison),
         ),
         _checklist_item(
             requirement_id="runtime_learned_critic_adapter",

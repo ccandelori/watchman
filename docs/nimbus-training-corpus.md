@@ -128,7 +128,7 @@ uv run aegis-nimbus-promotion-evidence \
   --infonce-model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
   --grouped-cv introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json \
   --sealed-holdout introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json \
-  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_session_critic_v1.json \
+  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v1.json \
   --runtime-beta-eval introspection/data/reports/aegis_nimbus_runtime_beta_eval_v0.json \
   --output introspection/data/reports/aegis_nimbus_promotion_evidence_v0.json
 ```
@@ -137,24 +137,30 @@ The v0 evaluator reports retrieval/calibration metrics plus false positives and
 false negatives separately. Same-corpus evaluation is rejected unless
 `--allow-training-eval` is passed, and that report is labeled with
 `training_eval_reused=true`. Current curated grouped-CV and sealed-holdout
-scaffold evidence both have turn FP rate `0.438926`, turn FN rate `0.027451`,
-session FP rate `0.0`, and session FN rate `0.0`. The sessions still cross the
-scaffold's cumulative leakage signal, but the turn-level false-positive rate is
-too high for promotion. The runtime beta adapter now registers each sealed
-record's positive secret context and 16 negative contexts instead of synthesizing
-runtime negatives, so its in-process runtime metrics match the sealed scaffold:
-turn FP rate `0.438926`, turn FN rate `0.027451`, session FP rate `0.0`, and
-session FN rate `0.0`. It also reports paper-shaped conversation block metrics:
-42/42 attack sessions detected, 0/8 benign-only sessions false-blocked,
-false-block rate `0.0`, and mean first block turn index `4.095238`. Its
-diagnostic threshold sweep still does not find an
-acceptable 5% turn/session FP/FN operating point: at `3.5` bits turn FPR falls
-to `0.001342`, but turn FNR rises to `0.192157`. The artifact remains a
-non-promotable beta rather than a promotion artifact.
+scaffold evidence both have attack top-1 `0.992157`, turn FP rate `0.005369`,
+turn FN rate `0.0`, session FP rate `0.0`, and session FN rate `0.0`. The
+lexical model treats `state_token_overlap` as diagnostic/context-selection
+evidence only, with zero current-turn leakage weight. The runtime beta adapter
+registers each sealed record's positive secret context and 16 negative contexts
+instead of synthesizing runtime negatives, so its in-process runtime metrics
+match the sealed scaffold. It also reports paper-shaped conversation block
+metrics: 42/42 attack sessions detected, 0/8 benign-only sessions false-blocked,
+false-block rate `0.0`, and mean first block turn index `3.928571`. Its
+diagnostic threshold sweep selects `0.0` bits under the 5% turn/session FP/FN
+operating policy. The artifact remains a non-promotable beta rather than a
+promotion artifact because a common live head-to-head corpus and promoted
+runtime manifest are still missing.
 The promotion evidence binder records that distinction as
 `promotion_status=deterministic_beta_active_learned_not_promotable`,
 `promote_learned_runtime=false`, and
 `recommended_runtime_critic=deterministic_canary_beta`.
+
+The current binder uses a live local learned-gateway smoke artifact rather than
+offline replay: `aegis_default_mock_provider_smoke_learned_nimbus_beta_v1.json`
+reports learned runtime beta readiness, benign allow, four positive learned
+gateway detections, zero learned gateway false positives, and zero learned
+gateway false negatives. This closes the live-gateway FN/FP evidence item, but
+it does not prove promotion-grade complement over deterministic beta.
 
 ## Promotion Boundary
 

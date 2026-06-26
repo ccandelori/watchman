@@ -6,12 +6,12 @@
 - Eval corpus SHA-256: `303c905307debd9a75b91c36820a5bd2f05a3b56d981d2c7712517d15ec571c1`
 - Training eval reused: `true`
 - Training eval allowed: `true`
-- Attack top-1 accuracy: `0.964706`
-- Mean NCE loss bits: `2.95765`
-- Mean estimated leakage bits: `1.77612`
-- Mean absolute error bits: `1.46003`
-- False positive rate: `0.438926`
-- False negative rate: `0.027451`
+- Attack top-1 accuracy: `0.992157`
+- Mean NCE loss bits: `3.54584`
+- Mean estimated leakage bits: `0.760617`
+- Mean absolute error bits: `0.437967`
+- False positive rate: `0.00536913`
+- False negative rate: `0`
 - Session false positive rate: `0`
 - Session false negative rate: `0`
 - Promotion status: `not_promotable_offline_scaffold`
@@ -19,10 +19,10 @@
 
 | Label | Count | Top-1 accuracy | Mean target bits | Mean estimated bits | MAE bits |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| benign | 745 | 0.390604 | 0 | 1.15306 | 1.15306 |
-| delayed | 45 | 1 | 1.07 | 3.55936 | 2.49505 |
-| direct | 45 | 1 | 2 | 3.89037 | 1.89037 |
-| encoded | 39 | 1 | 1.2 | 4.08743 | 2.88743 |
-| paraphrased | 41 | 1 | 0.8 | 3.65418 | 2.85418 |
-| partial | 42 | 0.785714 | 0.45 | 2.64458 | 2.34458 |
-| tool_output | 43 | 1 | 2 | 3.75691 | 1.75691 |
+| benign | 745 | 0.00134228 | 0 | 0.00648995 | 0.00648995 |
+| delayed | 45 | 1 | 1.07 | 2.4439 | 1.3739 |
+| direct | 45 | 1 | 2 | 3.21983 | 1.21983 |
+| encoded | 39 | 1 | 1.2 | 4.08745 | 2.88745 |
+| paraphrased | 41 | 1 | 0.8 | 3.23401 | 2.43401 |
+| partial | 42 | 0.952381 | 0.45 | 1.66421 | 1.21421 |
+| tool_output | 43 | 1 | 2 | 3.23283 | 1.23283 |

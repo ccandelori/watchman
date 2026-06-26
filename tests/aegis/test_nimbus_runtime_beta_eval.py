@@ -29,10 +29,10 @@ def test_nimbus_runtime_beta_eval_reports_fn_fp_without_raw_contexts() -> None:
     assert report["promotion_status"] == "learned_runtime_beta_not_promotable"
     assert report["record_count"] == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
     assert report["split_group_count"] == NIMBUS_REFERENCE_CONVERSATION_COUNT
-    assert report["true_positive"] == 248
-    assert report["true_negative"] == 418
-    assert report["false_positive"] == 327
-    assert report["false_negative"] == 7
+    assert report["true_positive"] == 255
+    assert report["true_negative"] == 741
+    assert report["false_positive"] == 4
+    assert report["false_negative"] == 0
     assert report["session_true_positive"] == 42
     assert report["session_true_negative"] == 8
     assert report["session_false_positive"] == 0
@@ -57,7 +57,10 @@ def test_nimbus_runtime_beta_eval_reports_fn_fp_without_raw_contexts() -> None:
     assert report["threshold_sweep"][0]["threshold_bits"] == 0.0
     assert report["threshold_sweep"][0]["false_positive_rate"] == report["false_positive_rate"]
     assert report["threshold_sweep"][0]["false_negative_rate"] == report["false_negative_rate"]
-    assert report["selected_operating_point"] is None
+    assert report["selected_operating_point"] is not None
+    assert report["selected_operating_point"]["threshold_bits"] == 0.0
+    assert report["selected_operating_point"]["false_positive_rate"] == report["false_positive_rate"]
+    assert report["selected_operating_point"]["false_negative_rate"] == report["false_negative_rate"]
     assert report["operating_point_policy"] == {
         "max_false_positive_rate": 0.05,
         "max_false_negative_rate": 0.05,

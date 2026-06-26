@@ -29,6 +29,7 @@ from aegis.detectors.canary import (
     canary_sha256,
 )
 from aegis.replay.nimbus_infonce import (
+    NIMBUS_INFONCE_DIAGNOSTIC_ONLY_FEATURE_NAMES,
     NimbusInfoNCEModel,
     score_nimbus_infonce_runtime_candidate,
 )
@@ -896,6 +897,9 @@ def _learned_infonce_nimbus_score(
         "estimated_leakage_bits": selected_score.estimated_leakage_bits,
         "feature_names": list(model.feature_names),
         "feature_values": list(selected_score.feature_values),
+        "feature_weights": list(model.weights),
+        "diagnostic_only_feature_names": list(NIMBUS_INFONCE_DIAGNOSTIC_ONLY_FEATURE_NAMES),
+        "state_token_overlap_policy": "diagnostic_only_not_current_turn_leakage",
         "model_source_corpus_sha256": model.source_corpus_sha256,
         "model_training_record_count": model.training_record_count,
         "model_training_split_group_count": model.training_split_group_count,
