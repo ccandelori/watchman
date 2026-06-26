@@ -1,6 +1,7 @@
 {
   "artifact_hashes": {
     "audit_jsonl_sha256": "e3fe46d844edf315b9ce34d847ff3c7b3d1bc7f73c817f2d79f125b415557134",
+    "generation_realism_eval_sha256": "0b57be3dcec16f316f664327e813aaf94fb532994ae5c1e895cbebe9a2870890",
     "scanner_eval_sha256": "a2f0bf121607e13ca320c0b0bc1f46968a02c3fff25678bdf414349a63b3f13e",
     "smoke_sha256": "2ad28da2089f682bdef4fbc1e6745e029141ce7f6e711de6ab388e0fb4e74fb1"
   },
@@ -21,15 +22,40 @@
     },
     {
       "evidence": {
+        "all_generated_tokens_valid": true,
+        "all_reference_tokens_valid": true,
         "all_scannable_positive_examples_detected": true,
+        "generation_realism_format_count": 23,
         "positive_example_count": 500,
         "scannable_format_count": 20
       },
-      "gaps": [
-        "Paper evaluates statistical distinguishers such as entropy, bigram likelihood, and discriminator models; this report only proves structural format fidelity and scanner recall."
-      ],
-      "paper_requirement": "Evaluate generated honeytokens for format fidelity and statistical distinguishability.",
+      "gaps": [],
+      "paper_requirement": "Validate generated honeytokens against the format grammar and scanner-recognized shapes.",
       "requirement_id": "format_fidelity",
+      "status": "met"
+    },
+    {
+      "evidence": {
+        "all_metrics_finite": true,
+        "bounded_sanity_gate_passed": true,
+        "count_per_format": 25,
+        "declared_paper_faithful_statistical_distinguisher": false,
+        "format_count": 23,
+        "generation_realism_schema_version": "detect.dp_honey.generation_realism_eval/v1",
+        "generation_realism_status": "bounded_generated_vs_reference_sanity_metrics",
+        "metric_families": [
+          "format_validity",
+          "duplicate_rate",
+          "character_entropy",
+          "model_avg_log_likelihood"
+        ],
+        "paper_faithful_statistical_distinguisher": false
+      },
+      "gaps": [
+        "Paper evaluates statistical distinguishers such as character-entropy tests, bigram likelihood, numeric-substring tests, and a discriminator MLP; this report provides bounded aggregate sanity metrics but not the full sealed distinguisher suite."
+      ],
+      "paper_requirement": "Evaluate generated honeytokens against statistical distinguishers rather than only structural validity.",
+      "requirement_id": "statistical_realism_distinguishers",
       "status": "partial"
     },
     {
@@ -114,10 +140,10 @@
     }
   ],
   "checklist_summary": {
-    "met": 7,
+    "met": 8,
     "missing": 0,
     "partial": 1,
-    "total": 8
+    "total": 9
   },
   "component": "dp_honey",
   "gateway_metrics": {
@@ -132,6 +158,18 @@
     "tool_payload_block_final_action": "block",
     "tool_payload_provider_status": "skipped"
   },
+  "generation_realism_metrics": {
+    "all_generated_tokens_valid": true,
+    "all_metrics_finite": true,
+    "all_reference_tokens_valid": true,
+    "bounded_sanity_gate_passed": true,
+    "count_per_format": 25,
+    "format_count": 23,
+    "full_statistical_distinguisher_suite_passed": false,
+    "paper_faithful_statistical_distinguisher": false,
+    "scannable_format_count": 20,
+    "status": "bounded_generated_vs_reference_sanity_metrics"
+  },
   "generator_metadata": {
     "clip": 1.0,
     "corpus_size": 200,
@@ -145,7 +183,7 @@
     "train_seed": 0
   },
   "missing_before_paper_faithful_plus": [
-    "Paper evaluates statistical distinguishers such as entropy, bigram likelihood, and discriminator models; this report only proves structural format fidelity and scanner recall."
+    "Paper evaluates statistical distinguishers such as character-entropy tests, bigram likelihood, numeric-substring tests, and a discriminator MLP; this report provides bounded aggregate sanity metrics but not the full sealed distinguisher suite."
   ],
   "paper_faithful_plus": false,
   "paper_source": "Research/2606.04141v1.pdf sections 4.3, 5.3, and 6",
@@ -161,5 +199,5 @@
     "scannable_format_count": 20
   },
   "schema_version": "aegis.dp_honey_paper_evidence/v1",
-  "summary": "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner FP/FN evidence, gateway substitution, canary leak detection, provider-egress blocking, and redacted audit evidence. It is still not paper-faithful+ because statistical distinguisher realism remains incomplete."
+  "summary": "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner FP/FN evidence, gateway substitution, canary leak detection, provider-egress blocking, and redacted audit evidence. It now includes bounded generated-vs-reference aggregate realism metrics. It is still not paper-faithful+ because the full statistical distinguisher suite remains incomplete."
 }

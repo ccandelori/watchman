@@ -1,8 +1,8 @@
 """Command-line interface for DP-HONEY (``python -m detect.dp_honey``).
 
 Subcommands: ``list-formats``, ``preview-corpus``, ``train``, ``generate``,
-``inspect-model``, ``validate``, ``report``, ``scan``, ``auto-decoy``, and
-``eval-scanner``.
+``inspect-model``, ``validate``, ``report``, ``scan``, ``auto-decoy``,
+``eval-scanner``, and ``eval-realism``.
 
 Every :class:`DPHoneyError` is mapped to a concise stderr message and exit code 1;
 argparse handles usage errors with exit code 2. Commands that emit token-like
@@ -33,6 +33,11 @@ from .bigram import (
 )
 from .errors import DPHoneyError
 from .formats import get_format, list_formats
+from .generation_realism_eval import (
+    DPHoneyGenerationRealismEvalConfig,
+    build_generation_realism_eval_report,
+    write_generation_realism_eval_report,
+)
 from .operations import (
     GENERATE_MAX,
     FormatModelSource,
@@ -131,6 +136,12 @@ def build_parser() -> argparse.ArgumentParser:
     p_eval.add_argument("--seed", type=int, default=0)
     p_eval.add_argument("--output", type=Path, required=False, help="optional JSON report output path")
     p_eval.set_defaults(func=cmd_eval_scanner)
+
+    p_realism = sub.add_parser("eval-realism", help="emit aggregate generation realism evidence")
+    p_realism.add_argument("--count-per-format", type=int, required=True, dest="count_per_format")
+    p_realism.add_argument("--seed", type=int, default=0)
+    p_realism.add_argument("--output", type=Path, required=False, help="optional JSON report output path")
+    p_realism.set_defaults(func=cmd_eval_realism)
 
     return parser
 
@@ -310,6 +321,16 @@ def cmd_eval_scanner(args: argparse.Namespace) -> int:
     )
     if args.output is not None:
         write_scanner_eval_report(args.output, report)
+    print(json.dumps(report, allow_nan=False, indent=2, sort_keys=True))
+    return 0
+
+
+def cmd_eval_realism(args: argparse.Namespace) -> int:
+    report = build_generation_realism_eval_report(
+        DPHoneyGenerationRealismEvalConfig(count_per_format=args.count_per_format, seed=args.seed)
+    )
+    if args.output is not None:
+        write_generation_realism_eval_report(args.output, report)
     print(json.dumps(report, allow_nan=False, indent=2, sort_keys=True))
     return 0
 

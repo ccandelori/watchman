@@ -695,12 +695,27 @@ This registry-shaped scanner evaluation includes a split-conformal confidence
 threshold over benign calibration scores. It calibrates the scanner confidence
 gate, not generator indistinguishability.
 
-Generate the DP-HONEY paper-faithfulness checklist from the scanner, gateway
-smoke, and audit evidence:
+Generate DP-HONEY generation-realism evidence with aggregate generated-vs-
+reference metrics and no raw token serialization:
+
+```bash
+uv run dp-honey eval-realism \
+  --count-per-format 25 \
+  --seed 11 \
+  --output introspection/data/reports/dp_honey_generation_realism_eval_v1.json
+```
+
+This bounded realism report covers all registered formats with format validity,
+duplicate-rate, character-entropy, and model-likelihood metrics. It is still not
+the paper's full statistical-distinguisher suite.
+
+Generate the DP-HONEY paper-faithfulness checklist from the scanner,
+generation-realism, gateway smoke, and audit evidence:
 
 ```bash
 uv run aegis-dp-honey-paper-evidence \
   --scanner-eval introspection/data/reports/dp_honey_scanner_eval_v1.json \
+  --generation-realism-eval introspection/data/reports/dp_honey_generation_realism_eval_v1.json \
   --smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json \
   --audit-jsonl introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_audit_v2.jsonl \
   --output introspection/data/reports/dp_honey_paper_evidence_v2.json
@@ -708,8 +723,9 @@ uv run aegis-dp-honey-paper-evidence \
 
 The checklist is deliberately stricter than the scanner metric. A report can
 pass as operational beta while still setting `paper_faithful_plus=false` and
-`promotion_eligible=false` until generator realism is proven. The v2 smoke path
-also exercises planted-canary tool arguments and NIMBUS pre-dispatch accounting.
+`promotion_eligible=false` until the full statistical-distinguisher suite is
+proven. The v2 smoke path also exercises planted-canary tool arguments and
+NIMBUS pre-dispatch accounting.
 
 To seed a session canary without putting a placeholder in the user turn, use the
 mock-only test route:

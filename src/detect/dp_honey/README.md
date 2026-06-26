@@ -93,11 +93,15 @@ python -m detect.dp_honey auto-decoy --file suspect.txt --seed 1
 python -m detect.dp_honey eval-scanner --positive-per-format 25 --seed 11 \
     --target-alpha 0.1 \
     --output introspection/data/reports/dp_honey_scanner_eval_v1.json
+
+# 12. Emit all-format generation-realism evidence without raw token values
+python -m detect.dp_honey eval-realism --count-per-format 25 --seed 11 \
+    --output introspection/data/reports/dp_honey_generation_realism_eval_v1.json
 ```
 
 `generate` is capped at 10000 (it streams one token at a time); `report` is
 capped at 5000 (metrics require materializing the whole batch). Oversized counts
-exit nonzero *before* any generation work begins.
+and `eval-realism` batches exit nonzero *before* any generation work begins.
 
 ## Scanner & auto-decoy
 
@@ -120,6 +124,12 @@ never includes raw token values in the report. It also fits a split-conformal
 confidence threshold over benign calibration scores. This calibrates the scanner
 confidence gate; it is not a proof that generated honeytokens are
 indistinguishable from real credentials.
+
+`eval-realism` builds a separate all-format generation evidence artifact. It
+compares generated batches with same-format synthetic reference batches using
+aggregate validity, duplicate-rate, character-entropy, and model-likelihood
+metrics, without serializing token values. It is a bounded sanity gate, not the
+paper's full statistical-distinguisher suite.
 
 Prefix-less generic formats such as `aws-secret-access-key`, `oauth-bearer`, and
 `database-password` are excluded from registry classification to avoid noisy

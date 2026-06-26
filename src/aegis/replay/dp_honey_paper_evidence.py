@@ -3,6 +3,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
@@ -12,6 +13,8 @@ from typing import TypeAlias, cast
 JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
 DP_HONEY_PAPER_EVIDENCE_SCHEMA_VERSION = "aegis.dp_honey_paper_evidence/v1"
+GENERATION_REALISM_EVAL_SCHEMA_VERSION = "detect.dp_honey.generation_realism_eval/v1"
+GENERATION_REALISM_EVAL_STATUS = "bounded_generated_vs_reference_sanity_metrics"
 _FORBIDDEN_AUDIT_MARKERS = ("{{CREDENTIAL:", "ghp_", "github_pat_", "sk_live_", "AKIA")
 
 
@@ -22,12 +25,14 @@ class DPHoneyPaperEvidenceError(ValueError):
 @dataclass(frozen=True)
 class DPHoneyPaperEvidenceConfig:
     scanner_eval_path: Path
+    generation_realism_eval_path: Path
     smoke_path: Path
     audit_jsonl_path: Path
 
 
 def build_dp_honey_paper_evidence_report(config: DPHoneyPaperEvidenceConfig) -> dict[str, JsonValue]:
     scanner_eval = _read_json_mapping(config.scanner_eval_path)
+    generation_realism_eval = _validate_generation_realism_eval(_read_json_mapping(config.generation_realism_eval_path))
     smoke = _read_json_mapping(config.smoke_path)
     audit_records = _read_jsonl_mappings(config.audit_jsonl_path)
     audit_text = config.audit_jsonl_path.read_text(encoding="utf-8")
@@ -36,7 +41,8 @@ def build_dp_honey_paper_evidence_report(config: DPHoneyPaperEvidenceConfig) -> 
 
     checklist = (
         _dp_noised_bigram_check(generator_metadata),
-        _format_fidelity_check(scanner_eval),
+        _format_fidelity_check(scanner_eval, generation_realism_eval),
+        _statistical_realism_check(generation_realism_eval),
         _conformal_check(scanner_eval),
         _scanner_fn_fp_check(scanner_eval),
         _gateway_substitution_check(checks, audit_records),
@@ -63,15 +69,17 @@ def build_dp_honey_paper_evidence_report(config: DPHoneyPaperEvidenceConfig) -> 
         "summary": (
             "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner "
             "FP/FN evidence, gateway substitution, canary leak detection, provider-egress blocking, and redacted "
-            "audit evidence. It is still not paper-faithful+ because statistical distinguisher realism remains "
-            "incomplete."
+            "audit evidence. It now includes bounded generated-vs-reference aggregate realism metrics. It is "
+            "still not paper-faithful+ because the full statistical distinguisher suite remains incomplete."
         ),
         "artifact_hashes": {
             "scanner_eval_sha256": _sha256_file(config.scanner_eval_path),
+            "generation_realism_eval_sha256": _sha256_file(config.generation_realism_eval_path),
             "smoke_sha256": _sha256_file(config.smoke_path),
             "audit_jsonl_sha256": _sha256_file(config.audit_jsonl_path),
         },
         "scanner_metrics": _scanner_metrics(scanner_eval),
+        "generation_realism_metrics": _generation_realism_metrics(generation_realism_eval),
         "gateway_metrics": _gateway_metrics(checks, audit_records),
         "generator_metadata": _json_mapping_or_empty(generator_metadata),
         "checklist": [dict(item) for item in checklist],
@@ -97,6 +105,12 @@ def render_dp_honey_paper_evidence_report_json(report: Mapping[str, JsonValue]) 
 def parse_args(argv: Sequence[str]) -> tuple[DPHoneyPaperEvidenceConfig, Path | None]:
     parser = argparse.ArgumentParser(description="Build a DP-HONEY paper-faithfulness evidence report.")
     parser.add_argument("--scanner-eval", required=True, type=Path, help="Path to dp_honey_scanner_eval_v1.json.")
+    parser.add_argument(
+        "--generation-realism-eval",
+        required=True,
+        type=Path,
+        help="Path to dp_honey_generation_realism_eval_v1.json.",
+    )
     parser.add_argument("--smoke", required=True, type=Path, help="Path to default mock-provider smoke JSON.")
     parser.add_argument("--audit-jsonl", required=True, type=Path, help="Path to matching smoke audit JSONL.")
     parser.add_argument("--output", required=False, type=Path, help="Optional JSON output path.")
@@ -104,6 +118,7 @@ def parse_args(argv: Sequence[str]) -> tuple[DPHoneyPaperEvidenceConfig, Path | 
     return (
         DPHoneyPaperEvidenceConfig(
             scanner_eval_path=args.scanner_eval,
+            generation_realism_eval_path=args.generation_realism_eval,
             smoke_path=args.smoke,
             audit_jsonl_path=args.audit_jsonl,
         ),
@@ -153,25 +168,69 @@ def _dp_noised_bigram_check(generator_metadata: Mapping[str, object] | None) -> 
     )
 
 
-def _format_fidelity_check(scanner_eval: Mapping[str, object]) -> dict[str, JsonValue]:
+def _format_fidelity_check(
+    scanner_eval: Mapping[str, object],
+    generation_realism_eval: Mapping[str, object],
+) -> dict[str, JsonValue]:
     format_metrics = _mapping_list(scanner_eval.get("format_metrics"), "scanner_eval.format_metrics")
     all_formats_detected = len(format_metrics) > 0 and all(
         _int(metric.get("false_negative"), "false_negative") == 0 for metric in format_metrics
     )
-    gaps = (
-        "Paper evaluates statistical distinguishers such as entropy, bigram likelihood, and discriminator models; "
-        "this report only proves structural format fidelity and scanner recall."
-    )
+    all_generated_valid = generation_realism_eval.get("all_generated_tokens_valid") is True
+    all_reference_valid = generation_realism_eval.get("all_reference_tokens_valid") is True
+    status = "met" if all_formats_detected and all_generated_valid and all_reference_valid else "missing"
     return _checklist_item(
         requirement_id="format_fidelity",
-        paper_requirement="Evaluate generated honeytokens for format fidelity and statistical distinguishability.",
-        status="partial" if all_formats_detected else "missing",
+        paper_requirement="Validate generated honeytokens against the format grammar and scanner-recognized shapes.",
+        status=status,
         evidence={
             "scannable_format_count": _json_value_or_none(scanner_eval.get("scannable_format_count")),
             "positive_example_count": _json_value_or_none(scanner_eval.get("positive_example_count")),
             "all_scannable_positive_examples_detected": all_formats_detected,
+            "all_generated_tokens_valid": all_generated_valid,
+            "all_reference_tokens_valid": all_reference_valid,
+            "generation_realism_format_count": _json_value_or_none(generation_realism_eval.get("format_count")),
         },
-        gaps=(gaps,),
+        gaps=() if status == "met" else ("format validation or scanner-recognition evidence is incomplete",),
+    )
+
+
+def _statistical_realism_check(generation_realism_eval: Mapping[str, object]) -> dict[str, JsonValue]:
+    bounded_gate = generation_realism_eval.get("bounded_sanity_gate_passed") is True
+    paper_faithful_distinguisher = _full_statistical_distinguisher_suite_passed(generation_realism_eval)
+    if bounded_gate and paper_faithful_distinguisher:
+        status = "met"
+        gaps: tuple[str, ...] = ()
+    elif bounded_gate:
+        status = "partial"
+        gaps = (
+            "Paper evaluates statistical distinguishers such as character-entropy tests, bigram likelihood, "
+            "numeric-substring tests, and a discriminator MLP; this report provides bounded aggregate sanity "
+            "metrics but not the full sealed distinguisher suite.",
+        )
+    else:
+        status = "missing"
+        gaps = ("generation realism evidence is missing or failed its bounded sanity gate",)
+    return _checklist_item(
+        requirement_id="statistical_realism_distinguishers",
+        paper_requirement=(
+            "Evaluate generated honeytokens against statistical distinguishers rather than only structural validity."
+        ),
+        status=status,
+        evidence={
+            "generation_realism_schema_version": _json_value_or_none(generation_realism_eval.get("schema_version")),
+            "generation_realism_status": _json_value_or_none(generation_realism_eval.get("status")),
+            "bounded_sanity_gate_passed": bounded_gate,
+            "paper_faithful_statistical_distinguisher": paper_faithful_distinguisher,
+            "declared_paper_faithful_statistical_distinguisher": _json_value_or_none(
+                generation_realism_eval.get("paper_faithful_statistical_distinguisher")
+            ),
+            "metric_families": _json_value_or_none(generation_realism_eval.get("metric_families")),
+            "all_metrics_finite": _json_value_or_none(generation_realism_eval.get("all_metrics_finite")),
+            "count_per_format": _json_value_or_none(generation_realism_eval.get("count_per_format")),
+            "format_count": _json_value_or_none(generation_realism_eval.get("format_count")),
+        },
+        gaps=gaps,
     )
 
 
@@ -338,6 +397,25 @@ def _scanner_metrics(scanner_eval: Mapping[str, object]) -> dict[str, JsonValue]
     }
 
 
+def _generation_realism_metrics(generation_realism_eval: Mapping[str, object]) -> dict[str, JsonValue]:
+    return {
+        "status": _json_value_or_none(generation_realism_eval.get("status")),
+        "count_per_format": _json_value_or_none(generation_realism_eval.get("count_per_format")),
+        "format_count": _json_value_or_none(generation_realism_eval.get("format_count")),
+        "scannable_format_count": _json_value_or_none(generation_realism_eval.get("scannable_format_count")),
+        "all_generated_tokens_valid": _json_value_or_none(generation_realism_eval.get("all_generated_tokens_valid")),
+        "all_reference_tokens_valid": _json_value_or_none(generation_realism_eval.get("all_reference_tokens_valid")),
+        "all_metrics_finite": _json_value_or_none(generation_realism_eval.get("all_metrics_finite")),
+        "bounded_sanity_gate_passed": _json_value_or_none(generation_realism_eval.get("bounded_sanity_gate_passed")),
+        "paper_faithful_statistical_distinguisher": _json_value_or_none(
+            generation_realism_eval.get("paper_faithful_statistical_distinguisher")
+        ),
+        "full_statistical_distinguisher_suite_passed": _full_statistical_distinguisher_suite_passed(
+            generation_realism_eval
+        ),
+    }
+
+
 def _gateway_metrics(
     checks: Mapping[str, object],
     audit_records: tuple[Mapping[str, object], ...],
@@ -382,6 +460,101 @@ def _checklist_item(
 def _read_json_mapping(path: Path) -> Mapping[str, object]:
     decoded = json.loads(path.read_text(encoding="utf-8"))
     return _mapping(decoded, str(path))
+
+
+def _validate_generation_realism_eval(report: Mapping[str, object]) -> Mapping[str, object]:
+    if report.get("schema_version") != GENERATION_REALISM_EVAL_SCHEMA_VERSION:
+        raise DPHoneyPaperEvidenceError(
+            f"generation_realism_eval.schema_version must be {GENERATION_REALISM_EVAL_SCHEMA_VERSION}."
+        )
+    if report.get("status") != GENERATION_REALISM_EVAL_STATUS:
+        raise DPHoneyPaperEvidenceError(f"generation_realism_eval.status must be {GENERATION_REALISM_EVAL_STATUS}.")
+    count_per_format = _positive_int(report.get("count_per_format"), "generation_realism_eval.count_per_format")
+    format_count = _positive_int(report.get("format_count"), "generation_realism_eval.format_count")
+    scannable_count = _nonnegative_int(
+        report.get("scannable_format_count"), "generation_realism_eval.scannable_format_count"
+    )
+    if scannable_count > format_count:
+        raise DPHoneyPaperEvidenceError("generation_realism_eval.scannable_format_count must be <= format_count.")
+    metric_families = frozenset(_string_list(report.get("metric_families"), "generation_realism_eval.metric_families"))
+    required_metric_families = frozenset(
+        ("format_validity", "duplicate_rate", "character_entropy", "model_avg_log_likelihood")
+    )
+    missing_metric_families = required_metric_families - metric_families
+    if len(missing_metric_families) > 0:
+        missing = ", ".join(sorted(missing_metric_families))
+        raise DPHoneyPaperEvidenceError(f"generation_realism_eval.metric_families missing: {missing}.")
+    audit_safety = _mapping(report.get("audit_safety"), "generation_realism_eval.audit_safety")
+    if audit_safety.get("raw_secret_values_in_report") is not False:
+        raise DPHoneyPaperEvidenceError(
+            "generation_realism_eval.audit_safety.raw_secret_values_in_report must be false."
+        )
+    if audit_safety.get("finding_payload_redacted") is not True:
+        raise DPHoneyPaperEvidenceError("generation_realism_eval.audit_safety.finding_payload_redacted must be true.")
+    metrics = _mapping_list(report.get("format_metrics"), "generation_realism_eval.format_metrics")
+    if len(metrics) != format_count:
+        raise DPHoneyPaperEvidenceError("generation_realism_eval.format_metrics length must equal format_count.")
+    generated_valid_rates: list[float] = []
+    reference_valid_rates: list[float] = []
+    finite_metric_flags: list[bool] = []
+    bounded_gate_flags: list[bool] = []
+    for index, metric in enumerate(metrics):
+        field_prefix = f"generation_realism_eval.format_metrics[{index}]"
+        _required_string(metric.get("format_slug"), f"{field_prefix}.format_slug")
+        generated_count = _int(metric.get("generated_count"), f"{field_prefix}.generated_count")
+        reference_count = _int(metric.get("reference_count"), f"{field_prefix}.reference_count")
+        if generated_count != count_per_format:
+            raise DPHoneyPaperEvidenceError(f"{field_prefix}.generated_count must equal count_per_format.")
+        if reference_count != count_per_format:
+            raise DPHoneyPaperEvidenceError(f"{field_prefix}.reference_count must equal count_per_format.")
+        generated_valid_rates.append(
+            _rate_number(metric.get("generated_validity_rate"), f"{field_prefix}.generated_validity_rate")
+        )
+        reference_valid_rates.append(
+            _rate_number(metric.get("reference_validity_rate"), f"{field_prefix}.reference_validity_rate")
+        )
+        _rate_number(metric.get("generated_duplicate_rate"), f"{field_prefix}.generated_duplicate_rate")
+        _rate_number(metric.get("reference_duplicate_rate"), f"{field_prefix}.reference_duplicate_rate")
+        _finite_number(metric.get("generated_char_entropy_bits"), f"{field_prefix}.generated_char_entropy_bits")
+        _finite_number(metric.get("reference_char_entropy_bits"), f"{field_prefix}.reference_char_entropy_bits")
+        _finite_number(metric.get("char_entropy_delta_bits"), f"{field_prefix}.char_entropy_delta_bits")
+        _finite_number(metric.get("generated_avg_log_likelihood"), f"{field_prefix}.generated_avg_log_likelihood")
+        _finite_number(metric.get("reference_avg_log_likelihood"), f"{field_prefix}.reference_avg_log_likelihood")
+        _finite_number(metric.get("avg_log_likelihood_delta"), f"{field_prefix}.avg_log_likelihood_delta")
+        finite_metric_flags.append(_bool(metric.get("finite_metrics"), f"{field_prefix}.finite_metrics"))
+        bounded_gate_flags.append(
+            _bool(metric.get("bounded_sanity_gate_passed"), f"{field_prefix}.bounded_sanity_gate_passed")
+        )
+    _consistent_bool(
+        report.get("all_generated_tokens_valid"),
+        all(rate == 1.0 for rate in generated_valid_rates),
+        "generation_realism_eval.all_generated_tokens_valid",
+    )
+    _consistent_bool(
+        report.get("all_reference_tokens_valid"),
+        all(rate == 1.0 for rate in reference_valid_rates),
+        "generation_realism_eval.all_reference_tokens_valid",
+    )
+    _consistent_bool(
+        report.get("all_metrics_finite"),
+        all(finite_metric_flags),
+        "generation_realism_eval.all_metrics_finite",
+    )
+    _consistent_bool(
+        report.get("bounded_sanity_gate_passed"),
+        all(bounded_gate_flags),
+        "generation_realism_eval.bounded_sanity_gate_passed",
+    )
+    declared_paper_faithful = _bool(
+        report.get("paper_faithful_statistical_distinguisher"),
+        "generation_realism_eval.paper_faithful_statistical_distinguisher",
+    )
+    if declared_paper_faithful and not _full_statistical_distinguisher_suite_passed(report):
+        raise DPHoneyPaperEvidenceError(
+            "generation_realism_eval.paper_faithful_statistical_distinguisher requires a passed "
+            "statistical_distinguisher_suite."
+        )
+    return report
 
 
 def _read_jsonl_mappings(path: Path) -> tuple[Mapping[str, object], ...]:
@@ -476,10 +649,77 @@ def _json_value_or_none(value: object) -> JsonValue:
     return str(value)
 
 
+def _full_statistical_distinguisher_suite_passed(generation_realism_eval: Mapping[str, object]) -> bool:
+    if generation_realism_eval.get("paper_faithful_statistical_distinguisher") is not True:
+        return False
+    suite = generation_realism_eval.get("statistical_distinguisher_suite")
+    if not isinstance(suite, Mapping):
+        return False
+    required_tests = (
+        "character_entropy_tests",
+        "bigram_likelihood_tests",
+        "numeric_substring_tests",
+        "discriminator_mlp",
+    )
+    for test_name in required_tests:
+        test_result = suite.get(test_name)
+        if not isinstance(test_result, Mapping) or test_result.get("status") != "passed":
+            return False
+    return True
+
+
+def _consistent_bool(value: object, expected: bool, field_name: str) -> None:
+    actual = _bool(value, field_name)
+    if actual is not expected:
+        raise DPHoneyPaperEvidenceError(f"{field_name} must be consistent with per-format metrics.")
+
+
+def _bool(value: object, field_name: str) -> bool:
+    if not isinstance(value, bool):
+        raise DPHoneyPaperEvidenceError(f"{field_name} must be a boolean.")
+    return value
+
+
+def _required_string(value: object, field_name: str) -> str:
+    if not isinstance(value, str) or value == "":
+        raise DPHoneyPaperEvidenceError(f"{field_name} must be a non-empty string.")
+    return value
+
+
 def _int(value: object, field_name: str) -> int:
     if isinstance(value, bool) or not isinstance(value, int):
         raise DPHoneyPaperEvidenceError(f"{field_name} must be an integer.")
     return value
+
+
+def _positive_int(value: object, field_name: str) -> int:
+    integer = _int(value, field_name)
+    if integer < 1:
+        raise DPHoneyPaperEvidenceError(f"{field_name} must be positive.")
+    return integer
+
+
+def _nonnegative_int(value: object, field_name: str) -> int:
+    integer = _int(value, field_name)
+    if integer < 0:
+        raise DPHoneyPaperEvidenceError(f"{field_name} must be non-negative.")
+    return integer
+
+
+def _finite_number(value: object, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise DPHoneyPaperEvidenceError(f"{field_name} must be numeric.")
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        raise DPHoneyPaperEvidenceError(f"{field_name} must be finite.")
+    return numeric
+
+
+def _rate_number(value: object, field_name: str) -> float:
+    numeric = _finite_number(value, field_name)
+    if numeric < 0.0 or numeric > 1.0:
+        raise DPHoneyPaperEvidenceError(f"{field_name} must be in [0.0, 1.0].")
+    return numeric
 
 
 def _positive_number(value: object) -> bool:
