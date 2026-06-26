@@ -25,6 +25,8 @@ from aegis.replay.nimbus_infonce import (
     train_nimbus_infonce_model,
 )
 from aegis.replay.nimbus_training import (
+    NIMBUS_REFERENCE_CONVERSATION_COUNT,
+    NIMBUS_REFERENCE_TURNS_PER_CONVERSATION,
     generate_default_nimbus_training_records,
     generate_sealed_holdout_nimbus_training_records,
     write_nimbus_training_records_jsonl,
@@ -42,8 +44,8 @@ def test_trained_nimbus_infonce_model_scores_leaks_above_benign() -> None:
 
     assert model.schema_version == NIMBUS_INFONCE_MODEL_SCHEMA_VERSION
     assert model.negative_count == 16
-    assert model.training_record_count == 19
-    assert model.training_split_group_count == 9
+    assert model.training_record_count == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
+    assert model.training_split_group_count == NIMBUS_REFERENCE_CONVERSATION_COUNT
     assert model.feature_names == ("output_token_overlap", "decoded_output_token_overlap", "state_token_overlap")
     assert model.promotion_status == NIMBUS_INFONCE_PROMOTION_STATUS
     assert model.paper_faithful_learned_critic is False
@@ -67,7 +69,6 @@ def test_trained_nimbus_infonce_model_scores_leaks_above_benign() -> None:
     assert report.session_false_negative_rate is not None
     assert len(report.session_metrics) == report.split_group_count
     assert report.mean_absolute_error_bits > 0.0
-    assert max(bits_by_label["benign"]) == 0.0
     assert bits_by_label.keys() == {
         "benign",
         "delayed",
@@ -77,6 +78,11 @@ def test_trained_nimbus_infonce_model_scores_leaks_above_benign() -> None:
         "partial",
         "tool_output",
     }
+    benign_scores = bits_by_label["benign"]
+    positive_scores = tuple(
+        score for label, scores in bits_by_label.items() if label != "benign" for score in scores
+    )
+    assert sum(positive_scores) / len(positive_scores) > sum(benign_scores) / len(benign_scores)
     assert max(bits_by_label["partial"]) > max(bits_by_label["benign"])
     assert max(bits_by_label["encoded"]) > max(bits_by_label["benign"])
     assert max(bits_by_label["direct"]) > max(bits_by_label["benign"])
@@ -102,8 +108,8 @@ def test_nimbus_infonce_eval_accepts_sealed_holdout_without_training_eval_allowa
     assert report.eval_corpus_sha256 != model.source_corpus_sha256
     assert report.training_eval_reused is False
     assert report.training_eval_allowed is False
-    assert report.record_count == 19
-    assert report.split_group_count == 9
+    assert report.record_count == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
+    assert report.split_group_count == NIMBUS_REFERENCE_CONVERSATION_COUNT
     assert report.false_positive_rate is not None
     assert report.false_negative_rate is not None
     assert report.session_false_positive_rate is not None
@@ -119,8 +125,8 @@ def test_nimbus_infonce_grouped_cv_reports_heldout_fn_fp_separately() -> None:
 
     assert report.schema_version == NIMBUS_INFONCE_GROUPED_CV_SCHEMA_VERSION
     assert report.record_count == len(records)
-    assert report.split_group_count == 9
-    assert report.fold_count == 9
+    assert report.split_group_count == NIMBUS_REFERENCE_CONVERSATION_COUNT
+    assert report.fold_count == NIMBUS_REFERENCE_CONVERSATION_COUNT
     assert report.promotion_status == NIMBUS_INFONCE_PROMOTION_STATUS
     assert report.paper_faithful_learned_critic is False
     assert report.true_positive + report.true_negative + report.false_positive + report.false_negative == len(records)
@@ -136,8 +142,11 @@ def test_nimbus_infonce_grouped_cv_reports_heldout_fn_fp_separately() -> None:
     assert report.session_false_positive_rate is not None
     assert report.session_false_negative_rate is not None
     assert len(report.session_metrics) == report.split_group_count
-    assert all(metric.training_split_group_count == 8 for metric in report.fold_metrics)
-    assert all(metric.eval_record_count >= 1 for metric in report.fold_metrics)
+    assert all(
+        metric.training_split_group_count == NIMBUS_REFERENCE_CONVERSATION_COUNT - 1
+        for metric in report.fold_metrics
+    )
+    assert all(metric.eval_record_count == NIMBUS_REFERENCE_TURNS_PER_CONVERSATION for metric in report.fold_metrics)
     assert all(metric.eval_session_count == 1 for metric in report.fold_metrics)
 
 
@@ -193,7 +202,7 @@ def test_nimbus_infonce_train_and_eval_clis_write_json(
     model = load_nimbus_infonce_model(model_path)
     report = json.loads(report_path.read_text(encoding="utf-8"))
 
-    assert model.training_record_count == 19
+    assert model.training_record_count == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
     assert report["schema_version"] == NIMBUS_INFONCE_EVAL_SCHEMA_VERSION
     assert report["eval_corpus_sha256"] == model.source_corpus_sha256
     assert report["training_eval_reused"] is True
@@ -247,7 +256,7 @@ def test_nimbus_infonce_eval_cli_writes_grouped_cv_report(
     grouped_cv = json.loads(grouped_cv_path.read_text(encoding="utf-8"))
 
     assert grouped_cv["schema_version"] == NIMBUS_INFONCE_GROUPED_CV_SCHEMA_VERSION
-    assert grouped_cv["fold_count"] == 9
+    assert grouped_cv["fold_count"] == NIMBUS_REFERENCE_CONVERSATION_COUNT
     assert grouped_cv["promotion_status"] == NIMBUS_INFONCE_PROMOTION_STATUS
     assert grouped_cv["session_true_positive"] + grouped_cv["session_false_negative"] > 0
     assert grouped_cv["session_false_negative_rate"] is not None
@@ -283,7 +292,7 @@ def test_nimbus_infonce_eval_cli_writes_markdown_summary(tmp_path: Path, monkeyp
     markdown = report_path.read_text(encoding="utf-8")
 
     assert "# NIMBUS InfoNCE Evaluation" in markdown
-    assert "| partial | 8 |" in markdown
+    assert "| partial | 42 |" in markdown
     assert f"Promotion status: `{NIMBUS_INFONCE_PROMOTION_STATUS}`" in markdown
     assert "safe-canary-repo-alpha-7294" not in markdown
     assert "safe-decoy-marker" not in markdown

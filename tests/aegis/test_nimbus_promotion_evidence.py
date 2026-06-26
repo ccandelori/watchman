@@ -37,15 +37,17 @@ def test_nimbus_promotion_evidence_keeps_learned_scaffold_non_promotable() -> No
     assert report["paper_faithful_learned_critic"] is False
     assert report["recommended_runtime_critic"] == "deterministic_canary_beta"
     assert report["deterministic_baseline_metrics"]["false_negative_rate"] == 0.0
-    assert report["learned_sealed_holdout_metrics"]["false_negative_rate"] == 0.21428571428571427
+    assert report["learned_sealed_holdout_metrics"]["false_negative_rate"] == 0.027450980392156862
     assert report["learned_sealed_holdout_metrics"]["training_eval_reused"] is False
     assert report["learned_sealed_holdout_metrics"]["training_eval_allowed"] is False
     assert report["comparison"]["learned_turn_fnr_beats_deterministic"] is False
     assert report["comparison"]["offline_learned_session_signal_observed"] is True
     assert report["comparison"]["learned_session_signal_complements_deterministic"] is False
     assert report["comparison"]["learned_runtime_adapter_evidence_present"] is True
-    assert report["learned_runtime_beta_metrics"]["false_negative_rate"] == 0.35714285714285715
-    assert report["learned_runtime_beta_metrics"]["session_false_negative_rate"] == 0.125
+    assert report["learned_runtime_beta_metrics"]["false_negative_rate"] == 0.0
+    assert report["learned_runtime_beta_metrics"]["false_positive_rate"] > 0.9
+    assert report["learned_runtime_beta_metrics"]["session_false_negative_rate"] == 0.0
+    assert report["learned_runtime_beta_metrics"]["session_false_positive_rate"] == 1.0
     assert report["gateway_runtime_evidence"]["readiness_nimbus_status"] == "deterministic_beta"
     assert report["gateway_runtime_evidence"]["learned_runtime_evidence_present"] is False
     assert checklist["session_level_corpus_coverage"]["status"] == "met"

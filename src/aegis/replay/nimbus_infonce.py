@@ -38,6 +38,8 @@ _TOKEN_PATTERN = re.compile(r"[a-z0-9]+")
 _BASE64_CANDIDATE_PATTERN = re.compile(r"\b[A-Za-z0-9+/]{12,}={0,2}\b")
 _SAFE_PUBLIC_IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9_.:-]{0,127}$")
 _CREDENTIAL_LIKE_PREFIXES = ("ghp_", "github_pat_", "sk_", "hny_", "aws_", "AKIA")
+_FeatureRow = tuple[float, ...]
+_CandidateFeatureRows = tuple[_FeatureRow, ...]
 
 
 class NimbusInfoNCEError(ValueError):
@@ -752,11 +754,12 @@ def _select_weights(
     candidate_values = tuple(range(0, config.max_weight + 1, config.weight_step))
     if len(candidate_values) == 0:
         raise NimbusInfoNCEError("weight search space must not be empty.")
+    feature_rows_by_record = tuple(_feature_rows_for_record(record) for record in records)
     best_weights: tuple[float, ...] | None = None
     best_loss: float | None = None
     for weights in itertools.product(candidate_values, repeat=len(NIMBUS_INFONCE_FEATURE_NAMES)):
         float_weights = tuple(float(weight) for weight in weights)
-        loss = _mean_nce_loss_bits(records, float_weights)
+        loss = _mean_nce_loss_bits_for_feature_rows(feature_rows_by_record, float_weights)
         if _is_better_weight_candidate(loss, float_weights, best_loss, best_weights):
             best_loss = loss
             best_weights = float_weights
@@ -854,8 +857,7 @@ def _metric_for_record(model: NimbusInfoNCEModel, record: NimbusTrainingTurnReco
 
 
 def _candidate_scores(model: NimbusInfoNCEModel, record: NimbusTrainingTurnRecord) -> tuple[float, ...]:
-    contexts = (record.true_secret_context, *record.negative_secret_contexts)
-    return tuple(_score_context(model, record, context) for context in contexts)
+    return _scores_from_feature_rows(model.weights, _feature_rows_for_record(record))
 
 
 def _score_context(
@@ -865,6 +867,18 @@ def _score_context(
 ) -> float:
     features = _features_for_context(record, context)
     return sum(weight * feature for weight, feature in zip(model.weights, features, strict=True))
+
+
+def _feature_rows_for_record(record: NimbusTrainingTurnRecord) -> _CandidateFeatureRows:
+    contexts = (record.true_secret_context, *record.negative_secret_contexts)
+    return tuple(_features_for_context(record, context) for context in contexts)
+
+
+def _scores_from_feature_rows(weights: tuple[float, ...], feature_rows: _CandidateFeatureRows) -> tuple[float, ...]:
+    return tuple(
+        sum(weight * feature for weight, feature in zip(weights, features, strict=True))
+        for features in feature_rows
+    )
 
 
 def _features_for_context(
@@ -938,26 +952,21 @@ def _positive_rank(scores: tuple[float, ...]) -> int:
 
 
 def _mean_nce_loss_bits(records: tuple[NimbusTrainingTurnRecord, ...], weights: tuple[float, ...]) -> float:
-    model = NimbusInfoNCEModel(
-        schema_version=NIMBUS_INFONCE_MODEL_SCHEMA_VERSION,
-        model_id=NIMBUS_INFONCE_MODEL_ID,
-        training_schema_version=NIMBUS_TRAINING_SCHEMA_VERSION,
-        feature_names=NIMBUS_INFONCE_FEATURE_NAMES,
-        weights=weights,
-        negative_count=INFO_NCE_NEGATIVE_COUNT,
-        positive_context_index=0,
-        training_record_count=len(records),
-        training_split_group_count=len({record.split_group_key for record in records}),
-        source_corpus_sha256=_corpus_sha256(records),
-        label_distribution=_label_distribution(records),
-        mean_nce_loss_bits=0.0,
-        attack_top1_accuracy=0.0,
-        mean_estimated_leakage_bits=0.0,
-        promotion_status=NIMBUS_INFONCE_PROMOTION_STATUS,
-        paper_faithful_learned_critic=False,
+    return _mean_nce_loss_bits_for_feature_rows(tuple(_feature_rows_for_record(record) for record in records), weights)
+
+
+def _mean_nce_loss_bits_for_feature_rows(
+    feature_rows_by_record: tuple[_CandidateFeatureRows, ...],
+    weights: tuple[float, ...],
+) -> float:
+    losses = tuple(
+        _nce_loss_bits(_scores_from_feature_rows(weights, feature_rows)) for feature_rows in feature_rows_by_record
     )
-    losses = tuple(_metric_for_record(model, record).nce_loss_bits for record in records)
     return _mean(losses)
+
+
+def _nce_loss_bits(scores: tuple[float, ...]) -> float:
+    return -math.log2(_positive_probability(scores))
 
 
 def _attack_top1_accuracy_or_none(metrics: tuple[NimbusInfoNCETurnMetric, ...]) -> float | None:

@@ -1,34 +1,34 @@
 {
-  "attack_top1_accuracy": 0.7857142857142857,
+  "attack_top1_accuracy": 0.9647058823529412,
   "feature_names": [
     "output_token_overlap",
     "decoded_output_token_overlap",
     "state_token_overlap"
   ],
   "label_distribution": {
-    "benign": 5,
-    "delayed": 1,
-    "direct": 1,
-    "encoded": 2,
-    "paraphrased": 1,
-    "partial": 8,
-    "tool_output": 1
+    "benign": 745,
+    "delayed": 45,
+    "direct": 45,
+    "encoded": 39,
+    "paraphrased": 41,
+    "partial": 42,
+    "tool_output": 43
   },
-  "mean_estimated_leakage_bits": 2.1763555533507097,
-  "mean_nce_loss_bits": 2.357960396702115,
+  "mean_estimated_leakage_bits": 1.776119558426677,
+  "mean_nce_loss_bits": 2.9576458094051103,
   "model_id": "nimbus-infonce-lexical-v0",
   "negative_count": 16,
   "paper_faithful_learned_critic": false,
   "positive_context_index": 0,
   "promotion_status": "not_promotable_offline_scaffold",
   "schema_version": "aegis.nimbus_infonce_model/v0",
-  "source_corpus_sha256": "5d5f57a255e5bbe0f8eb0be5d3608201e949fb71fec51c981c355c8071c90d8f",
-  "training_record_count": 19,
+  "source_corpus_sha256": "303c905307debd9a75b91c36820a5bd2f05a3b56d981d2c7712517d15ec571c1",
+  "training_record_count": 1000,
   "training_schema_version": "nimbus-training-turn/v0",
-  "training_split_group_count": 9,
+  "training_split_group_count": 50,
   "weights": [
-    3.0,
+    1.0,
     4.0,
-    0.0
+    1.0
   ]
 }

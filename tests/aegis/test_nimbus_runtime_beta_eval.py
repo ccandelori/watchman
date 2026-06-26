@@ -10,6 +10,7 @@ from aegis.replay.nimbus_runtime_beta import (
     build_nimbus_runtime_beta_eval_report,
     main,
 )
+from aegis.replay.nimbus_training import NIMBUS_REFERENCE_CONVERSATION_COUNT, NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
 
 INFONCE_MODEL_PATH = Path("introspection/data/reports/aegis_nimbus_infonce_model_v0.json")
 SEALED_HOLDOUT_PATH = Path("introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_v0.jsonl")
@@ -26,8 +27,8 @@ def test_nimbus_runtime_beta_eval_reports_fn_fp_without_raw_contexts() -> None:
     assert report["live_gateway_evidence"] is False
     assert report["paper_faithful_learned_critic"] is False
     assert report["promotion_status"] == "learned_runtime_beta_not_promotable"
-    assert report["record_count"] == 19
-    assert report["split_group_count"] == 9
+    assert report["record_count"] == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
+    assert report["split_group_count"] == NIMBUS_REFERENCE_CONVERSATION_COUNT
     assert report["false_positive_rate"] is not None
     assert report["false_negative_rate"] is not None
     assert report["session_false_positive_rate"] is not None

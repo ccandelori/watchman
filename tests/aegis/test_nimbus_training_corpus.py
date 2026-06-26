@@ -8,6 +8,10 @@ import pytest
 
 from aegis.replay.nimbus_training import (
     INFO_NCE_NEGATIVE_COUNT,
+    NIMBUS_ATTACK_TURN_MAX,
+    NIMBUS_ATTACK_TURN_MIN,
+    NIMBUS_REFERENCE_CONVERSATION_COUNT,
+    NIMBUS_REFERENCE_TURNS_PER_CONVERSATION,
     NIMBUS_TRAINING_MANIFEST_SCHEMA_VERSION,
     NIMBUS_TRAINING_SCHEMA_VERSION,
     NimbusTrainingCorpusError,
@@ -27,14 +31,12 @@ from aegis.replay.nimbus_training import (
 def test_default_nimbus_training_records_match_session_corpus_contract() -> None:
     records = generate_default_nimbus_training_records()
 
-    assert len(records) == 19
+    assert len(records) == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
     assert {record.scenario_name for record in records} == {
         "benign",
         "exact_canary_leak",
         "partial_drip",
-        "partial_drip_beta",
         "encoded_leak",
-        "encoded_leak_beta",
         "paraphrased_leak",
         "tool_output_leak",
         "delayed_leak",
@@ -66,8 +68,12 @@ def test_default_nimbus_training_records_match_session_corpus_contract() -> None
 
     for session_id in {record.session_id for record in records}:
         session_records = tuple(record for record in records if record.session_id == session_id)
+        attack_count = sum(record.leakage_label.value != "benign" for record in session_records)
         ordered_records = tuple(sorted(session_records, key=lambda record: record.turn_index))
         cumulative_bits = tuple(record.target_cumulative_leakage_bits for record in ordered_records)
+        assert len(session_records) == NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
+        if attack_count > 0:
+            assert NIMBUS_ATTACK_TURN_MIN <= attack_count <= NIMBUS_ATTACK_TURN_MAX
         assert cumulative_bits == tuple(sorted(cumulative_bits))
 
 
@@ -78,8 +84,8 @@ def test_sealed_holdout_nimbus_training_records_use_distinct_session_groups() ->
 
     assert len(sealed_records) == len(calibration_records)
     assert manifest["corpus_profile"] == NimbusTrainingCorpusProfile.SEALED_HOLDOUT.value
-    assert manifest["record_count"] == 19
-    assert manifest["split_group_count"] == 9
+    assert manifest["record_count"] == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
+    assert manifest["split_group_count"] == NIMBUS_REFERENCE_CONVERSATION_COUNT
     assert {record.leakage_label.value for record in sealed_records} == {
         "benign",
         "partial",
@@ -125,16 +131,16 @@ def test_nimbus_training_manifest_marks_scaffold_as_not_promotable() -> None:
     assert manifest["critic_status"] == "training_corpus_scaffold"
     assert manifest["paper_faithful_learned_critic"] is False
     assert manifest["promotion_status"] == "not_promotable_training_contract_only"
-    assert manifest["record_count"] == 19
-    assert manifest["split_group_count"] == 9
+    assert manifest["record_count"] == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
+    assert manifest["split_group_count"] == NIMBUS_REFERENCE_CONVERSATION_COUNT
     assert manifest["label_counts"] == {
-        "benign": 5,
-        "delayed": 1,
-        "direct": 1,
-        "encoded": 2,
-        "paraphrased": 1,
-        "partial": 8,
-        "tool_output": 1,
+        "benign": 745,
+        "delayed": 45,
+        "direct": 45,
+        "encoded": 39,
+        "paraphrased": 41,
+        "partial": 42,
+        "tool_output": 43,
     }
     assert quality_gates == {
         "expected_negative_context_count": True,
@@ -142,6 +148,10 @@ def test_nimbus_training_manifest_marks_scaffold_as_not_promotable() -> None:
         "scenario_family_coverage": True,
         "credential_shaped_material_absent": True,
         "cumulative_bits_monotonic_by_session": True,
+        "paper_reference_session_count": True,
+        "paper_reference_turn_count": True,
+        "paper_reference_attack_turn_range": True,
+        "non_singleton_leakage_families": True,
     }
     assert "grouped_cross_validation" in manifest["required_before_paper_faithful_promotion"]
     assert "sealed_holdout" in manifest["required_before_paper_faithful_promotion"]
@@ -172,7 +182,7 @@ def test_nimbus_training_cli_writes_jsonl_and_manifest(
 
     assert output_path.exists()
     assert manifest_path.exists()
-    assert len(loaded_records) == 19
+    assert len(loaded_records) == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
     assert manifest["promotion_status"] == "not_promotable_training_contract_only"
     assert manifest["corpus_profile"] == NimbusTrainingCorpusProfile.CALIBRATION.value
 
@@ -202,7 +212,7 @@ def test_nimbus_training_cli_writes_sealed_holdout_profile(
     loaded_records = read_nimbus_training_records_jsonl(output_path)
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
 
-    assert len(loaded_records) == 19
+    assert len(loaded_records) == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
     assert manifest["corpus_profile"] == NimbusTrainingCorpusProfile.SEALED_HOLDOUT.value
     assert all(record.session_id.startswith("nimbus-sealed-") for record in loaded_records)
 

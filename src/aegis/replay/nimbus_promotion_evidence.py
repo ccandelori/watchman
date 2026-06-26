@@ -19,6 +19,7 @@ _INFONCE_MODEL_SCHEMA_VERSION = "aegis.nimbus_infonce_model/v0"
 _INFONCE_GROUPED_CV_SCHEMA_VERSION = "aegis.nimbus_infonce_grouped_cv/v0"
 _INFONCE_EVAL_SCHEMA_VERSION = "aegis.nimbus_infonce_eval/v0"
 _RUNTIME_BETA_EVAL_SCHEMA_VERSION = "aegis.nimbus_runtime_beta_eval/v0"
+_PAPER_REFERENCE_SESSION_COUNT = 50
 
 
 class NimbusPromotionEvidenceError(ValueError):
@@ -91,8 +92,8 @@ def build_nimbus_promotion_evidence_report(config: NimbusPromotionEvidenceConfig
         "recommended_runtime_critic": _RECOMMENDED_RUNTIME_CRITIC,
         "summary": (
             "The learned InfoNCE NIMBUS path now has grouped-CV, sealed-holdout, and in-process runtime-adapter "
-            "evidence, but it is a small lexical scaffold with held-out/runtime false negatives and no live gateway "
-            "FN/FP or promotion manifest. Keep deterministic canary NIMBUS active."
+            "evidence, but it is a small lexical scaffold with held-out false negatives, high runtime false positives, "
+            "and no live gateway FN/FP or promotion manifest. Keep deterministic canary NIMBUS active."
         ),
         "artifact_hashes": _artifact_hashes(config),
         "deterministic_baseline_metrics": deterministic_metrics,
@@ -391,8 +392,8 @@ def _comparison(
         and learned_sealed_turn_fnr > deterministic_turn_fnr,
         "learned_session_signal_complements_deterministic": False,
         "learned_promotion_blocked_reason": (
-            "Learned scaffold/runtime beta misses held-out/runtime leaks and has no live learned gateway FN/FP "
-            "evidence or promotion manifest."
+            "Learned scaffold/runtime beta is not reliable enough under held-out and runtime evidence and has no live "
+            "learned gateway FN/FP evidence or promotion manifest."
         ),
     }
 
@@ -433,9 +434,13 @@ def _checklist(
         _checklist_item(
             requirement_id="grouped_cross_validation",
             paper_requirement="Evaluate learned critic with session/scenario grouped splits.",
-            status="met" if grouped_metrics.get("split_group_count") == 9 else "missing",
+            status="met"
+            if grouped_metrics.get("split_group_count") == _PAPER_REFERENCE_SESSION_COUNT
+            else "missing",
             evidence=_metrics_evidence(grouped_metrics),
-            gaps=() if grouped_metrics.get("split_group_count") == 9 else ("grouped CV split evidence missing",),
+            gaps=()
+            if grouped_metrics.get("split_group_count") == _PAPER_REFERENCE_SESSION_COUNT
+            else ("paper-reference grouped CV split evidence missing",),
         ),
         _checklist_item(
             requirement_id="sealed_holdout",
