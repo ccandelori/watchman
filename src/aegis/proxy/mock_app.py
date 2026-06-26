@@ -86,7 +86,7 @@ from aegis.proxy.runtime_factory import (
     ProxyRuntimeFactory,
     cift_capability_from_config,
 )
-from aegis.replay.nimbus_infonce import load_nimbus_infonce_model
+from aegis.replay.nimbus_infonce import load_nimbus_infonce_model, nimbus_infonce_model_sha256
 
 _RAW_CREDENTIAL_PATTERN = re.compile(r"(?:AKIA|ghp_|ya29\.|sk_live_|sk-|hny_)[A-Za-z0-9._-]{8,}")
 _CREDENTIAL_PLACEHOLDER_PATTERN = re.compile(r"\{\{CREDENTIAL:([^:}]+):([^}]+)\}\}")
@@ -1899,11 +1899,16 @@ def _nimbus_critic_from_config(nimbus_config: ProxyNimbusConfig) -> RegisteredCa
             raise ProxyConfigError("learned_infonce_beta NIMBUS requires infonce_model_path.")
         try:
             model = load_nimbus_infonce_model(nimbus_config.infonce_model_path)
+            model_artifact_sha256 = nimbus_infonce_model_sha256(nimbus_config.infonce_model_path)
         except (OSError, ValueError) as exc:
             raise ProxyConfigError(
                 f"Failed to load AEGIS_NIMBUS_INFONCE_MODEL_PATH '{nimbus_config.infonce_model_path}'."
             ) from exc
-        return LearnedInfoNCENimbusCritic(model=model, confidence=nimbus_config.confidence)
+        return LearnedInfoNCENimbusCritic(
+            model=model,
+            model_artifact_sha256=model_artifact_sha256,
+            confidence=nimbus_config.confidence,
+        )
     raise ProxyConfigError(f"Unsupported NIMBUS critic kind '{nimbus_config.critic_kind}'.")
 
 

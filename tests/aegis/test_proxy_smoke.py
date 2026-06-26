@@ -206,6 +206,9 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
             ("GET", f"{base_url}/audit/explain?trace_id=smoke-egress-guard-trace"): (
                 HttpJsonResponse(status_code=200, payload=_audit_explain_response()),
             ),
+            ("GET", f"{base_url}/audit/explain?trace_id=smoke-partial-leak-trace"): (
+                HttpJsonResponse(status_code=200, payload=_partial_audit_explain_response()),
+            ),
         }
     )
 
@@ -347,6 +350,9 @@ def test_gateway_smoke_accepts_required_self_hosted_cift_pre_generation_block() 
             ),
             ("GET", f"{base_url}/audit/explain?trace_id=smoke-egress-guard-trace"): (
                 HttpJsonResponse(status_code=200, payload=_audit_explain_response()),
+            ),
+            ("GET", f"{base_url}/audit/explain?trace_id=smoke-partial-leak-trace"): (
+                HttpJsonResponse(status_code=200, payload=_partial_audit_explain_response()),
             ),
         }
     )
@@ -649,6 +655,9 @@ def _healthy_smoke_client(
             ("GET", f"{base_url}/audit/explain?trace_id=smoke-egress-guard-trace"): (
                 HttpJsonResponse(status_code=200, payload=_audit_explain_response()),
             ),
+            ("GET", f"{base_url}/audit/explain?trace_id=smoke-partial-leak-trace"): (
+                HttpJsonResponse(status_code=200, payload=_partial_audit_explain_response()),
+            ),
         }
     )
 
@@ -864,7 +873,7 @@ def _partial_nimbus_chat_response(
         "model": "mock-model",
         "choices": [{"index": 0, "message": {"role": "assistant", "content": "partial"}, "finish_reason": "stop"}],
         "aegis": {
-            "trace_id": "smoke-partial-trace",
+            "trace_id": "smoke-partial-leak-trace",
             "runtime_trace": _runtime_trace(dp_honey_status="active", canary_count=1),
             "policy_decision": {
                 "final_action": final_action,
@@ -1101,6 +1110,27 @@ def _audit_explain_response() -> dict[str, JsonValue]:
             "reason": "test",
             "risk_score": 1.0,
             "triggered_detectors": ["provider_egress_guard"],
+        },
+    }
+
+
+def _partial_audit_explain_response() -> dict[str, JsonValue]:
+    return {
+        "schema_version": "aegis.audit_explain/v1",
+        "trace_id": "smoke-partial-leak-trace",
+        "session_id": "smoke-partial-session",
+        "turn_index": 1,
+        "created_at": "2026-06-25T00:00:00Z",
+        "latency_ms": 1.0,
+        "policy_mode": "severity",
+        "stage_timeline": _runtime_trace(dp_honey_status="active", canary_count=1)["stages"],
+        "detectors": [],
+        "artifacts": {},
+        "policy_decision": {
+            "final_action": "block",
+            "reason": "test",
+            "risk_score": 1.0,
+            "triggered_detectors": ["nimbus"],
         },
     }
 

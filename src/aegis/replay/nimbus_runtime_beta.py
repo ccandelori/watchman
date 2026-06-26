@@ -17,7 +17,7 @@ from aegis.detectors.nimbus import (
     NimbusDetector,
     NimbusRuntimeCandidateContext,
 )
-from aegis.replay.nimbus_infonce import load_nimbus_infonce_model
+from aegis.replay.nimbus_infonce import load_nimbus_infonce_model, nimbus_infonce_model_sha256
 from aegis.replay.nimbus_training import (
     NimbusLeakageLabel,
     NimbusTrainingCorpusError,
@@ -171,7 +171,11 @@ def build_nimbus_runtime_beta_eval_report(config: NimbusRuntimeBetaEvalConfig) -
     _validate_probability(config.confidence, "confidence")
     records = read_nimbus_training_records_jsonl(config.input_path)
     model = load_nimbus_infonce_model(config.model_path)
-    critic = LearnedInfoNCENimbusCritic(model=model, confidence=config.confidence)
+    critic = LearnedInfoNCENimbusCritic(
+        model=model,
+        model_artifact_sha256=nimbus_infonce_model_sha256(config.model_path),
+        confidence=config.confidence,
+    )
     detector = NimbusDetector(
         config=NimbusConfig(
             budget_bits=1.0,

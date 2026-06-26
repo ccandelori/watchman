@@ -22,7 +22,7 @@ from aegis.detectors.nimbus import (
     NimbusState,
 )
 from aegis.proxy.mock_app import create_default_proxy
-from aegis.replay.nimbus_infonce import load_nimbus_infonce_model
+from aegis.replay.nimbus_infonce import load_nimbus_infonce_model, nimbus_infonce_model_sha256
 
 _NIMBUS_INFONCE_MODEL_PATH = Path("introspection/data/reports/aegis_nimbus_infonce_model_v0.json")
 
@@ -183,7 +183,8 @@ def test_nimbus_multi_turn_escalation():
 
 def test_learned_infonce_beta_critic_scores_runtime_canary_without_raw_evidence() -> None:
     model = load_nimbus_infonce_model(_NIMBUS_INFONCE_MODEL_PATH)
-    critic = LearnedInfoNCENimbusCritic(model=model, confidence=0.8)
+    model_sha256 = nimbus_infonce_model_sha256(_NIMBUS_INFONCE_MODEL_PATH)
+    critic = LearnedInfoNCENimbusCritic(model=model, model_artifact_sha256=model_sha256, confidence=0.8)
     canary_value = "safe-canary-repo-alpha-7294"
     record = CanaryRecord(
         canary_id="canary-runtime-alpha",
@@ -219,12 +220,16 @@ def test_learned_infonce_beta_critic_scores_runtime_canary_without_raw_evidence(
     assert score.evidence["paper_faithful_learned_critic"] is False
     assert score.evidence["promotion_status"] == "learned_runtime_beta_not_promotable"
     assert score.evidence["deterministic_fallback"] is False
+    assert score.evidence["model_artifact_sha256"] == model_sha256
+    assert score.evidence["negative_context_count"] == 16
+    assert len(score.evidence["negative_context_sha256s"]) == 16
     assert canary_value not in str(score.evidence)
 
 
 def test_learned_infonce_beta_critic_scores_explicit_candidate_contexts_without_raw_evidence() -> None:
     model = load_nimbus_infonce_model(_NIMBUS_INFONCE_MODEL_PATH)
-    critic = LearnedInfoNCENimbusCritic(model=model, confidence=0.8)
+    model_sha256 = nimbus_infonce_model_sha256(_NIMBUS_INFONCE_MODEL_PATH)
+    critic = LearnedInfoNCENimbusCritic(model=model, model_artifact_sha256=model_sha256, confidence=0.8)
     positive_context = "repo access token safe-canary-repo-alpha-7294"
     negative_contexts = tuple(f"repo access token safe-decoy-marker-{index:02d}-5813" for index in range(16))
     critic.register_candidate_contexts(
@@ -264,6 +269,8 @@ def test_learned_infonce_beta_critic_scores_explicit_candidate_contexts_without_
     assert score.evidence["registered_candidate_context_count"] == 1
     assert score.evidence["selected_context_id"] == "candidate-runtime-alpha"
     assert score.evidence["selected_context_source"] == "test_candidate_context_store"
+    assert score.evidence["model_artifact_sha256"] == model_sha256
+    assert score.evidence["negative_context_count"] == 16
     assert positive_context not in str(score.evidence)
     assert "safe-decoy-marker" not in str(score.evidence)
 
@@ -308,4 +315,7 @@ def test_default_proxy_can_load_explicit_learned_infonce_beta(monkeypatch) -> No
     assert nimbus_result["evidence"]["paper_faithful_learned_critic"] is False
     assert nimbus_result["evidence"]["promotion_status"] == "learned_runtime_beta_not_promotable"
     assert nimbus_result["evidence"]["turn_estimated_leakage_bits"] > 0.0
+    assert nimbus_result["evidence"]["critic_evidence"]["model_artifact_sha256"] == nimbus_infonce_model_sha256(
+        _NIMBUS_INFONCE_MODEL_PATH
+    )
     assert "ghp_" not in str(response)

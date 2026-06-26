@@ -128,9 +128,9 @@ uv run aegis-nimbus-promotion-evidence \
   --infonce-model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
   --grouped-cv introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json \
   --sealed-holdout introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json \
-  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v1.json \
+  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v2.json \
   --runtime-beta-eval introspection/data/reports/aegis_nimbus_runtime_beta_eval_v0.json \
-  --output introspection/data/reports/aegis_nimbus_promotion_evidence_v0.json
+  --output introspection/data/reports/aegis_nimbus_promotion_evidence_v1.json
 ```
 
 The v0 evaluator reports retrieval/calibration metrics plus false positives and
@@ -156,10 +156,12 @@ The promotion evidence binder records that distinction as
 `recommended_runtime_critic=deterministic_canary_beta`.
 
 The current binder uses a live local learned-gateway smoke artifact rather than
-offline replay: `aegis_default_mock_provider_smoke_learned_nimbus_beta_v1.json`
+offline replay: `aegis_default_mock_provider_smoke_learned_nimbus_beta_v2.json`
 reports learned runtime beta readiness, benign allow, four positive learned
-gateway detections, zero learned gateway false positives, and zero learned
-gateway false negatives. This closes the live-gateway FN/FP evidence item, but
+gateway detections, zero learned gateway false positives, zero learned gateway
+false negatives, the loaded model artifact SHA-256, selected context hash,
+negative-context count, and live `/audit/explain` evidence for provider-egress
+and partial-leak traces. This closes the live-gateway FN/FP evidence item, but
 it does not prove promotion-grade complement over deterministic beta.
 
 ## Promotion Boundary

@@ -689,7 +689,37 @@ def _check_audit(config: GatewaySmokeConfig, client: GatewayHttpClient) -> dict[
 
 
 def _check_audit_explain(config: GatewaySmokeConfig, client: GatewayHttpClient) -> dict[str, JsonValue]:
-    trace_id = "smoke-egress-guard-trace"
+    egress_trace_id = "smoke-egress-guard-trace"
+    egress_payload = _audit_explain_payload(config=config, client=client, trace_id=egress_trace_id)
+    egress_provider_stage = _audit_explain_stage(egress_payload, "provider")
+    if egress_provider_stage.get("status") != "skipped":
+        raise GatewaySmokeError("/audit/explain expected provider status skipped for egress guard trace.")
+    summary: dict[str, JsonValue] = {
+        "trace_id": egress_trace_id,
+        "stage_count": len(_audit_explain_stage_names(egress_payload)),
+        "provider_status": "skipped",
+    }
+    if config.provider_mode == GatewaySmokeProviderMode.MOCK:
+        nimbus_trace_id = "smoke-partial-leak-trace"
+        nimbus_payload = _audit_explain_payload(config=config, client=client, trace_id=nimbus_trace_id)
+        nimbus_stage = _audit_explain_stage(nimbus_payload, "nimbus")
+        nimbus_detectors = nimbus_stage.get("detectors")
+        if not isinstance(nimbus_detectors, list) or "nimbus" not in nimbus_detectors:
+            raise GatewaySmokeError("/audit/explain expected nimbus detector on partial-leak trace.")
+        nimbus_status = nimbus_stage.get("status")
+        if nimbus_status not in ("active", "warned", "blocked"):
+            raise GatewaySmokeError("/audit/explain expected active NIMBUS stage on partial-leak trace.")
+        summary["nimbus_trace_id"] = nimbus_trace_id
+        summary["nimbus_stage_status"] = nimbus_status
+        summary["nimbus_stage_count"] = len(_audit_explain_stage_names(nimbus_payload))
+    return summary
+
+
+def _audit_explain_payload(
+    config: GatewaySmokeConfig,
+    client: GatewayHttpClient,
+    trace_id: str,
+) -> dict[str, JsonValue]:
     response = client.get_json(_url(config.base_url, f"/audit/explain?trace_id={trace_id}"), config.timeout_seconds)
     if response.status_code != 200:
         raise GatewaySmokeError(f"/audit/explain returned status {response.status_code}.")
@@ -697,11 +727,15 @@ def _check_audit_explain(config: GatewaySmokeConfig, client: GatewayHttpClient) 
         raise GatewaySmokeError("/audit/explain returned an unsupported schema_version.")
     if response.payload.get("trace_id") != trace_id:
         raise GatewaySmokeError("/audit/explain did not return the requested trace_id.")
-    stages = response.payload.get("stage_timeline")
+    _audit_explain_stage_names(response.payload)
+    return response.payload
+
+
+def _audit_explain_stage_names(payload: dict[str, JsonValue]) -> tuple[str, ...]:
+    stages = payload.get("stage_timeline")
     if not isinstance(stages, list):
         raise GatewaySmokeError("/audit/explain stage_timeline must be a list.")
     stage_names: list[str] = []
-    provider_stage: dict[str, JsonValue] | None = None
     for stage in stages:
         if not isinstance(stage, dict):
             raise GatewaySmokeError("/audit/explain stage_timeline must contain objects.")
@@ -709,18 +743,20 @@ def _check_audit_explain(config: GatewaySmokeConfig, client: GatewayHttpClient) 
         if not isinstance(stage_name, str):
             raise GatewaySmokeError("/audit/explain stage name must be a string.")
         stage_names.append(stage_name)
-        if stage_name == "provider":
-            provider_stage = stage
     expected = list(gateway_smoke_contract().runtime_trace_stages)
     if stage_names != expected:
         raise GatewaySmokeError(f"/audit/explain stages mismatch: expected {expected}, got {stage_names}.")
-    if provider_stage is None or provider_stage.get("status") != "skipped":
-        raise GatewaySmokeError("/audit/explain expected provider status skipped for egress guard trace.")
-    return {
-        "trace_id": trace_id,
-        "stage_count": len(stage_names),
-        "provider_status": "skipped",
-    }
+    return tuple(stage_names)
+
+
+def _audit_explain_stage(payload: dict[str, JsonValue], stage_name: str) -> dict[str, JsonValue]:
+    stages = payload.get("stage_timeline")
+    if not isinstance(stages, list):
+        raise GatewaySmokeError("/audit/explain stage_timeline must be a list.")
+    for stage in stages:
+        if isinstance(stage, dict) and stage.get("stage") == stage_name:
+            return stage
+    raise GatewaySmokeError(f"/audit/explain did not include {stage_name} stage.")
 
 
 def _mock_only_skip_summary(check_name: str) -> dict[str, JsonValue]:
@@ -854,11 +890,13 @@ def _nimbus_detector_summary_from_result(
     detector_name: str,
 ) -> dict[str, JsonValue]:
     evidence = _detector_evidence(result=result, detector_name=detector_name)
+    critic_evidence = _optional_critic_evidence(evidence)
     action = _detector_action(result=result, detector_name=detector_name)
-    return {
+    summary: dict[str, JsonValue] = {
         "present": True,
         "detector_name": detector_name,
         "recommended_action": action.value,
+        "confidence": _optional_result_json_value(result, "confidence"),
         "critic_kind": _optional_evidence_string(evidence, "critic_kind"),
         "critic_version": _optional_evidence_string(evidence, "critic_version"),
         "paper_faithful_learned_critic": _optional_evidence_bool(
@@ -873,6 +911,37 @@ def _nimbus_detector_summary_from_result(
         ),
         "budget_fraction": _optional_evidence_json_value(evidence, "budget_fraction"),
     }
+    if critic_evidence is not None:
+        for field_name in (
+            "model_artifact_sha256",
+            "runtime_context_source",
+            "selected_context_id",
+            "selected_context_sha256",
+            "selected_context_source",
+            "negative_context_count",
+            "positive_probability",
+            "nce_loss_bits",
+            "positive_rank",
+            "candidate_count",
+        ):
+            value = critic_evidence.get(field_name)
+            if isinstance(value, str | int | float | bool) or value is None:
+                summary[field_name] = value
+    return summary
+
+
+def _optional_critic_evidence(evidence: dict[str, JsonValue]) -> dict[str, JsonValue] | None:
+    value = evidence.get("critic_evidence")
+    if isinstance(value, dict):
+        return value
+    return None
+
+
+def _optional_result_json_value(result: dict[str, JsonValue], field_name: str) -> JsonValue:
+    value = result.get(field_name)
+    if isinstance(value, str | int | float | bool) or value is None:
+        return value
+    return None
 
 
 def _provider_egress_match_summary(evidence: dict[str, JsonValue]) -> list[JsonValue]:

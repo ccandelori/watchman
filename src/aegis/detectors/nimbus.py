@@ -266,9 +266,11 @@ class CanaryNimbusCritic:
 
 
 class LearnedInfoNCENimbusCritic:
-    def __init__(self, model: NimbusInfoNCEModel, confidence: float) -> None:
+    def __init__(self, model: NimbusInfoNCEModel, model_artifact_sha256: str, confidence: float) -> None:
         _validate_probability(confidence, "confidence")
+        _validate_sha256(model_artifact_sha256, "model_artifact_sha256")
         self._model = model
+        self._model_artifact_sha256 = model_artifact_sha256
         self._confidence = confidence
         self._records_by_session_id: dict[str, tuple[CanaryRecord, ...]] = {}
         self._candidate_contexts_by_session_id: dict[str, tuple[NimbusRuntimeCandidateContext, ...]] = {}
@@ -318,6 +320,7 @@ class LearnedInfoNCENimbusCritic:
                 critic_input=critic_input,
                 contexts=candidate_contexts,
                 model=self._model,
+                model_artifact_sha256=self._model_artifact_sha256,
                 confidence=self._confidence,
                 runtime_context_source="registered_candidate_contexts",
             )
@@ -332,6 +335,7 @@ class LearnedInfoNCENimbusCritic:
                     "paper_faithful_learned_critic": False,
                     "promotion_status": "learned_runtime_beta_not_promotable",
                     "deterministic_fallback": False,
+                    "model_artifact_sha256": self._model_artifact_sha256,
                     "runtime_context_source": "registered_canary_records",
                     "reason": "no_registered_canaries_for_session",
                     "registered_canary_count": 0,
@@ -345,6 +349,7 @@ class LearnedInfoNCENimbusCritic:
                 _candidate_context_from_canary_record(record, self._model.negative_count) for record in records
             ),
             model=self._model,
+            model_artifact_sha256=self._model_artifact_sha256,
             confidence=self._confidence,
             runtime_context_source="registered_canary_records",
         )
@@ -857,6 +862,7 @@ def _learned_infonce_nimbus_score(
     critic_input: NimbusCriticInput,
     contexts: tuple[NimbusRuntimeCandidateContext, ...],
     model: NimbusInfoNCEModel,
+    model_artifact_sha256: str,
     confidence: float,
     runtime_context_source: str,
 ) -> NimbusCriticScore:
@@ -883,6 +889,7 @@ def _learned_infonce_nimbus_score(
         "paper_faithful_learned_critic": False,
         "promotion_status": "learned_runtime_beta_not_promotable",
         "deterministic_fallback": False,
+        "model_artifact_sha256": model_artifact_sha256,
         "runtime_context_source": runtime_context_source,
         "reason": "runtime_learned_infonce_beta_score",
         "registered_candidate_context_count": len(contexts),
@@ -890,6 +897,10 @@ def _learned_infonce_nimbus_score(
         "selected_context_sha256": canary_sha256(selected_context.positive_context_text),
         "selected_credential_type": selected_context.credential_type,
         "selected_context_source": selected_context.source,
+        "negative_context_count": len(selected_context.negative_context_texts),
+        "negative_context_sha256s": [
+            canary_sha256(context_text) for context_text in selected_context.negative_context_texts
+        ],
         "positive_probability": selected_score.positive_probability,
         "nce_loss_bits": selected_score.nce_loss_bits,
         "positive_rank": selected_score.positive_rank,
@@ -1132,6 +1143,11 @@ def _validate_positive_finite(value: float, field_name: str) -> None:
 def _validate_non_negative_finite(value: float, field_name: str) -> None:
     if not isfinite(value) or value < 0.0:
         raise NimbusDetectorError(f"{field_name} must be a finite non-negative value.")
+
+
+def _validate_sha256(value: str, field_name: str) -> None:
+    if len(value) != 64 or any(character not in "0123456789abcdef" for character in value):
+        raise NimbusDetectorError(f"{field_name} must be a lowercase SHA-256 hex digest.")
 
 
 def _validate_session_id(session_id: str) -> None:

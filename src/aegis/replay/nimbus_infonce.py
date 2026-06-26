@@ -611,6 +611,10 @@ def load_nimbus_infonce_model(path: Path) -> NimbusInfoNCEModel:
     return model
 
 
+def nimbus_infonce_model_sha256(path: Path) -> str:
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
 def save_nimbus_infonce_eval_report(path: Path, report: NimbusInfoNCEEvalReport) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report.to_dict(), allow_nan=False, indent=2, sort_keys=True) + "\n", encoding="utf-8")
