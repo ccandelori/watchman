@@ -47,9 +47,11 @@ from aegis.detectors.nimbus import (
     CanaryNimbusCritic,
     CanaryNimbusCriticConfig,
     InMemoryNimbusStateStore,
+    LearnedInfoNCENimbusCritic,
     NimbusConfig,
     NimbusDetector,
     NimbusToolEgressDetector,
+    RegisteredCanaryNimbusCritic,
 )
 from aegis.providers.mock import SUPPORTED_MOCK_RESPONSE_MODES
 from aegis.providers.openai_compatible import OpenAICompatibleProviderError
@@ -77,13 +79,14 @@ from aegis.proxy.config import (
     nimbus_config_from_env,
     provider_config_from_env,
 )
-from aegis.proxy.nimbus_profile import nimbus_capabilities
+from aegis.proxy.nimbus_profile import NimbusCriticKind, nimbus_capabilities
 from aegis.proxy.runtime_factory import (
     ProxyCiftCapability,
     ProxyCiftRuntimeBinding,
     ProxyRuntimeFactory,
     cift_capability_from_config,
 )
+from aegis.replay.nimbus_infonce import load_nimbus_infonce_model
 
 _RAW_CREDENTIAL_PATTERN = re.compile(r"(?:AKIA|ghp_|ya29\.|sk_live_|sk-|hny_)[A-Za-z0-9._-]{8,}")
 _CREDENTIAL_PLACEHOLDER_PATTERN = re.compile(r"\{\{CREDENTIAL:([^:}]+):([^}]+)\}\}")
@@ -266,7 +269,7 @@ class MockProxyApp:
         self,
         audit_sink: InMemoryAuditSink,
         nimbus_detector: NimbusDetector,
-        nimbus_critic: CanaryNimbusCritic,
+        nimbus_critic: RegisteredCanaryNimbusCritic,
         runtime_factory: ProxyRuntimeFactory,
         provider_name: str,
         mock_controls_enabled: bool,
@@ -427,6 +430,7 @@ class MockProxyApp:
 
     def _readiness(self) -> dict[str, JsonValue]:
         cift = self._cift_readiness_probe.check()
+        nimbus = nimbus_capabilities(self._nimbus_config)
         return {
             "schema_version": _READINESS_SCHEMA_VERSION,
             "ready": cift["ready"],
@@ -458,11 +462,8 @@ class MockProxyApp:
                 "detectors": ["tool_call_canary", "text_canary", "encoded_canary"],
             },
             "nimbus": {
+                **nimbus,
                 "ready": True,
-                "status": "deterministic_beta",
-                "critic_version": self._nimbus_config.critic_version,
-                "paper_faithful_learned_critic": False,
-                "tool_argument_pre_dispatch_accounting": True,
             },
             "strict_protected_mode": {
                 "enabled": (
@@ -1839,15 +1840,7 @@ def create_proxy(
     cift_readiness_probe: CiftReadinessProbe | None = None,
 ) -> MockProxyApp:
     audit_sink = audit_sink_from_env()
-    nimbus_critic = CanaryNimbusCritic(
-        CanaryNimbusCriticConfig(
-            exact_match_leakage_bits=nimbus_config.exact_match_leakage_bits,
-            encoded_match_leakage_bits=nimbus_config.encoded_match_leakage_bits,
-            partial_match_leakage_bits=nimbus_config.partial_match_leakage_bits,
-            partial_match_threshold=nimbus_config.partial_match_threshold,
-            confidence=nimbus_config.confidence,
-        )
-    )
+    nimbus_critic = _nimbus_critic_from_config(nimbus_config)
     nimbus_runtime_config = NimbusConfig(
         budget_bits=nimbus_config.budget_bits,
         warn_threshold=nimbus_config.warn_threshold,
@@ -1888,6 +1881,30 @@ def create_proxy(
             else CiftReadinessProbe(capability=cift_capability, extractor=None)
         ),
     )
+
+
+def _nimbus_critic_from_config(nimbus_config: ProxyNimbusConfig) -> RegisteredCanaryNimbusCritic:
+    if nimbus_config.critic_kind == NimbusCriticKind.CANARY:
+        return CanaryNimbusCritic(
+            CanaryNimbusCriticConfig(
+                exact_match_leakage_bits=nimbus_config.exact_match_leakage_bits,
+                encoded_match_leakage_bits=nimbus_config.encoded_match_leakage_bits,
+                partial_match_leakage_bits=nimbus_config.partial_match_leakage_bits,
+                partial_match_threshold=nimbus_config.partial_match_threshold,
+                confidence=nimbus_config.confidence,
+            )
+        )
+    if nimbus_config.critic_kind == NimbusCriticKind.LEARNED_INFONCE_BETA:
+        if nimbus_config.infonce_model_path is None:
+            raise ProxyConfigError("learned_infonce_beta NIMBUS requires infonce_model_path.")
+        try:
+            model = load_nimbus_infonce_model(nimbus_config.infonce_model_path)
+        except (OSError, ValueError) as exc:
+            raise ProxyConfigError(
+                f"Failed to load AEGIS_NIMBUS_INFONCE_MODEL_PATH '{nimbus_config.infonce_model_path}'."
+            ) from exc
+        return LearnedInfoNCENimbusCritic(model=model, confidence=nimbus_config.confidence)
+    raise ProxyConfigError(f"Unsupported NIMBUS critic kind '{nimbus_config.critic_kind}'.")
 
 
 def create_default_proxy() -> MockProxyApp:

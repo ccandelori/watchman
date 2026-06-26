@@ -25,9 +25,31 @@ def test_nimbus_profile_renders_capabilities_from_runtime_config() -> None:
 
     capabilities = nimbus_capabilities(config)
 
+    assert capabilities["status"] == "deterministic_beta"
+    assert capabilities["critic_kind"] == "canary"
     assert capabilities["critic_version"] == "canary-strict-test"
+    assert capabilities["promotion_status"] == "deterministic_canary_beta"
     assert capabilities["thresholds"] == {"warn": 0.2, "sanitize": 0.3, "block": 0.36}
     assert capabilities["critic"]["partial_match_leakage_bits"] == 1.0
+
+
+def test_nimbus_profile_renders_learned_infonce_beta_capabilities() -> None:
+    config = nimbus_config_from_env(
+        env={
+            "AEGIS_NIMBUS_CRITIC_KIND": "learned_infonce_beta",
+            "AEGIS_NIMBUS_INFONCE_MODEL_PATH": "introspection/data/reports/aegis_nimbus_infonce_model_v0.json",
+            "AEGIS_NIMBUS_CRITIC_VERSION": "nimbus-infonce-lexical-v0",
+        }
+    )
+
+    capabilities = nimbus_capabilities(config)
+
+    assert capabilities["status"] == "learned_runtime_beta"
+    assert capabilities["critic_kind"] == "learned_infonce_beta"
+    assert capabilities["critic_version"] == "nimbus-infonce-lexical-v0"
+    assert capabilities["paper_faithful_learned_critic"] is False
+    assert capabilities["promotion_status"] == "learned_runtime_beta_not_promotable"
+    assert capabilities["infonce_model_path"] == "introspection/data/reports/aegis_nimbus_infonce_model_v0.json"
 
 
 def test_nimbus_profile_owns_partial_leak_smoke_expectations() -> None:

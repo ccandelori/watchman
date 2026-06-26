@@ -367,6 +367,37 @@ class NimbusInfoNCEGroupedCVReport:
         }
 
 
+@dataclass(frozen=True)
+class NimbusInfoNCERuntimeScore:
+    positive_probability: float
+    nce_loss_bits: float
+    estimated_leakage_bits: float
+    positive_rank: int
+    candidate_count: int
+    feature_values: tuple[float, ...]
+
+    def __post_init__(self) -> None:
+        _validate_probability(self.positive_probability, "positive_probability")
+        _validate_non_negative_finite(self.nce_loss_bits, "nce_loss_bits")
+        _validate_non_negative_finite(self.estimated_leakage_bits, "estimated_leakage_bits")
+        if self.positive_rank < 1:
+            raise NimbusInfoNCEError("positive_rank must be positive.")
+        if self.candidate_count < 2:
+            raise NimbusInfoNCEError("candidate_count must be at least 2.")
+        for value in self.feature_values:
+            _validate_non_negative_finite(value, "feature_values entry")
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "positive_probability": self.positive_probability,
+            "nce_loss_bits": self.nce_loss_bits,
+            "estimated_leakage_bits": self.estimated_leakage_bits,
+            "positive_rank": self.positive_rank,
+            "candidate_count": self.candidate_count,
+            "feature_values": list(self.feature_values),
+        }
+
+
 def train_nimbus_infonce_model(
     records: tuple[NimbusTrainingTurnRecord, ...],
     config: NimbusInfoNCERunConfig,
@@ -376,6 +407,47 @@ def train_nimbus_infonce_model(
     model = _model_from_weights(records, best_weights)
     _validate_model(model)
     return model
+
+
+def score_nimbus_infonce_runtime_candidate(
+    model: NimbusInfoNCEModel,
+    output_text: str,
+    state_text: str,
+    true_context_text: str,
+    negative_context_texts: tuple[str, ...],
+) -> NimbusInfoNCERuntimeScore:
+    _validate_model(model)
+    if true_context_text == "":
+        raise NimbusInfoNCEError("true_context_text must not be empty.")
+    if len(negative_context_texts) != model.negative_count:
+        raise NimbusInfoNCEError(
+            f"negative_context_texts must contain exactly {model.negative_count} runtime contexts."
+        )
+    if any(context_text == "" for context_text in negative_context_texts):
+        raise NimbusInfoNCEError("negative_context_texts entries must not be empty.")
+
+    context_texts = (true_context_text, *negative_context_texts)
+    feature_rows = tuple(
+        _features_for_text(output_text=output_text, state_text=state_text, context_text=context_text)
+        for context_text in context_texts
+    )
+    scores = tuple(
+        sum(weight * feature for weight, feature in zip(model.weights, features, strict=True))
+        for features in feature_rows
+    )
+    probability = _positive_probability(scores)
+    nce_loss_bits = -math.log2(probability)
+    estimated_leakage_bits = max(0.0, math.log2(len(scores)) - nce_loss_bits)
+    if estimated_leakage_bits < 1e-12:
+        estimated_leakage_bits = 0.0
+    return NimbusInfoNCERuntimeScore(
+        positive_probability=probability,
+        nce_loss_bits=nce_loss_bits,
+        estimated_leakage_bits=estimated_leakage_bits,
+        positive_rank=_positive_rank(scores),
+        candidate_count=len(scores),
+        feature_values=feature_rows[0],
+    )
 
 
 def evaluate_nimbus_infonce_model(
@@ -799,10 +871,18 @@ def _features_for_context(
     record: NimbusTrainingTurnRecord,
     context: NimbusSecretContext,
 ) -> tuple[float, float, float]:
-    context_tokens = _tokens(context.context_text)
-    output_tokens = _tokens(record.output_text)
-    decoded_tokens = _decoded_output_tokens(record.output_text)
-    state_tokens = _tokens(" ".join(message.content for message in record.state_messages))
+    return _features_for_text(
+        output_text=record.output_text,
+        state_text=" ".join(message.content for message in record.state_messages),
+        context_text=context.context_text,
+    )
+
+
+def _features_for_text(output_text: str, state_text: str, context_text: str) -> tuple[float, float, float]:
+    context_tokens = _tokens(context_text)
+    output_tokens = _tokens(output_text)
+    decoded_tokens = _decoded_output_tokens(output_text)
+    state_tokens = _tokens(state_text)
     return (
         float(len(output_tokens & context_tokens)),
         float(len(decoded_tokens & context_tokens)),

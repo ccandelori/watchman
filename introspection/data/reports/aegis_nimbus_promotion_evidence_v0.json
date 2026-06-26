@@ -5,6 +5,7 @@
     "gateway_smoke_sha256": "2ad28da2089f682bdef4fbc1e6745e029141ce7f6e711de6ab388e0fb4e74fb1",
     "grouped_cv_sha256": "a20b1793b6a89868eb7b53e9d86952b7d1d68f602d67747c54e2513133c37c16",
     "infonce_model_sha256": "819467feca9650fc37cc96a6c83035da3fb6ebacb773deed9bb3ee02f426ab06",
+    "runtime_beta_eval_sha256": "e46592b5e0be6f7b0d0bba59705241ddf456293524192394fd7b36135615a0cf",
     "sealed_holdout_sha256": "b57be94e7256675dd8f9d95eff885c7e801d9261fc42eb8a8a86cb36ce8a7e0a",
     "sealed_manifest_sha256": "9f7e3efc83e435f0fd6cde427fcc29e7d3669ccbb0670f51a4fd0258575406f8"
   },
@@ -132,14 +133,27 @@
     },
     {
       "evidence": {
-        "learned_runtime_evidence_present": false
+        "critic_kind": "learned_infonce_beta",
+        "critic_version": "nimbus-infonce-lexical-v0",
+        "false_negative": 5,
+        "false_negative_rate": 0.35714285714285715,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "live_gateway_evidence": false,
+        "paper_faithful_learned_critic": false,
+        "promotion_status": "learned_runtime_beta_not_promotable",
+        "record_count": 19,
+        "runtime_adapter_present": true,
+        "session_false_negative": 1,
+        "session_false_negative_rate": 0.125,
+        "session_false_positive": 0,
+        "session_false_positive_rate": 0.0,
+        "split_group_count": 9
       },
-      "gaps": [
-        "no learned NIMBUS runtime adapter is wired into the gateway"
-      ],
+      "gaps": [],
       "paper_requirement": "Wire the learned critic through the runtime NimbusCritic interface before promotion.",
       "requirement_id": "runtime_learned_critic_adapter",
-      "status": "missing"
+      "status": "met"
     },
     {
       "evidence": {
@@ -166,8 +180,8 @@
     }
   ],
   "checklist_summary": {
-    "met": 5,
-    "missing": 3,
+    "met": 6,
+    "missing": 2,
     "partial": 1,
     "total": 9
   },
@@ -177,7 +191,10 @@
     "head_to_head_common_live_corpus": false,
     "learned_eval_is_offline_scaffold": true,
     "learned_grouped_cv_false_negative_rate": 0.21428571428571427,
-    "learned_promotion_blocked_reason": "Learned scaffold misses held-out turn-level leaks, is not a runtime critic, and has no live learned gateway FN/FP evidence.",
+    "learned_promotion_blocked_reason": "Learned scaffold/runtime beta misses held-out/runtime leaks and has no live learned gateway FN/FP evidence or promotion manifest.",
+    "learned_runtime_adapter_evidence_present": true,
+    "learned_runtime_beta_false_negative_rate": 0.35714285714285715,
+    "learned_runtime_beta_session_false_negative_rate": 0.125,
     "learned_runtime_gateway_evidence_present": false,
     "learned_sealed_false_negative_rate": 0.21428571428571427,
     "learned_sealed_session_false_negative_rate": 0.0,
@@ -306,6 +323,29 @@
       0.0
     ]
   },
+  "learned_runtime_beta_metrics": {
+    "critic_kind": "learned_infonce_beta",
+    "critic_version": "nimbus-infonce-lexical-v0",
+    "false_negative": 5,
+    "false_negative_rate": 0.35714285714285715,
+    "false_positive": 0,
+    "false_positive_rate": 0.0,
+    "live_gateway_evidence": false,
+    "paper_faithful_learned_critic": false,
+    "promotion_status": "learned_runtime_beta_not_promotable",
+    "record_count": 19,
+    "runtime_adapter_present": true,
+    "schema_version": "aegis.nimbus_runtime_beta_eval/v0",
+    "session_false_negative": 1,
+    "session_false_negative_rate": 0.125,
+    "session_false_positive": 0,
+    "session_false_positive_rate": 0.0,
+    "session_true_negative": 1,
+    "session_true_positive": 7,
+    "split_group_count": 9,
+    "true_negative": 5,
+    "true_positive": 9
+  },
   "learned_sealed_holdout_metrics": {
     "attack_top1_accuracy": 0.7857142857142857,
     "false_negative": 3,
@@ -332,7 +372,6 @@
   "missing_before_paper_faithful_learned_promotion": [
     "learned sealed turn false-negative rate is worse than deterministic beta on current evidence",
     "no common live runtime head-to-head corpus exists",
-    "no learned NIMBUS runtime adapter is wired into the gateway",
     "gateway smoke proves deterministic beta runtime only, not learned runtime FN/FP",
     "no learned NIMBUS promoted runtime artifact or promotion manifest exists"
   ],
@@ -343,5 +382,5 @@
   "promotion_status": "deterministic_beta_active_learned_not_promotable",
   "recommended_runtime_critic": "deterministic_canary_beta",
   "schema_version": "aegis.nimbus_promotion_evidence/v0",
-  "summary": "The learned InfoNCE NIMBUS path has grouped-CV and sealed-holdout evidence, but it is a small offline lexical scaffold, misses held-out turn-level partial-drip leaks, lacks a runtime learned critic adapter, and has no live gateway FN/FP evidence. Keep deterministic canary NIMBUS active."
+  "summary": "The learned InfoNCE NIMBUS path now has grouped-CV, sealed-holdout, and in-process runtime-adapter evidence, but it is a small lexical scaffold with held-out/runtime false negatives and no live gateway FN/FP or promotion manifest. Keep deterministic canary NIMBUS active."
 }

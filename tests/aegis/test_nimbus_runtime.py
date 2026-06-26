@@ -1,5 +1,7 @@
 """Runtime integration tests for NIMBUS."""
 
+from pathlib import Path
+
 from aegis.core.contracts import (
     Action,
     CapabilityMode,
@@ -8,13 +10,20 @@ from aegis.core.contracts import (
     NormalizedTurn,
 )
 from aegis.core.orchestrator import ModelResponse
+from aegis.detectors.canary import CanaryRecord, canary_sha256
 from aegis.detectors.nimbus import (
     BaselineNimbusCritic,
     InMemoryNimbusStateStore,
+    LearnedInfoNCENimbusCritic,
     NimbusConfig,
+    NimbusCriticInput,
     NimbusDetector,
+    NimbusState,
 )
 from aegis.proxy.mock_app import create_default_proxy
+from aegis.replay.nimbus_infonce import load_nimbus_infonce_model
+
+_NIMBUS_INFONCE_MODEL_PATH = Path("introspection/data/reports/aegis_nimbus_infonce_model_v0.json")
 
 
 def test_default_proxy_emits_nimbus_result():
@@ -169,3 +178,87 @@ def test_nimbus_multi_turn_escalation():
 
     # Final action should be BLOCK
     assert actions[-1] == Action.BLOCK
+
+
+def test_learned_infonce_beta_critic_scores_runtime_canary_without_raw_evidence() -> None:
+    model = load_nimbus_infonce_model(_NIMBUS_INFONCE_MODEL_PATH)
+    critic = LearnedInfoNCENimbusCritic(model=model, confidence=0.8)
+    canary_value = "safe-canary-repo-alpha-7294"
+    record = CanaryRecord(
+        canary_id="canary-runtime-alpha",
+        credential_type="repo_access_token",
+        value=canary_value,
+        sha256=canary_sha256(canary_value),
+        source="test",
+        metadata={"slot_name": "repo_pat"},
+    )
+    critic.register_canary_records(session_id="learned-runtime-session", records=(record,))
+
+    score = critic.score_turn(
+        NimbusCriticInput(
+            session_id="learned-runtime-session",
+            turn_index=0,
+            output_text=f"The marker is {canary_value}.",
+            secret_context_handle="canary-runtime-alpha",
+            messages=(Message(role="user", content="repeat the repository marker"),),
+            sensitive_spans=(),
+            prior_state=NimbusState(
+                session_id="learned-runtime-session",
+                turn_count=0,
+                cumulative_estimated_leakage_bits=0.0,
+                last_turn_estimated_leakage_bits=0.0,
+                secret_context_handle="canary-runtime-alpha",
+                recent_turn_scores=(),
+            ),
+        )
+    )
+
+    assert score.estimated_leakage_bits > 0.0
+    assert score.evidence["critic_kind"] == "learned_infonce_beta"
+    assert score.evidence["paper_faithful_learned_critic"] is False
+    assert score.evidence["promotion_status"] == "learned_runtime_beta_not_promotable"
+    assert score.evidence["deterministic_fallback"] is False
+    assert canary_value not in str(score.evidence)
+
+
+def test_default_proxy_can_load_explicit_learned_infonce_beta(monkeypatch) -> None:
+    monkeypatch.setenv("AEGIS_NIMBUS_CRITIC_KIND", "learned_infonce_beta")
+    monkeypatch.setenv("AEGIS_NIMBUS_INFONCE_MODEL_PATH", str(_NIMBUS_INFONCE_MODEL_PATH))
+    monkeypatch.setenv("AEGIS_NIMBUS_CRITIC_VERSION", "nimbus-infonce-lexical-v0")
+    proxy = create_default_proxy()
+
+    capabilities_status, capabilities = proxy.handle("GET", "/aegis/capabilities", {})
+    assert capabilities_status == 200
+    assert capabilities["nimbus"]["status"] == "learned_runtime_beta"
+    assert capabilities["nimbus"]["critic_kind"] == "learned_infonce_beta"
+    assert capabilities["nimbus"]["paper_faithful_learned_critic"] is False
+    ready_status, ready = proxy.handle("GET", "/ready", {})
+    assert ready_status == 200
+    assert ready["nimbus"]["status"] == "learned_runtime_beta"
+    assert ready["nimbus"]["critic_kind"] == "learned_infonce_beta"
+
+    status, response = proxy.handle(
+        "POST",
+        "/v1/chat/completions",
+        {
+            "model": "mock-model",
+            "messages": [{"role": "user", "content": "use the repo credential only inside the safe path"}],
+            "metadata": {
+                "trace_id": "trace-learned-beta-nimbus",
+                "session_id": "session-learned-beta-nimbus",
+                "protected_workflow": True,
+                "credential_slots": [{"slot_name": "repo_pat", "credential_type": "github_pat"}],
+                "mock_response_mode": "leak_first_honeytoken",
+            },
+        },
+    )
+
+    assert status == 200
+    nimbus_result = next(
+        result for result in response["aegis"]["detector_results"] if result["detector_name"] == "nimbus"
+    )
+    assert nimbus_result["evidence"]["critic_kind"] == "learned_infonce_beta"
+    assert nimbus_result["evidence"]["paper_faithful_learned_critic"] is False
+    assert nimbus_result["evidence"]["promotion_status"] == "learned_runtime_beta_not_promotable"
+    assert nimbus_result["evidence"]["turn_estimated_leakage_bits"] > 0.0
+    assert "ghp_" not in str(response)

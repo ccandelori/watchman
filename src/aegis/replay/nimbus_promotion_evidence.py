@@ -18,6 +18,7 @@ _DETERMINISTIC_EVAL_SCHEMA_VERSION = "aegis.nimbus_eval/v1"
 _INFONCE_MODEL_SCHEMA_VERSION = "aegis.nimbus_infonce_model/v0"
 _INFONCE_GROUPED_CV_SCHEMA_VERSION = "aegis.nimbus_infonce_grouped_cv/v0"
 _INFONCE_EVAL_SCHEMA_VERSION = "aegis.nimbus_infonce_eval/v0"
+_RUNTIME_BETA_EVAL_SCHEMA_VERSION = "aegis.nimbus_runtime_beta_eval/v0"
 
 
 class NimbusPromotionEvidenceError(ValueError):
@@ -33,6 +34,7 @@ class NimbusPromotionEvidenceConfig:
     grouped_cv_path: Path
     sealed_holdout_path: Path
     gateway_smoke_path: Path
+    runtime_beta_eval_path: Path | None
 
 
 def build_nimbus_promotion_evidence_report(config: NimbusPromotionEvidenceConfig) -> dict[str, JsonValue]:
@@ -43,6 +45,7 @@ def build_nimbus_promotion_evidence_report(config: NimbusPromotionEvidenceConfig
     grouped_cv = _read_json_mapping(config.grouped_cv_path)
     sealed_holdout = _read_json_mapping(config.sealed_holdout_path)
     gateway_smoke = _read_json_mapping(config.gateway_smoke_path)
+    runtime_beta_eval = _optional_runtime_beta_eval(config.runtime_beta_eval_path)
 
     _require_schema(deterministic_eval, _DETERMINISTIC_EVAL_SCHEMA_VERSION, "deterministic_eval")
     _require_schema(calibration_manifest, _TRAINING_MANIFEST_SCHEMA_VERSION, "calibration_manifest")
@@ -54,10 +57,24 @@ def build_nimbus_promotion_evidence_report(config: NimbusPromotionEvidenceConfig
     deterministic_metrics = _deterministic_metrics(deterministic_eval)
     grouped_metrics = _learned_metrics(grouped_cv)
     sealed_metrics = _learned_metrics(sealed_holdout)
+    runtime_beta_metrics = _runtime_beta_metrics(runtime_beta_eval)
     gateway_evidence = _gateway_evidence(gateway_smoke)
     corpus_evidence = _corpus_evidence(calibration_manifest, sealed_manifest)
-    comparison = _comparison(deterministic_metrics, grouped_metrics, sealed_metrics, gateway_evidence)
-    checklist = _checklist(corpus_evidence, grouped_metrics, sealed_metrics, comparison, gateway_evidence)
+    comparison = _comparison(
+        deterministic_metrics,
+        grouped_metrics,
+        sealed_metrics,
+        runtime_beta_metrics,
+        gateway_evidence,
+    )
+    checklist = _checklist(
+        corpus_evidence,
+        grouped_metrics,
+        sealed_metrics,
+        runtime_beta_metrics,
+        comparison,
+        gateway_evidence,
+    )
     checklist_summary = _checklist_summary(checklist)
     missing = _missing_before_promotion(checklist)
     return {
@@ -73,9 +90,9 @@ def build_nimbus_promotion_evidence_report(config: NimbusPromotionEvidenceConfig
         "paper_faithful_learned_critic": False,
         "recommended_runtime_critic": _RECOMMENDED_RUNTIME_CRITIC,
         "summary": (
-            "The learned InfoNCE NIMBUS path has grouped-CV and sealed-holdout evidence, but it is a small offline "
-            "lexical scaffold, misses held-out turn-level partial-drip leaks, lacks a runtime learned critic adapter, "
-            "and has no live gateway FN/FP evidence. Keep deterministic canary NIMBUS active."
+            "The learned InfoNCE NIMBUS path now has grouped-CV, sealed-holdout, and in-process runtime-adapter "
+            "evidence, but it is a small lexical scaffold with held-out/runtime false negatives and no live gateway "
+            "FN/FP or promotion manifest. Keep deterministic canary NIMBUS active."
         ),
         "artifact_hashes": _artifact_hashes(config),
         "deterministic_baseline_metrics": deterministic_metrics,
@@ -83,6 +100,7 @@ def build_nimbus_promotion_evidence_report(config: NimbusPromotionEvidenceConfig
         "corpus_evidence": corpus_evidence,
         "learned_grouped_cv_metrics": grouped_metrics,
         "learned_sealed_holdout_metrics": sealed_metrics,
+        "learned_runtime_beta_metrics": runtime_beta_metrics,
         "gateway_runtime_evidence": gateway_evidence,
         "comparison": comparison,
         "checklist": checklist,
@@ -109,6 +127,7 @@ def parse_args(argv: Sequence[str]) -> tuple[NimbusPromotionEvidenceConfig, Path
     parser.add_argument("--grouped-cv", required=True, type=Path)
     parser.add_argument("--sealed-holdout", required=True, type=Path)
     parser.add_argument("--gateway-smoke", required=True, type=Path)
+    parser.add_argument("--runtime-beta-eval", required=False, type=Path)
     parser.add_argument("--output", required=False, type=Path)
     args = parser.parse_args(argv)
     return (
@@ -120,6 +139,7 @@ def parse_args(argv: Sequence[str]) -> tuple[NimbusPromotionEvidenceConfig, Path
             grouped_cv_path=args.grouped_cv,
             sealed_holdout_path=args.sealed_holdout,
             gateway_smoke_path=args.gateway_smoke,
+            runtime_beta_eval_path=args.runtime_beta_eval,
         ),
         args.output,
     )
@@ -224,6 +244,59 @@ def _learned_model_evidence(model: Mapping[str, object]) -> dict[str, JsonValue]
     }
 
 
+def _optional_runtime_beta_eval(path: Path | None) -> Mapping[str, object] | None:
+    if path is None:
+        return None
+    report = _read_json_mapping(path)
+    _require_schema(report, _RUNTIME_BETA_EVAL_SCHEMA_VERSION, "runtime_beta_eval")
+    return report
+
+
+def _runtime_beta_metrics(report: Mapping[str, object] | None) -> dict[str, JsonValue]:
+    if report is None:
+        return {
+            "runtime_adapter_present": False,
+            "live_gateway_evidence": False,
+            "paper_faithful_learned_critic": False,
+            "promotion_status": "missing",
+        }
+    return {
+        "schema_version": _required_string(report, "schema_version", "runtime_beta_eval"),
+        "critic_kind": _required_string(report, "critic_kind", "runtime_beta_eval"),
+        "critic_version": _required_string(report, "critic_version", "runtime_beta_eval"),
+        "runtime_adapter_present": _required_bool(report, "runtime_adapter_present", "runtime_beta_eval"),
+        "live_gateway_evidence": _required_bool(report, "live_gateway_evidence", "runtime_beta_eval"),
+        "promotion_status": _required_string(report, "promotion_status", "runtime_beta_eval"),
+        "paper_faithful_learned_critic": _required_bool(
+            report,
+            "paper_faithful_learned_critic",
+            "runtime_beta_eval",
+        ),
+        "record_count": _required_int(report, "record_count", "runtime_beta_eval"),
+        "split_group_count": _required_int(report, "split_group_count", "runtime_beta_eval"),
+        "true_positive": _required_int(report, "true_positive", "runtime_beta_eval"),
+        "true_negative": _required_int(report, "true_negative", "runtime_beta_eval"),
+        "false_positive": _required_int(report, "false_positive", "runtime_beta_eval"),
+        "false_negative": _required_int(report, "false_negative", "runtime_beta_eval"),
+        "false_positive_rate": _required_float(report, "false_positive_rate", "runtime_beta_eval"),
+        "false_negative_rate": _required_float(report, "false_negative_rate", "runtime_beta_eval"),
+        "session_true_positive": _required_int(report, "session_true_positive", "runtime_beta_eval"),
+        "session_true_negative": _required_int(report, "session_true_negative", "runtime_beta_eval"),
+        "session_false_positive": _required_int(report, "session_false_positive", "runtime_beta_eval"),
+        "session_false_negative": _required_int(report, "session_false_negative", "runtime_beta_eval"),
+        "session_false_positive_rate": _required_float(
+            report,
+            "session_false_positive_rate",
+            "runtime_beta_eval",
+        ),
+        "session_false_negative_rate": _required_float(
+            report,
+            "session_false_negative_rate",
+            "runtime_beta_eval",
+        ),
+    }
+
+
 def _corpus_evidence(
     calibration_manifest: Mapping[str, object],
     sealed_manifest: Mapping[str, object],
@@ -287,6 +360,7 @@ def _comparison(
     deterministic_metrics: Mapping[str, JsonValue],
     grouped_metrics: Mapping[str, JsonValue],
     sealed_metrics: Mapping[str, JsonValue],
+    runtime_beta_metrics: Mapping[str, JsonValue],
     gateway_evidence: Mapping[str, JsonValue],
 ) -> dict[str, JsonValue]:
     deterministic_turn_fnr = _json_float(deterministic_metrics.get("false_negative_rate"), "deterministic.fnr")
@@ -295,22 +369,30 @@ def _comparison(
     learned_sealed_session_fnr = _json_float(
         sealed_metrics.get("session_false_negative_rate"), "sealed.session_fnr"
     )
+    runtime_beta_fnr = _json_float_or_none(runtime_beta_metrics.get("false_negative_rate"), "runtime_beta.fnr")
+    runtime_beta_session_fnr = _json_float_or_none(
+        runtime_beta_metrics.get("session_false_negative_rate"),
+        "runtime_beta.session_fnr",
+    )
     return {
         "deterministic_eval_is_runtime": True,
         "learned_eval_is_offline_scaffold": True,
         "head_to_head_common_live_corpus": False,
+        "learned_runtime_adapter_evidence_present": runtime_beta_metrics.get("runtime_adapter_present") is True,
         "learned_runtime_gateway_evidence_present": gateway_evidence.get("learned_runtime_evidence_present") is True,
         "deterministic_false_negative_rate": deterministic_turn_fnr,
         "learned_grouped_cv_false_negative_rate": learned_grouped_turn_fnr,
         "learned_sealed_false_negative_rate": learned_sealed_turn_fnr,
         "learned_sealed_session_false_negative_rate": learned_sealed_session_fnr,
+        "learned_runtime_beta_false_negative_rate": runtime_beta_fnr,
+        "learned_runtime_beta_session_false_negative_rate": runtime_beta_session_fnr,
         "learned_turn_fnr_beats_deterministic": learned_sealed_turn_fnr < deterministic_turn_fnr,
         "offline_learned_session_signal_observed": learned_sealed_session_fnr == 0.0
         and learned_sealed_turn_fnr > deterministic_turn_fnr,
         "learned_session_signal_complements_deterministic": False,
         "learned_promotion_blocked_reason": (
-            "Learned scaffold misses held-out turn-level leaks, is not a runtime critic, and has no live learned "
-            "gateway FN/FP evidence."
+            "Learned scaffold/runtime beta misses held-out/runtime leaks and has no live learned gateway FN/FP "
+            "evidence or promotion manifest."
         ),
     }
 
@@ -319,6 +401,7 @@ def _checklist(
     corpus_evidence: Mapping[str, JsonValue],
     grouped_metrics: Mapping[str, JsonValue],
     sealed_metrics: Mapping[str, JsonValue],
+    runtime_beta_metrics: Mapping[str, JsonValue],
     comparison: Mapping[str, JsonValue],
     gateway_evidence: Mapping[str, JsonValue],
 ) -> list[dict[str, JsonValue]]:
@@ -398,9 +481,11 @@ def _checklist(
         _checklist_item(
             requirement_id="runtime_learned_critic_adapter",
             paper_requirement="Wire the learned critic through the runtime NimbusCritic interface before promotion.",
-            status="missing",
-            evidence={"learned_runtime_evidence_present": gateway_evidence["learned_runtime_evidence_present"]},
-            gaps=("no learned NIMBUS runtime adapter is wired into the gateway",),
+            status="met" if runtime_beta_metrics.get("runtime_adapter_present") is True else "missing",
+            evidence=_runtime_beta_evidence(runtime_beta_metrics),
+            gaps=()
+            if runtime_beta_metrics.get("runtime_adapter_present") is True
+            else ("no learned NIMBUS runtime adapter evidence exists",),
         ),
         _checklist_item(
             requirement_id="live_gateway_learned_fn_fp",
@@ -425,7 +510,7 @@ def _checklist(
 
 
 def _artifact_hashes(config: NimbusPromotionEvidenceConfig) -> dict[str, JsonValue]:
-    return {
+    hashes: dict[str, JsonValue] = {
         "deterministic_eval_sha256": _sha256_file(config.deterministic_eval_path),
         "calibration_manifest_sha256": _sha256_file(config.calibration_manifest_path),
         "sealed_manifest_sha256": _sha256_file(config.sealed_manifest_path),
@@ -434,6 +519,9 @@ def _artifact_hashes(config: NimbusPromotionEvidenceConfig) -> dict[str, JsonVal
         "sealed_holdout_sha256": _sha256_file(config.sealed_holdout_path),
         "gateway_smoke_sha256": _sha256_file(config.gateway_smoke_path),
     }
+    if config.runtime_beta_eval_path is not None:
+        hashes["runtime_beta_eval_sha256"] = _sha256_file(config.runtime_beta_eval_path)
+    return hashes
 
 
 def _metrics_evidence(metrics: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
@@ -441,6 +529,28 @@ def _metrics_evidence(metrics: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
         "record_count",
         "split_group_count",
         "attack_top1_accuracy",
+        "false_positive",
+        "false_negative",
+        "false_positive_rate",
+        "false_negative_rate",
+        "session_false_positive",
+        "session_false_negative",
+        "session_false_positive_rate",
+        "session_false_negative_rate",
+        "promotion_status",
+        "paper_faithful_learned_critic",
+    )
+    return {key: value for key in keys if (value := metrics.get(key)) is not None}
+
+
+def _runtime_beta_evidence(metrics: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    keys = (
+        "runtime_adapter_present",
+        "live_gateway_evidence",
+        "critic_kind",
+        "critic_version",
+        "record_count",
+        "split_group_count",
         "false_positive",
         "false_negative",
         "false_positive_rate",
@@ -629,6 +739,12 @@ def _json_float(value: JsonValue | None, context: str) -> float:
     if isinstance(value, bool) or not isinstance(value, int | float):
         raise NimbusPromotionEvidenceError(f"{context} must be numeric.")
     return float(value)
+
+
+def _json_float_or_none(value: JsonValue | None, context: str) -> JsonValue:
+    if value is None:
+        return None
+    return _json_float(value, context)
 
 
 def _required_string(report: Mapping[str, object], key: str, context: str) -> str:

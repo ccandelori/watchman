@@ -139,6 +139,7 @@ def test_provider_config_rejects_invalid_openai_timeout() -> None:
 def test_nimbus_config_defaults_to_current_runtime_thresholds() -> None:
     config = nimbus_config_from_env(env={})
 
+    assert config.critic_kind == "canary"
     assert config.exact_match_leakage_bits == 1.0
     assert config.encoded_match_leakage_bits == 1.0
     assert config.partial_match_leakage_bits == 0.8
@@ -150,6 +151,7 @@ def test_nimbus_config_defaults_to_current_runtime_thresholds() -> None:
     assert config.block_threshold == 0.9
     assert config.max_turns == 20
     assert config.critic_version == "canary-v0"
+    assert config.infonce_model_path is None
 
 
 def test_nimbus_config_accepts_strict_partial_block_profile() -> None:
@@ -172,6 +174,20 @@ def test_nimbus_config_accepts_strict_partial_block_profile() -> None:
     assert config.critic_version == "canary-strict-test"
 
 
+def test_nimbus_config_accepts_explicit_learned_infonce_beta() -> None:
+    config = nimbus_config_from_env(
+        env={
+            "AEGIS_NIMBUS_CRITIC_KIND": "learned_infonce_beta",
+            "AEGIS_NIMBUS_INFONCE_MODEL_PATH": "introspection/data/reports/aegis_nimbus_infonce_model_v0.json",
+            "AEGIS_NIMBUS_CRITIC_VERSION": "nimbus-infonce-lexical-v0",
+        }
+    )
+
+    assert config.critic_kind == "learned_infonce_beta"
+    assert str(config.infonce_model_path) == "introspection/data/reports/aegis_nimbus_infonce_model_v0.json"
+    assert config.critic_version == "nimbus-infonce-lexical-v0"
+
+
 def test_nimbus_config_rejects_invalid_threshold_order() -> None:
     with pytest.raises(ProxyConfigError, match="WARN_THRESHOLD"):
         nimbus_config_from_env(
@@ -187,6 +203,10 @@ def test_nimbus_config_rejects_invalid_values() -> None:
         nimbus_config_from_env(env={"AEGIS_NIMBUS_PARTIAL_MATCH_THRESHOLD": "1.1"})
     with pytest.raises(ProxyConfigError, match="AEGIS_NIMBUS_MAX_TURNS"):
         nimbus_config_from_env(env={"AEGIS_NIMBUS_MAX_TURNS": "0"})
+    with pytest.raises(ProxyConfigError, match="AEGIS_NIMBUS_INFONCE_MODEL_PATH"):
+        nimbus_config_from_env(env={"AEGIS_NIMBUS_CRITIC_KIND": "learned_infonce_beta"})
+    with pytest.raises(ProxyConfigError, match="AEGIS_NIMBUS_INFONCE_MODEL_PATH"):
+        nimbus_config_from_env(env={"AEGIS_NIMBUS_INFONCE_MODEL_PATH": "model.json"})
 
 
 def test_cift_config_defaults_to_black_box_profile() -> None:

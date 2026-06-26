@@ -14,6 +14,7 @@ from aegis.proxy.config import (
     ProxyProviderConfig,
 )
 from aegis.proxy.mock_app import create_default_proxy, create_proxy
+from aegis.proxy.nimbus_profile import NimbusCriticKind
 from aegis.proxy.runtime_factory import ProxyCiftCapability, ProxyCiftRuntimeBinding
 
 
@@ -181,6 +182,7 @@ def _mock_provider_config(model_provider: ModelProvider) -> ProxyProviderConfig:
 
 def _nimbus_config() -> ProxyNimbusConfig:
     return ProxyNimbusConfig(
+        critic_kind=NimbusCriticKind.CANARY,
         exact_match_leakage_bits=1.0,
         encoded_match_leakage_bits=1.0,
         partial_match_leakage_bits=0.8,
@@ -192,6 +194,7 @@ def _nimbus_config() -> ProxyNimbusConfig:
         block_threshold=0.9,
         max_turns=20,
         critic_version="canary-v0",
+        infonce_model_path=None,
     )
 
 

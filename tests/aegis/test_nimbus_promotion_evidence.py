@@ -23,6 +23,7 @@ SEALED_HOLDOUT_PATH = Path("introspection/data/reports/aegis_nimbus_infonce_seal
 GATEWAY_SMOKE_PATH = Path(
     "introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json"
 )
+RUNTIME_BETA_EVAL_PATH = Path("introspection/data/reports/aegis_nimbus_runtime_beta_eval_v0.json")
 
 
 def test_nimbus_promotion_evidence_keeps_learned_scaffold_non_promotable() -> None:
@@ -42,6 +43,9 @@ def test_nimbus_promotion_evidence_keeps_learned_scaffold_non_promotable() -> No
     assert report["comparison"]["learned_turn_fnr_beats_deterministic"] is False
     assert report["comparison"]["offline_learned_session_signal_observed"] is True
     assert report["comparison"]["learned_session_signal_complements_deterministic"] is False
+    assert report["comparison"]["learned_runtime_adapter_evidence_present"] is True
+    assert report["learned_runtime_beta_metrics"]["false_negative_rate"] == 0.35714285714285715
+    assert report["learned_runtime_beta_metrics"]["session_false_negative_rate"] == 0.125
     assert report["gateway_runtime_evidence"]["readiness_nimbus_status"] == "deterministic_beta"
     assert report["gateway_runtime_evidence"]["learned_runtime_evidence_present"] is False
     assert checklist["session_level_corpus_coverage"]["status"] == "met"
@@ -50,14 +54,14 @@ def test_nimbus_promotion_evidence_keeps_learned_scaffold_non_promotable() -> No
     assert checklist["sealed_holdout"]["status"] == "met"
     assert checklist["fn_fp_reported_separately"]["status"] == "met"
     assert checklist["learned_beats_or_complements_deterministic"]["status"] == "partial"
-    assert checklist["runtime_learned_critic_adapter"]["status"] == "missing"
+    assert checklist["runtime_learned_critic_adapter"]["status"] == "met"
     assert checklist["live_gateway_learned_fn_fp"]["status"] == "missing"
     assert checklist["promotion_manifest"]["status"] == "missing"
-    assert report["checklist_summary"] == {"met": 5, "missing": 3, "partial": 1, "total": 9}
+    assert report["checklist_summary"] == {"met": 6, "missing": 2, "partial": 1, "total": 9}
     missing = " ".join(str(item) for item in report["missing_before_paper_faithful_learned_promotion"])
-    assert "runtime adapter" in missing
     assert "live runtime head-to-head" in missing
     assert "promotion manifest" in missing
+    assert "runtime adapter" not in missing
 
 
 def test_nimbus_promotion_evidence_cli_writes_json(tmp_path: Path, monkeypatch) -> None:
@@ -81,6 +85,8 @@ def test_nimbus_promotion_evidence_cli_writes_json(tmp_path: Path, monkeypatch) 
             str(SEALED_HOLDOUT_PATH),
             "--gateway-smoke",
             str(GATEWAY_SMOKE_PATH),
+            "--runtime-beta-eval",
+            str(RUNTIME_BETA_EVAL_PATH),
             "--output",
             str(output_path),
         ),
@@ -135,6 +141,7 @@ def _config() -> NimbusPromotionEvidenceConfig:
         grouped_cv_path=GROUPED_CV_PATH,
         sealed_holdout_path=SEALED_HOLDOUT_PATH,
         gateway_smoke_path=GATEWAY_SMOKE_PATH,
+        runtime_beta_eval_path=RUNTIME_BETA_EVAL_PATH,
     )
 
 
@@ -147,6 +154,7 @@ def _config_with_sealed_manifest(sealed_manifest_path: Path) -> NimbusPromotionE
         grouped_cv_path=GROUPED_CV_PATH,
         sealed_holdout_path=SEALED_HOLDOUT_PATH,
         gateway_smoke_path=GATEWAY_SMOKE_PATH,
+        runtime_beta_eval_path=RUNTIME_BETA_EVAL_PATH,
     )
 
 
@@ -159,6 +167,7 @@ def _config_with_grouped_cv(grouped_cv_path: Path) -> NimbusPromotionEvidenceCon
         grouped_cv_path=grouped_cv_path,
         sealed_holdout_path=SEALED_HOLDOUT_PATH,
         gateway_smoke_path=GATEWAY_SMOKE_PATH,
+        runtime_beta_eval_path=RUNTIME_BETA_EVAL_PATH,
     )
 
 

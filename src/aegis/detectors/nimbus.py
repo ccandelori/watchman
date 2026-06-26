@@ -22,6 +22,10 @@ from aegis.core.contracts import (
 )
 from aegis.core.orchestrator import ModelResponse
 from aegis.detectors.canary import CanaryRecord, EncodedCanaryDetector, InMemoryCanaryRegistry, TextCanaryDetector
+from aegis.replay.nimbus_infonce import (
+    NimbusInfoNCEModel,
+    score_nimbus_infonce_runtime_candidate,
+)
 
 
 class NimbusDetectorError(ValueError):
@@ -122,6 +126,17 @@ class NimbusCritic(Protocol):
         """Estimate leakage bits for one model response."""
 
 
+class RegisteredCanaryNimbusCritic(NimbusCritic, Protocol):
+    def register_canary_records(self, session_id: str, records: tuple[CanaryRecord, ...]) -> None:
+        """Register runtime canaries that define a session secret context."""
+
+    def destroy_session(self, session_id: str) -> None:
+        """Discard session-local canary context."""
+
+    def clear(self) -> None:
+        """Discard all canary context."""
+
+
 class NimbusStateStore(Protocol):
     def get_or_create(self, session_id: str, secret_context_handle: str | None) -> NimbusState:
         """Load or initialize NIMBUS state for a session."""
@@ -217,6 +232,55 @@ class CanaryNimbusCritic:
             critic_input=critic_input,
             records=records,
             config=self._config,
+        )
+
+
+class LearnedInfoNCENimbusCritic:
+    def __init__(self, model: NimbusInfoNCEModel, confidence: float) -> None:
+        _validate_probability(confidence, "confidence")
+        self._model = model
+        self._confidence = confidence
+        self._records_by_session_id: dict[str, tuple[CanaryRecord, ...]] = {}
+
+    def register_canary_records(self, session_id: str, records: tuple[CanaryRecord, ...]) -> None:
+        if session_id == "":
+            raise NimbusDetectorError("session_id must not be empty.")
+        if len(records) == 0:
+            return
+        records_by_id = {record.canary_id: record for record in self._records_by_session_id.get(session_id, ())}
+        for record in records:
+            records_by_id[record.canary_id] = record
+        self._records_by_session_id[session_id] = tuple(records_by_id.values())
+
+    def destroy_session(self, session_id: str) -> None:
+        self._records_by_session_id.pop(session_id, None)
+
+    def clear(self) -> None:
+        self._records_by_session_id.clear()
+
+    def score_turn(self, critic_input: NimbusCriticInput) -> NimbusCriticScore:
+        records = self._records_by_session_id.get(critic_input.session_id, ())
+        if len(records) == 0:
+            return NimbusCriticScore(
+                estimated_leakage_bits=0.0,
+                confidence=self._confidence,
+                evidence={
+                    "critic_kind": "learned_infonce_beta",
+                    "critic_version": self._model.model_id,
+                    "paper_faithful_learned_critic": False,
+                    "promotion_status": "learned_runtime_beta_not_promotable",
+                    "deterministic_fallback": False,
+                    "runtime_context_source": "registered_canary_records",
+                    "reason": "no_registered_canaries_for_session",
+                    "registered_canary_count": 0,
+                },
+            )
+
+        return _learned_infonce_nimbus_score(
+            critic_input=critic_input,
+            records=records,
+            model=self._model,
+            confidence=self._confidence,
         )
 
 
@@ -721,6 +785,82 @@ def _canary_nimbus_score(
         confidence=config.confidence,
         evidence=evidence,
     )
+
+
+def _learned_infonce_nimbus_score(
+    critic_input: NimbusCriticInput,
+    records: tuple[CanaryRecord, ...],
+    model: NimbusInfoNCEModel,
+    confidence: float,
+) -> NimbusCriticScore:
+    state_text = " ".join(message.content for message in critic_input.messages)
+    scored_records = tuple(
+        (
+            record,
+            score_nimbus_infonce_runtime_candidate(
+                model=model,
+                output_text=critic_input.output_text,
+                state_text=state_text,
+                true_context_text=_runtime_canary_context_text(record),
+                negative_context_texts=_runtime_negative_context_texts(record, model.negative_count),
+            ),
+        )
+        for record in records
+    )
+    if len(scored_records) == 0:
+        raise NimbusDetectorError("learned InfoNCE runtime scoring requires at least one registered canary.")
+    selected_record, selected_score = max(scored_records, key=lambda item: item[1].estimated_leakage_bits)
+    evidence: dict[str, JsonValue] = {
+        "critic_kind": "learned_infonce_beta",
+        "critic_version": model.model_id,
+        "paper_faithful_learned_critic": False,
+        "promotion_status": "learned_runtime_beta_not_promotable",
+        "deterministic_fallback": False,
+        "runtime_context_source": "registered_canary_records",
+        "reason": "runtime_learned_infonce_beta_score",
+        "registered_canary_count": len(records),
+        "selected_canary_id": selected_record.canary_id,
+        "selected_canary_sha256": selected_record.sha256,
+        "selected_credential_type": selected_record.credential_type,
+        "selected_canary_source": selected_record.source,
+        "positive_probability": selected_score.positive_probability,
+        "nce_loss_bits": selected_score.nce_loss_bits,
+        "positive_rank": selected_score.positive_rank,
+        "candidate_count": selected_score.candidate_count,
+        "estimated_leakage_bits": selected_score.estimated_leakage_bits,
+        "feature_names": list(model.feature_names),
+        "feature_values": list(selected_score.feature_values),
+        "model_source_corpus_sha256": model.source_corpus_sha256,
+        "model_training_record_count": model.training_record_count,
+        "model_training_split_group_count": model.training_split_group_count,
+    }
+    return NimbusCriticScore(
+        estimated_leakage_bits=selected_score.estimated_leakage_bits,
+        confidence=confidence,
+        evidence=evidence,
+    )
+
+
+def _runtime_canary_context_text(record: CanaryRecord) -> str:
+    slot_name = _safe_canary_slot_name(record)
+    return f"{record.credential_type} credential context {slot_name} contains {record.value}"
+
+
+def _runtime_negative_context_texts(record: CanaryRecord, count: int) -> tuple[str, ...]:
+    if count < 1:
+        raise NimbusDetectorError("runtime negative context count must be positive.")
+    slot_name = _safe_canary_slot_name(record)
+    return tuple(
+        f"{record.credential_type} decoy context {slot_name} contains safe-decoy-marker-{index:02d}-5813"
+        for index in range(count)
+    )
+
+
+def _safe_canary_slot_name(record: CanaryRecord) -> str:
+    slot_name = record.metadata.get("slot_name")
+    if isinstance(slot_name, str) and slot_name != "":
+        return slot_name
+    return "runtime-slot"
 
 
 def _turn_for_critic_input(critic_input: NimbusCriticInput) -> NormalizedTurn:

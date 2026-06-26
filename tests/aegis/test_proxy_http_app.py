@@ -27,6 +27,7 @@ from aegis.providers.openai_compatible import OpenAICompatibleProviderError
 from aegis.proxy.config import ProxyConfigError, ProxyNimbusConfig
 from aegis.proxy.http_app import create_default_http_app_with_cift_extractors, create_http_app
 from aegis.proxy.mock_app import MockProxyApp, create_default_proxy
+from aegis.proxy.nimbus_profile import NimbusCriticKind
 from aegis.proxy.runtime_factory import ProxyRuntimeFactory, black_box_cift_capability
 from aegis.proxy.server import ProxyServerConfig, parse_args, run_server
 
@@ -2577,6 +2578,7 @@ def _proxy_with_provider(model_provider: FailingProvider) -> MockProxyApp:
         nimbus_state_store,
     )
     nimbus_config = ProxyNimbusConfig(
+        critic_kind=NimbusCriticKind.CANARY,
         exact_match_leakage_bits=1.0,
         encoded_match_leakage_bits=1.0,
         partial_match_leakage_bits=0.8,
@@ -2588,6 +2590,7 @@ def _proxy_with_provider(model_provider: FailingProvider) -> MockProxyApp:
         block_threshold=0.9,
         max_turns=20,
         critic_version="canary-v0",
+        infonce_model_path=None,
     )
     return MockProxyApp(
         audit_sink=audit_sink,
