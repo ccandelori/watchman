@@ -158,6 +158,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_dist.add_argument("--test-count-per-format", type=int, required=True, dest="test_count_per_format")
     p_dist.add_argument("--alpha", type=float, required=True)
     p_dist.add_argument("--seed", type=int, default=0)
+    p_dist.add_argument(
+        "--reference-feature-manifest",
+        type=Path,
+        required=False,
+        dest="reference_feature_corpus_path",
+        help="optional redacted provider-like or real-distribution reference feature manifest",
+    )
     p_dist.add_argument("--output", type=Path, required=False, help="optional JSON report output path")
     p_dist.set_defaults(func=cmd_eval_statistical_distinguishers)
 
@@ -362,6 +369,7 @@ def cmd_eval_statistical_distinguishers(args: argparse.Namespace) -> int:
             test_count_per_format=args.test_count_per_format,
             seed=args.seed,
             alpha=args.alpha,
+            reference_feature_corpus_path=args.reference_feature_corpus_path,
         )
     )
     if args.output is not None:

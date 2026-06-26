@@ -728,10 +728,16 @@ uv run dp-honey eval-statistical-distinguishers \
 
 This suite evaluates character entropy, bigram likelihood, numeric-substring
 features, and a discriminator MLP. The current artifact passes all four families
-under the bounded same-format synthetic holdout and sets
+under the bounded same-format synthetic holdout, records
+`reference_feature_corpus=null`, and sets
 `synthetic_registry_statistical_distinguisher_passed=true`, but
 `paper_faithful_statistical_distinguisher=false` because the reference source is
 not provider-like or real-credential-distribution evidence.
+To evaluate stronger reference evidence without ingesting raw secrets, pass
+`--reference-feature-manifest <path>` where the manifest has schema
+`detect.dp_honey.reference_feature_corpus/v1`, `raw_values_serialized=false`,
+per-format train/test aggregate metrics, and per-token feature vectors named by
+the report's `feature_names`.
 
 Generate the DP-HONEY paper-faithfulness checklist from the scanner,
 generation-realism, statistical-distinguisher, gateway smoke, and audit evidence:

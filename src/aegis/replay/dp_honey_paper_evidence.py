@@ -17,6 +17,7 @@ GENERATION_REALISM_EVAL_SCHEMA_VERSION = "detect.dp_honey.generation_realism_eva
 GENERATION_REALISM_EVAL_STATUS = "bounded_generated_vs_reference_sanity_metrics"
 STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION = "detect.dp_honey.statistical_distinguisher_eval/v1"
 STATISTICAL_DISTINGUISHER_EVAL_STATUS = "statistical_distinguisher_suite_evaluated"
+REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION = "detect.dp_honey.reference_feature_corpus/v1"
 REQUIRED_STATISTICAL_DISTINGUISHER_TESTS = (
     "character_entropy_tests",
     "bigram_likelihood_tests",
@@ -845,7 +846,61 @@ def _validate_statistical_distinguisher_eval(report: Mapping[str, object]) -> Ma
             "statistical_distinguisher_eval.paper_faithful_statistical_distinguisher requires a provider-like "
             "or real-credential-distribution reference source."
         )
+    expected_paper_faithful = all_tests_passed and _reference_source_is_paper_sufficient(reference_source)
+    if declared_paper_faithful is not expected_paper_faithful:
+        raise DPHoneyPaperEvidenceError(
+            "statistical_distinguisher_eval.paper_faithful_statistical_distinguisher must match suite status "
+            "and reference source sufficiency."
+        )
+    if _reference_source_is_paper_sufficient(reference_source):
+        _validate_reference_feature_corpus_metadata(
+            report.get("reference_feature_corpus"),
+            reference_source,
+            report.get("train_count_per_format"),
+            report.get("test_count_per_format"),
+        )
+    elif report.get("reference_feature_corpus") not in {None, False}:
+        raise DPHoneyPaperEvidenceError(
+            "statistical_distinguisher_eval.reference_feature_corpus is only valid for provider-like or "
+            "real-credential-distribution reference sources."
+        )
     return report
+
+
+def _validate_reference_feature_corpus_metadata(
+    value: object,
+    reference_source: str,
+    train_count_per_format: object,
+    test_count_per_format: object,
+) -> None:
+    metadata = _mapping(value, "statistical_distinguisher_eval.reference_feature_corpus")
+    if metadata.get("schema_version") != REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION:
+        raise DPHoneyPaperEvidenceError(
+            "statistical_distinguisher_eval.reference_feature_corpus.schema_version must be "
+            f"{REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION}."
+        )
+    if metadata.get("source") != reference_source:
+        raise DPHoneyPaperEvidenceError(
+            "statistical_distinguisher_eval.reference_feature_corpus.source must match reference_source."
+        )
+    _required_string(metadata.get("source_description"), "reference_feature_corpus.source_description")
+    _required_sha256(metadata.get("sha256"), "reference_feature_corpus.sha256")
+    if metadata.get("raw_values_serialized") is not False:
+        raise DPHoneyPaperEvidenceError("reference_feature_corpus.raw_values_serialized must be false.")
+    feature_names = _string_list(metadata.get("feature_names"), "reference_feature_corpus.feature_names")
+    if len(feature_names) == 0:
+        raise DPHoneyPaperEvidenceError("reference_feature_corpus.feature_names must not be empty.")
+    _positive_int(metadata.get("format_count"), "reference_feature_corpus.format_count")
+    _consistent_int(
+        metadata.get("train_count_per_format"),
+        train_count_per_format,
+        "reference_feature_corpus.train_count_per_format",
+    )
+    _consistent_int(
+        metadata.get("test_count_per_format"),
+        test_count_per_format,
+        "reference_feature_corpus.test_count_per_format",
+    )
 
 
 def _validate_generator_parameters(value: object, field_name: str) -> Mapping[str, object]:
@@ -1065,6 +1120,13 @@ def _consistent_bool(value: object, expected: bool, field_name: str) -> None:
         raise DPHoneyPaperEvidenceError(f"{field_name} must be consistent with per-format metrics.")
 
 
+def _consistent_int(value: object, expected: object, field_name: str) -> None:
+    actual_integer = _positive_int(value, field_name)
+    expected_integer = _positive_int(expected, f"{field_name}.expected")
+    if actual_integer != expected_integer:
+        raise DPHoneyPaperEvidenceError(f"{field_name} must match statistical distinguisher split counts.")
+
+
 def _bool(value: object, field_name: str) -> bool:
     if not isinstance(value, bool):
         raise DPHoneyPaperEvidenceError(f"{field_name} must be a boolean.")
@@ -1075,6 +1137,13 @@ def _required_string(value: object, field_name: str) -> str:
     if not isinstance(value, str) or value == "":
         raise DPHoneyPaperEvidenceError(f"{field_name} must be a non-empty string.")
     return value
+
+
+def _required_sha256(value: object, field_name: str) -> str:
+    text = _required_string(value, field_name)
+    if len(text) != 64 or any(character not in "0123456789abcdef" for character in text):
+        raise DPHoneyPaperEvidenceError(f"{field_name} must be a lowercase SHA-256 hex digest.")
+    return text
 
 
 def _int(value: object, field_name: str) -> int:

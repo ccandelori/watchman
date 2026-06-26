@@ -144,10 +144,13 @@ paper's full statistical-distinguisher suite.
 `eval-statistical-distinguishers` runs the paper-named realism tests: character
 entropy, bigram likelihood, numeric-substring features, and a discriminator MLP.
 It reports only aggregate metrics and pass/fail statuses. The current seeded v2
-artifact passes all four bounded same-format synthetic holdout tests. That is
-useful local-registry evidence, but `paper_faithful_statistical_distinguisher`
-remains false until the reference source is provider-like or
-real-credential-distribution evidence.
+artifact passes all four bounded same-format synthetic holdout tests and records
+`reference_feature_corpus=null`. That is useful local-registry evidence, but
+`paper_faithful_statistical_distinguisher` remains false until the reference
+source is provider-like or real-credential-distribution evidence. Use
+`--reference-feature-manifest` to supply a redacted
+`detect.dp_honey.reference_feature_corpus/v1` manifest with no raw values,
+per-format train/test aggregate metrics, and per-token feature vectors.
 
 Prefix-less generic formats such as `aws-secret-access-key`, `oauth-bearer`, and
 `database-password` are excluded from registry classification to avoid noisy

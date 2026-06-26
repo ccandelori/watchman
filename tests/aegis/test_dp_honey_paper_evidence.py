@@ -79,6 +79,43 @@ def test_dp_honey_paper_evidence_report_keeps_synthetic_registry_evidence_non_pr
     assert "same_format_uniform_synthetic_holdout" in " ".join(report["missing_before_paper_faithful_plus"])
 
 
+def test_dp_honey_paper_evidence_accepts_provider_like_feature_manifest_metadata(tmp_path: Path) -> None:
+    statistical_path = tmp_path / "provider-like-statistical-distinguisher.json"
+    payload = json.loads(PROMOTED_STATISTICAL_DISTINGUISHER_EVAL_PATH.read_text(encoding="utf-8"))
+    payload["reference_source"] = "provider_like_sealed_holdout"
+    payload["paper_faithful_statistical_distinguisher"] = True
+    payload["reference_feature_corpus"] = {
+        "schema_version": "detect.dp_honey.reference_feature_corpus/v1",
+        "source": "provider_like_sealed_holdout",
+        "source_description": "test redacted nonfunctional provider-like feature holdout",
+        "sha256": "a" * 64,
+        "raw_values_serialized": False,
+        "feature_names": ["token_length"],
+        "format_count": payload["format_count"],
+        "train_count_per_format": payload["train_count_per_format"],
+        "test_count_per_format": payload["test_count_per_format"],
+    }
+    statistical_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    report = build_dp_honey_paper_evidence_report(
+        DPHoneyPaperEvidenceConfig(
+            scanner_eval_path=SCANNER_EVAL_PATH,
+            generation_realism_eval_path=PROMOTED_GENERATION_REALISM_EVAL_PATH,
+            statistical_distinguisher_eval_path=statistical_path,
+            smoke_path=PROMOTED_SMOKE_PATH,
+            audit_jsonl_path=PROMOTED_AUDIT_JSONL_PATH,
+        )
+    )
+    checklist = {str(item["requirement_id"]): item for item in _checklist(report)}
+
+    assert report["promotion_status"] == "paper_faithful_plus_candidate"
+    assert report["paper_faithful_plus"] is True
+    assert report["promotion_eligible"] is True
+    assert report["statistical_distinguisher_metrics"]["paper_sufficient_reference_source"] is True
+    assert checklist["statistical_realism_distinguishers"]["status"] == "met"
+    assert report["checklist_summary"] == {"met": 9, "missing": 0, "partial": 0, "total": 9}
+
+
 def test_dp_honey_paper_evidence_report_keeps_failed_statistical_suite_as_beta() -> None:
     report = build_dp_honey_paper_evidence_report(
         DPHoneyPaperEvidenceConfig(
@@ -203,6 +240,26 @@ def test_dp_honey_paper_evidence_rejects_forged_statistical_distinguisher_flag(t
     forged_path.write_text(json.dumps(payload), encoding="utf-8")
 
     with pytest.raises(DPHoneyPaperEvidenceError, match="reference source"):
+        build_dp_honey_paper_evidence_report(
+            DPHoneyPaperEvidenceConfig(
+                scanner_eval_path=SCANNER_EVAL_PATH,
+                generation_realism_eval_path=PROMOTED_GENERATION_REALISM_EVAL_PATH,
+                statistical_distinguisher_eval_path=forged_path,
+                smoke_path=PROMOTED_SMOKE_PATH,
+                audit_jsonl_path=PROMOTED_AUDIT_JSONL_PATH,
+            )
+        )
+
+
+def test_dp_honey_paper_evidence_rejects_forged_provider_like_source_without_manifest(tmp_path: Path) -> None:
+    forged_path = tmp_path / "forged-provider-like-source.json"
+    payload = json.loads(PROMOTED_STATISTICAL_DISTINGUISHER_EVAL_PATH.read_text(encoding="utf-8"))
+    payload["reference_source"] = "provider_like_sealed_holdout"
+    payload["paper_faithful_statistical_distinguisher"] = True
+    payload["reference_feature_corpus"] = None
+    forged_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(DPHoneyPaperEvidenceError, match="reference_feature_corpus"):
         build_dp_honey_paper_evidence_report(
             DPHoneyPaperEvidenceConfig(
                 scanner_eval_path=SCANNER_EVAL_PATH,

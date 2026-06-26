@@ -2,15 +2,23 @@ from __future__ import annotations
 
 import json
 
+import numpy as np
 import pytest
 
 from detect.dp_honey.__main__ import main
+from detect.dp_honey.bigram import build_model
+from detect.dp_honey.formats import list_formats
+from detect.dp_honey.realism import compute_report
 from detect.dp_honey.statistical_distinguisher_eval import (
+    FEATURE_NAMES,
+    REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION,
     REQUIRED_TESTS,
     STATISTICAL_DISTINGUISHER_EVAL_MAX_PER_FORMAT,
     STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION,
     DPHoneyStatisticalDistinguisherEvalConfig,
     DPHoneyStatisticalDistinguisherEvalError,
+    _numeric_profile,
+    _token_features,
     build_statistical_distinguisher_eval_report,
 )
 
@@ -22,6 +30,7 @@ def test_statistical_distinguisher_eval_reports_required_suite_without_raw_value
             test_count_per_format=3,
             seed=11,
             alpha=0.1,
+            reference_feature_corpus_path=None,
         )
     )
     rendered = json.dumps(report, sort_keys=True)
@@ -45,6 +54,7 @@ def test_statistical_distinguisher_eval_declared_flag_matches_required_test_stat
             test_count_per_format=2,
             seed=7,
             alpha=0.1,
+            reference_feature_corpus_path=None,
         )
     )
     suite = report["statistical_distinguisher_suite"]
@@ -63,6 +73,7 @@ def test_statistical_distinguisher_eval_rejects_invalid_config() -> None:
             test_count_per_format=1,
             seed=1,
             alpha=0.1,
+            reference_feature_corpus_path=None,
         )
     with pytest.raises(DPHoneyStatisticalDistinguisherEvalError, match="test_count_per_format"):
         DPHoneyStatisticalDistinguisherEvalConfig(
@@ -70,6 +81,7 @@ def test_statistical_distinguisher_eval_rejects_invalid_config() -> None:
             test_count_per_format=STATISTICAL_DISTINGUISHER_EVAL_MAX_PER_FORMAT + 1,
             seed=1,
             alpha=0.1,
+            reference_feature_corpus_path=None,
         )
     with pytest.raises(DPHoneyStatisticalDistinguisherEvalError, match="alpha"):
         DPHoneyStatisticalDistinguisherEvalConfig(
@@ -77,11 +89,71 @@ def test_statistical_distinguisher_eval_rejects_invalid_config() -> None:
             test_count_per_format=1,
             seed=1,
             alpha=1.0,
+            reference_feature_corpus_path=None,
+        )
+
+
+def test_statistical_distinguisher_eval_accepts_redacted_provider_like_features(tmp_path) -> None:
+    manifest_path = tmp_path / "provider-like-reference-features.json"
+    _write_reference_feature_manifest(
+        path=manifest_path,
+        train_count_per_format=3,
+        test_count_per_format=3,
+        source="provider_like_sealed_holdout",
+    )
+
+    report = build_statistical_distinguisher_eval_report(
+        DPHoneyStatisticalDistinguisherEvalConfig(
+            train_count_per_format=3,
+            test_count_per_format=3,
+            seed=13,
+            alpha=0.1,
+            reference_feature_corpus_path=manifest_path,
+        )
+    )
+    rendered = json.dumps(report, sort_keys=True)
+
+    assert report["reference_source"] == "provider_like_sealed_holdout"
+    assert report["reference_feature_corpus"]["schema_version"] == REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION
+    assert report["reference_feature_corpus"]["sha256"]
+    assert report["reference_feature_corpus"]["raw_values_serialized"] is False
+    assert report["paper_faithful_statistical_distinguisher"] is report["all_required_tests_passed"]
+    assert "ghp_" not in rendered
+    assert "xoxb-" not in rendered
+    assert "sk_live_" not in rendered
+
+
+def test_statistical_distinguisher_eval_rejects_raw_reference_fields(tmp_path) -> None:
+    manifest_path = tmp_path / "raw-reference-features.json"
+    payload = _reference_feature_manifest(
+        train_count_per_format=1,
+        test_count_per_format=1,
+        source="provider_like_sealed_holdout",
+    )
+    payload["format_features"][0]["test"]["tokens"] = ["ghp_forbidden_raw_value"]
+    manifest_path.write_text(json.dumps(payload), encoding="utf-8")
+
+    with pytest.raises(DPHoneyStatisticalDistinguisherEvalError, match="raw-value field"):
+        build_statistical_distinguisher_eval_report(
+            DPHoneyStatisticalDistinguisherEvalConfig(
+                train_count_per_format=1,
+                test_count_per_format=1,
+                seed=13,
+                alpha=0.1,
+                reference_feature_corpus_path=manifest_path,
+            )
         )
 
 
 def test_cli_eval_statistical_distinguishers_writes_report_file(tmp_path, capsys) -> None:
     output_path = tmp_path / "dp-honey-statistical-distinguisher-eval.json"
+    manifest_path = tmp_path / "provider-like-reference-features.json"
+    _write_reference_feature_manifest(
+        path=manifest_path,
+        train_count_per_format=2,
+        test_count_per_format=2,
+        source="provider_like_sealed_holdout",
+    )
 
     assert (
         main(
@@ -95,6 +167,8 @@ def test_cli_eval_statistical_distinguishers_writes_report_file(tmp_path, capsys
                 "0.1",
                 "--seed",
                 "3",
+                "--reference-feature-manifest",
+                str(manifest_path),
                 "--output",
                 str(output_path),
             ]
@@ -107,4 +181,73 @@ def test_cli_eval_statistical_distinguishers_writes_report_file(tmp_path, capsys
 
     assert stdout_payload == file_payload
     assert file_payload["schema_version"] == STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION
+    assert file_payload["reference_source"] == "provider_like_sealed_holdout"
     assert set(file_payload["statistical_distinguisher_suite"]) == set(REQUIRED_TESTS)
+
+
+def _write_reference_feature_manifest(
+    path,
+    train_count_per_format: int,
+    test_count_per_format: int,
+    source: str,
+) -> None:
+    path.write_text(
+        json.dumps(
+            _reference_feature_manifest(
+                train_count_per_format=train_count_per_format,
+                test_count_per_format=test_count_per_format,
+                source=source,
+            )
+        ),
+        encoding="utf-8",
+    )
+
+
+def _reference_feature_manifest(
+    train_count_per_format: int,
+    test_count_per_format: int,
+    source: str,
+) -> dict[str, object]:
+    return {
+        "schema_version": REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION,
+        "source": source,
+        "source_description": "test redacted nonfunctional provider-like feature holdout",
+        "raw_values_serialized": False,
+        "feature_names": list(FEATURE_NAMES),
+        "format_features": [
+            _format_feature_record(spec, train_count_per_format, test_count_per_format)
+            for spec in list_formats()
+        ],
+    }
+
+
+def _format_feature_record(spec, train_count_per_format: int, test_count_per_format: int) -> dict[str, object]:
+    slug_offset = sum((index + 1) * ord(character) for index, character in enumerate(spec.slug))
+    train_rng = np.random.default_rng(90_000 + slug_offset)
+    test_rng = np.random.default_rng(91_000 + slug_offset)
+    train_tokens = tuple(spec.random_example(train_rng) for _ in range(train_count_per_format))
+    test_tokens = tuple(spec.random_example(test_rng) for _ in range(test_count_per_format))
+    model = build_model(spec)
+    return {
+        "format_slug": spec.slug,
+        "train": _feature_split(train_tokens, model),
+        "test": _feature_split(test_tokens, model),
+    }
+
+
+def _feature_split(tokens: tuple[str, ...], model) -> dict[str, object]:
+    report = compute_report(list(tokens), model)
+    numeric = _numeric_profile(tokens)
+    return {
+        "count": len(tokens),
+        "char_entropy_bits": report["char_entropy_bits"],
+        "avg_log_likelihood": report["avg_log_likelihood"],
+        "numeric_profile": {
+            "digit_fraction": numeric.digit_fraction,
+            "numeric_run_count_per_token": numeric.numeric_run_count_per_token,
+            "numeric_run_avg_length": numeric.numeric_run_avg_length,
+            "numeric_run_p95_length": numeric.numeric_run_p95_length,
+            "numeric_run_max_length": numeric.numeric_run_max_length,
+        },
+        "features": [_token_features(token, model) for token in tokens],
+    }

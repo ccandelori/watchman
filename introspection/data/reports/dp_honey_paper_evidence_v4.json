@@ -4,7 +4,7 @@
     "generation_realism_eval_sha256": "ae5cdffa01871844d7f634b2e5652d22713202243984b1c5d56a69a31b9a9e57",
     "scanner_eval_sha256": "431cb44b62f329435508fb9ecff7fba06187a78d034e717d2b45b980d82f770d",
     "smoke_sha256": "0282c1c7edbebd22ebb111a55fcf13ab67b631e953c14715a5861d0389067859",
-    "statistical_distinguisher_eval_sha256": "51f8510a55feb9fcf81a8b9dfece7f750fdb7a526b798da3bd963795cbc7772d"
+    "statistical_distinguisher_eval_sha256": "f16bc95b6d06d3af7faababe40c8cb9d3d31fe15f8cd9d70691f221f21b9bd54"
   },
   "checklist": [
     {

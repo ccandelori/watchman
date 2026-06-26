@@ -9,9 +9,11 @@ serializing raw token values.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import math
 from collections import Counter
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TypeAlias
@@ -34,8 +36,13 @@ from .grammar import FormatSpec
 from .realism import LOG_PROB_FLOOR, compute_report
 
 STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION = "detect.dp_honey.statistical_distinguisher_eval/v1"
+REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION = "detect.dp_honey.reference_feature_corpus/v1"
 STATISTICAL_DISTINGUISHER_EVAL_STATUS = "statistical_distinguisher_suite_evaluated"
 STATISTICAL_DISTINGUISHER_EVAL_MAX_PER_FORMAT = 1000
+SAME_FORMAT_REFERENCE_SOURCE = "same_format_uniform_synthetic_holdout"
+PAPER_SUFFICIENT_REFERENCE_SOURCES = frozenset(
+    ("provider_like_sealed_holdout", "real_credential_distribution_redacted_features")
+)
 DEFAULT_MLP_HIDDEN_UNITS = 16
 DEFAULT_MLP_EPOCHS = 350
 DEFAULT_MLP_LEARNING_RATE = 0.035
@@ -82,6 +89,7 @@ class DPHoneyStatisticalDistinguisherEvalConfig:
     test_count_per_format: int
     seed: int
     alpha: float
+    reference_feature_corpus_path: Path | None
 
     def __post_init__(self) -> None:
         _validate_count(self.train_count_per_format, "train_count_per_format")
@@ -100,6 +108,30 @@ class _NumericProfile:
 
 
 @dataclass(frozen=True)
+class _ReferenceFeatureSplit:
+    count: int
+    char_entropy_bits: float
+    avg_log_likelihood: float
+    numeric_profile: _NumericProfile
+    features: np.ndarray
+
+
+@dataclass(frozen=True)
+class _ReferenceFeatureFormat:
+    format_slug: str
+    train: _ReferenceFeatureSplit
+    test: _ReferenceFeatureSplit
+
+
+@dataclass(frozen=True)
+class _ReferenceFeatureCorpus:
+    source: str
+    source_description: str
+    corpus_sha256: str
+    formats: Mapping[str, _ReferenceFeatureFormat]
+
+
+@dataclass(frozen=True)
 class _FormatSamples:
     spec: FormatSpec
     model: object
@@ -107,6 +139,8 @@ class _FormatSamples:
     reference_train: tuple[str, ...]
     generated_test: tuple[str, ...]
     reference_test: tuple[str, ...]
+    reference_train_split: _ReferenceFeatureSplit | None
+    reference_test_split: _ReferenceFeatureSplit | None
 
 
 def build_statistical_distinguisher_eval_report(
@@ -116,7 +150,8 @@ def build_statistical_distinguisher_eval_report(
     if len(specs) == 0:
         raise DPHoneyStatisticalDistinguisherEvalError("no DP-HONEY formats are registered.")
 
-    samples = tuple(_sample_format(spec, config) for spec in specs)
+    reference_corpus = _load_reference_feature_corpus(config.reference_feature_corpus_path, specs, config)
+    samples = tuple(_sample_format(spec, config, reference_corpus) for spec in specs)
     suite = {
         "character_entropy_tests": _character_entropy_tests(samples, config),
         "bigram_likelihood_tests": _bigram_likelihood_tests(samples, config),
@@ -124,6 +159,8 @@ def build_statistical_distinguisher_eval_report(
         "discriminator_mlp": _discriminator_mlp_test(samples, config),
     }
     all_required_tests_passed = all(_test_passed(suite[name]) for name in REQUIRED_TESTS)
+    reference_source = reference_corpus.source if reference_corpus is not None else SAME_FORMAT_REFERENCE_SOURCE
+    paper_sufficient_reference_source = _reference_source_is_paper_sufficient(reference_source)
     return {
         "schema_version": STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION,
         "status": STATISTICAL_DISTINGUISHER_EVAL_STATUS,
@@ -140,25 +177,19 @@ def build_statistical_distinguisher_eval_report(
             "corpus_size": DEFAULT_CORPUS_SIZE,
             "train_seed": DEFAULT_TRAIN_SEED,
         },
-        "reference_source": "same_format_uniform_synthetic_holdout",
+        "reference_source": reference_source,
+        "reference_feature_corpus": _reference_feature_corpus_metadata(reference_corpus),
         "raw_values_serialized": False,
         "required_tests": list(REQUIRED_TESTS),
         "all_required_tests_passed": all_required_tests_passed,
         "synthetic_registry_statistical_distinguisher_passed": all_required_tests_passed,
-        "paper_faithful_statistical_distinguisher": False,
+        "paper_faithful_statistical_distinguisher": all_required_tests_passed and paper_sufficient_reference_source,
         "statistical_distinguisher_suite": suite,
         "audit_safety": {
             "raw_secret_values_in_report": False,
             "finding_payload_redacted": True,
         },
-        "limits": [
-            "No generated or reference token values are serialized.",
-            "Reference tokens are same-format synthetic holdout examples, not provider-valid production secrets.",
-            "Passing means these bounded distinguishers did not separate generated tokens from the synthetic "
-            "reference beyond configured thresholds; it is not a computational indistinguishability proof.",
-            "paper_faithful_statistical_distinguisher remains false until the reference source is provider-like "
-            "or real-credential-distribution evidence rather than same-format synthetic holdout data.",
-        ],
+        "limits": _limits_for_reference_source(reference_source, reference_corpus),
     }
 
 
@@ -171,6 +202,209 @@ def write_statistical_distinguisher_eval_report(path: Path, report: dict[str, Js
     path.write_text(render_statistical_distinguisher_eval_report_json(report), encoding="utf-8")
 
 
+def _load_reference_feature_corpus(
+    path: Path | None,
+    specs: tuple[FormatSpec, ...],
+    config: DPHoneyStatisticalDistinguisherEvalConfig,
+) -> _ReferenceFeatureCorpus | None:
+    if path is None:
+        return None
+    payload = _read_reference_feature_corpus_payload(path)
+    if payload.get("schema_version") != REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION:
+        raise DPHoneyStatisticalDistinguisherEvalError(
+            f"reference feature corpus schema_version must be {REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION}."
+        )
+    _reject_raw_reference_fields(payload, "reference_feature_corpus")
+    if payload.get("raw_values_serialized") is not False:
+        raise DPHoneyStatisticalDistinguisherEvalError("reference feature corpus raw_values_serialized must be false.")
+    source = _required_string(payload.get("source"), "reference_feature_corpus.source")
+    source_description = _required_string(
+        payload.get("source_description"),
+        "reference_feature_corpus.source_description",
+    )
+    feature_names = tuple(_string_list(payload.get("feature_names"), "reference_feature_corpus.feature_names"))
+    if feature_names != FEATURE_NAMES:
+        raise DPHoneyStatisticalDistinguisherEvalError("reference feature corpus feature_names must match evaluator.")
+    records = _mapping_list(payload.get("format_features"), "reference_feature_corpus.format_features")
+    expected_slugs = tuple(spec.slug for spec in specs)
+    formats_by_slug: dict[str, _ReferenceFeatureFormat] = {}
+    for record in records:
+        format_slug = _required_string(record.get("format_slug"), "reference_feature_corpus.format_slug")
+        if format_slug not in expected_slugs:
+            raise DPHoneyStatisticalDistinguisherEvalError(
+                f"reference feature corpus has unknown format_slug: {format_slug}"
+            )
+        if format_slug in formats_by_slug:
+            raise DPHoneyStatisticalDistinguisherEvalError(
+                f"reference feature corpus has duplicate format_slug: {format_slug}"
+            )
+        formats_by_slug[format_slug] = _ReferenceFeatureFormat(
+            format_slug=format_slug,
+            train=_reference_feature_split_from_mapping(
+                _mapping(record.get("train"), f"reference_feature_corpus.{format_slug}.train"),
+                f"reference_feature_corpus.{format_slug}.train",
+                config.train_count_per_format,
+            ),
+            test=_reference_feature_split_from_mapping(
+                _mapping(record.get("test"), f"reference_feature_corpus.{format_slug}.test"),
+                f"reference_feature_corpus.{format_slug}.test",
+                config.test_count_per_format,
+            ),
+        )
+    missing_slugs = tuple(slug for slug in expected_slugs if slug not in formats_by_slug)
+    if len(missing_slugs) > 0:
+        raise DPHoneyStatisticalDistinguisherEvalError(
+            "reference feature corpus missing format_slug values: " + ", ".join(missing_slugs)
+        )
+    return _ReferenceFeatureCorpus(
+        source=source,
+        source_description=source_description,
+        corpus_sha256=_sha256_file(path),
+        formats=formats_by_slug,
+    )
+
+
+def _read_reference_feature_corpus_payload(path: Path) -> Mapping[str, object]:
+    try:
+        decoded = json.loads(path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise DPHoneyStatisticalDistinguisherEvalError(
+            f"could not read reference feature corpus {path}: {exc}"
+        ) from exc
+    except json.JSONDecodeError as exc:
+        raise DPHoneyStatisticalDistinguisherEvalError(
+            f"could not parse reference feature corpus {path}: {exc}"
+        ) from exc
+    return _mapping(decoded, "reference_feature_corpus")
+
+
+def _reference_feature_split_from_mapping(
+    value: Mapping[str, object],
+    field_name: str,
+    expected_count: int,
+) -> _ReferenceFeatureSplit:
+    count = _positive_int(value.get("count"), f"{field_name}.count")
+    if count != expected_count:
+        raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name}.count must equal the configured split count.")
+    features = _feature_rows(value.get("features"), f"{field_name}.features", count)
+    return _ReferenceFeatureSplit(
+        count=count,
+        char_entropy_bits=_finite_number(value.get("char_entropy_bits"), f"{field_name}.char_entropy_bits"),
+        avg_log_likelihood=_finite_number(value.get("avg_log_likelihood"), f"{field_name}.avg_log_likelihood"),
+        numeric_profile=_numeric_profile_from_mapping(
+            _mapping(value.get("numeric_profile"), f"{field_name}.numeric_profile"),
+            f"{field_name}.numeric_profile",
+        ),
+        features=features,
+    )
+
+
+def _numeric_profile_from_mapping(value: Mapping[str, object], field_name: str) -> _NumericProfile:
+    return _NumericProfile(
+        digit_fraction=_rate_number(value.get("digit_fraction"), f"{field_name}.digit_fraction"),
+        numeric_run_count_per_token=_finite_number(
+            value.get("numeric_run_count_per_token"),
+            f"{field_name}.numeric_run_count_per_token",
+        ),
+        numeric_run_avg_length=_finite_number(
+            value.get("numeric_run_avg_length"),
+            f"{field_name}.numeric_run_avg_length",
+        ),
+        numeric_run_p95_length=_finite_number(
+            value.get("numeric_run_p95_length"),
+            f"{field_name}.numeric_run_p95_length",
+        ),
+        numeric_run_max_length=_finite_number(
+            value.get("numeric_run_max_length"),
+            f"{field_name}.numeric_run_max_length",
+        ),
+    )
+
+
+def _feature_rows(value: object, field_name: str, expected_count: int) -> np.ndarray:
+    rows = _sequence(value, field_name)
+    if len(rows) != expected_count:
+        raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name} length must equal split count.")
+    parsed_rows: list[list[float]] = []
+    for row_index, row in enumerate(rows):
+        row_values = _sequence(row, f"{field_name}[{row_index}]")
+        if len(row_values) != len(FEATURE_NAMES):
+            raise DPHoneyStatisticalDistinguisherEvalError(
+                f"{field_name}[{row_index}] length must equal {len(FEATURE_NAMES)}."
+            )
+        parsed_rows.append(
+            [
+                _finite_number(value=cell, field_name=f"{field_name}[{row_index}][{column_index}]")
+                for column_index, cell in enumerate(row_values)
+            ]
+        )
+    return np.asarray(parsed_rows, dtype=np.float64)
+
+
+def _reference_feature_corpus_metadata(corpus: _ReferenceFeatureCorpus | None) -> JsonValue:
+    if corpus is None:
+        return None
+    train_counts = {format_record.train.count for format_record in corpus.formats.values()}
+    test_counts = {format_record.test.count for format_record in corpus.formats.values()}
+    return {
+        "schema_version": REFERENCE_FEATURE_CORPUS_SCHEMA_VERSION,
+        "source": corpus.source,
+        "source_description": corpus.source_description,
+        "sha256": corpus.corpus_sha256,
+        "raw_values_serialized": False,
+        "feature_names": list(FEATURE_NAMES),
+        "format_count": len(corpus.formats),
+        "train_count_per_format": next(iter(train_counts)) if len(train_counts) == 1 else None,
+        "test_count_per_format": next(iter(test_counts)) if len(test_counts) == 1 else None,
+    }
+
+
+def _limits_for_reference_source(
+    reference_source: str,
+    reference_corpus: _ReferenceFeatureCorpus | None,
+) -> list[JsonValue]:
+    limits = [
+        "No generated or reference token values are serialized in this report.",
+        "Passing means these bounded distinguishers did not separate generated tokens from the configured "
+        "reference beyond thresholds; it is not a computational indistinguishability proof.",
+    ]
+    if reference_corpus is None:
+        limits.append("Reference tokens are same-format synthetic holdout examples, not provider-like sealed features.")
+        limits.append(
+            "paper_faithful_statistical_distinguisher remains false until the reference source is provider-like "
+            "or real-credential-distribution evidence rather than same-format synthetic holdout data."
+        )
+    elif _reference_source_is_paper_sufficient(reference_source):
+        limits.append(
+            "The reference source is supplied as redacted per-format features; raw credential values remain outside "
+            "the artifact and report."
+        )
+    else:
+        limits.append(
+            f"The supplied reference source {reference_source} is not paper-sufficient for DP-HONEY promotion."
+        )
+    return limits
+
+
+def _reference_source_is_paper_sufficient(reference_source: str) -> bool:
+    return reference_source in PAPER_SUFFICIENT_REFERENCE_SOURCES
+
+
+def _reject_raw_reference_fields(value: object, field_name: str) -> None:
+    forbidden_keys = frozenset(("token", "tokens", "value", "values", "raw_value", "raw_values", "secret", "secrets"))
+    if isinstance(value, Mapping):
+        for key, child in value.items():
+            key_text = str(key)
+            if key_text in forbidden_keys:
+                raise DPHoneyStatisticalDistinguisherEvalError(
+                    f"reference feature corpus must not include raw-value field: {field_name}.{key_text}"
+                )
+            _reject_raw_reference_fields(child, f"{field_name}.{key_text}")
+    elif isinstance(value, list):
+        for index, child in enumerate(value):
+            _reject_raw_reference_fields(child, f"{field_name}[{index}]")
+
+
 def _validate_count(value: int, field_name: str) -> None:
     if value < 1:
         raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name} must be positive.")
@@ -180,11 +414,31 @@ def _validate_count(value: int, field_name: str) -> None:
         )
 
 
-def _sample_format(spec: FormatSpec, config: DPHoneyStatisticalDistinguisherEvalConfig) -> _FormatSamples:
+def _sample_format(
+    spec: FormatSpec,
+    config: DPHoneyStatisticalDistinguisherEvalConfig,
+    reference_corpus: _ReferenceFeatureCorpus | None,
+) -> _FormatSamples:
     slug_offset = _stable_slug_offset(spec.slug)
     model = build_model(spec)
     generated_train = tuple(model.sample(config.train_count_per_format, seed=config.seed + 10_000 + slug_offset))
     generated_test = tuple(model.sample(config.test_count_per_format, seed=config.seed + 20_000 + slug_offset))
+    if reference_corpus is not None:
+        reference_format = reference_corpus.formats.get(spec.slug)
+        if reference_format is None:
+            raise DPHoneyStatisticalDistinguisherEvalError(
+                f"reference feature corpus missing format_slug: {spec.slug}"
+            )
+        return _FormatSamples(
+            spec=spec,
+            model=model,
+            generated_train=generated_train,
+            reference_train=(),
+            generated_test=generated_test,
+            reference_test=(),
+            reference_train_split=reference_format.train,
+            reference_test_split=reference_format.test,
+        )
     train_rng = np.random.default_rng(config.seed + 30_000 + slug_offset)
     test_rng = np.random.default_rng(config.seed + 40_000 + slug_offset)
     reference_train = tuple(spec.random_example(train_rng) for _ in range(config.train_count_per_format))
@@ -196,6 +450,8 @@ def _sample_format(spec: FormatSpec, config: DPHoneyStatisticalDistinguisherEval
         reference_train=reference_train,
         generated_test=generated_test,
         reference_test=reference_test,
+        reference_train_split=None,
+        reference_test_split=None,
     )
 
 
@@ -207,9 +463,8 @@ def _character_entropy_tests(
     deltas: list[float] = []
     for sample in samples:
         generated_report = compute_report(list(sample.generated_test), sample.model)
-        reference_report = compute_report(list(sample.reference_test), sample.model)
         generated_entropy = _finite_report_float(generated_report, "char_entropy_bits", sample.spec.slug)
-        reference_entropy = _finite_report_float(reference_report, "char_entropy_bits", sample.spec.slug)
+        reference_entropy = _reference_char_entropy_bits(sample)
         abs_delta = abs(generated_entropy - reference_entropy)
         deltas.append(abs_delta)
         metrics.append(
@@ -252,9 +507,8 @@ def _bigram_likelihood_tests(
     deltas: list[float] = []
     for sample in samples:
         generated_report = compute_report(list(sample.generated_test), sample.model)
-        reference_report = compute_report(list(sample.reference_test), sample.model)
         generated_likelihood = _finite_report_float(generated_report, "avg_log_likelihood", sample.spec.slug)
-        reference_likelihood = _finite_report_float(reference_report, "avg_log_likelihood", sample.spec.slug)
+        reference_likelihood = _reference_avg_log_likelihood(sample)
         abs_delta = abs(generated_likelihood - reference_likelihood)
         deltas.append(abs_delta)
         metrics.append(
@@ -299,7 +553,7 @@ def _numeric_substring_tests(
     max_observed_run_length_delta = 0.0
     for sample in samples:
         generated_profile = _numeric_profile(sample.generated_test)
-        reference_profile = _numeric_profile(sample.reference_test)
+        reference_profile = _reference_numeric_profile(sample)
         digit_delta = abs(generated_profile.digit_fraction - reference_profile.digit_fraction)
         run_count_delta = abs(
             generated_profile.numeric_run_count_per_token - reference_profile.numeric_run_count_per_token
@@ -413,10 +667,44 @@ def _feature_matrix(
         for token in generated_tokens:
             features.append(_token_features(token, sample.model))
             labels.append(1)
+        reference_split = _reference_feature_split(sample, split_name)
+        if reference_split is not None:
+            for row in reference_split.features:
+                features.append([float(value) for value in row])
+                labels.append(0)
+            continue
         for token in reference_tokens:
             features.append(_token_features(token, sample.model))
             labels.append(0)
     return np.asarray(features, dtype=np.float64), np.asarray(labels, dtype=np.float64)
+
+
+def _reference_feature_split(sample: _FormatSamples, split_name: str) -> _ReferenceFeatureSplit | None:
+    if split_name == "train":
+        return sample.reference_train_split
+    if split_name == "test":
+        return sample.reference_test_split
+    raise DPHoneyStatisticalDistinguisherEvalError(f"unknown split_name: {split_name}")
+
+
+def _reference_char_entropy_bits(sample: _FormatSamples) -> float:
+    if sample.reference_test_split is not None:
+        return sample.reference_test_split.char_entropy_bits
+    reference_report = compute_report(list(sample.reference_test), sample.model)
+    return _finite_report_float(reference_report, "char_entropy_bits", sample.spec.slug)
+
+
+def _reference_avg_log_likelihood(sample: _FormatSamples) -> float:
+    if sample.reference_test_split is not None:
+        return sample.reference_test_split.avg_log_likelihood
+    reference_report = compute_report(list(sample.reference_test), sample.model)
+    return _finite_report_float(reference_report, "avg_log_likelihood", sample.spec.slug)
+
+
+def _reference_numeric_profile(sample: _FormatSamples) -> _NumericProfile:
+    if sample.reference_test_split is not None:
+        return sample.reference_test_split.numeric_profile
+    return _numeric_profile(sample.reference_test)
 
 
 def _token_features(token: str, model: object) -> list[float]:
@@ -584,6 +872,74 @@ def _finite_report_float(report: dict[str, object], field_name: str, format_slug
     if not math.isfinite(numeric):
         raise DPHoneyStatisticalDistinguisherEvalError(f"{format_slug}.{field_name} must be finite.")
     return numeric
+
+
+def _mapping(value: object, field_name: str) -> Mapping[str, object]:
+    if not isinstance(value, Mapping):
+        raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name} must be an object.")
+    return value
+
+
+def _mapping_list(value: object, field_name: str) -> tuple[Mapping[str, object], ...]:
+    sequence = _sequence(value, field_name)
+    mappings: list[Mapping[str, object]] = []
+    for index, item in enumerate(sequence):
+        mappings.append(_mapping(item, f"{field_name}[{index}]"))
+    return tuple(mappings)
+
+
+def _sequence(value: object, field_name: str) -> Sequence[object]:
+    if isinstance(value, str | bytes) or not isinstance(value, Sequence):
+        raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name} must be a list.")
+    return value
+
+
+def _string_list(value: object, field_name: str) -> tuple[str, ...]:
+    sequence = _sequence(value, field_name)
+    strings: list[str] = []
+    for index, item in enumerate(sequence):
+        if not isinstance(item, str):
+            raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name}[{index}] must be a string.")
+        strings.append(item)
+    return tuple(strings)
+
+
+def _required_string(value: object, field_name: str) -> str:
+    if not isinstance(value, str) or value == "":
+        raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name} must be a non-empty string.")
+    return value
+
+
+def _positive_int(value: object, field_name: str) -> int:
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name} must be an integer.")
+    if value < 1:
+        raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name} must be positive.")
+    return value
+
+
+def _finite_number(value: object, field_name: str) -> float:
+    if isinstance(value, bool) or not isinstance(value, int | float):
+        raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name} must be numeric.")
+    numeric = float(value)
+    if not math.isfinite(numeric):
+        raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name} must be finite.")
+    return numeric
+
+
+def _rate_number(value: object, field_name: str) -> float:
+    numeric = _finite_number(value, field_name)
+    if not 0.0 <= numeric <= 1.0:
+        raise DPHoneyStatisticalDistinguisherEvalError(f"{field_name} must be in [0.0, 1.0].")
+    return numeric
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as file:
+        for chunk in iter(lambda: file.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
 
 
 def _sigmoid(logits: np.ndarray) -> np.ndarray:
