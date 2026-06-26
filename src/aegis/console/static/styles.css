@@ -279,6 +279,10 @@ pre {
   font-size: 12px;
 }
 
+.copyable-block {
+  margin-top: 10px;
+}
+
 .timeline {
   display: grid;
   grid-template-columns: repeat(9, minmax(90px, 1fr));

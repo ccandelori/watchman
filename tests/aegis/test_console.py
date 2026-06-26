@@ -198,6 +198,11 @@ def test_console_app_serves_static_shell_and_api() -> None:
         "api_key": "aegis-local-dev-key",
         "model": "match the local provider model configured by AEGIS_OPENAI_MODEL",
     }
+    assert setup_payload["agent_settings_text"] == (
+        "Base URL: http://127.0.0.1:8000/v1\n"
+        "API key: aegis-local-dev-key\n"
+        "Model: match AEGIS_OPENAI_MODEL"
+    )
     assert setup_payload["cift_sidecar"] == {
         "default_base_url": "http://127.0.0.1:9000",
         "status_source": "/ready.cift",

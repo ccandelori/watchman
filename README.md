@@ -317,6 +317,15 @@ raw/tool leakage before provider completion, canary/NIMBUS checks still run, and
 audit traces are available. This is live gateway evidence; offline replay does
 not count as production evidence.
 
+Expected smoke output is a single JSON object with `status="ok"`. The
+`checks.benign_chat` object should include
+`credential_slot_status="honeytoken_substituted"` and
+`provider_status="completed"`, `checks.cift_pre_generation_block` should include
+`final_action="block"` and `provider_status="skipped"`, and
+`checks.provider_egress_guard_block` should include `final_action="block"` before
+provider completion. When `--output` is set, the same JSON is written to the
+report path.
+
 By default, `aegis-proxy` runs with the deterministic mock provider. To point
 the development proxy at an OpenAI-compatible model endpoint, configure the
 provider explicitly:

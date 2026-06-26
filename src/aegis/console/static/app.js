@@ -205,6 +205,9 @@ function renderSetup() {
     ["CIFT support tier", ciftReady.support_tier],
     ["CIFT support scope", ciftReady.support_scope],
     ["CIFT /ready status", ciftReady.status],
+    ["CIFT certification id", ciftReady.certification_id],
+    ["CIFT certification mode", ciftReady.certification_mode],
+    ["CIFT certified model", ciftReady.source_model_id],
     ["CIFT device", ciftReady.source_selected_device || ciftReady.extractor?.selected_device],
   ];
   const commandBlocks = Object.entries(commands).map(([name, command]) =>
@@ -215,7 +218,7 @@ function renderSetup() {
       "div",
       { class: "grid" },
       panel("Connection", keyValueTable(rows), "span-12"),
-      panel("Agent Settings", keyValueTable(Object.entries(setup.agent_settings || {}).map(([key, value]) => [commandLabel(key), value])), "span-6"),
+      panel("Agent Settings", agentSettings(setup), "span-6"),
       panel("Request Path", setupArchitecture(setup.architecture || []), "span-6"),
       panel("Provider Examples", providerExamples(setup.provider_examples || []), "span-12"),
       panel("Smoke Evidence", setupList(setup.smoke_expectations || []), "span-12"),
@@ -436,6 +439,15 @@ function nimbusBetaView(nimbus) {
 function degradedStates(states) {
   const rows = states.map((item) => el("tr", {}, el("td", { class: "mono" }, item.state || ""), el("td", {}, item.fix || "")));
   return el("table", { class: "kv" }, el("tbody", {}, ...rows));
+}
+
+function agentSettings(setup) {
+  return el(
+    "div",
+    {},
+    keyValueTable(Object.entries(setup.agent_settings || {}).map(([key, value]) => [commandLabel(key), value])),
+    el("pre", { class: "copyable-block" }, setup.agent_settings_text || ""),
+  );
 }
 
 function setupArchitecture(items) {
