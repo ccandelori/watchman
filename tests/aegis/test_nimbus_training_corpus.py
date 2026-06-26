@@ -25,12 +25,14 @@ from aegis.replay.nimbus_training import (
 def test_default_nimbus_training_records_match_session_corpus_contract() -> None:
     records = generate_default_nimbus_training_records()
 
-    assert len(records) == 14
+    assert len(records) == 19
     assert {record.scenario_name for record in records} == {
         "benign",
         "exact_canary_leak",
         "partial_drip",
+        "partial_drip_beta",
         "encoded_leak",
+        "encoded_leak_beta",
         "paraphrased_leak",
         "tool_output_leak",
         "delayed_leak",
@@ -95,15 +97,15 @@ def test_nimbus_training_manifest_marks_scaffold_as_not_promotable() -> None:
     assert manifest["critic_status"] == "training_corpus_scaffold"
     assert manifest["paper_faithful_learned_critic"] is False
     assert manifest["promotion_status"] == "not_promotable_training_contract_only"
-    assert manifest["record_count"] == 14
-    assert manifest["split_group_count"] == 7
+    assert manifest["record_count"] == 19
+    assert manifest["split_group_count"] == 9
     assert manifest["label_counts"] == {
         "benign": 5,
         "delayed": 1,
         "direct": 1,
-        "encoded": 1,
+        "encoded": 2,
         "paraphrased": 1,
-        "partial": 4,
+        "partial": 8,
         "tool_output": 1,
     }
     assert quality_gates == {
@@ -142,7 +144,7 @@ def test_nimbus_training_cli_writes_jsonl_and_manifest(
 
     assert output_path.exists()
     assert manifest_path.exists()
-    assert len(loaded_records) == 14
+    assert len(loaded_records) == 19
     assert manifest["promotion_status"] == "not_promotable_training_contract_only"
 
 

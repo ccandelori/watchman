@@ -1,0 +1,160 @@
+{
+  "artifact_hashes": {
+    "audit_jsonl_sha256": "76013f8c304d6ab1f9debf13c19753b72197bdaa7f896100b1627944c5b7647d",
+    "scanner_eval_sha256": "a2f0bf121607e13ca320c0b0bc1f46968a02c3fff25678bdf414349a63b3f13e",
+    "smoke_sha256": "bb5c67ff0800f09ec6b0fc34fdfcc05b53998bb207129f888e807f696019fc16"
+  },
+  "checklist": [
+    {
+      "evidence": {
+        "clip": 1.0,
+        "corpus_size": 200,
+        "epsilon": 1.0,
+        "format_slug": "github-ghp",
+        "registry_version": "2",
+        "spec_hash": "sha256:f1f83f62d0272ff1ae92df027581f84e3db7d4bcd8f5c1839401a13a1aea9ceb"
+      },
+      "gaps": [],
+      "paper_requirement": "Format-specific character bigram generation with Laplace noise and recorded DP parameters.",
+      "requirement_id": "dp_noised_bigram_generation",
+      "status": "met"
+    },
+    {
+      "evidence": {
+        "all_scannable_positive_examples_detected": true,
+        "positive_example_count": 500,
+        "scannable_format_count": 20
+      },
+      "gaps": [
+        "Paper evaluates statistical distinguishers such as entropy, bigram likelihood, and discriminator models; this report only proves structural format fidelity and scanner recall."
+      ],
+      "paper_requirement": "Evaluate generated honeytokens for format fidelity and statistical distinguishability.",
+      "requirement_id": "format_fidelity",
+      "status": "partial"
+    },
+    {
+      "evidence": {
+        "calibration_benign_count": 16,
+        "empirical_calibration_false_positive_rate": 0.0,
+        "recommended_min_confidence": "medium",
+        "target_alpha": 0.1,
+        "threshold": 0.35
+      },
+      "gaps": [],
+      "paper_requirement": "Choose detector thresholds from held-out benign calibration scores at target alpha.",
+      "requirement_id": "split_conformal_calibration",
+      "status": "met"
+    },
+    {
+      "evidence": {
+        "counts": {
+          "false_negative": 0,
+          "false_positive": 0,
+          "true_negative": 10,
+          "true_positive": 500
+        },
+        "false_negative_rate": 0.0,
+        "false_positive_rate": 0.0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "gaps": [],
+      "paper_requirement": "Report canary detector false positives and false negatives separately.",
+      "requirement_id": "scanner_fn_fp",
+      "status": "met"
+    },
+    {
+      "evidence": {
+        "audit_sensitive_span_source_dp_honey": true,
+        "credential_slot_status": "honeytoken_substituted",
+        "dp_honey_status": "active"
+      },
+      "gaps": [],
+      "paper_requirement": "Insert canary credentials into model-visible context while binding them to a ledger.",
+      "requirement_id": "gateway_substitution_and_ledger",
+      "status": "met"
+    },
+    {
+      "evidence": {
+        "encoded_leak_final_action": "escalate",
+        "exact_or_registered_leak_final_action": "escalate"
+      },
+      "gaps": [],
+      "paper_requirement": "Detect direct or encoded canary leakage in model outputs.",
+      "requirement_id": "output_leak_detection",
+      "status": "met"
+    },
+    {
+      "evidence": {
+        "argument_path": "arguments.body",
+        "raw_tool_payload_blocked_before_provider": true,
+        "tool_call_name": "external_ticket"
+      },
+      "gaps": [
+        "Provider egress guard blocks raw credential-shaped tool payloads, but DP-HONEY canary detection and NIMBUS-style leakage accounting are not yet applied to outbound serialized tool-call arguments before tool dispatch."
+      ],
+      "paper_requirement": "Apply canary and leakage-accounting logic to serialized tool-call arguments before dispatch.",
+      "requirement_id": "tool_argument_leakage",
+      "status": "partial"
+    },
+    {
+      "evidence": {
+        "event_count": 5,
+        "forbidden_audit_markers_present": [],
+        "redaction_marker_present": true,
+        "runtime_evidence_present": true
+      },
+      "gaps": [],
+      "paper_requirement": "Produce audit evidence without copying raw production secrets or matched secret values.",
+      "requirement_id": "redacted_audit",
+      "status": "met"
+    }
+  ],
+  "checklist_summary": {
+    "met": 6,
+    "missing": 0,
+    "partial": 2,
+    "total": 8
+  },
+  "component": "dp_honey",
+  "gateway_metrics": {
+    "audit_event_count": 5,
+    "benign_credential_slot_status": "honeytoken_substituted",
+    "benign_final_action": "allow",
+    "encoded_canary_leak_final_action": "escalate",
+    "registered_canary_leak_final_action": "escalate",
+    "tool_payload_block_final_action": "block",
+    "tool_payload_provider_status": "skipped"
+  },
+  "generator_metadata": {
+    "clip": 1.0,
+    "corpus_size": 200,
+    "credential_type": "github_pat",
+    "epsilon": 1.0,
+    "format_slug": "github-ghp",
+    "mapping_source": "explicit",
+    "registry_version": "2",
+    "seed_derivation": "sha256(seed_salt, slot_name, credential_type, format_slug)",
+    "spec_hash": "sha256:f1f83f62d0272ff1ae92df027581f84e3db7d4bcd8f5c1839401a13a1aea9ceb",
+    "train_seed": 0
+  },
+  "missing_before_paper_faithful_plus": [
+    "Paper evaluates statistical distinguishers such as entropy, bigram likelihood, and discriminator models; this report only proves structural format fidelity and scanner recall.",
+    "Provider egress guard blocks raw credential-shaped tool payloads, but DP-HONEY canary detection and NIMBUS-style leakage accounting are not yet applied to outbound serialized tool-call arguments before tool dispatch."
+  ],
+  "paper_faithful_plus": false,
+  "paper_source": "Research/2606.04141v1.pdf sections 4.3, 5.3, and 6",
+  "promotion_eligible": false,
+  "promotion_status": "paper_aligned_operational_beta",
+  "scanner_metrics": {
+    "false_negative_rate": 0.0,
+    "false_positive_rate": 0.0,
+    "negative_example_count": 10,
+    "positive_example_count": 500,
+    "precision": 1.0,
+    "recall": 1.0,
+    "scannable_format_count": 20
+  },
+  "schema_version": "aegis.dp_honey_paper_evidence/v1",
+  "summary": "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner FP/FN evidence, gateway substitution, canary leak detection, provider-egress blocking, and redacted audit evidence. It is still not paper-faithful+ because statistical distinguisher realism and tool-argument canary/leakage accounting remain incomplete."
+}

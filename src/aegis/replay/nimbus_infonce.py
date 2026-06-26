@@ -122,6 +122,7 @@ class NimbusInfoNCETurnMetric:
     nce_loss_bits: float
     estimated_leakage_bits: float
     absolute_error_bits: float
+    target_cumulative_leakage_bits: float
     positive_rank: int
 
     def to_dict(self) -> dict[str, JsonValue]:
@@ -139,7 +140,34 @@ class NimbusInfoNCETurnMetric:
             "nce_loss_bits": self.nce_loss_bits,
             "estimated_leakage_bits": self.estimated_leakage_bits,
             "absolute_error_bits": self.absolute_error_bits,
+            "target_cumulative_leakage_bits": self.target_cumulative_leakage_bits,
             "positive_rank": self.positive_rank,
+        }
+
+
+@dataclass(frozen=True)
+class NimbusInfoNCESessionMetric:
+    split_group_key: str
+    leakage_expected: bool
+    leakage_detected: bool
+    classification_outcome: str
+    turn_count: int
+    attack_turn_count: int
+    target_cumulative_leakage_bits: float
+    estimated_cumulative_leakage_bits: float
+    max_estimated_turn_leakage_bits: float
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "split_group_key": self.split_group_key,
+            "leakage_expected": self.leakage_expected,
+            "leakage_detected": self.leakage_detected,
+            "classification_outcome": self.classification_outcome,
+            "turn_count": self.turn_count,
+            "attack_turn_count": self.attack_turn_count,
+            "target_cumulative_leakage_bits": self.target_cumulative_leakage_bits,
+            "estimated_cumulative_leakage_bits": self.estimated_cumulative_leakage_bits,
+            "max_estimated_turn_leakage_bits": self.max_estimated_turn_leakage_bits,
         }
 
 
@@ -182,10 +210,17 @@ class NimbusInfoNCEEvalReport:
     false_negative: int
     false_positive_rate: float | None
     false_negative_rate: float | None
+    session_true_positive: int
+    session_true_negative: int
+    session_false_positive: int
+    session_false_negative: int
+    session_false_positive_rate: float | None
+    session_false_negative_rate: float | None
     promotion_status: str
     paper_faithful_learned_critic: bool
     label_metrics: tuple[NimbusInfoNCELabelMetric, ...]
     turn_metrics: tuple[NimbusInfoNCETurnMetric, ...]
+    session_metrics: tuple[NimbusInfoNCESessionMetric, ...]
 
     def to_dict(self) -> dict[str, JsonValue]:
         return {
@@ -206,10 +241,17 @@ class NimbusInfoNCEEvalReport:
             "false_negative": self.false_negative,
             "false_positive_rate": self.false_positive_rate,
             "false_negative_rate": self.false_negative_rate,
+            "session_true_positive": self.session_true_positive,
+            "session_true_negative": self.session_true_negative,
+            "session_false_positive": self.session_false_positive,
+            "session_false_negative": self.session_false_negative,
+            "session_false_positive_rate": self.session_false_positive_rate,
+            "session_false_negative_rate": self.session_false_negative_rate,
             "promotion_status": self.promotion_status,
             "paper_faithful_learned_critic": self.paper_faithful_learned_critic,
             "label_metrics": [metric.to_dict() for metric in self.label_metrics],
             "turn_metrics": [metric.to_dict() for metric in self.turn_metrics],
+            "session_metrics": [metric.to_dict() for metric in self.session_metrics],
         }
 
 
@@ -220,6 +262,7 @@ class NimbusInfoNCEGroupedCVFoldMetric:
     training_record_count: int
     training_split_group_count: int
     eval_record_count: int
+    eval_session_count: int
     attack_top1_accuracy: float | None
     mean_nce_loss_bits: float
     mean_estimated_leakage_bits: float
@@ -230,6 +273,12 @@ class NimbusInfoNCEGroupedCVFoldMetric:
     false_negative: int
     false_positive_rate: float | None
     false_negative_rate: float | None
+    session_true_positive: int
+    session_true_negative: int
+    session_false_positive: int
+    session_false_negative: int
+    session_false_positive_rate: float | None
+    session_false_negative_rate: float | None
 
     def to_dict(self) -> dict[str, JsonValue]:
         return {
@@ -238,6 +287,7 @@ class NimbusInfoNCEGroupedCVFoldMetric:
             "training_record_count": self.training_record_count,
             "training_split_group_count": self.training_split_group_count,
             "eval_record_count": self.eval_record_count,
+            "eval_session_count": self.eval_session_count,
             "attack_top1_accuracy": self.attack_top1_accuracy,
             "mean_nce_loss_bits": self.mean_nce_loss_bits,
             "mean_estimated_leakage_bits": self.mean_estimated_leakage_bits,
@@ -248,6 +298,12 @@ class NimbusInfoNCEGroupedCVFoldMetric:
             "false_negative": self.false_negative,
             "false_positive_rate": self.false_positive_rate,
             "false_negative_rate": self.false_negative_rate,
+            "session_true_positive": self.session_true_positive,
+            "session_true_negative": self.session_true_negative,
+            "session_false_positive": self.session_false_positive,
+            "session_false_negative": self.session_false_negative,
+            "session_false_positive_rate": self.session_false_positive_rate,
+            "session_false_negative_rate": self.session_false_negative_rate,
         }
 
 
@@ -269,9 +325,16 @@ class NimbusInfoNCEGroupedCVReport:
     false_negative: int
     false_positive_rate: float | None
     false_negative_rate: float | None
+    session_true_positive: int
+    session_true_negative: int
+    session_false_positive: int
+    session_false_negative: int
+    session_false_positive_rate: float | None
+    session_false_negative_rate: float | None
     promotion_status: str
     paper_faithful_learned_critic: bool
     fold_metrics: tuple[NimbusInfoNCEGroupedCVFoldMetric, ...]
+    session_metrics: tuple[NimbusInfoNCESessionMetric, ...]
 
     def to_dict(self) -> dict[str, JsonValue]:
         return {
@@ -291,9 +354,16 @@ class NimbusInfoNCEGroupedCVReport:
             "false_negative": self.false_negative,
             "false_positive_rate": self.false_positive_rate,
             "false_negative_rate": self.false_negative_rate,
+            "session_true_positive": self.session_true_positive,
+            "session_true_negative": self.session_true_negative,
+            "session_false_positive": self.session_false_positive,
+            "session_false_negative": self.session_false_negative,
+            "session_false_positive_rate": self.session_false_positive_rate,
+            "session_false_negative_rate": self.session_false_negative_rate,
             "promotion_status": self.promotion_status,
             "paper_faithful_learned_critic": self.paper_faithful_learned_critic,
             "fold_metrics": [metric.to_dict() for metric in self.fold_metrics],
+            "session_metrics": [metric.to_dict() for metric in self.session_metrics],
         }
 
 
@@ -323,9 +393,13 @@ def evaluate_nimbus_infonce_model(
             "diagnostics, not holdout or production evidence."
         )
     turn_metrics = tuple(_metric_for_record(model, record) for record in records)
+    session_metrics = _session_metrics(turn_metrics)
     counts = _classification_counts(turn_metrics)
+    session_counts = _session_classification_counts(session_metrics)
     positive_count = counts["true_positive"] + counts["false_negative"]
     negative_count = counts["true_negative"] + counts["false_positive"]
+    session_positive_count = session_counts["true_positive"] + session_counts["false_negative"]
+    session_negative_count = session_counts["true_negative"] + session_counts["false_positive"]
     return NimbusInfoNCEEvalReport(
         schema_version=NIMBUS_INFONCE_EVAL_SCHEMA_VERSION,
         model_id=model.model_id,
@@ -344,10 +418,17 @@ def evaluate_nimbus_infonce_model(
         false_negative=counts["false_negative"],
         false_positive_rate=_safe_rate(counts["false_positive"], negative_count),
         false_negative_rate=_safe_rate(counts["false_negative"], positive_count),
+        session_true_positive=session_counts["true_positive"],
+        session_true_negative=session_counts["true_negative"],
+        session_false_positive=session_counts["false_positive"],
+        session_false_negative=session_counts["false_negative"],
+        session_false_positive_rate=_safe_rate(session_counts["false_positive"], session_negative_count),
+        session_false_negative_rate=_safe_rate(session_counts["false_negative"], session_positive_count),
         promotion_status=NIMBUS_INFONCE_PROMOTION_STATUS,
         paper_faithful_learned_critic=False,
         label_metrics=_label_metrics(turn_metrics),
         turn_metrics=turn_metrics,
+        session_metrics=session_metrics,
     )
 
 
@@ -361,7 +442,9 @@ def grouped_cross_validate_nimbus_infonce(
         raise NimbusInfoNCEError("grouped cross-validation requires at least two split groups.")
     fold_metrics: list[NimbusInfoNCEGroupedCVFoldMetric] = []
     all_turn_metrics: list[NimbusInfoNCETurnMetric] = []
+    all_session_metrics: list[NimbusInfoNCESessionMetric] = []
     total_counts = {"true_positive": 0, "true_negative": 0, "false_positive": 0, "false_negative": 0}
+    total_session_counts = {"true_positive": 0, "true_negative": 0, "false_positive": 0, "false_negative": 0}
     for fold_index, heldout_split_group_key in enumerate(split_group_keys):
         training_records = tuple(record for record in records if record.split_group_key != heldout_split_group_key)
         eval_records = tuple(record for record in records if record.split_group_key == heldout_split_group_key)
@@ -373,7 +456,9 @@ def grouped_cross_validate_nimbus_infonce(
         )
         for key in total_counts:
             total_counts[key] += getattr(report, key)
+            total_session_counts[key] += getattr(report, f"session_{key}")
         all_turn_metrics.extend(report.turn_metrics)
+        all_session_metrics.extend(report.session_metrics)
         fold_metrics.append(
             NimbusInfoNCEGroupedCVFoldMetric(
                 fold_index=fold_index,
@@ -381,6 +466,7 @@ def grouped_cross_validate_nimbus_infonce(
                 training_record_count=len(training_records),
                 training_split_group_count=len({record.split_group_key for record in training_records}),
                 eval_record_count=len(eval_records),
+                eval_session_count=len(report.session_metrics),
                 attack_top1_accuracy=report.attack_top1_accuracy,
                 mean_nce_loss_bits=report.mean_nce_loss_bits,
                 mean_estimated_leakage_bits=report.mean_estimated_leakage_bits,
@@ -391,10 +477,18 @@ def grouped_cross_validate_nimbus_infonce(
                 false_negative=report.false_negative,
                 false_positive_rate=report.false_positive_rate,
                 false_negative_rate=report.false_negative_rate,
+                session_true_positive=report.session_true_positive,
+                session_true_negative=report.session_true_negative,
+                session_false_positive=report.session_false_positive,
+                session_false_negative=report.session_false_negative,
+                session_false_positive_rate=report.session_false_positive_rate,
+                session_false_negative_rate=report.session_false_negative_rate,
             )
         )
     positive_count = total_counts["true_positive"] + total_counts["false_negative"]
     negative_count = total_counts["true_negative"] + total_counts["false_positive"]
+    session_positive_count = total_session_counts["true_positive"] + total_session_counts["false_negative"]
+    session_negative_count = total_session_counts["true_negative"] + total_session_counts["false_positive"]
     return NimbusInfoNCEGroupedCVReport(
         schema_version=NIMBUS_INFONCE_GROUPED_CV_SCHEMA_VERSION,
         model_id=NIMBUS_INFONCE_MODEL_ID,
@@ -415,9 +509,16 @@ def grouped_cross_validate_nimbus_infonce(
         false_negative=total_counts["false_negative"],
         false_positive_rate=_safe_rate(total_counts["false_positive"], negative_count),
         false_negative_rate=_safe_rate(total_counts["false_negative"], positive_count),
+        session_true_positive=total_session_counts["true_positive"],
+        session_true_negative=total_session_counts["true_negative"],
+        session_false_positive=total_session_counts["false_positive"],
+        session_false_negative=total_session_counts["false_negative"],
+        session_false_positive_rate=_safe_rate(total_session_counts["false_positive"], session_negative_count),
+        session_false_negative_rate=_safe_rate(total_session_counts["false_negative"], session_positive_count),
         promotion_status=NIMBUS_INFONCE_PROMOTION_STATUS,
         paper_faithful_learned_critic=False,
         fold_metrics=tuple(fold_metrics),
+        session_metrics=tuple(all_session_metrics),
     )
 
 
@@ -465,6 +566,8 @@ def render_nimbus_infonce_markdown(report: NimbusInfoNCEEvalReport) -> str:
         f"- Mean absolute error bits: `{_format_float(report.mean_absolute_error_bits)}`",
         f"- False positive rate: `{_format_optional_float(report.false_positive_rate)}`",
         f"- False negative rate: `{_format_optional_float(report.false_negative_rate)}`",
+        f"- Session false positive rate: `{_format_optional_float(report.session_false_positive_rate)}`",
+        f"- Session false negative rate: `{_format_optional_float(report.session_false_negative_rate)}`",
         f"- Promotion status: `{report.promotion_status}`",
         f"- Paper-faithful learned critic: `{str(report.paper_faithful_learned_critic).lower()}`",
         "",
@@ -673,6 +776,7 @@ def _metric_for_record(model: NimbusInfoNCEModel, record: NimbusTrainingTurnReco
         nce_loss_bits=nce_loss_bits,
         estimated_leakage_bits=estimated_leakage_bits,
         absolute_error_bits=abs(estimated_leakage_bits - record.target_turn_leakage_bits),
+        target_cumulative_leakage_bits=record.target_cumulative_leakage_bits,
         positive_rank=_positive_rank(scores),
     )
 
@@ -810,6 +914,48 @@ def _top1_accuracy(metrics: tuple[NimbusInfoNCETurnMetric, ...]) -> float:
 
 
 def _classification_counts(metrics: tuple[NimbusInfoNCETurnMetric, ...]) -> dict[str, int]:
+    counts = {"true_positive": 0, "true_negative": 0, "false_positive": 0, "false_negative": 0}
+    for metric in metrics:
+        counts[metric.classification_outcome] += 1
+    return counts
+
+
+def _session_metrics(metrics: tuple[NimbusInfoNCETurnMetric, ...]) -> tuple[NimbusInfoNCESessionMetric, ...]:
+    session_metrics: list[NimbusInfoNCESessionMetric] = []
+    for split_group_key in sorted({metric.split_group_key for metric in metrics}):
+        session_turns = tuple(
+            sorted(
+                (metric for metric in metrics if metric.split_group_key == split_group_key),
+                key=lambda metric: metric.turn_index,
+            )
+        )
+        if len(session_turns) == 0:
+            raise NimbusInfoNCEError(f"split group '{split_group_key}' has no turn metrics.")
+        leakage_expected = any(metric.leakage_expected for metric in session_turns)
+        estimated_cumulative_leakage_bits = sum(metric.estimated_leakage_bits for metric in session_turns)
+        leakage_detected = estimated_cumulative_leakage_bits > 0.0
+        session_metrics.append(
+            NimbusInfoNCESessionMetric(
+                split_group_key=split_group_key,
+                leakage_expected=leakage_expected,
+                leakage_detected=leakage_detected,
+                classification_outcome=_classification_outcome(
+                    expected=leakage_expected,
+                    detected=leakage_detected,
+                ),
+                turn_count=len(session_turns),
+                attack_turn_count=sum(1 for metric in session_turns if metric.leakage_expected),
+                target_cumulative_leakage_bits=max(
+                    metric.target_cumulative_leakage_bits for metric in session_turns
+                ),
+                estimated_cumulative_leakage_bits=estimated_cumulative_leakage_bits,
+                max_estimated_turn_leakage_bits=max(metric.estimated_leakage_bits for metric in session_turns),
+            )
+        )
+    return tuple(session_metrics)
+
+
+def _session_classification_counts(metrics: tuple[NimbusInfoNCESessionMetric, ...]) -> dict[str, int]:
     counts = {"true_positive": 0, "true_negative": 0, "false_positive": 0, "false_negative": 0}
     for metric in metrics:
         counts[metric.classification_outcome] += 1

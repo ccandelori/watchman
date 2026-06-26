@@ -695,6 +695,22 @@ This registry-shaped scanner evaluation includes a split-conformal confidence
 threshold over benign calibration scores. It calibrates the scanner confidence
 gate, not generator indistinguishability.
 
+Generate the DP-HONEY paper-faithfulness checklist from the scanner, gateway
+smoke, and audit evidence:
+
+```bash
+uv run aegis-dp-honey-paper-evidence \
+  --scanner-eval introspection/data/reports/dp_honey_scanner_eval_v1.json \
+  --smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v1.json \
+  --audit-jsonl introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_audit_v1.jsonl \
+  --output introspection/data/reports/dp_honey_paper_evidence_v1.json
+```
+
+The checklist is deliberately stricter than the scanner metric. A report can
+pass as operational beta while still setting `paper_faithful_plus=false` and
+`promotion_eligible=false` until generator realism and serialized tool-argument
+leakage accounting are proven.
+
 To seed a session canary without putting a placeholder in the user turn, use the
 mock-only test route:
 
@@ -853,7 +869,11 @@ The v0 InfoNCE artifact is an offline lexical scaffold. It reports
 `paper_faithful_learned_critic=false`; it is not wired into runtime policy.
 The `--allow-training-eval` flag labels the main report as a training
 diagnostic. The grouped-CV output is the relevant leakage-risk evidence until a
-sealed holdout exists.
+sealed holdout exists. Current grouped-CV evidence reports turn-level FP/FN and
+session-level FP/FN separately: turn FPR `0.0`, turn FNR `0.214286`, session
+FPR `0.0`, and session FNR `0.0`. The scaffold still remains non-promotable
+because it is a tiny lexical model without sealed holdout, learned runtime
+adapter, live gateway evidence, or a promotion manifest.
 
 Generate a local in-process NIMBUS fixture JSONL when the external redteam
 runner is not available:
@@ -880,11 +900,11 @@ matches count as `0.8 * fragment_ratio`, and cumulative budget fractions map to
 The active runtime critic is deterministic canary-based beta
 (`critic_kind=canary`, `paper_faithful_learned_critic=false`). A paper-faithful
 learned NIMBUS release now has a bootstrap corpus contract and offline lexical
-InfoNCE scaffold with grouped-CV evidence, but still needs a larger
-session-leakage corpus, sealed holdout, a runtime learned critic adapter, live
-runtime FN/FP metrics, and promotion evidence. `aegis-nimbus-eval` is the
-deterministic-beta labeled evaluation wrapper; it is not a learned NIMBUS
-promotion path.
+InfoNCE scaffold with turn-level and session-level grouped-CV evidence, but
+still needs a larger session-leakage corpus, sealed holdout, a runtime learned
+critic adapter, live runtime FN/FP metrics, and promotion evidence.
+`aegis-nimbus-eval` is the deterministic-beta labeled evaluation wrapper; it
+is not a learned NIMBUS promotion path.
 
 ```bash
 AEGIS_NIMBUS_EXACT_MATCH_LEAKAGE_BITS=1.0

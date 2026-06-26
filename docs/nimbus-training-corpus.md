@@ -91,9 +91,11 @@ The v0 evaluator reports retrieval/calibration metrics plus false positives and
 false negatives separately. Same-corpus evaluation is rejected unless
 `--allow-training-eval` is passed, and that report is labeled with
 `training_eval_reused=true`. Current curated grouped-CV scaffold evidence has
-FP rate `0.0` and FN rate `0.333333`, with encoded and partial-drip holdouts
-failing. That is why it remains an offline scaffold rather than a runtime or
-promotion artifact.
+turn FP rate `0.0`, turn FN rate `0.214286`, session FP rate `0.0`, and
+session FN rate `0.0`. The remaining turn-level misses are partial-drip turns;
+the sessions still cross the scaffold's cumulative leakage signal. That is
+closer to the paper's session-level NIMBUS target, but the artifact remains an
+offline scaffold rather than a runtime or promotion artifact.
 
 ## Promotion Boundary
 
