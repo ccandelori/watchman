@@ -27,6 +27,11 @@ def _valid_dict() -> dict:
     return model_to_dict(_base_model())
 
 
+def _first_transition_row(data: dict) -> dict:
+    transitions = data["transitions"]
+    return transitions[next(iter(transitions))]
+
+
 def test_save_load_roundtrip_is_deterministic(tmp_path):
     model = _base_model()
     path = save_model(model, tmp_path / "m.json")
@@ -95,14 +100,14 @@ def test_unknown_format_slug_raises():
 
 def test_invalid_alphabet_membership_raises():
     data = _valid_dict()
-    data["transitions"]["<START>"]["@"] = 0.0  # '@' is not in the format alphabet
+    _first_transition_row(data)["@"] = 0.0  # '@' is not in the format alphabet
     with pytest.raises(ModelSchemaError):
         load_model(data)
 
 
 def test_non_finite_probability_raises():
     data = _valid_dict()
-    row = data["transitions"]["<START>"]
+    row = _first_transition_row(data)
     row[next(iter(row))] = float("inf")
     with pytest.raises(ModelSchemaError):
         load_model(data)
@@ -110,7 +115,7 @@ def test_non_finite_probability_raises():
 
 def test_negative_probability_raises():
     data = _valid_dict()
-    row = data["transitions"]["<START>"]
+    row = _first_transition_row(data)
     row[next(iter(row))] = -0.25
     with pytest.raises(ModelSchemaError):
         load_model(data)
@@ -118,7 +123,7 @@ def test_negative_probability_raises():
 
 def test_unnormalized_row_raises():
     data = _valid_dict()
-    row = data["transitions"]["<START>"]
+    row = _first_transition_row(data)
     for key in row:
         row[key] *= 2.0  # row now sums to ~2.0
     with pytest.raises(ModelSchemaError):

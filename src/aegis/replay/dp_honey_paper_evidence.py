@@ -23,6 +23,7 @@ REQUIRED_STATISTICAL_DISTINGUISHER_TESTS = (
     "numeric_substring_tests",
     "discriminator_mlp",
 )
+GENERATOR_PARAMETER_FIELDS = ("epsilon", "clip", "corpus_size", "train_seed")
 _FORBIDDEN_AUDIT_MARKERS = ("{{CREDENTIAL:", "ghp_", "github_pat_", "sk_live_", "AKIA")
 
 
@@ -49,6 +50,11 @@ def build_dp_honey_paper_evidence_report(config: DPHoneyPaperEvidenceConfig) -> 
     audit_records = _read_jsonl_mappings(config.audit_jsonl_path)
     audit_text = config.audit_jsonl_path.read_text(encoding="utf-8")
     generator_metadata = _first_dp_honey_metadata(audit_records)
+    _validate_generator_parameter_binding(
+        generator_metadata=generator_metadata,
+        generation_realism_eval=generation_realism_eval,
+        statistical_distinguisher_eval=statistical_distinguisher_eval,
+    )
     checks = _mapping(smoke.get("checks"), "smoke.checks")
 
     checklist = (
@@ -599,6 +605,7 @@ def _validate_generation_realism_eval(report: Mapping[str, object]) -> Mapping[s
         )
     if audit_safety.get("finding_payload_redacted") is not True:
         raise DPHoneyPaperEvidenceError("generation_realism_eval.audit_safety.finding_payload_redacted must be true.")
+    _validate_generator_parameters(report.get("generator_parameters"), "generation_realism_eval.generator_parameters")
     metrics = _mapping_list(report.get("format_metrics"), "generation_realism_eval.format_metrics")
     if len(metrics) != format_count:
         raise DPHoneyPaperEvidenceError("generation_realism_eval.format_metrics length must equal format_count.")
@@ -697,6 +704,9 @@ def _validate_statistical_distinguisher_eval(report: Mapping[str, object]) -> Ma
         raise DPHoneyPaperEvidenceError(
             "statistical_distinguisher_eval.audit_safety.finding_payload_redacted must be true."
         )
+    _validate_generator_parameters(
+        report.get("generator_parameters"), "statistical_distinguisher_eval.generator_parameters"
+    )
     required_tests = frozenset(
         _string_list(report.get("required_tests"), "statistical_distinguisher_eval.required_tests")
     )
@@ -741,6 +751,61 @@ def _validate_statistical_distinguisher_eval(report: Mapping[str, object]) -> Ma
         "statistical_distinguisher_eval.paper_faithful_statistical_distinguisher",
     )
     return report
+
+
+def _validate_generator_parameters(value: object, field_name: str) -> Mapping[str, object]:
+    parameters = _mapping(value, field_name)
+    for key in GENERATOR_PARAMETER_FIELDS:
+        if key in {"epsilon", "clip"}:
+            _finite_number(parameters.get(key), f"{field_name}.{key}")
+        elif key == "corpus_size":
+            _positive_int(parameters.get(key), f"{field_name}.{key}")
+        else:
+            _nonnegative_int(parameters.get(key), f"{field_name}.{key}")
+    return parameters
+
+
+def _validate_generator_parameter_binding(
+    generator_metadata: Mapping[str, object] | None,
+    generation_realism_eval: Mapping[str, object],
+    statistical_distinguisher_eval: Mapping[str, object] | None,
+) -> None:
+    if generator_metadata is None:
+        return
+    reference = _validate_generator_parameters(generator_metadata, "audit.dp_honey")
+    _require_same_generator_parameters(
+        reference=reference,
+        candidate=_validate_generator_parameters(
+            generation_realism_eval.get("generator_parameters"),
+            "generation_realism_eval.generator_parameters",
+        ),
+        field_name="generation_realism_eval.generator_parameters",
+    )
+    if statistical_distinguisher_eval is not None:
+        _require_same_generator_parameters(
+            reference=reference,
+            candidate=_validate_generator_parameters(
+                statistical_distinguisher_eval.get("generator_parameters"),
+                "statistical_distinguisher_eval.generator_parameters",
+            ),
+            field_name="statistical_distinguisher_eval.generator_parameters",
+        )
+
+
+def _require_same_generator_parameters(
+    reference: Mapping[str, object],
+    candidate: Mapping[str, object],
+    field_name: str,
+) -> None:
+    mismatches = tuple(
+        key
+        for key in GENERATOR_PARAMETER_FIELDS
+        if _finite_number(reference.get(key), f"audit.dp_honey.{key}")
+        != _finite_number(candidate.get(key), f"{field_name}.{key}")
+    )
+    if len(mismatches) > 0:
+        fields = ", ".join(mismatches)
+        raise DPHoneyPaperEvidenceError(f"{field_name} must match runtime audit DP-HONEY metadata: {fields}.")
 
 
 def _read_jsonl_mappings(path: Path) -> tuple[Mapping[str, object], ...]:

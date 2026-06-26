@@ -12,7 +12,7 @@ from detect.dp_honey import (
     get_format,
     train_model,
 )
-from detect.dp_honey.bigram import START
+from detect.dp_honey.bigram import segment_char_state, segment_start_state
 from detect.dp_honey.errors import (
     EmptyCorpusError,
     FormatRepairError,
@@ -70,7 +70,8 @@ def test_clipping_limits_a_repeated_bigram():
     corpus = ["AAAB"]
     clipped = train_model(spec, corpus, epsilon=1e6, clip=1.0, train_seed=0)
     unclipped = train_model(spec, corpus, epsilon=1e6, clip=3.0, train_seed=0)
-    assert clipped.transitions["A"]["A"] < unclipped.transitions["A"]["A"]
+    state = segment_char_state(0, spec.variable_segments()[0], "A")
+    assert clipped.transitions[state]["A"] < unclipped.transitions[state]["A"]
 
 
 @pytest.mark.parametrize("epsilon", [0.0, -1.0])
@@ -128,7 +129,7 @@ def test_transition_rows_are_normalized():
     model = build_model(spec, epsilon=1.0, clip=1.0, corpus_size=100, train_seed=11)
     for state, row in model.transitions.items():
         assert abs(sum(row.values()) - 1.0) < 1e-6, state
-    assert START in model.transitions  # the first-char distribution must exist
+    assert segment_start_state(0, spec.variable_segments()[0]) in model.transitions
 
 
 def test_generate_honeytokens_with_prebuilt_model_matches_sample():

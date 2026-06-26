@@ -18,7 +18,7 @@ import math
 from pathlib import Path
 from typing import Any, cast
 
-from .bigram import START, BigramHoneytokenModel
+from .bigram import START, BigramHoneytokenModel, transition_states_for_format
 from .errors import (
     ModelArtifactDecodeError,
     ModelArtifactExistsError,
@@ -149,7 +149,7 @@ def load_model(source: ArtifactSource) -> BigramHoneytokenModel:
         sorted(set(symbols)) == sorted(set(live.variable_alphabet())),
         "alphabet symbols do not match the format alphabet",
     )
-    _validate_transitions(transitions, set(symbols), start_token)
+    _validate_transitions(transitions, set(symbols), start_token, transition_states_for_format(live))
 
     # Privacy metadata must satisfy the same bounds train_model enforces, so the
     # save and load paths agree on what a valid model is (fail closed, KTD4).
@@ -215,10 +215,15 @@ def _int(mapping: ArtifactDict, key: str) -> int:
     return int(value)
 
 
-def _validate_transitions(transitions: object, symbols: set[str], start_token: str) -> None:
+def _validate_transitions(
+    transitions: object,
+    symbols: set[str],
+    start_token: str,
+    segment_states: set[str],
+) -> None:
     _require(isinstance(transitions, dict), "transitions must be a JSON object")
     transition_rows = cast(dict[str, object], transitions)
-    valid_states = symbols | {start_token}
+    valid_states = symbols | {start_token} | segment_states
     for state, row in transition_rows.items():
         _require(state in valid_states, f"transition state not in alphabet: {state!r}")
         _require(isinstance(row, dict), f"transition row must be an object: {state!r}")

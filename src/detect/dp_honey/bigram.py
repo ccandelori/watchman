@@ -15,10 +15,12 @@ per-cell budget. It is **not** a formally audited end-to-end DP guarantee, and t
 plan deliberately keeps that claim narrow.
 
 Sampling fills each variable segment left to right, masking each step to the
-segment's allowed alphabet (a hard constraint). Rows with no positive mass fall
-back to a deterministic uniform draw over the segment alphabet (R8). A bounded
-repair loop re-samples a whole token until it satisfies the spec (including any
-``extra_predicate``), raising :class:`FormatRepairError` if it cannot.
+segment's allowed alphabet (a hard constraint). Transition states are
+segment-aware so digit-only fields do not contaminate later alphanumeric fields.
+Rows with no positive mass fall back to a deterministic uniform draw over the
+segment alphabet (R8). A bounded repair loop re-samples a whole token until it
+satisfies the spec (including any ``extra_predicate``), raising
+:class:`FormatRepairError` if it cannot.
 """
 
 from __future__ import annotations
@@ -34,10 +36,12 @@ from .grammar import FormatSpec, Variable
 
 # Sentinel "previous state" marking the first character of a variable segment.
 START = "<START>"
+SEGMENT_START_PREFIX = "<SEGMENT_START"
+SEGMENT_CHAR_PREFIX = "<SEGMENT_CHAR"
 
 DEFAULT_EPSILON = 1.0
 DEFAULT_CLIP = 1.0
-DEFAULT_CORPUS_SIZE = 200
+DEFAULT_CORPUS_SIZE = 2000
 DEFAULT_TRAIN_SEED = 0
 DEFAULT_SAMPLE_SEED = 0
 DEFAULT_MAX_REPAIR_ATTEMPTS = 1000
@@ -47,9 +51,11 @@ DEFAULT_MAX_REPAIR_ATTEMPTS = 1000
 class BigramHoneytokenModel:
     """A trained, DP-noised bigram model for one shape-only format.
 
-    ``transitions`` maps a previous state (``START`` or a single variable char) to
-    ``{next_char: probability}``. Rows with no positive mass are omitted; sampling
-    falls back to a uniform draw over the active segment alphabet for those.
+    ``transitions`` maps a previous state to ``{next_char: probability}``. New
+    models use segment-aware states, while the sampler can still read older
+    artifacts that only contain ``START`` and character rows. Rows with no
+    positive mass are omitted; sampling falls back to a uniform draw over the
+    active segment alphabet for those.
 
     The stable reuse surface is :meth:`sample`, :meth:`isample`, and
     ``format_slug``. ``transitions``/``alphabet`` are implementation detail -- the
@@ -98,7 +104,7 @@ class BigramHoneytokenModel:
         spec = self.format_spec
         segments = spec.variable_segments()
         for _ in range(max_repair_attempts):
-            variables = [self._sample_segment(seg, rng) for seg in segments]
+            variables = [self._sample_segment(index, seg, rng) for index, seg in enumerate(segments)]
             candidate = spec.assemble(variables)
             if spec.validate(candidate):
                 return candidate
@@ -106,17 +112,28 @@ class BigramHoneytokenModel:
             f"could not sample a spec-valid {spec.slug!r} token within {max_repair_attempts} repair attempts"
         )
 
-    def _sample_segment(self, seg: Variable, rng: np.random.Generator) -> str:
+    def _sample_segment(self, segment_index: int, seg: Variable, rng: np.random.Generator) -> str:
         chars: list[str] = []
-        state = START
+        state = segment_start_state(segment_index, seg)
+        fallback_state = START
         for _ in range(seg.length):
-            ch = self._sample_char(state, seg.alphabet, rng)
+            ch = self._sample_char(state, seg.alphabet, rng, fallback_state=fallback_state)
             chars.append(ch)
-            state = ch
+            state = segment_char_state(segment_index, seg, ch)
+            fallback_state = ch
         return "".join(chars)
 
-    def _sample_char(self, state: str, seg_alphabet: str, rng: np.random.Generator) -> str:
+    def _sample_char(
+        self,
+        state: str,
+        seg_alphabet: str,
+        rng: np.random.Generator,
+        *,
+        fallback_state: str | None,
+    ) -> str:
         row = self.transitions.get(state, {})
+        if not row and fallback_state is not None:
+            row = self.transitions.get(fallback_state, {})
         symbols = [c for c in seg_alphabet if row.get(c, 0.0) > 0.0]
         if symbols:
             weights = np.array([row[c] for c in symbols], dtype=float)
@@ -149,7 +166,7 @@ def train_model(
         raise EmptyCorpusError("training corpus is empty")
 
     alphabet = spec.variable_alphabet()
-    states = [START, *alphabet]
+    states = sorted(transition_states_for_format(spec))
     row_index = {state: i for i, state in enumerate(states)}
     col_index = {char: j for j, char in enumerate(alphabet)}
 
@@ -159,11 +176,11 @@ def train_model(
         if variables is None:
             raise ValueError(f"corpus example does not match format {spec.slug!r}: {example!r}")
         example_counts = np.zeros_like(counts)
-        for chunk in variables:
-            prev = START
+        for segment_index, (chunk, segment) in enumerate(zip(variables, spec.variable_segments(), strict=True)):
+            prev = segment_start_state(segment_index, segment)
             for char in chunk:
                 example_counts[row_index[prev], col_index[char]] += 1.0
-                prev = char
+                prev = segment_char_state(segment_index, segment, char)
         # Per-example, per-cell clipping bounds sensitivity to `clip`.
         np.minimum(example_counts, clip, out=example_counts)
         counts += example_counts
@@ -193,6 +210,23 @@ def train_model(
         registry_version=REGISTRY_VERSION,
         spec_hash=spec.spec_hash(),
     )
+
+
+def segment_start_state(segment_index: int, segment: Variable) -> str:
+    return f"{SEGMENT_START_PREFIX}:{segment_index}:{segment.name}>"
+
+
+def segment_char_state(segment_index: int, segment: Variable, char: str) -> str:
+    return f"{SEGMENT_CHAR_PREFIX}:{segment_index}:{segment.name}:{char}>"
+
+
+def transition_states_for_format(spec: FormatSpec) -> set[str]:
+    states = {START, *spec.variable_alphabet()}
+    for segment_index, segment in enumerate(spec.variable_segments()):
+        states.add(segment_start_state(segment_index, segment))
+        for char in segment.alphabet:
+            states.add(segment_char_state(segment_index, segment, char))
+    return states
 
 
 def build_model(

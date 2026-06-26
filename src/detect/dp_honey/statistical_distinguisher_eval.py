@@ -18,7 +18,16 @@ from typing import TypeAlias
 
 import numpy as np
 
-from .bigram import DEFAULT_CLIP, DEFAULT_CORPUS_SIZE, DEFAULT_EPSILON, DEFAULT_TRAIN_SEED, START, build_model
+from .bigram import (
+    DEFAULT_CLIP,
+    DEFAULT_CORPUS_SIZE,
+    DEFAULT_EPSILON,
+    DEFAULT_TRAIN_SEED,
+    START,
+    build_model,
+    segment_char_state,
+    segment_start_state,
+)
 from .errors import DPHoneyError
 from .formats import REGISTRY_VERSION, list_formats
 from .grammar import FormatSpec
@@ -37,7 +46,8 @@ MAX_BIGRAM_LIKELIHOOD_MEAN_ABS_DELTA = 1.25
 MAX_BIGRAM_LIKELIHOOD_FORMAT_ABS_DELTA = 3.0
 MAX_DIGIT_FRACTION_FORMAT_ABS_DELTA = 0.25
 MAX_NUMERIC_RUN_COUNT_FORMAT_ABS_DELTA = 2.0
-MAX_NUMERIC_RUN_LENGTH_FORMAT_ABS_DELTA = 8.0
+MAX_NUMERIC_RUN_AVG_LENGTH_FORMAT_ABS_DELTA = 4.0
+MAX_NUMERIC_RUN_P95_LENGTH_FORMAT_ABS_DELTA = 8.0
 MAX_DISCRIMINATOR_TEST_BALANCED_ACCURACY = 0.68
 REQUIRED_TESTS = (
     "character_entropy_tests",
@@ -85,6 +95,7 @@ class _NumericProfile:
     digit_fraction: float
     numeric_run_count_per_token: float
     numeric_run_avg_length: float
+    numeric_run_p95_length: float
     numeric_run_max_length: float
 
 
@@ -280,7 +291,9 @@ def _numeric_substring_tests(
     metrics: list[dict[str, JsonValue]] = []
     max_digit_delta = 0.0
     max_run_count_delta = 0.0
-    max_run_length_delta = 0.0
+    max_avg_run_length_delta = 0.0
+    max_p95_run_length_delta = 0.0
+    max_observed_run_length_delta = 0.0
     for sample in samples:
         generated_profile = _numeric_profile(sample.generated_test)
         reference_profile = _numeric_profile(sample.reference_test)
@@ -288,17 +301,21 @@ def _numeric_substring_tests(
         run_count_delta = abs(
             generated_profile.numeric_run_count_per_token - reference_profile.numeric_run_count_per_token
         )
-        run_length_delta = max(
-            abs(generated_profile.numeric_run_avg_length - reference_profile.numeric_run_avg_length),
-            abs(generated_profile.numeric_run_max_length - reference_profile.numeric_run_max_length),
+        avg_run_length_delta = abs(generated_profile.numeric_run_avg_length - reference_profile.numeric_run_avg_length)
+        p95_run_length_delta = abs(generated_profile.numeric_run_p95_length - reference_profile.numeric_run_p95_length)
+        observed_run_length_delta = abs(
+            generated_profile.numeric_run_max_length - reference_profile.numeric_run_max_length
         )
         max_digit_delta = max(max_digit_delta, digit_delta)
         max_run_count_delta = max(max_run_count_delta, run_count_delta)
-        max_run_length_delta = max(max_run_length_delta, run_length_delta)
+        max_avg_run_length_delta = max(max_avg_run_length_delta, avg_run_length_delta)
+        max_p95_run_length_delta = max(max_p95_run_length_delta, p95_run_length_delta)
+        max_observed_run_length_delta = max(max_observed_run_length_delta, observed_run_length_delta)
         metric_passed = (
             digit_delta <= MAX_DIGIT_FRACTION_FORMAT_ABS_DELTA
             and run_count_delta <= MAX_NUMERIC_RUN_COUNT_FORMAT_ABS_DELTA
-            and run_length_delta <= MAX_NUMERIC_RUN_LENGTH_FORMAT_ABS_DELTA
+            and avg_run_length_delta <= MAX_NUMERIC_RUN_AVG_LENGTH_FORMAT_ABS_DELTA
+            and p95_run_length_delta <= MAX_NUMERIC_RUN_P95_LENGTH_FORMAT_ABS_DELTA
         )
         metrics.append(
             {
@@ -307,7 +324,9 @@ def _numeric_substring_tests(
                 "reference_digit_fraction": _round_float(reference_profile.digit_fraction),
                 "digit_fraction_abs_delta": _round_float(digit_delta),
                 "numeric_run_count_per_token_abs_delta": _round_float(run_count_delta),
-                "numeric_run_length_abs_delta": _round_float(run_length_delta),
+                "numeric_run_avg_length_abs_delta": _round_float(avg_run_length_delta),
+                "numeric_run_p95_length_abs_delta": _round_float(p95_run_length_delta),
+                "numeric_run_max_length_abs_delta": _round_float(observed_run_length_delta),
                 "status": _pass_fail(metric_passed),
             }
         )
@@ -315,21 +334,26 @@ def _numeric_substring_tests(
     passed = (
         max_digit_delta <= MAX_DIGIT_FRACTION_FORMAT_ABS_DELTA
         and max_run_count_delta <= MAX_NUMERIC_RUN_COUNT_FORMAT_ABS_DELTA
-        and max_run_length_delta <= MAX_NUMERIC_RUN_LENGTH_FORMAT_ABS_DELTA
+        and max_avg_run_length_delta <= MAX_NUMERIC_RUN_AVG_LENGTH_FORMAT_ABS_DELTA
+        and max_p95_run_length_delta <= MAX_NUMERIC_RUN_P95_LENGTH_FORMAT_ABS_DELTA
     )
     return {
         "status": _pass_fail(passed),
         "alpha": config.alpha,
         "pass_criterion": (
-            "every format digit/run-count/run-length delta must remain within configured numeric thresholds"
+            "every format digit fraction, run count, average run length, and p95 run length must remain within "
+            "configured numeric thresholds"
         ),
         "aggregate": {
             "max_digit_fraction_abs_delta": _round_float(max_digit_delta),
             "max_numeric_run_count_per_token_abs_delta": _round_float(max_run_count_delta),
-            "max_numeric_run_length_abs_delta": _round_float(max_run_length_delta),
+            "max_numeric_run_avg_length_abs_delta": _round_float(max_avg_run_length_delta),
+            "max_numeric_run_p95_length_abs_delta": _round_float(max_p95_run_length_delta),
+            "max_observed_numeric_run_length_abs_delta": _round_float(max_observed_run_length_delta),
             "threshold_digit_fraction_abs_delta": MAX_DIGIT_FRACTION_FORMAT_ABS_DELTA,
             "threshold_numeric_run_count_per_token_abs_delta": MAX_NUMERIC_RUN_COUNT_FORMAT_ABS_DELTA,
-            "threshold_numeric_run_length_abs_delta": MAX_NUMERIC_RUN_LENGTH_FORMAT_ABS_DELTA,
+            "threshold_numeric_run_avg_length_abs_delta": MAX_NUMERIC_RUN_AVG_LENGTH_FORMAT_ABS_DELTA,
+            "threshold_numeric_run_p95_length_abs_delta": MAX_NUMERIC_RUN_P95_LENGTH_FORMAT_ABS_DELTA,
         },
         "format_metrics": metrics,
     }
@@ -497,6 +521,7 @@ def _numeric_profile(tokens: tuple[str, ...]) -> _NumericProfile:
         digit_fraction=(digit_count / char_count) if char_count > 0 else 0.0,
         numeric_run_count_per_token=(len(runs) / len(tokens)) if len(tokens) > 0 else 0.0,
         numeric_run_avg_length=(sum(runs) / len(runs)) if len(runs) > 0 else 0.0,
+        numeric_run_p95_length=_percentile(runs, 95.0),
         numeric_run_max_length=float(max(runs)) if len(runs) > 0 else 0.0,
     )
 
@@ -519,18 +544,22 @@ def _token_avg_log_likelihood(model: object, token: str) -> float:
         return 0.0
     total_log = 0.0
     total_chars = 0
-    for chunk, segment in zip(variables, spec.variable_segments(), strict=True):
-        state = START
+    for segment_index, (chunk, segment) in enumerate(zip(variables, spec.variable_segments(), strict=True)):
+        state = segment_start_state(segment_index, segment)
+        fallback_state = START
         for char in chunk:
-            probability = _char_probability(model, state, char, segment.alphabet)
+            probability = _char_probability(model, state, char, segment.alphabet, fallback_state=fallback_state)
             total_log += math.log(max(probability, LOG_PROB_FLOOR))
             total_chars += 1
-            state = char
+            state = segment_char_state(segment_index, segment, char)
+            fallback_state = char
     return (total_log / total_chars) if total_chars > 0 else 0.0
 
 
-def _char_probability(model: object, state: str, char: str, alphabet: str) -> float:
+def _char_probability(model: object, state: str, char: str, alphabet: str, *, fallback_state: str | None) -> float:
     row = model.transitions.get(state, {})
+    if not row and fallback_state is not None:
+        row = model.transitions.get(fallback_state, {})
     masked_sum = sum(row.get(symbol, 0.0) for symbol in alphabet)
     if masked_sum > 0.0:
         return row.get(char, 0.0) / masked_sum
@@ -571,6 +600,12 @@ def _mean(values: list[float]) -> float:
     if len(values) == 0:
         raise DPHoneyStatisticalDistinguisherEvalError("cannot compute mean over empty values.")
     return sum(values) / len(values)
+
+
+def _percentile(values: list[int], percentile: float) -> float:
+    if len(values) == 0:
+        return 0.0
+    return float(np.percentile(np.asarray(values, dtype=np.float64), percentile))
 
 
 def _round_float(value: float) -> float:

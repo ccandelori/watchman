@@ -13,6 +13,7 @@ const COMMANDS = [
 
 let FORMATS = [];
 let MODELS = [];
+const DEFAULT_CORPUS_SIZE = 2000;
 
 async function api(path, body) {
   const opts = body ? { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) } : {};
@@ -103,14 +104,14 @@ function buildForm(cmd) {
     form.append(field("seed", numInput("seed", 1)));
     form.append(field("epsilon", numInput("epsilon", 1)));
     form.append(field("clip", numInput("clip", 1)));
-    form.append(field("corpus_size", numInput("corpus_size", 200)));
+    form.append(field("corpus_size", numInput("corpus_size", DEFAULT_CORPUS_SIZE)));
     form.append(field("train_seed", numInput("train_seed", 0)));
   } else if (cmd === "train") {
     form.append(field("format", el("select", { name: "format" }, ...formatOptions())));
     form.append(field("out_name", el("input", { name: "out_name", value: "my-model" })));
     form.append(field("epsilon", numInput("epsilon", 1)));
     form.append(field("clip", numInput("clip", 1)));
-    form.append(field("corpus_size", numInput("corpus_size", 200)));
+    form.append(field("corpus_size", numInput("corpus_size", DEFAULT_CORPUS_SIZE)));
     form.append(field("seed", numInput("seed", 0)));
     const force = el("input", { name: "force", type: "checkbox" });
     form.append(field("overwrite", force));

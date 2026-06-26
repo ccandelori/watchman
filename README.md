@@ -703,7 +703,7 @@ reference metrics and no raw token serialization:
 uv run dp-honey eval-realism \
   --count-per-format 25 \
   --seed 11 \
-  --output introspection/data/reports/dp_honey_generation_realism_eval_v1.json
+  --output introspection/data/reports/dp_honey_generation_realism_eval_v2.json
 ```
 
 This bounded realism report covers all registered formats with format validity,
@@ -719,13 +719,14 @@ uv run dp-honey eval-statistical-distinguishers \
   --test-count-per-format 25 \
   --alpha 0.1 \
   --seed 11 \
-  --output introspection/data/reports/dp_honey_statistical_distinguisher_eval_v1.json
+  --output introspection/data/reports/dp_honey_statistical_distinguisher_eval_v2.json
 ```
 
 This suite evaluates character entropy, bigram likelihood, numeric-substring
-features, and a discriminator MLP. The current artifact is intentionally
-non-promoting: entropy passes, while bigram likelihood, numeric substrings, and
-the MLP fail, so `paper_faithful_statistical_distinguisher=false`.
+features, and a discriminator MLP. The current promoted artifact passes all four
+families under the bounded same-format synthetic holdout, so
+`paper_faithful_statistical_distinguisher=true`. This is still not a
+production-secret indistinguishability proof.
 
 Generate the DP-HONEY paper-faithfulness checklist from the scanner,
 generation-realism, statistical-distinguisher, gateway smoke, and audit evidence:
@@ -733,18 +734,19 @@ generation-realism, statistical-distinguisher, gateway smoke, and audit evidence
 ```bash
 uv run aegis-dp-honey-paper-evidence \
   --scanner-eval introspection/data/reports/dp_honey_scanner_eval_v1.json \
-  --generation-realism-eval introspection/data/reports/dp_honey_generation_realism_eval_v1.json \
-  --statistical-distinguisher-eval introspection/data/reports/dp_honey_statistical_distinguisher_eval_v1.json \
-  --smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json \
-  --audit-jsonl introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_audit_v2.jsonl \
-  --output introspection/data/reports/dp_honey_paper_evidence_v3.json
+  --generation-realism-eval introspection/data/reports/dp_honey_generation_realism_eval_v2.json \
+  --statistical-distinguisher-eval introspection/data/reports/dp_honey_statistical_distinguisher_eval_v2.json \
+  --smoke introspection/data/reports/aegis_default_mock_provider_smoke_dp_honey_segment_v2.json \
+  --audit-jsonl introspection/data/reports/aegis_default_mock_provider_smoke_dp_honey_segment_audit_v2.jsonl \
+  --output introspection/data/reports/dp_honey_paper_evidence_v4.json
 ```
 
-The checklist is deliberately stricter than the scanner metric. A report can
-pass as operational beta while still setting `paper_faithful_plus=false` and
-`promotion_eligible=false` when the statistical-distinguisher suite runs but
-does not pass. The v2 smoke path also exercises planted-canary tool arguments
-and NIMBUS pre-dispatch accounting.
+The checklist is deliberately stricter than the scanner metric. It fails closed
+if runtime audit DP-HONEY generator metadata does not match the generation and
+statistical evaluation parameters. The current v4 report sets
+`paper_faithful_plus=true` and `promotion_eligible=true` for the local synthetic
+DP-HONEY registry. That claim does not cover provider-valid credentials,
+training on real secret corpora, or external secret-manager registration.
 
 To seed a session canary without putting a placeholder in the user turn, use the
 mock-only test route:

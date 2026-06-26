@@ -69,7 +69,7 @@ python -m detect.dp_honey generate --format aws-access-key-id --count 2 --seed 1
 
 # 4. Train a reusable model artifact (refuses overwrite without --force)
 python -m detect.dp_honey train --format github-ghp --out models/ghp.json \
-    --epsilon 1.0 --clip 1.0 --corpus-size 200 --seed 7
+    --epsilon 1.0 --clip 1.0 --corpus-size 2000 --seed 7
 
 # 5. Generate from a saved artifact (no retraining)
 python -m detect.dp_honey generate --model models/ghp.json --count 5 --seed 1
@@ -96,7 +96,7 @@ python -m detect.dp_honey eval-scanner --positive-per-format 25 --seed 11 \
 
 # 12. Emit all-format generation-realism evidence without raw token values
 python -m detect.dp_honey eval-realism --count-per-format 25 --seed 11 \
-    --output introspection/data/reports/dp_honey_generation_realism_eval_v1.json
+    --output introspection/data/reports/dp_honey_generation_realism_eval_v2.json
 
 # 13. Emit the statistical-distinguisher suite evidence named by the paper
 python -m detect.dp_honey eval-statistical-distinguishers \
@@ -104,7 +104,7 @@ python -m detect.dp_honey eval-statistical-distinguishers \
     --test-count-per-format 25 \
     --alpha 0.1 \
     --seed 11 \
-    --output introspection/data/reports/dp_honey_statistical_distinguisher_eval_v1.json
+    --output introspection/data/reports/dp_honey_statistical_distinguisher_eval_v2.json
 ```
 
 `generate` is capped at 10000 (it streams one token at a time); `report` is
@@ -141,9 +141,10 @@ paper's full statistical-distinguisher suite.
 
 `eval-statistical-distinguishers` runs the paper-named realism tests: character
 entropy, bigram likelihood, numeric-substring features, and a discriminator MLP.
-It reports only aggregate metrics and pass/fail statuses. The current seeded
-artifact is non-promoting because the present generator remains distinguishable
-under bigram likelihood, numeric-substring, and MLP tests.
+It reports only aggregate metrics and pass/fail statuses. The current seeded v2
+artifact passes all four bounded same-format synthetic holdout tests. That is
+paper-faithful+ evidence for this local synthetic registry, not a production
+secret indistinguishability proof.
 
 Prefix-less generic formats such as `aws-secret-access-key`, `oauth-bearer`, and
 `database-password` are excluded from registry classification to avoid noisy
@@ -180,7 +181,7 @@ from detect.dp_honey import (
 tokens = generate_honeytokens("github-ghp", count=5, sample_seed=1, train_seed=7)
 
 # Build a reusable model, save it, reload it, and sample without retraining.
-model = build_model("aws-access-key-id", epsilon=1.0, clip=1.0, corpus_size=200, train_seed=7)
+model = build_model("aws-access-key-id", epsilon=1.0, clip=1.0, corpus_size=2000, train_seed=7)
 save_model(model, "models/aws.json", force=True)
 reloaded = load_model("models/aws.json")
 same = generate_honeytokens(model=reloaded, count=5, sample_seed=1)

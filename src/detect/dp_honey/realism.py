@@ -19,7 +19,7 @@ from __future__ import annotations
 import math
 from collections import Counter
 
-from .bigram import START, BigramHoneytokenModel
+from .bigram import START, BigramHoneytokenModel, segment_char_state, segment_start_state
 from .errors import CountLimitError
 
 # Practical cap for `report`: metrics require materializing the whole batch.
@@ -106,23 +106,34 @@ def _mean_char_log_likelihood(model: BigramHoneytokenModel, tokens: list[str]) -
         variables = spec.extract_variables(token)
         if variables is None:
             continue  # invalid tokens are reflected in validity_rate, not likelihood
-        for chunk, segment in zip(variables, segments, strict=True):
-            prev = START
+        for segment_index, (chunk, segment) in enumerate(zip(variables, segments, strict=True)):
+            prev = segment_start_state(segment_index, segment)
+            fallback_prev = START
             for char in chunk:
-                probability = _char_probability(model, prev, char, segment.alphabet)
+                probability = _char_probability(model, prev, char, segment.alphabet, fallback_state=fallback_prev)
                 total_log += math.log(max(probability, LOG_PROB_FLOOR))
                 total_chars += 1
-                prev = char
+                prev = segment_char_state(segment_index, segment, char)
+                fallback_prev = char
     return (total_log / total_chars) if total_chars else 0.0
 
 
-def _char_probability(model: BigramHoneytokenModel, state: str, char: str, alphabet: str) -> float:
+def _char_probability(
+    model: BigramHoneytokenModel,
+    state: str,
+    char: str,
+    alphabet: str,
+    *,
+    fallback_state: str | None,
+) -> float:
     """The model's effective P(char | state) restricted to *alphabet*.
 
     Must mirror ``BigramHoneytokenModel._sample_char``'s masking + R8 uniform
     fallback so the likelihood matches the sampler's actual distribution.
     """
     row = model.transitions.get(state, {})
+    if not row and fallback_state is not None:
+        row = model.transitions.get(fallback_state, {})
     masked_sum = sum(row.get(symbol, 0.0) for symbol in alphabet)
     if masked_sum > 0.0:
         return row.get(char, 0.0) / masked_sum

@@ -7,7 +7,7 @@ from typing import Literal
 
 from aegis.canaries.ledger import HoneytokenLedger
 from aegis.core.contracts import JsonValue
-from detect.dp_honey.bigram import BigramHoneytokenModel, build_model
+from detect.dp_honey.bigram import DEFAULT_CORPUS_SIZE, BigramHoneytokenModel, build_model
 
 DEFAULT_CREDENTIAL_FORMATS: dict[str, str] = {
     "anthropic_key": "anthropic-api-key",
@@ -85,7 +85,7 @@ class DPHoneyCanaryGenerator:
     seed_salt: str = "aegis-dp-honey"
     epsilon: float = 1.0
     clip: float = 1.0
-    corpus_size: int = 200
+    corpus_size: int = DEFAULT_CORPUS_SIZE
     train_seed: int = 0
 
     def __post_init__(self) -> None:
