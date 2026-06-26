@@ -680,6 +680,21 @@ before provider completion, runs canary detectors when canaries exist, feeds the
 same planted-canary registry to the deterministic beta NIMBUS critic, and
 returns the detector outputs in the `aegis` block.
 
+Generate DP-HONEY scanner evidence with separate false negative and false
+positive rates:
+
+```bash
+uv run dp-honey eval-scanner \
+  --positive-per-format 25 \
+  --target-alpha 0.1 \
+  --seed 11 \
+  --output introspection/data/reports/dp_honey_scanner_eval_v1.json
+```
+
+This registry-shaped scanner evaluation includes a split-conformal confidence
+threshold over benign calibration scores. It calibrates the scanner confidence
+gate, not generator indistinguishability.
+
 To seed a session canary without putting a placeholder in the user turn, use the
 mock-only test route:
 
@@ -813,8 +828,9 @@ uv run aegis-nimbus-training-corpus \
 ```
 
 This writes `nimbus-training-turn/v0` records with explicit session split-group
-keys, four leakage labels, 16 InfoNCE-style negative contexts, and a manifest
-that marks the artifact as `not_promotable_training_contract_only`. See
+keys; benign, exact canary, encoded, partial/multi-turn, paraphrased,
+tool-output, and delayed leakage scenarios; 16 InfoNCE-style negative contexts;
+and a manifest that marks the artifact as `not_promotable_training_contract_only`. See
 [docs/nimbus-training-corpus.md](docs/nimbus-training-corpus.md).
 
 Train and evaluate the offline lexical InfoNCE scaffold against that corpus:
@@ -827,12 +843,17 @@ uv run aegis-nimbus-train-infonce \
 uv run aegis-nimbus-eval-infonce \
   --input introspection/data/reports/aegis_nimbus_training_corpus_v0.jsonl \
   --model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
-  --output introspection/data/reports/aegis_nimbus_infonce_eval_v0.json
+  --output introspection/data/reports/aegis_nimbus_infonce_eval_v0.json \
+  --allow-training-eval \
+  --grouped-cv-output introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json
 ```
 
 The v0 InfoNCE artifact is an offline lexical scaffold. It reports
 `promotion_status=not_promotable_offline_scaffold` and
 `paper_faithful_learned_critic=false`; it is not wired into runtime policy.
+The `--allow-training-eval` flag labels the main report as a training
+diagnostic. The grouped-CV output is the relevant leakage-risk evidence until a
+sealed holdout exists.
 
 Generate a local in-process NIMBUS fixture JSONL when the external redteam
 runner is not available:
@@ -859,10 +880,11 @@ matches count as `0.8 * fragment_ratio`, and cumulative budget fractions map to
 The active runtime critic is deterministic canary-based beta
 (`critic_kind=canary`, `paper_faithful_learned_critic=false`). A paper-faithful
 learned NIMBUS release now has a bootstrap corpus contract and offline lexical
-InfoNCE scaffold, but still needs a larger session-leakage corpus, grouped CV,
-sealed holdout, a runtime learned critic adapter, live runtime FN/FP metrics,
-and promotion evidence. `aegis-nimbus-eval` is the deterministic-beta labeled
-evaluation wrapper; it is not a learned NIMBUS promotion path.
+InfoNCE scaffold with grouped-CV evidence, but still needs a larger
+session-leakage corpus, sealed holdout, a runtime learned critic adapter, live
+runtime FN/FP metrics, and promotion evidence. `aegis-nimbus-eval` is the
+deterministic-beta labeled evaluation wrapper; it is not a learned NIMBUS
+promotion path.
 
 ```bash
 AEGIS_NIMBUS_EXACT_MATCH_LEAKAGE_BITS=1.0

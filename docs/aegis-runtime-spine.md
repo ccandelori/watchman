@@ -426,8 +426,9 @@ encoded, and partial leakage, and returns estimated leakage bits without writing
 raw canary values into normalized turns or audit evidence.
 The proxy reports this path as `deterministic_beta` with
 `paper_faithful_learned_critic=false`; a learned, paper-faithful NIMBUS critic
-still needs separate corpus, grouped CV, sealed holdout, live FN/FP metrics, and
-promotion evidence before it can replace the deterministic critic.
+still needs a larger corpus, sealed holdout, live FN/FP metrics, and promotion
+evidence before it can replace the deterministic critic. The current lexical
+InfoNCE grouped-CV scaffold is non-promotable.
 
 `BaselineNimbusCritic` and `InMemoryNimbusStateStore` are intentionally small
 implementations for tests and demos. They establish the contract that a future
@@ -465,7 +466,9 @@ learned-NIMBUS promotion artifact.
 `nimbus-training-turn/v0` corpus contract for the future learned critic. Each
 record has session state, current output, true secret context, 16 negative
 contexts, explicit leakage label, target leakage bits, and `split_group_key`
-for grouped CV. The companion manifest declares
+for grouped CV. The current scaffold covers benign, exact canary, encoded,
+partial/multi-turn, paraphrased, tool-output, and delayed leakage cases. The
+companion manifest declares
 `not_promotable_training_contract_only`; it is data-contract evidence, not
 runtime or promotion evidence.
 
@@ -474,7 +477,9 @@ an offline lexical InfoNCE scaffold over `nimbus-training-turn/v0` rows. The
 model artifact stores weights, schema metadata, corpus digest, label
 distribution, and aggregate metrics only. It does not store raw contexts or
 outputs, reports `promotion_status=not_promotable_offline_scaffold`, and keeps
-`paper_faithful_learned_critic=false`.
+`paper_faithful_learned_critic=false`. Same-corpus eval is rejected unless
+`--allow-training-eval` is explicitly set, and `aegis-nimbus-eval-infonce` can
+emit leave-one-split-group-out grouped-CV evidence.
 
 `aegis-nimbus-fixtures` runs a small in-process mock-proxy fixture suite and
 writes redteam-shaped JSONL for fast local NIMBUS regression checks. The output

@@ -2,10 +2,13 @@
   "critic_status": "training_corpus_scaffold",
   "info_nce_negative_count": 16,
   "label_counts": {
-    "benign": 2,
+    "benign": 5,
+    "delayed": 1,
     "direct": 1,
     "encoded": 1,
-    "partial": 4
+    "paraphrased": 1,
+    "partial": 4,
+    "tool_output": 1
   },
   "paper_faithful_learned_critic": false,
   "promotion_status": "not_promotable_training_contract_only",
@@ -20,16 +23,44 @@
       "name": "label_coverage",
       "observed": [
         "benign",
+        "delayed",
         "direct",
         "encoded",
-        "partial"
+        "paraphrased",
+        "partial",
+        "tool_output"
       ],
       "passed": true,
       "required": [
         "benign",
+        "delayed",
         "direct",
         "encoded",
-        "partial"
+        "paraphrased",
+        "partial",
+        "tool_output"
+      ]
+    },
+    {
+      "name": "scenario_family_coverage",
+      "observed": [
+        "benign",
+        "delayed_leak",
+        "encoded_leak",
+        "exact_canary_leak",
+        "paraphrased_leak",
+        "partial_drip",
+        "tool_output_leak"
+      ],
+      "passed": true,
+      "required": [
+        "benign",
+        "exact_canary_leak",
+        "partial_drip",
+        "encoded_leak",
+        "paraphrased_leak",
+        "tool_output_leak",
+        "delayed_leak"
       ]
     },
     {
@@ -45,7 +76,7 @@
       "required": true
     }
   ],
-  "record_count": 8,
+  "record_count": 14,
   "required_before_paper_faithful_promotion": [
     "large_labeled_session_leakage_corpus",
     "grouped_cross_validation",
@@ -55,27 +86,36 @@
     "live_runtime_false_positive_rate",
     "promotion_manifest"
   ],
-  "scenario_count": 4,
+  "scenario_count": 7,
   "scenario_counts": {
-    "benign": 2,
-    "direct_leak": 1,
+    "benign": 3,
+    "delayed_leak": 3,
     "encoded_leak": 1,
-    "partial_drip": 4
+    "exact_canary_leak": 1,
+    "paraphrased_leak": 1,
+    "partial_drip": 4,
+    "tool_output_leak": 1
   },
   "schema_version": "aegis.nimbus_training_manifest/v1",
-  "session_count": 4,
+  "session_count": 7,
   "session_counts": {
-    "nimbus-train-benign": 2,
-    "nimbus-train-direct-leak": 1,
+    "nimbus-train-benign": 3,
+    "nimbus-train-delayed-leak": 3,
     "nimbus-train-encoded-leak": 1,
-    "nimbus-train-partial-drip": 4
+    "nimbus-train-exact-canary-leak": 1,
+    "nimbus-train-paraphrased-leak": 1,
+    "nimbus-train-partial-drip": 4,
+    "nimbus-train-tool-output-leak": 1
   },
-  "split_group_count": 4,
+  "split_group_count": 7,
   "split_group_counts": {
-    "nimbus-train-benign": 2,
-    "nimbus-train-direct-leak": 1,
+    "nimbus-train-benign": 3,
+    "nimbus-train-delayed-leak": 3,
     "nimbus-train-encoded-leak": 1,
-    "nimbus-train-partial-drip": 4
+    "nimbus-train-exact-canary-leak": 1,
+    "nimbus-train-paraphrased-leak": 1,
+    "nimbus-train-partial-drip": 4,
+    "nimbus-train-tool-output-leak": 1
   },
   "training_schema_version": "nimbus-training-turn/v0"
 }

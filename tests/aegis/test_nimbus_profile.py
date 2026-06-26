@@ -34,7 +34,8 @@ def test_nimbus_profile_owns_partial_leak_smoke_expectations() -> None:
     default_expectation = partial_leak_smoke_expectation(NimbusSmokeProfile.DEFAULT)
     strict_expectation = partial_leak_smoke_expectation(NimbusSmokeProfile.STRICT_PARTIAL_BLOCK)
 
-    assert default_expectation.nimbus_exact_action == Action.WARN
+    assert default_expectation.nimbus_exact_action is None
+    assert default_expectation.nimbus_min_action == Action.WARN
     assert default_expectation.final_min_action is None
     assert default_expectation.final_below_action == Action.BLOCK
     assert strict_expectation.nimbus_exact_action is None

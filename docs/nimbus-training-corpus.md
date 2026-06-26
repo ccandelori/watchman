@@ -23,7 +23,8 @@ Each JSONL row is one current output to score:
 - `true_secret_context`: the positive secret context.
 - `negative_secret_contexts`: 16 decoy contexts for InfoNCE-style training.
 - `info_nce`: positive index, negative count, and ordered candidate ids.
-- `leakage_label`: one of `benign`, `partial`, `encoded`, or `direct`.
+- `leakage_label`: one of `benign`, `partial`, `encoded`, `direct`,
+  `paraphrased`, `tool_output`, or `delayed`.
 - `target_turn_leakage_bits`: synthetic target for this turn.
 - `target_cumulative_leakage_bits`: synthetic cumulative target by session.
 - `split_group_key`: the grouped-CV unit. In v0 it equals `session_id`, so
@@ -70,7 +71,9 @@ Evaluate that scaffold:
 uv run aegis-nimbus-eval-infonce \
   --input introspection/data/reports/aegis_nimbus_training_corpus_v0.jsonl \
   --model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
-  --output introspection/data/reports/aegis_nimbus_infonce_eval_v0.json
+  --output introspection/data/reports/aegis_nimbus_infonce_eval_v0.json \
+  --allow-training-eval \
+  --grouped-cv-output introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json
 ```
 
 Use markdown for a compact human-readable summary:
@@ -80,13 +83,17 @@ uv run aegis-nimbus-eval-infonce \
   --input introspection/data/reports/aegis_nimbus_training_corpus_v0.jsonl \
   --model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
   --output introspection/data/reports/aegis_nimbus_infonce_eval_v0.md \
-  --format markdown
+  --format markdown \
+  --allow-training-eval
 ```
 
 The v0 evaluator reports retrieval/calibration metrics plus false positives and
-false negatives separately. Current curated scaffold evidence has FP rate `0.0`
-and FN rate `0.333333`, which is why it remains an offline scaffold rather than
-a runtime or promotion artifact.
+false negatives separately. Same-corpus evaluation is rejected unless
+`--allow-training-eval` is passed, and that report is labeled with
+`training_eval_reused=true`. Current curated grouped-CV scaffold evidence has
+FP rate `0.0` and FN rate `0.333333`, with encoded and partial-drip holdouts
+failing. That is why it remains an offline scaffold rather than a runtime or
+promotion artifact.
 
 ## Promotion Boundary
 
@@ -95,7 +102,7 @@ NIMBUS evidence and must not be promoted as runtime artifacts. A paper-faithful
 learned NIMBUS release still needs:
 
 - a larger labeled session leakage corpus
-- grouped cross-validation
+- stronger grouped cross-validation on a larger corpus
 - sealed holdout evaluation
 - a runtime learned session critic adapter
 - live runtime false negative and false positive rates

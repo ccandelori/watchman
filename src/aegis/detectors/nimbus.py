@@ -150,6 +150,9 @@ class BaselineNimbusCritic:
             evidence={
                 "critic_kind": "baseline",
                 "critic_version": "fixed",
+                "paper_faithful_learned_critic": False,
+                "promotion_status": "demo_only_baseline",
+                "deterministic_fallback": True,
                 "estimated_leakage_bits": self.fixed_estimated_leakage_bits,
             },
         )
@@ -200,6 +203,9 @@ class CanaryNimbusCritic:
                 confidence=self._config.confidence,
                 evidence={
                     "critic_kind": "canary",
+                    "paper_faithful_learned_critic": False,
+                    "promotion_status": "deterministic_canary_beta",
+                    "deterministic_fallback": True,
                     "reason": "no_registered_canaries_for_session",
                     "registered_canary_count": 0,
                 },
@@ -294,6 +300,9 @@ class NimbusDetector:
                     "capability_reason": "model_response_required",
                     "turn_index": turn.turn_index,
                     "critic_version": self._config.critic_version,
+                    "critic_kind": "unscored",
+                    "paper_faithful_learned_critic": False,
+                    "promotion_status": "unscored_runtime_precondition_missing",
                 },
                 latency_ms=_elapsed_ms(started_at),
             )
@@ -358,6 +367,17 @@ class NimbusDetector:
                 "sanitize_threshold": self._config.sanitize_threshold,
                 "block_threshold": self._config.block_threshold,
                 "critic_version": self._config.critic_version,
+                "critic_kind": _optional_string(critic_score.evidence, "critic_kind", "unknown"),
+                "paper_faithful_learned_critic": _optional_bool(
+                    critic_score.evidence,
+                    "paper_faithful_learned_critic",
+                    False,
+                ),
+                "promotion_status": _optional_string(
+                    critic_score.evidence,
+                    "promotion_status",
+                    "unknown",
+                ),
                 "critic_evidence": critic_score.evidence,
             },
             latency_ms=_elapsed_ms(started_at),
@@ -519,6 +539,9 @@ def _canary_nimbus_score(
 
     evidence: dict[str, JsonValue] = {
         "critic_kind": "canary",
+        "paper_faithful_learned_critic": False,
+        "promotion_status": "deterministic_canary_beta",
+        "deterministic_fallback": True,
         "registered_canary_count": len(records),
         "exact_match_count": exact_match_count,
         "encoded_match_count": encoded_match_count,
@@ -607,6 +630,9 @@ def _nimbus_unavailable_result(turn: NormalizedTurn, reason: str, started_at: fl
         evidence={
             "capability_reason": reason,
             "turn_index": turn.turn_index,
+            "critic_kind": "unavailable",
+            "paper_faithful_learned_critic": False,
+            "promotion_status": "unscored_runtime_precondition_missing",
         },
         latency_ms=_elapsed_ms(started_at),
     )
@@ -687,6 +713,20 @@ def _signal_summary(result: DetectorResult) -> dict[str, JsonValue]:
     if isinstance(matches, list):
         summary["matches"] = matches
     return summary
+
+
+def _optional_bool(evidence: dict[str, JsonValue], field_name: str, fallback: bool) -> bool:
+    value = evidence.get(field_name)
+    if isinstance(value, bool):
+        return value
+    return fallback
+
+
+def _optional_string(evidence: dict[str, JsonValue], field_name: str, fallback: str) -> str:
+    value = evidence.get(field_name)
+    if isinstance(value, str) and value != "":
+        return value
+    return fallback
 
 
 def _validate_probability(value: float, field_name: str) -> None:

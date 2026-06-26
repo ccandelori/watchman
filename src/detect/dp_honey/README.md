@@ -88,6 +88,11 @@ python -m detect.dp_honey scan --file suspect.txt
 
 # 10. Scan and replace each detected span with a matching synthetic decoy
 python -m detect.dp_honey auto-decoy --file suspect.txt --seed 1
+
+# 11. Emit held-out scanner FP/FN evidence with conformal confidence calibration
+python -m detect.dp_honey eval-scanner --positive-per-format 25 --seed 11 \
+    --target-alpha 0.1 \
+    --output introspection/data/reports/dp_honey_scanner_eval_v1.json
 ```
 
 `generate` is capped at 10000 (it streams one token at a time); `report` is
@@ -108,6 +113,13 @@ handled carefully.
 finding, then emits `swapped_text` with detected spans replaced. It is a helper,
 not a sanitizer: only detected scannable spans are replaced, and unrelated input
 text is preserved.
+
+`eval-scanner` generates deterministic registry-shaped positives and benign
+negatives, reports true/false positives and false negatives separately, and
+never includes raw token values in the report. It also fits a split-conformal
+confidence threshold over benign calibration scores. This calibrates the scanner
+confidence gate; it is not a proof that generated honeytokens are
+indistinguishable from real credentials.
 
 Prefix-less generic formats such as `aws-secret-access-key`, `oauth-bearer`, and
 `database-password` are excluded from registry classification to avoid noisy

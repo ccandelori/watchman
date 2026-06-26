@@ -1,0 +1,185 @@
+{
+  "audit_safety": {
+    "finding_payload_redacted": true,
+    "raw_secret_values_in_report": false
+  },
+  "conformal_calibration": {
+    "calibration_benign_count": 16,
+    "calibration_score_max": 0.35,
+    "calibration_score_values": [
+      0.0,
+      0.35
+    ],
+    "empirical_calibration_false_positive_rate": 0.0,
+    "implemented": true,
+    "paper_faithfulness_status": "split conformal confidence threshold implemented for scanner findings; generator realism still requires stronger statistical distinguisher evidence",
+    "quantile_rank": 16,
+    "recommended_min_confidence": "medium",
+    "score_rule": "detect if max_confidence_score > threshold",
+    "status": "split_conformal_confidence_threshold",
+    "target_alpha": 0.1,
+    "threshold": 0.35
+  },
+  "counts": {
+    "false_negative": 0,
+    "false_positive": 0,
+    "true_negative": 10,
+    "true_positive": 500
+  },
+  "false_negative_rate": 0.0,
+  "false_positive_rate": 0.0,
+  "format_metrics": [
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "anthropic-api-key",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "aws-access-key-id",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "generic-sk",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "github-fine-grained",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "github-ghp",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "github-oauth",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "github-refresh",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "github-server-to-server",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "github-user-to-server",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "google-api-key",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "jwt",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "openai-project-key",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "sendgrid-key",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "slack-bot-token",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "slack-user-token",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "slack-webhook-url",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "ssh-private-key",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "stripe-sk-live",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "twilio-account-sid",
+      "positive_examples": 25,
+      "true_positive": 25
+    },
+    {
+      "false_negative": 0,
+      "false_negative_rate": 0.0,
+      "format_slug": "twilio-api-key-sid",
+      "positive_examples": 25,
+      "true_positive": 25
+    }
+  ],
+  "negative_example_count": 10,
+  "one_token_detection": true,
+  "positive_example_count": 500,
+  "positive_per_format": 25,
+  "precision": 1.0,
+  "recall": 1.0,
+  "registry_version": "2",
+  "scannable_format_count": 20,
+  "scanner_kind": "registry_regex_validate_plus_unknown_entropy",
+  "schema_version": "detect.dp_honey.scanner_eval/v1",
+  "seed": 11,
+  "target_alpha": 0.1
+}

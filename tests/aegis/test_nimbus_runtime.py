@@ -34,6 +34,9 @@ def test_default_proxy_emits_nimbus_result():
     nimbus_results = [r for r in detector_results if r["detector_name"] == "nimbus"]
     assert len(nimbus_results) >= 1
     assert any(r["capability_status"] == "active" for r in nimbus_results)
+    active_nimbus = next(r for r in nimbus_results if r["capability_status"] == "active")
+    assert active_nimbus["evidence"]["paper_faithful_learned_critic"] is False
+    assert active_nimbus["evidence"]["promotion_status"] == "deterministic_canary_beta"
 
 
 def test_nimbus_unavailable_without_secret_handle():
@@ -153,6 +156,8 @@ def test_nimbus_multi_turn_escalation():
 
         # Secret handle must never appear in evidence
         assert secret_handle not in str(result.evidence)
+        assert result.evidence["paper_faithful_learned_critic"] is False
+        assert result.evidence["promotion_status"] == "demo_only_baseline"
 
     # Cumulative should be strictly increasing
     assert all(cumulatives[i] < cumulatives[i + 1] for i in range(len(cumulatives) - 1))

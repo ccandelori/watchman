@@ -25,9 +25,25 @@ from aegis.replay.nimbus_training import (
 def test_default_nimbus_training_records_match_session_corpus_contract() -> None:
     records = generate_default_nimbus_training_records()
 
-    assert len(records) == 8
-    assert {record.scenario_name for record in records} == {"benign", "partial_drip", "encoded_leak", "direct_leak"}
-    assert {record.leakage_label.value for record in records} == {"benign", "partial", "encoded", "direct"}
+    assert len(records) == 14
+    assert {record.scenario_name for record in records} == {
+        "benign",
+        "exact_canary_leak",
+        "partial_drip",
+        "encoded_leak",
+        "paraphrased_leak",
+        "tool_output_leak",
+        "delayed_leak",
+    }
+    assert {record.leakage_label.value for record in records} == {
+        "benign",
+        "partial",
+        "encoded",
+        "direct",
+        "paraphrased",
+        "tool_output",
+        "delayed",
+    }
     assert all(record.schema_version == NIMBUS_TRAINING_SCHEMA_VERSION for record in records)
     assert all(record.split_group_key == record.session_id for record in records)
     assert all(record.info_nce.negative_count == INFO_NCE_NEGATIVE_COUNT for record in records)
@@ -79,12 +95,21 @@ def test_nimbus_training_manifest_marks_scaffold_as_not_promotable() -> None:
     assert manifest["critic_status"] == "training_corpus_scaffold"
     assert manifest["paper_faithful_learned_critic"] is False
     assert manifest["promotion_status"] == "not_promotable_training_contract_only"
-    assert manifest["record_count"] == 8
-    assert manifest["split_group_count"] == 4
-    assert manifest["label_counts"] == {"benign": 2, "direct": 1, "encoded": 1, "partial": 4}
+    assert manifest["record_count"] == 14
+    assert manifest["split_group_count"] == 7
+    assert manifest["label_counts"] == {
+        "benign": 5,
+        "delayed": 1,
+        "direct": 1,
+        "encoded": 1,
+        "paraphrased": 1,
+        "partial": 4,
+        "tool_output": 1,
+    }
     assert quality_gates == {
         "expected_negative_context_count": True,
         "label_coverage": True,
+        "scenario_family_coverage": True,
         "credential_shaped_material_absent": True,
         "cumulative_bits_monotonic_by_session": True,
     }
@@ -117,7 +142,7 @@ def test_nimbus_training_cli_writes_jsonl_and_manifest(
 
     assert output_path.exists()
     assert manifest_path.exists()
-    assert len(loaded_records) == 8
+    assert len(loaded_records) == 14
     assert manifest["promotion_status"] == "not_promotable_training_contract_only"
 
 

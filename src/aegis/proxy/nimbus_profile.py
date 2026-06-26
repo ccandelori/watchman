@@ -91,8 +91,8 @@ def partial_leak_smoke_expectation(profile: NimbusSmokeProfile) -> NimbusPartial
     if profile == NimbusSmokeProfile.DEFAULT:
         return NimbusPartialLeakSmokeExpectation(
             profile=profile,
-            nimbus_exact_action=Action.WARN,
-            nimbus_min_action=None,
+            nimbus_exact_action=None,
+            nimbus_min_action=Action.WARN,
             final_min_action=None,
             final_below_action=Action.BLOCK,
         )

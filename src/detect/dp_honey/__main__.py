@@ -1,7 +1,8 @@
 """Command-line interface for DP-HONEY (``python -m detect.dp_honey``).
 
 Subcommands: ``list-formats``, ``preview-corpus``, ``train``, ``generate``,
-``inspect-model``, ``validate``, ``report``.
+``inspect-model``, ``validate``, ``report``, ``scan``, ``auto-decoy``, and
+``eval-scanner``.
 
 Every :class:`DPHoneyError` is mapped to a concise stderr message and exit code 1;
 argparse handles usage errors with exit code 2. Commands that emit token-like
@@ -44,6 +45,7 @@ from .operations import (
     train_to_artifact,
 )
 from .realism import REPORT_MAX, enforce_count_limit
+from .scanner_eval import DPHoneyScannerEvalConfig, build_scanner_eval_report, write_scanner_eval_report
 
 DESCRIPTION = (
     "DP-HONEY: generate synthetic, shape-only honeytokens for credential-leak "
@@ -122,6 +124,13 @@ def build_parser() -> argparse.ArgumentParser:
     p_auto.add_argument("--file", help="path to scan (default: stdin)")
     p_auto.add_argument("--seed", type=int, default=0)
     p_auto.set_defaults(func=cmd_auto_decoy)
+
+    p_eval = sub.add_parser("eval-scanner", help="emit held-out scanner FP/FN evidence")
+    p_eval.add_argument("--positive-per-format", type=int, required=True, dest="positive_per_format")
+    p_eval.add_argument("--target-alpha", type=float, required=True, dest="target_alpha")
+    p_eval.add_argument("--seed", type=int, default=0)
+    p_eval.add_argument("--output", type=Path, required=False, help="optional JSON report output path")
+    p_eval.set_defaults(func=cmd_eval_scanner)
 
     return parser
 
@@ -288,6 +297,20 @@ def cmd_auto_decoy(args: argparse.Namespace) -> int:
     _emit_safety_banner()
     result = scanner.auto_decoy(_read_input(args.file), seed=args.seed)
     print(json.dumps(result, indent=2))
+    return 0
+
+
+def cmd_eval_scanner(args: argparse.Namespace) -> int:
+    report = build_scanner_eval_report(
+        DPHoneyScannerEvalConfig(
+            positive_per_format=args.positive_per_format,
+            seed=args.seed,
+            target_alpha=args.target_alpha,
+        )
+    )
+    if args.output is not None:
+        write_scanner_eval_report(args.output, report)
+    print(json.dumps(report, allow_nan=False, indent=2, sort_keys=True))
     return 0
 
 
