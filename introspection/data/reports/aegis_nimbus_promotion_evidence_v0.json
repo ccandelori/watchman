@@ -1,0 +1,347 @@
+{
+  "artifact_hashes": {
+    "calibration_manifest_sha256": "3cf17fbdf0727f4cf6aa8511f364ca6fb7cad924dc9466e7c813261233a1571e",
+    "deterministic_eval_sha256": "61f797ebda1c8749a8d6df66fca4602e3ee52a18a3a25e7dbecbc66e8030d380",
+    "gateway_smoke_sha256": "2ad28da2089f682bdef4fbc1e6745e029141ce7f6e711de6ab388e0fb4e74fb1",
+    "grouped_cv_sha256": "a20b1793b6a89868eb7b53e9d86952b7d1d68f602d67747c54e2513133c37c16",
+    "infonce_model_sha256": "819467feca9650fc37cc96a6c83035da3fb6ebacb773deed9bb3ee02f426ab06",
+    "sealed_holdout_sha256": "b57be94e7256675dd8f9d95eff885c7e801d9261fc42eb8a8a86cb36ce8a7e0a",
+    "sealed_manifest_sha256": "9f7e3efc83e435f0fd6cde427fcc29e7d3669ccbb0670f51a4fd0258575406f8"
+  },
+  "checklist": [
+    {
+      "evidence": {
+        "calibration_quality_gates_passed": true,
+        "calibration_record_count": 19,
+        "calibration_split_group_count": 9,
+        "sealed_quality_gates_passed": true,
+        "sealed_record_count": 19,
+        "sealed_split_group_count": 9
+      },
+      "gaps": [],
+      "paper_requirement": "Use session-level leakage examples spanning benign, exact, encoded, partial, paraphrased, tool-output, and delayed leakage.",
+      "requirement_id": "session_level_corpus_coverage",
+      "status": "met"
+    },
+    {
+      "evidence": {
+        "negative_context_count": 16
+      },
+      "gaps": [],
+      "paper_requirement": "Provide negative secret contexts for contrastive leakage scoring.",
+      "requirement_id": "negative_contexts_for_infonce",
+      "status": "met"
+    },
+    {
+      "evidence": {
+        "attack_top1_accuracy": 0.7857142857142857,
+        "false_negative": 3,
+        "false_negative_rate": 0.21428571428571427,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "paper_faithful_learned_critic": false,
+        "promotion_status": "not_promotable_offline_scaffold",
+        "record_count": 19,
+        "session_false_negative": 0,
+        "session_false_negative_rate": 0.0,
+        "session_false_positive": 0,
+        "session_false_positive_rate": 0.0,
+        "split_group_count": 9
+      },
+      "gaps": [],
+      "paper_requirement": "Evaluate learned critic with session/scenario grouped splits.",
+      "requirement_id": "grouped_cross_validation",
+      "status": "met"
+    },
+    {
+      "evidence": {
+        "attack_top1_accuracy": 0.7857142857142857,
+        "false_negative": 3,
+        "false_negative_rate": 0.21428571428571427,
+        "false_positive": 0,
+        "false_positive_rate": 0.0,
+        "paper_faithful_learned_critic": false,
+        "profiles_distinct": true,
+        "promotion_status": "not_promotable_offline_scaffold",
+        "record_count": 19,
+        "sealed_quality_gates_passed": true,
+        "sealed_required_labels_present": true,
+        "session_false_negative": 0,
+        "session_false_negative_rate": 0.0,
+        "session_false_positive": 0,
+        "session_false_positive_rate": 0.0,
+        "split_group_count": 9
+      },
+      "gaps": [],
+      "paper_requirement": "Evaluate learned critic on a sealed holdout that was not used for training.",
+      "requirement_id": "sealed_holdout",
+      "status": "met"
+    },
+    {
+      "evidence": {
+        "grouped_cv": {
+          "attack_top1_accuracy": 0.7857142857142857,
+          "false_negative": 3,
+          "false_negative_rate": 0.21428571428571427,
+          "false_positive": 0,
+          "false_positive_rate": 0.0,
+          "paper_faithful_learned_critic": false,
+          "promotion_status": "not_promotable_offline_scaffold",
+          "record_count": 19,
+          "session_false_negative": 0,
+          "session_false_negative_rate": 0.0,
+          "session_false_positive": 0,
+          "session_false_positive_rate": 0.0,
+          "split_group_count": 9
+        },
+        "sealed_holdout": {
+          "attack_top1_accuracy": 0.7857142857142857,
+          "false_negative": 3,
+          "false_negative_rate": 0.21428571428571427,
+          "false_positive": 0,
+          "false_positive_rate": 0.0,
+          "paper_faithful_learned_critic": false,
+          "promotion_status": "not_promotable_offline_scaffold",
+          "record_count": 19,
+          "session_false_negative": 0,
+          "session_false_negative_rate": 0.0,
+          "session_false_positive": 0,
+          "session_false_positive_rate": 0.0,
+          "split_group_count": 9
+        }
+      },
+      "gaps": [],
+      "paper_requirement": "Report false negative and false positive counts/rates separately.",
+      "requirement_id": "fn_fp_reported_separately",
+      "status": "met"
+    },
+    {
+      "evidence": {
+        "head_to_head_common_live_corpus": false,
+        "learned_session_signal_complements_deterministic": false,
+        "learned_turn_fnr_beats_deterministic": false,
+        "offline_learned_session_signal_observed": true
+      },
+      "gaps": [
+        "learned sealed turn false-negative rate is worse than deterministic beta on current evidence",
+        "no common live runtime head-to-head corpus exists"
+      ],
+      "paper_requirement": "Promote learned NIMBUS only if it beats or meaningfully complements deterministic beta.",
+      "requirement_id": "learned_beats_or_complements_deterministic",
+      "status": "partial"
+    },
+    {
+      "evidence": {
+        "learned_runtime_evidence_present": false
+      },
+      "gaps": [
+        "no learned NIMBUS runtime adapter is wired into the gateway"
+      ],
+      "paper_requirement": "Wire the learned critic through the runtime NimbusCritic interface before promotion.",
+      "requirement_id": "runtime_learned_critic_adapter",
+      "status": "missing"
+    },
+    {
+      "evidence": {
+        "readiness_nimbus_status": "deterministic_beta",
+        "runtime_critic_kind": "canary"
+      },
+      "gaps": [
+        "gateway smoke proves deterministic beta runtime only, not learned runtime FN/FP"
+      ],
+      "paper_requirement": "Collect live gateway false negative and false positive evidence for the learned critic.",
+      "requirement_id": "live_gateway_learned_fn_fp",
+      "status": "missing"
+    },
+    {
+      "evidence": {
+        "promote_learned_runtime": false
+      },
+      "gaps": [
+        "no learned NIMBUS promoted runtime artifact or promotion manifest exists"
+      ],
+      "paper_requirement": "Emit a promoted runtime artifact and manifest binding critic, corpus, evals, and runtime.",
+      "requirement_id": "promotion_manifest",
+      "status": "missing"
+    }
+  ],
+  "checklist_summary": {
+    "met": 5,
+    "missing": 3,
+    "partial": 1,
+    "total": 9
+  },
+  "comparison": {
+    "deterministic_eval_is_runtime": true,
+    "deterministic_false_negative_rate": 0.0,
+    "head_to_head_common_live_corpus": false,
+    "learned_eval_is_offline_scaffold": true,
+    "learned_grouped_cv_false_negative_rate": 0.21428571428571427,
+    "learned_promotion_blocked_reason": "Learned scaffold misses held-out turn-level leaks, is not a runtime critic, and has no live learned gateway FN/FP evidence.",
+    "learned_runtime_gateway_evidence_present": false,
+    "learned_sealed_false_negative_rate": 0.21428571428571427,
+    "learned_sealed_session_false_negative_rate": 0.0,
+    "learned_session_signal_complements_deterministic": false,
+    "learned_turn_fnr_beats_deterministic": false,
+    "offline_learned_session_signal_observed": true
+  },
+  "component": "nimbus",
+  "corpus_evidence": {
+    "calibration_label_counts": {
+      "benign": 5,
+      "delayed": 1,
+      "direct": 1,
+      "encoded": 2,
+      "paraphrased": 1,
+      "partial": 8,
+      "tool_output": 1
+    },
+    "calibration_profile": "calibration",
+    "calibration_quality_gates_passed": true,
+    "calibration_record_count": 19,
+    "calibration_split_group_count": 9,
+    "negative_context_count": 16,
+    "profiles_distinct": true,
+    "sealed_label_counts": {
+      "benign": 5,
+      "delayed": 1,
+      "direct": 1,
+      "encoded": 2,
+      "paraphrased": 1,
+      "partial": 8,
+      "tool_output": 1
+    },
+    "sealed_profile": "sealed_holdout",
+    "sealed_quality_gates_passed": true,
+    "sealed_record_count": 19,
+    "sealed_split_group_count": 9
+  },
+  "deterministic_baseline_metrics": {
+    "critic_kind": "canary",
+    "critic_status": "deterministic_beta",
+    "false_negative": 0,
+    "false_negative_rate": 0.0,
+    "false_positive": 0,
+    "false_positive_rate": 0.0,
+    "negative_label_count": 1,
+    "paper_faithful_learned_critic": false,
+    "paper_faithful_required_before_promotion": [
+      "labeled_session_leakage_corpus",
+      "grouped_cross_validation",
+      "sealed_holdout",
+      "live_runtime_false_negative_rate",
+      "live_runtime_false_positive_rate",
+      "promotion_manifest"
+    ],
+    "positive_label_count": 1,
+    "precision": 1.0,
+    "recall": 1.0,
+    "scenario_count": 2,
+    "true_negative": 1,
+    "true_positive": 1
+  },
+  "gateway_runtime_evidence": {
+    "benign_final_action": "allow",
+    "gateway_ready_status": "ready",
+    "learned_runtime_evidence_present": false,
+    "nimbus_profile": "default",
+    "nimbus_thresholds": {
+      "block": 0.9,
+      "sanitize": 0.6,
+      "warn": 0.3
+    },
+    "paper_faithful_learned_critic": false,
+    "partial_leak_budget_fraction": 0.38974358974358975,
+    "partial_leak_final_action": "sanitize",
+    "partial_leak_nimbus_action": "sanitize",
+    "provider_mode": "mock",
+    "readiness_nimbus_status": "deterministic_beta",
+    "runtime_critic_kind": "canary",
+    "smoke_status": "ok",
+    "tool_argument_final_action": "escalate",
+    "tool_argument_nimbus_tool_action": "block",
+    "tool_argument_provider_status": "skipped"
+  },
+  "learned_grouped_cv_metrics": {
+    "attack_top1_accuracy": 0.7857142857142857,
+    "false_negative": 3,
+    "false_negative_rate": 0.21428571428571427,
+    "false_positive": 0,
+    "false_positive_rate": 0.0,
+    "fold_count": 9,
+    "model_id": "nimbus-infonce-lexical-v0",
+    "paper_faithful_learned_critic": false,
+    "promotion_status": "not_promotable_offline_scaffold",
+    "record_count": 19,
+    "schema_version": "aegis.nimbus_infonce_grouped_cv/v0",
+    "session_false_negative": 0,
+    "session_false_negative_rate": 0.0,
+    "session_false_positive": 0,
+    "session_false_positive_rate": 0.0,
+    "session_true_negative": 1,
+    "session_true_positive": 8,
+    "split_group_count": 9,
+    "true_negative": 5,
+    "true_positive": 11
+  },
+  "learned_model": {
+    "attack_top1_accuracy": 0.7857142857142857,
+    "feature_names": [
+      "output_token_overlap",
+      "decoded_output_token_overlap",
+      "state_token_overlap"
+    ],
+    "model_id": "nimbus-infonce-lexical-v0",
+    "negative_count": 16,
+    "paper_faithful_learned_critic": false,
+    "positive_context_index": 0,
+    "promotion_status": "not_promotable_offline_scaffold",
+    "schema_version": "aegis.nimbus_infonce_model/v0",
+    "source_corpus_sha256": "5d5f57a255e5bbe0f8eb0be5d3608201e949fb71fec51c981c355c8071c90d8f",
+    "training_record_count": 19,
+    "training_split_group_count": 9,
+    "weights": [
+      3.0,
+      4.0,
+      0.0
+    ]
+  },
+  "learned_sealed_holdout_metrics": {
+    "attack_top1_accuracy": 0.7857142857142857,
+    "false_negative": 3,
+    "false_negative_rate": 0.21428571428571427,
+    "false_positive": 0,
+    "false_positive_rate": 0.0,
+    "model_id": "nimbus-infonce-lexical-v0",
+    "paper_faithful_learned_critic": false,
+    "promotion_status": "not_promotable_offline_scaffold",
+    "record_count": 19,
+    "schema_version": "aegis.nimbus_infonce_eval/v0",
+    "session_false_negative": 0,
+    "session_false_negative_rate": 0.0,
+    "session_false_positive": 0,
+    "session_false_positive_rate": 0.0,
+    "session_true_negative": 1,
+    "session_true_positive": 8,
+    "split_group_count": 9,
+    "training_eval_allowed": false,
+    "training_eval_reused": false,
+    "true_negative": 5,
+    "true_positive": 11
+  },
+  "missing_before_paper_faithful_learned_promotion": [
+    "learned sealed turn false-negative rate is worse than deterministic beta on current evidence",
+    "no common live runtime head-to-head corpus exists",
+    "no learned NIMBUS runtime adapter is wired into the gateway",
+    "gateway smoke proves deterministic beta runtime only, not learned runtime FN/FP",
+    "no learned NIMBUS promoted runtime artifact or promotion manifest exists"
+  ],
+  "paper_faithful_learned_critic": false,
+  "paper_source": "Research/2606.04141v1.pdf and repo-derived AIS requirements in Proposal/aegis-project-plan.md; this report evaluates NIMBUS against the current repo checklist.",
+  "promote_learned_runtime": false,
+  "promotion_eligible": false,
+  "promotion_status": "deterministic_beta_active_learned_not_promotable",
+  "recommended_runtime_critic": "deterministic_canary_beta",
+  "schema_version": "aegis.nimbus_promotion_evidence/v0",
+  "summary": "The learned InfoNCE NIMBUS path has grouped-CV and sealed-holdout evidence, but it is a small offline lexical scaffold, misses held-out turn-level partial-drip leaks, lacks a runtime learned critic adapter, and has no live gateway FN/FP evidence. Keep deterministic canary NIMBUS active."
+}

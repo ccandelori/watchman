@@ -876,6 +876,21 @@ uv run aegis-nimbus-eval-infonce \
   --output introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json
 ```
 
+Bind the deterministic runtime baseline, learned scaffold evals, sealed holdout,
+and gateway smoke into a single promotion decision:
+
+```bash
+uv run aegis-nimbus-promotion-evidence \
+  --deterministic-eval introspection/data/reports/aegis_nimbus_deterministic_beta_eval_v1.json \
+  --calibration-manifest introspection/data/reports/aegis_nimbus_training_corpus_manifest_v0.json \
+  --sealed-manifest introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_manifest_v0.json \
+  --infonce-model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
+  --grouped-cv introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json \
+  --sealed-holdout introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json \
+  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json \
+  --output introspection/data/reports/aegis_nimbus_promotion_evidence_v0.json
+```
+
 The v0 InfoNCE artifact is an offline lexical scaffold. It reports
 `promotion_status=not_promotable_offline_scaffold` and
 `paper_faithful_learned_critic=false`; it is not wired into runtime policy.
@@ -884,7 +899,9 @@ diagnostic. Current grouped-CV and sealed-holdout evidence both report turn-leve
 FP/FN and session-level FP/FN separately: turn FPR `0.0`, turn FNR `0.214286`,
 session FPR `0.0`, and session FNR `0.0`. The scaffold still remains
 non-promotable because it is a tiny lexical offline model without a learned
-runtime adapter, live gateway FN/FP evidence, or a promotion manifest.
+runtime adapter, live gateway FN/FP evidence, or a promotion manifest. The
+promotion evidence report records `promote_learned_runtime=false` and recommends
+keeping deterministic canary NIMBUS as the active runtime critic.
 
 Generate a local in-process NIMBUS fixture JSONL when the external redteam
 runner is not available:

@@ -1,0 +1,169 @@
+from __future__ import annotations
+
+import json
+import sys
+from pathlib import Path
+
+import pytest
+
+from aegis.replay.nimbus_promotion_evidence import (
+    NIMBUS_PROMOTION_EVIDENCE_SCHEMA_VERSION,
+    NimbusPromotionEvidenceConfig,
+    NimbusPromotionEvidenceError,
+    build_nimbus_promotion_evidence_report,
+    main,
+)
+
+DETERMINISTIC_EVAL_PATH = Path("introspection/data/reports/aegis_nimbus_deterministic_beta_eval_v1.json")
+CALIBRATION_MANIFEST_PATH = Path("introspection/data/reports/aegis_nimbus_training_corpus_manifest_v0.json")
+SEALED_MANIFEST_PATH = Path("introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_manifest_v0.json")
+INFONCE_MODEL_PATH = Path("introspection/data/reports/aegis_nimbus_infonce_model_v0.json")
+GROUPED_CV_PATH = Path("introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json")
+SEALED_HOLDOUT_PATH = Path("introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json")
+GATEWAY_SMOKE_PATH = Path(
+    "introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json"
+)
+
+
+def test_nimbus_promotion_evidence_keeps_learned_scaffold_non_promotable() -> None:
+    report = build_nimbus_promotion_evidence_report(_config())
+    checklist = {str(item["requirement_id"]): item for item in _checklist(report)}
+
+    assert report["schema_version"] == NIMBUS_PROMOTION_EVIDENCE_SCHEMA_VERSION
+    assert report["promotion_status"] == "deterministic_beta_active_learned_not_promotable"
+    assert report["promotion_eligible"] is False
+    assert report["promote_learned_runtime"] is False
+    assert report["paper_faithful_learned_critic"] is False
+    assert report["recommended_runtime_critic"] == "deterministic_canary_beta"
+    assert report["deterministic_baseline_metrics"]["false_negative_rate"] == 0.0
+    assert report["learned_sealed_holdout_metrics"]["false_negative_rate"] == 0.21428571428571427
+    assert report["learned_sealed_holdout_metrics"]["training_eval_reused"] is False
+    assert report["learned_sealed_holdout_metrics"]["training_eval_allowed"] is False
+    assert report["comparison"]["learned_turn_fnr_beats_deterministic"] is False
+    assert report["comparison"]["offline_learned_session_signal_observed"] is True
+    assert report["comparison"]["learned_session_signal_complements_deterministic"] is False
+    assert report["gateway_runtime_evidence"]["readiness_nimbus_status"] == "deterministic_beta"
+    assert report["gateway_runtime_evidence"]["learned_runtime_evidence_present"] is False
+    assert checklist["session_level_corpus_coverage"]["status"] == "met"
+    assert checklist["negative_contexts_for_infonce"]["status"] == "met"
+    assert checklist["grouped_cross_validation"]["status"] == "met"
+    assert checklist["sealed_holdout"]["status"] == "met"
+    assert checklist["fn_fp_reported_separately"]["status"] == "met"
+    assert checklist["learned_beats_or_complements_deterministic"]["status"] == "partial"
+    assert checklist["runtime_learned_critic_adapter"]["status"] == "missing"
+    assert checklist["live_gateway_learned_fn_fp"]["status"] == "missing"
+    assert checklist["promotion_manifest"]["status"] == "missing"
+    assert report["checklist_summary"] == {"met": 5, "missing": 3, "partial": 1, "total": 9}
+    missing = " ".join(str(item) for item in report["missing_before_paper_faithful_learned_promotion"])
+    assert "runtime adapter" in missing
+    assert "live runtime head-to-head" in missing
+    assert "promotion manifest" in missing
+
+
+def test_nimbus_promotion_evidence_cli_writes_json(tmp_path: Path, monkeypatch) -> None:
+    output_path = tmp_path / "nimbus-promotion-evidence.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        (
+            "aegis-nimbus-promotion-evidence",
+            "--deterministic-eval",
+            str(DETERMINISTIC_EVAL_PATH),
+            "--calibration-manifest",
+            str(CALIBRATION_MANIFEST_PATH),
+            "--sealed-manifest",
+            str(SEALED_MANIFEST_PATH),
+            "--infonce-model",
+            str(INFONCE_MODEL_PATH),
+            "--grouped-cv",
+            str(GROUPED_CV_PATH),
+            "--sealed-holdout",
+            str(SEALED_HOLDOUT_PATH),
+            "--gateway-smoke",
+            str(GATEWAY_SMOKE_PATH),
+            "--output",
+            str(output_path),
+        ),
+    )
+
+    main()
+
+    payload = json.loads(output_path.read_text(encoding="utf-8"))
+
+    assert payload["schema_version"] == NIMBUS_PROMOTION_EVIDENCE_SCHEMA_VERSION
+    assert payload["promote_learned_runtime"] is False
+    assert payload["artifact_hashes"]["sealed_holdout_sha256"]
+
+
+def test_nimbus_promotion_evidence_rejects_zero_count_required_label(tmp_path: Path) -> None:
+    sealed_manifest_path = tmp_path / "sealed-manifest.json"
+    sealed_manifest = json.loads(SEALED_MANIFEST_PATH.read_text(encoding="utf-8"))
+    sealed_manifest["label_counts"]["partial"] = 0
+    sealed_manifest_path.write_text(json.dumps(sealed_manifest), encoding="utf-8")
+
+    report = build_nimbus_promotion_evidence_report(_config_with_sealed_manifest(sealed_manifest_path))
+    checklist = {str(item["requirement_id"]): item for item in _checklist(report)}
+
+    assert checklist["session_level_corpus_coverage"]["status"] == "missing"
+    assert checklist["sealed_holdout"]["status"] == "missing"
+    assert "required leakage-label coverage" in " ".join(str(gap) for gap in checklist["sealed_holdout"]["gaps"])
+
+
+def test_nimbus_promotion_evidence_requires_distinct_sealed_manifest() -> None:
+    report = build_nimbus_promotion_evidence_report(_config_with_sealed_manifest(CALIBRATION_MANIFEST_PATH))
+    checklist = {str(item["requirement_id"]): item for item in _checklist(report)}
+
+    assert report["corpus_evidence"]["profiles_distinct"] is False
+    assert checklist["sealed_holdout"]["status"] == "missing"
+    assert "not distinct" in " ".join(str(gap) for gap in checklist["sealed_holdout"]["gaps"])
+
+
+def test_nimbus_promotion_evidence_reports_malformed_json_path(tmp_path: Path) -> None:
+    grouped_cv_path = tmp_path / "bad-grouped-cv.json"
+    grouped_cv_path.write_text("{not-json", encoding="utf-8")
+
+    with pytest.raises(NimbusPromotionEvidenceError, match=str(grouped_cv_path)):
+        build_nimbus_promotion_evidence_report(_config_with_grouped_cv(grouped_cv_path))
+
+
+def _config() -> NimbusPromotionEvidenceConfig:
+    return NimbusPromotionEvidenceConfig(
+        deterministic_eval_path=DETERMINISTIC_EVAL_PATH,
+        calibration_manifest_path=CALIBRATION_MANIFEST_PATH,
+        sealed_manifest_path=SEALED_MANIFEST_PATH,
+        infonce_model_path=INFONCE_MODEL_PATH,
+        grouped_cv_path=GROUPED_CV_PATH,
+        sealed_holdout_path=SEALED_HOLDOUT_PATH,
+        gateway_smoke_path=GATEWAY_SMOKE_PATH,
+    )
+
+
+def _config_with_sealed_manifest(sealed_manifest_path: Path) -> NimbusPromotionEvidenceConfig:
+    return NimbusPromotionEvidenceConfig(
+        deterministic_eval_path=DETERMINISTIC_EVAL_PATH,
+        calibration_manifest_path=CALIBRATION_MANIFEST_PATH,
+        sealed_manifest_path=sealed_manifest_path,
+        infonce_model_path=INFONCE_MODEL_PATH,
+        grouped_cv_path=GROUPED_CV_PATH,
+        sealed_holdout_path=SEALED_HOLDOUT_PATH,
+        gateway_smoke_path=GATEWAY_SMOKE_PATH,
+    )
+
+
+def _config_with_grouped_cv(grouped_cv_path: Path) -> NimbusPromotionEvidenceConfig:
+    return NimbusPromotionEvidenceConfig(
+        deterministic_eval_path=DETERMINISTIC_EVAL_PATH,
+        calibration_manifest_path=CALIBRATION_MANIFEST_PATH,
+        sealed_manifest_path=SEALED_MANIFEST_PATH,
+        infonce_model_path=INFONCE_MODEL_PATH,
+        grouped_cv_path=grouped_cv_path,
+        sealed_holdout_path=SEALED_HOLDOUT_PATH,
+        gateway_smoke_path=GATEWAY_SMOKE_PATH,
+    )
+
+
+def _checklist(report: dict[str, object]) -> tuple[dict[str, object], ...]:
+    checklist = report["checklist"]
+    if not isinstance(checklist, list):
+        raise AssertionError("checklist must be a list.")
+    return tuple(item for item in checklist if isinstance(item, dict))

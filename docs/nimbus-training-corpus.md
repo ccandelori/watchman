@@ -107,6 +107,20 @@ uv run aegis-nimbus-eval-infonce \
   --format markdown
 ```
 
+Build the promotion evidence binder:
+
+```bash
+uv run aegis-nimbus-promotion-evidence \
+  --deterministic-eval introspection/data/reports/aegis_nimbus_deterministic_beta_eval_v1.json \
+  --calibration-manifest introspection/data/reports/aegis_nimbus_training_corpus_manifest_v0.json \
+  --sealed-manifest introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_manifest_v0.json \
+  --infonce-model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
+  --grouped-cv introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json \
+  --sealed-holdout introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json \
+  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json \
+  --output introspection/data/reports/aegis_nimbus_promotion_evidence_v0.json
+```
+
 The v0 evaluator reports retrieval/calibration metrics plus false positives and
 false negatives separately. Same-corpus evaluation is rejected unless
 `--allow-training-eval` is passed, and that report is labeled with
@@ -116,6 +130,10 @@ FP rate `0.0`, and session FN rate `0.0`. The remaining turn-level misses are
 partial-drip turns; the sessions still cross the scaffold's cumulative leakage
 signal. That is closer to the paper's session-level NIMBUS target, but the
 artifact remains an offline scaffold rather than a runtime or promotion artifact.
+The promotion evidence binder records that distinction as
+`promotion_status=deterministic_beta_active_learned_not_promotable`,
+`promote_learned_runtime=false`, and
+`recommended_runtime_critic=deterministic_canary_beta`.
 
 ## Promotion Boundary
 
