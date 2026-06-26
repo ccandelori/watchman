@@ -21,7 +21,13 @@ from aegis.core.contracts import (
     ToolCall,
 )
 from aegis.core.orchestrator import ModelResponse
-from aegis.detectors.canary import CanaryRecord, EncodedCanaryDetector, InMemoryCanaryRegistry, TextCanaryDetector
+from aegis.detectors.canary import (
+    CanaryRecord,
+    EncodedCanaryDetector,
+    InMemoryCanaryRegistry,
+    TextCanaryDetector,
+    canary_sha256,
+)
 from aegis.replay.nimbus_infonce import (
     NimbusInfoNCEModel,
     score_nimbus_infonce_runtime_candidate,
@@ -119,6 +125,29 @@ class NimbusCriticScore:
     def __post_init__(self) -> None:
         _validate_non_negative_finite(self.estimated_leakage_bits, "estimated_leakage_bits")
         _validate_probability(self.confidence, "confidence")
+
+
+@dataclass(frozen=True)
+class NimbusRuntimeCandidateContext:
+    context_id: str
+    credential_type: str
+    positive_context_text: str
+    negative_context_texts: tuple[str, ...]
+    source: str
+
+    def __post_init__(self) -> None:
+        if self.context_id == "":
+            raise NimbusDetectorError("context_id must not be empty.")
+        if self.credential_type == "":
+            raise NimbusDetectorError("credential_type must not be empty.")
+        if self.positive_context_text == "":
+            raise NimbusDetectorError("positive_context_text must not be empty.")
+        if len(self.negative_context_texts) == 0:
+            raise NimbusDetectorError("negative_context_texts must not be empty.")
+        if any(context_text == "" for context_text in self.negative_context_texts):
+            raise NimbusDetectorError("negative_context_texts entries must not be empty.")
+        if self.source == "":
+            raise NimbusDetectorError("source must not be empty.")
 
 
 class NimbusCritic(Protocol):
@@ -241,6 +270,7 @@ class LearnedInfoNCENimbusCritic:
         self._model = model
         self._confidence = confidence
         self._records_by_session_id: dict[str, tuple[CanaryRecord, ...]] = {}
+        self._candidate_contexts_by_session_id: dict[str, tuple[NimbusRuntimeCandidateContext, ...]] = {}
 
     def register_canary_records(self, session_id: str, records: tuple[CanaryRecord, ...]) -> None:
         if session_id == "":
@@ -252,13 +282,44 @@ class LearnedInfoNCENimbusCritic:
             records_by_id[record.canary_id] = record
         self._records_by_session_id[session_id] = tuple(records_by_id.values())
 
+    def register_candidate_contexts(
+        self,
+        session_id: str,
+        contexts: tuple[NimbusRuntimeCandidateContext, ...],
+    ) -> None:
+        if session_id == "":
+            raise NimbusDetectorError("session_id must not be empty.")
+        if len(contexts) == 0:
+            return
+        contexts_by_id = {
+            context.context_id: context for context in self._candidate_contexts_by_session_id.get(session_id, ())
+        }
+        for context in contexts:
+            if len(context.negative_context_texts) != self._model.negative_count:
+                raise NimbusDetectorError(
+                    f"candidate context '{context.context_id}' must include {self._model.negative_count} negatives."
+                )
+            contexts_by_id[context.context_id] = context
+        self._candidate_contexts_by_session_id[session_id] = tuple(contexts_by_id.values())
+
     def destroy_session(self, session_id: str) -> None:
         self._records_by_session_id.pop(session_id, None)
+        self._candidate_contexts_by_session_id.pop(session_id, None)
 
     def clear(self) -> None:
         self._records_by_session_id.clear()
+        self._candidate_contexts_by_session_id.clear()
 
     def score_turn(self, critic_input: NimbusCriticInput) -> NimbusCriticScore:
+        candidate_contexts = self._candidate_contexts_by_session_id.get(critic_input.session_id, ())
+        if len(candidate_contexts) > 0:
+            return _learned_infonce_nimbus_score(
+                critic_input=critic_input,
+                contexts=candidate_contexts,
+                model=self._model,
+                confidence=self._confidence,
+                runtime_context_source="registered_candidate_contexts",
+            )
         records = self._records_by_session_id.get(critic_input.session_id, ())
         if len(records) == 0:
             return NimbusCriticScore(
@@ -273,14 +334,18 @@ class LearnedInfoNCENimbusCritic:
                     "runtime_context_source": "registered_canary_records",
                     "reason": "no_registered_canaries_for_session",
                     "registered_canary_count": 0,
+                    "registered_candidate_context_count": 0,
                 },
             )
 
         return _learned_infonce_nimbus_score(
             critic_input=critic_input,
-            records=records,
+            contexts=tuple(
+                _candidate_context_from_canary_record(record, self._model.negative_count) for record in records
+            ),
             model=self._model,
             confidence=self._confidence,
+            runtime_context_source="registered_canary_records",
         )
 
 
@@ -789,40 +854,41 @@ def _canary_nimbus_score(
 
 def _learned_infonce_nimbus_score(
     critic_input: NimbusCriticInput,
-    records: tuple[CanaryRecord, ...],
+    contexts: tuple[NimbusRuntimeCandidateContext, ...],
     model: NimbusInfoNCEModel,
     confidence: float,
+    runtime_context_source: str,
 ) -> NimbusCriticScore:
     state_text = " ".join(message.content for message in critic_input.messages)
-    scored_records = tuple(
+    scored_contexts = tuple(
         (
-            record,
+            context,
             score_nimbus_infonce_runtime_candidate(
                 model=model,
                 output_text=critic_input.output_text,
                 state_text=state_text,
-                true_context_text=_runtime_canary_context_text(record),
-                negative_context_texts=_runtime_negative_context_texts(record, model.negative_count),
+                true_context_text=context.positive_context_text,
+                negative_context_texts=context.negative_context_texts,
             ),
         )
-        for record in records
+        for context in contexts
     )
-    if len(scored_records) == 0:
-        raise NimbusDetectorError("learned InfoNCE runtime scoring requires at least one registered canary.")
-    selected_record, selected_score = max(scored_records, key=lambda item: item[1].estimated_leakage_bits)
+    if len(scored_contexts) == 0:
+        raise NimbusDetectorError("learned InfoNCE runtime scoring requires at least one candidate context.")
+    selected_context, selected_score = max(scored_contexts, key=lambda item: item[1].estimated_leakage_bits)
     evidence: dict[str, JsonValue] = {
         "critic_kind": "learned_infonce_beta",
         "critic_version": model.model_id,
         "paper_faithful_learned_critic": False,
         "promotion_status": "learned_runtime_beta_not_promotable",
         "deterministic_fallback": False,
-        "runtime_context_source": "registered_canary_records",
+        "runtime_context_source": runtime_context_source,
         "reason": "runtime_learned_infonce_beta_score",
-        "registered_canary_count": len(records),
-        "selected_canary_id": selected_record.canary_id,
-        "selected_canary_sha256": selected_record.sha256,
-        "selected_credential_type": selected_record.credential_type,
-        "selected_canary_source": selected_record.source,
+        "registered_candidate_context_count": len(contexts),
+        "selected_context_id": selected_context.context_id,
+        "selected_context_sha256": canary_sha256(selected_context.positive_context_text),
+        "selected_credential_type": selected_context.credential_type,
+        "selected_context_source": selected_context.source,
         "positive_probability": selected_score.positive_probability,
         "nce_loss_bits": selected_score.nce_loss_bits,
         "positive_rank": selected_score.positive_rank,
@@ -841,9 +907,15 @@ def _learned_infonce_nimbus_score(
     )
 
 
-def _runtime_canary_context_text(record: CanaryRecord) -> str:
+def _candidate_context_from_canary_record(record: CanaryRecord, negative_count: int) -> NimbusRuntimeCandidateContext:
     slot_name = _safe_canary_slot_name(record)
-    return f"{record.credential_type} credential context {slot_name} contains {record.value}"
+    return NimbusRuntimeCandidateContext(
+        context_id=record.canary_id,
+        credential_type=record.credential_type,
+        positive_context_text=f"{record.credential_type} credential context {slot_name} contains {record.value}",
+        negative_context_texts=_runtime_negative_context_texts(record, negative_count),
+        source=record.source,
+    )
 
 
 def _runtime_negative_context_texts(record: CanaryRecord, count: int) -> tuple[str, ...]:

@@ -955,15 +955,16 @@ non-promotable.
 The `--allow-training-eval` flag labels the main report as a training
 diagnostic. Current grouped-CV and sealed-holdout evidence both report turn-level
 FP/FN and session-level FP/FN separately: turn FPR `0.438926`, turn FNR
-`0.027451`, session FPR `0.0`, and session FNR `0.0`. The runtime beta eval
-reports turn FP=678, turn FN=0, turn FPR `0.910067`, turn FNR `0.0`, session
-FP=8, session FN=0, session FPR `1.0`, and session FNR `0.0`. The runtime beta
-artifact now includes a threshold sweep and error slices; no threshold satisfies
-the 5% turn/session FP/FN operating policy. At `3.5` bits, turn FPR drops to
-`0.034899` but turn FNR rises to `0.596078`, and session FPR remains `1.0`.
-The scaffold remains non-promotable because the learned runtime is far too
-noisy, there is no live learned gateway FN/FP evidence, and there is no
-promotion manifest. The promotion evidence report records
+`0.027451`, session FPR `0.0`, and session FNR `0.0`. The runtime beta eval now
+registers the sealed record's positive secret context and 16 negative contexts
+instead of synthesizing runtime negatives. It reports turn FP=327, turn FN=7,
+turn FPR `0.438926`, turn FNR `0.027451`, session FP=0, session FN=0, session
+FPR `0.0`, and session FNR `0.0`. The runtime beta artifact includes a
+threshold sweep and error slices; no threshold satisfies the 5% turn/session
+FP/FN operating policy. At `3.5` bits, turn FPR drops to `0.001342` but turn FNR
+rises to `0.192157`. The scaffold remains non-promotable because turn-level
+false positives are too high, there is no live learned gateway FN/FP evidence,
+and there is no promotion manifest. The promotion evidence report records
 `promote_learned_runtime=false` and recommends keeping deterministic canary
 NIMBUS as the active runtime critic.
 

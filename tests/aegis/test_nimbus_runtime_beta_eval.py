@@ -29,10 +29,20 @@ def test_nimbus_runtime_beta_eval_reports_fn_fp_without_raw_contexts() -> None:
     assert report["promotion_status"] == "learned_runtime_beta_not_promotable"
     assert report["record_count"] == NIMBUS_REFERENCE_CONVERSATION_COUNT * NIMBUS_REFERENCE_TURNS_PER_CONVERSATION
     assert report["split_group_count"] == NIMBUS_REFERENCE_CONVERSATION_COUNT
+    assert report["true_positive"] == 248
+    assert report["true_negative"] == 418
+    assert report["false_positive"] == 327
+    assert report["false_negative"] == 7
+    assert report["session_true_positive"] == 42
+    assert report["session_true_negative"] == 8
+    assert report["session_false_positive"] == 0
+    assert report["session_false_negative"] == 0
     assert report["false_positive_rate"] is not None
     assert report["false_negative_rate"] is not None
     assert report["session_false_positive_rate"] is not None
     assert report["session_false_negative_rate"] is not None
+    assert report["session_false_positive_rate"] == 0.0
+    assert report["session_false_negative_rate"] == 0.0
     assert isinstance(report["threshold_sweep"], list)
     assert len(report["threshold_sweep"]) > 1
     assert report["threshold_sweep"][0]["threshold_bits"] == 0.0
@@ -44,6 +54,7 @@ def test_nimbus_runtime_beta_eval_reports_fn_fp_without_raw_contexts() -> None:
         "max_false_negative_rate": 0.05,
         "requires_turn_and_session_rates": True,
     }
+    assert "eval-registered candidate contexts" in " ".join(str(item) for item in report["limitations"])
     error_slices = report["error_slices"]
     assert isinstance(error_slices, list)
     labels = {

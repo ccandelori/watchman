@@ -10,12 +10,12 @@ from pathlib import Path
 
 from aegis.core.contracts import CapabilityMode, JsonValue, ModelInfo, NormalizedTurn
 from aegis.core.orchestrator import ModelResponse
-from aegis.detectors.canary import CanaryRecord, canary_sha256
 from aegis.detectors.nimbus import (
     InMemoryNimbusStateStore,
     LearnedInfoNCENimbusCritic,
     NimbusConfig,
     NimbusDetector,
+    NimbusRuntimeCandidateContext,
 )
 from aegis.replay.nimbus_infonce import load_nimbus_infonce_model
 from aegis.replay.nimbus_training import (
@@ -224,7 +224,7 @@ def build_nimbus_runtime_beta_eval_report(config: NimbusRuntimeBetaEvalConfig) -
         "turn_metrics": [metric.to_dict() for metric in turn_metrics],
         "session_metrics": [metric.to_dict() for metric in session_metrics],
         "limitations": [
-            "runtime adapter uses registered canary contexts, not a production secret-context candidate store",
+            "runtime adapter uses eval-registered candidate contexts, not a production secret-context candidate store",
             "evaluation is in-process and not live gateway traffic",
             "threshold sweep is diagnostic evidence only and does not change runtime policy",
             "artifact remains non-promotable until live gateway FN/FP and a promotion manifest exist",
@@ -273,7 +273,7 @@ def _turn_metrics(
 ) -> tuple[_TurnRuntimeMetric, ...]:
     metrics: list[_TurnRuntimeMetric] = []
     for record in sorted(records, key=lambda item: (item.session_id, item.turn_index, item.example_id)):
-        critic.register_canary_records(record.session_id, (_canary_record(record),))
+        critic.register_candidate_contexts(record.session_id, (_candidate_context(record),))
         result = detector.evaluate(
             turn=NormalizedTurn(
                 trace_id=f"nimbus-runtime-beta-{record.example_id}",
@@ -453,14 +453,13 @@ def _error_slice_metric(
     )
 
 
-def _canary_record(record: NimbusTrainingTurnRecord) -> CanaryRecord:
-    return CanaryRecord(
-        canary_id=record.true_secret_context.context_id,
+def _candidate_context(record: NimbusTrainingTurnRecord) -> NimbusRuntimeCandidateContext:
+    return NimbusRuntimeCandidateContext(
+        context_id=record.true_secret_context.context_id,
         credential_type=record.true_secret_context.credential_type,
-        value=record.true_secret_context.context_text,
-        sha256=canary_sha256(record.true_secret_context.context_text),
+        positive_context_text=record.true_secret_context.context_text,
+        negative_context_texts=tuple(context.context_text for context in record.negative_secret_contexts),
         source="nimbus_runtime_beta_eval",
-        metadata={"slot_name": record.true_secret_context.context_id},
     )
 
 

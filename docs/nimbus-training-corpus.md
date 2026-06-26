@@ -140,13 +140,14 @@ false negatives separately. Same-corpus evaluation is rejected unless
 scaffold evidence both have turn FP rate `0.438926`, turn FN rate `0.027451`,
 session FP rate `0.0`, and session FN rate `0.0`. The sessions still cross the
 scaffold's cumulative leakage signal, but the turn-level false-positive rate is
-too high for promotion. The runtime beta adapter is even noisier on benign
-turns: turn FP rate `0.910067`, turn FN rate `0.0`, session FP rate `1.0`, and
-session FN rate `0.0`. Its diagnostic threshold sweep does not find an
+too high for promotion. The runtime beta adapter now registers each sealed
+record's positive secret context and 16 negative contexts instead of synthesizing
+runtime negatives, so its in-process runtime metrics match the sealed scaffold:
+turn FP rate `0.438926`, turn FN rate `0.027451`, session FP rate `0.0`, and
+session FN rate `0.0`. Its diagnostic threshold sweep still does not find an
 acceptable 5% turn/session FP/FN operating point: at `3.5` bits turn FPR falls
-to `0.034899`, but turn FNR rises to `0.596078`, while session FPR remains
-`1.0` across the sweep. The artifact remains a non-promotable beta rather than
-a promotion artifact.
+to `0.001342`, but turn FNR rises to `0.192157`. The artifact remains a
+non-promotable beta rather than a promotion artifact.
 The promotion evidence binder records that distinction as
 `promotion_status=deterministic_beta_active_learned_not_promotable`,
 `promote_learned_runtime=false`, and
