@@ -841,13 +841,20 @@ Generate the bootstrap learned-NIMBUS training corpus contract and manifest:
 uv run aegis-nimbus-training-corpus \
   --output introspection/data/reports/aegis_nimbus_training_corpus_v0.jsonl \
   --manifest-output introspection/data/reports/aegis_nimbus_training_corpus_manifest_v0.json
+
+uv run aegis-nimbus-training-corpus \
+  --profile sealed_holdout \
+  --output introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_v0.jsonl \
+  --manifest-output introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_manifest_v0.json
 ```
 
 This writes `nimbus-training-turn/v0` records with explicit session split-group
 keys; benign, exact canary, encoded, partial/multi-turn, paraphrased,
 tool-output, and delayed leakage scenarios; 16 InfoNCE-style negative contexts;
-and a manifest that marks the artifact as `not_promotable_training_contract_only`. See
-[docs/nimbus-training-corpus.md](docs/nimbus-training-corpus.md).
+and manifests that mark the artifacts as `not_promotable_training_contract_only`.
+The `sealed_holdout` profile uses distinct synthetic secret contexts and session
+groups so the learned scaffold can be evaluated without `--allow-training-eval`.
+See [docs/nimbus-training-corpus.md](docs/nimbus-training-corpus.md).
 
 Train and evaluate the offline lexical InfoNCE scaffold against that corpus:
 
@@ -862,18 +869,22 @@ uv run aegis-nimbus-eval-infonce \
   --output introspection/data/reports/aegis_nimbus_infonce_eval_v0.json \
   --allow-training-eval \
   --grouped-cv-output introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json
+
+uv run aegis-nimbus-eval-infonce \
+  --input introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_v0.jsonl \
+  --model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
+  --output introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json
 ```
 
 The v0 InfoNCE artifact is an offline lexical scaffold. It reports
 `promotion_status=not_promotable_offline_scaffold` and
 `paper_faithful_learned_critic=false`; it is not wired into runtime policy.
 The `--allow-training-eval` flag labels the main report as a training
-diagnostic. The grouped-CV output is the relevant leakage-risk evidence until a
-sealed holdout exists. Current grouped-CV evidence reports turn-level FP/FN and
-session-level FP/FN separately: turn FPR `0.0`, turn FNR `0.214286`, session
-FPR `0.0`, and session FNR `0.0`. The scaffold still remains non-promotable
-because it is a tiny lexical model without sealed holdout, learned runtime
-adapter, live gateway evidence, or a promotion manifest.
+diagnostic. Current grouped-CV and sealed-holdout evidence both report turn-level
+FP/FN and session-level FP/FN separately: turn FPR `0.0`, turn FNR `0.214286`,
+session FPR `0.0`, and session FNR `0.0`. The scaffold still remains
+non-promotable because it is a tiny lexical offline model without a learned
+runtime adapter, live gateway FN/FP evidence, or a promotion manifest.
 
 Generate a local in-process NIMBUS fixture JSONL when the external redteam
 runner is not available:
@@ -900,9 +911,9 @@ matches count as `0.8 * fragment_ratio`, and cumulative budget fractions map to
 The active runtime critic is deterministic canary-based beta
 (`critic_kind=canary`, `paper_faithful_learned_critic=false`). A paper-faithful
 learned NIMBUS release now has a bootstrap corpus contract and offline lexical
-InfoNCE scaffold with turn-level and session-level grouped-CV evidence, but
-still needs a larger session-leakage corpus, sealed holdout, a runtime learned
-critic adapter, live runtime FN/FP metrics, and promotion evidence.
+InfoNCE scaffold with turn-level and session-level grouped-CV plus small sealed
+holdout evidence, but still needs a larger session-leakage corpus, a runtime
+learned critic adapter, live runtime FN/FP metrics, and promotion evidence.
 `aegis-nimbus-eval` is the deterministic-beta labeled evaluation wrapper; it
 is not a learned NIMBUS promotion path.
 

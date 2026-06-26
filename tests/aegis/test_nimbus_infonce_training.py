@@ -26,6 +26,7 @@ from aegis.replay.nimbus_infonce import (
 )
 from aegis.replay.nimbus_training import (
     generate_default_nimbus_training_records,
+    generate_sealed_holdout_nimbus_training_records,
     write_nimbus_training_records_jsonl,
 )
 
@@ -88,6 +89,27 @@ def test_nimbus_infonce_eval_rejects_training_corpus_without_explicit_allowance(
 
     with pytest.raises(NimbusInfoNCEError, match=r"evaluation corpus matches model\.source_corpus_sha256"):
         evaluate_nimbus_infonce_model(model, records, NimbusInfoNCEEvalConfig(allow_training_eval=False))
+
+
+def test_nimbus_infonce_eval_accepts_sealed_holdout_without_training_eval_allowance() -> None:
+    calibration_records = generate_default_nimbus_training_records()
+    sealed_records = generate_sealed_holdout_nimbus_training_records()
+    model = train_nimbus_infonce_model(calibration_records, NimbusInfoNCERunConfig(max_weight=4, weight_step=1))
+
+    report = evaluate_nimbus_infonce_model(model, sealed_records, NimbusInfoNCEEvalConfig(allow_training_eval=False))
+
+    assert report.schema_version == NIMBUS_INFONCE_EVAL_SCHEMA_VERSION
+    assert report.eval_corpus_sha256 != model.source_corpus_sha256
+    assert report.training_eval_reused is False
+    assert report.training_eval_allowed is False
+    assert report.record_count == 19
+    assert report.split_group_count == 9
+    assert report.false_positive_rate is not None
+    assert report.false_negative_rate is not None
+    assert report.session_false_positive_rate is not None
+    assert report.session_false_negative_rate is not None
+    assert report.promotion_status == NIMBUS_INFONCE_PROMOTION_STATUS
+    assert report.paper_faithful_learned_critic is False
 
 
 def test_nimbus_infonce_grouped_cv_reports_heldout_fn_fp_separately() -> None:

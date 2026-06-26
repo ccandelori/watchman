@@ -53,7 +53,16 @@ For curated local evidence, use:
 uv run aegis-nimbus-training-corpus \
   --output introspection/data/reports/aegis_nimbus_training_corpus_v0.jsonl \
   --manifest-output introspection/data/reports/aegis_nimbus_training_corpus_manifest_v0.json
+
+uv run aegis-nimbus-training-corpus \
+  --profile sealed_holdout \
+  --output introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_v0.jsonl \
+  --manifest-output introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_manifest_v0.json
 ```
+
+The default `calibration` profile and the `sealed_holdout` profile have matching
+scenario coverage, but distinct synthetic secret contexts and split-group keys.
+The holdout profile is for evidence only; do not train on it.
 
 ## Train And Evaluate
 
@@ -74,6 +83,11 @@ uv run aegis-nimbus-eval-infonce \
   --output introspection/data/reports/aegis_nimbus_infonce_eval_v0.json \
   --allow-training-eval \
   --grouped-cv-output introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json
+
+uv run aegis-nimbus-eval-infonce \
+  --input introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_v0.jsonl \
+  --model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
+  --output introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json
 ```
 
 Use markdown for a compact human-readable summary:
@@ -85,17 +99,23 @@ uv run aegis-nimbus-eval-infonce \
   --output introspection/data/reports/aegis_nimbus_infonce_eval_v0.md \
   --format markdown \
   --allow-training-eval
+
+uv run aegis-nimbus-eval-infonce \
+  --input introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_v0.jsonl \
+  --model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
+  --output introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.md \
+  --format markdown
 ```
 
 The v0 evaluator reports retrieval/calibration metrics plus false positives and
 false negatives separately. Same-corpus evaluation is rejected unless
 `--allow-training-eval` is passed, and that report is labeled with
-`training_eval_reused=true`. Current curated grouped-CV scaffold evidence has
-turn FP rate `0.0`, turn FN rate `0.214286`, session FP rate `0.0`, and
-session FN rate `0.0`. The remaining turn-level misses are partial-drip turns;
-the sessions still cross the scaffold's cumulative leakage signal. That is
-closer to the paper's session-level NIMBUS target, but the artifact remains an
-offline scaffold rather than a runtime or promotion artifact.
+`training_eval_reused=true`. Current curated grouped-CV and sealed-holdout
+scaffold evidence both have turn FP rate `0.0`, turn FN rate `0.214286`, session
+FP rate `0.0`, and session FN rate `0.0`. The remaining turn-level misses are
+partial-drip turns; the sessions still cross the scaffold's cumulative leakage
+signal. That is closer to the paper's session-level NIMBUS target, but the
+artifact remains an offline scaffold rather than a runtime or promotion artifact.
 
 ## Promotion Boundary
 
@@ -105,7 +125,7 @@ learned NIMBUS release still needs:
 
 - a larger labeled session leakage corpus
 - stronger grouped cross-validation on a larger corpus
-- sealed holdout evaluation
+- broader sealed holdout evaluation
 - a runtime learned session critic adapter
 - live runtime false negative and false positive rates
 - a promotion manifest that binds the critic, corpus, evals, and runtime

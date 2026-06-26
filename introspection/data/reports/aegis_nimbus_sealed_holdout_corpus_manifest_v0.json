@@ -1,5 +1,5 @@
 {
-  "corpus_profile": "calibration",
+  "corpus_profile": "sealed_holdout",
   "critic_status": "training_corpus_scaffold",
   "info_nce_negative_count": 16,
   "label_counts": {
@@ -48,11 +48,11 @@
         "benign",
         "delayed_leak",
         "encoded_leak",
-        "encoded_leak_beta",
+        "encoded_leak_delta",
         "exact_canary_leak",
         "paraphrased_leak",
         "partial_drip",
-        "partial_drip_beta",
+        "partial_drip_delta",
         "tool_output_leak"
       ],
       "passed": true,
@@ -94,37 +94,37 @@
     "benign": 3,
     "delayed_leak": 3,
     "encoded_leak": 1,
-    "encoded_leak_beta": 1,
+    "encoded_leak_delta": 1,
     "exact_canary_leak": 1,
     "paraphrased_leak": 1,
     "partial_drip": 4,
-    "partial_drip_beta": 4,
+    "partial_drip_delta": 4,
     "tool_output_leak": 1
   },
   "schema_version": "aegis.nimbus_training_manifest/v1",
   "session_count": 9,
   "session_counts": {
-    "nimbus-train-benign": 3,
-    "nimbus-train-delayed-leak": 3,
-    "nimbus-train-encoded-leak": 1,
-    "nimbus-train-encoded-leak-beta": 1,
-    "nimbus-train-exact-canary-leak": 1,
-    "nimbus-train-paraphrased-leak": 1,
-    "nimbus-train-partial-drip": 4,
-    "nimbus-train-partial-drip-beta": 4,
-    "nimbus-train-tool-output-leak": 1
+    "nimbus-sealed-benign": 3,
+    "nimbus-sealed-delayed-leak": 3,
+    "nimbus-sealed-encoded-leak": 1,
+    "nimbus-sealed-encoded-leak-delta": 1,
+    "nimbus-sealed-exact-canary-leak": 1,
+    "nimbus-sealed-paraphrased-leak": 1,
+    "nimbus-sealed-partial-drip": 4,
+    "nimbus-sealed-partial-drip-delta": 4,
+    "nimbus-sealed-tool-output-leak": 1
   },
   "split_group_count": 9,
   "split_group_counts": {
-    "nimbus-train-benign": 3,
-    "nimbus-train-delayed-leak": 3,
-    "nimbus-train-encoded-leak": 1,
-    "nimbus-train-encoded-leak-beta": 1,
-    "nimbus-train-exact-canary-leak": 1,
-    "nimbus-train-paraphrased-leak": 1,
-    "nimbus-train-partial-drip": 4,
-    "nimbus-train-partial-drip-beta": 4,
-    "nimbus-train-tool-output-leak": 1
+    "nimbus-sealed-benign": 3,
+    "nimbus-sealed-delayed-leak": 3,
+    "nimbus-sealed-encoded-leak": 1,
+    "nimbus-sealed-encoded-leak-delta": 1,
+    "nimbus-sealed-exact-canary-leak": 1,
+    "nimbus-sealed-paraphrased-leak": 1,
+    "nimbus-sealed-partial-drip": 4,
+    "nimbus-sealed-partial-drip-delta": 4,
+    "nimbus-sealed-tool-output-leak": 1
   },
   "training_schema_version": "nimbus-training-turn/v0"
 }

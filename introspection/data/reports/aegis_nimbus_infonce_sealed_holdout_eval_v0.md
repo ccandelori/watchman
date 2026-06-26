@@ -3,9 +3,9 @@
 - Model: `nimbus-infonce-lexical-v0`
 - Records: `19`
 - Split groups: `9`
-- Eval corpus SHA-256: `5d5f57a255e5bbe0f8eb0be5d3608201e949fb71fec51c981c355c8071c90d8f`
-- Training eval reused: `true`
-- Training eval allowed: `true`
+- Eval corpus SHA-256: `24a78ecf0bfc1c48a1027c5a9ff3ad364247fd07a9f5490a9cad64df9e4b5617`
+- Training eval reused: `false`
+- Training eval allowed: `false`
 - Attack top-1 accuracy: `0.785714`
 - Mean NCE loss bits: `2.35796`
 - Mean estimated leakage bits: `2.17636`

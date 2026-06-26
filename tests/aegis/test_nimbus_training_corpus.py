@@ -11,8 +11,10 @@ from aegis.replay.nimbus_training import (
     NIMBUS_TRAINING_MANIFEST_SCHEMA_VERSION,
     NIMBUS_TRAINING_SCHEMA_VERSION,
     NimbusTrainingCorpusError,
+    NimbusTrainingCorpusProfile,
     NimbusTrainingTurnRecord,
     generate_default_nimbus_training_records,
+    generate_sealed_holdout_nimbus_training_records,
     main,
     nimbus_training_manifest,
     read_nimbus_training_records_jsonl,
@@ -69,6 +71,31 @@ def test_default_nimbus_training_records_match_session_corpus_contract() -> None
         assert cumulative_bits == tuple(sorted(cumulative_bits))
 
 
+def test_sealed_holdout_nimbus_training_records_use_distinct_session_groups() -> None:
+    calibration_records = generate_default_nimbus_training_records()
+    sealed_records = generate_sealed_holdout_nimbus_training_records()
+    manifest = nimbus_training_manifest(sealed_records)
+
+    assert len(sealed_records) == len(calibration_records)
+    assert manifest["corpus_profile"] == NimbusTrainingCorpusProfile.SEALED_HOLDOUT.value
+    assert manifest["record_count"] == 19
+    assert manifest["split_group_count"] == 9
+    assert {record.leakage_label.value for record in sealed_records} == {
+        "benign",
+        "partial",
+        "encoded",
+        "direct",
+        "paraphrased",
+        "tool_output",
+        "delayed",
+    }
+    assert {record.session_id for record in calibration_records}.isdisjoint(
+        {record.session_id for record in sealed_records}
+    )
+    assert all(record.session_id.startswith("nimbus-sealed-") for record in sealed_records)
+    assert all(record.split_group_key == record.session_id for record in sealed_records)
+
+
 def test_nimbus_training_records_round_trip_as_jsonl(tmp_path: Path) -> None:
     output_path = tmp_path / "nimbus-training.jsonl"
     records = generate_default_nimbus_training_records()
@@ -94,6 +121,7 @@ def test_nimbus_training_manifest_marks_scaffold_as_not_promotable() -> None:
 
     assert manifest["schema_version"] == NIMBUS_TRAINING_MANIFEST_SCHEMA_VERSION
     assert manifest["training_schema_version"] == NIMBUS_TRAINING_SCHEMA_VERSION
+    assert manifest["corpus_profile"] == NimbusTrainingCorpusProfile.CALIBRATION.value
     assert manifest["critic_status"] == "training_corpus_scaffold"
     assert manifest["paper_faithful_learned_critic"] is False
     assert manifest["promotion_status"] == "not_promotable_training_contract_only"
@@ -146,6 +174,37 @@ def test_nimbus_training_cli_writes_jsonl_and_manifest(
     assert manifest_path.exists()
     assert len(loaded_records) == 19
     assert manifest["promotion_status"] == "not_promotable_training_contract_only"
+    assert manifest["corpus_profile"] == NimbusTrainingCorpusProfile.CALIBRATION.value
+
+
+def test_nimbus_training_cli_writes_sealed_holdout_profile(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    output_path = tmp_path / "generated" / "nimbus-sealed.jsonl"
+    manifest_path = tmp_path / "generated" / "nimbus-sealed-manifest.json"
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        (
+            "aegis-nimbus-training-corpus",
+            "--output",
+            str(output_path),
+            "--manifest-output",
+            str(manifest_path),
+            "--profile",
+            "sealed_holdout",
+        ),
+    )
+
+    main()
+
+    loaded_records = read_nimbus_training_records_jsonl(output_path)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+
+    assert len(loaded_records) == 19
+    assert manifest["corpus_profile"] == NimbusTrainingCorpusProfile.SEALED_HOLDOUT.value
+    assert all(record.session_id.startswith("nimbus-sealed-") for record in loaded_records)
 
 
 def test_nimbus_training_record_validation_rejects_wrong_negative_count() -> None:
