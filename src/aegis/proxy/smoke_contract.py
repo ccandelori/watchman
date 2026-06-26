@@ -24,6 +24,7 @@ def gateway_smoke_contract() -> GatewaySmokeContract:
             "gateway_readiness",
             "capabilities",
             "benign_chat",
+            "adversarial_benign_no_block",
             "ambiguous_protected_workflow",
             "cift_pre_generation_block",
             "provider_egress_guard_block",

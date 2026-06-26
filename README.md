@@ -1004,9 +1004,9 @@ uv run aegis-nimbus-promotion-evidence \
   --infonce-model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
   --grouped-cv introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json \
   --sealed-holdout introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json \
-  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v2.json \
+  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v3.json \
   --runtime-beta-eval introspection/data/reports/aegis_nimbus_runtime_beta_eval_v0.json \
-  --output introspection/data/reports/aegis_nimbus_promotion_evidence_v1.json
+  --output introspection/data/reports/aegis_nimbus_promotion_evidence_v2.json
 ```
 
 The v0 InfoNCE artifact is an offline lexical scaffold. It reports
@@ -1028,14 +1028,16 @@ block metrics separately: 42/42 attack sessions detected, 0/8 benign-only
 sessions false-blocked, false-block rate `0.0`, and mean first block turn index
 `3.928571`. The runtime beta artifact now has a selected local operating point
 at `0.0` bits under the 5% turn/session FP/FN policy. Live learned-gateway smoke
-reports TP=4, TN=1, FP=0, FN=0, binds the loaded model artifact SHA-256, records
-the selected positive context hash plus negative-context count, and checks both
-the provider-egress and partial-leak `/audit/explain` traces. The scaffold
-remains non-promotable because there is no common live head-to-head corpus
-proving complement over deterministic beta and no promotion manifest. The
-promotion evidence report records
-`promote_learned_runtime=false` and recommends keeping deterministic canary
-NIMBUS as the active runtime critic.
+v3 reports TP=4, TN=2, FP=0, FN=0 across benign, adversarial-benign, exact,
+encoded, partial, and tool-argument scenarios. It binds the loaded model
+artifact SHA-256, records the selected positive context hash plus negative
+context count, and checks both the provider-egress and partial-leak
+`/audit/explain` traces. The scaffold is explicitly rejected for promotion
+because there is no common live head-to-head corpus, no latency gate evidence,
+no hybrid-policy evaluation, and no promoted runtime manifest. The promotion
+evidence report records `promote_learned_runtime=false`,
+`promote_hybrid_runtime=false`, `keep_deterministic_default=true`, and
+`reject_learned_runtime=true`.
 
 Generate the live learned-gateway smoke used by the promotion binder by running
 the mock gateway with the explicit learned beta critic:
@@ -1044,14 +1046,14 @@ the mock gateway with the explicit learned beta critic:
 AEGIS_NIMBUS_CRITIC_KIND=learned_infonce_beta \
 AEGIS_NIMBUS_INFONCE_MODEL_PATH=introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
 AEGIS_NIMBUS_CRITIC_VERSION=nimbus-infonce-lexical-v0 \
-AEGIS_AUDIT_JSONL_PATH=introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_audit_v2.jsonl \
+AEGIS_AUDIT_JSONL_PATH=introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_audit_v3.jsonl \
 uv run aegis-proxy --host 127.0.0.1 --port 8788
 
 uv run aegis-proxy-smoke \
   --url http://127.0.0.1:8788 \
   --timeout 10 \
   --nimbus-profile strict-partial-block \
-  --output introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v2.json
+  --output introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v3.json
 ```
 
 Generate a local in-process NIMBUS fixture JSONL when the external redteam

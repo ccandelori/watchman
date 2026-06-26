@@ -123,14 +123,14 @@ uv run aegis-proxy-smoke \
   --url http://127.0.0.1:8788 \
   --timeout 10 \
   --nimbus-profile strict-partial-block \
-  --output introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v2.json
+  --output introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v3.json
 
 uv run aegis-console \
   --gateway-url http://127.0.0.1:8788 \
   --host 127.0.0.1 \
   --port 8781 \
-  --smoke-report introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v2.json \
-  --sample-audit-jsonl introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_audit_v2.jsonl
+  --smoke-report introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v3.json \
+  --sample-audit-jsonl introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_audit_v3.jsonl
 ```
 
 Expected learned NIMBUS beta state: `/ready` and the console show
@@ -173,8 +173,8 @@ certified Qwen3-4B/MPS profile.
 | CIFT strict gateway audit | `introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_integrated_refresh_audit_v1.jsonl` | `6297d50ecfd991e943319ecc00c19f02063a23567c26f5a66303ca745f0c54ff` | Redacted audit JSONL for strict smoke |
 | DP-HONEY paper evidence | `introspection/data/reports/dp_honey_paper_evidence_v5.json` | `ae834ba0e1a57dd666629149aa38dd13f183564e49ac8338d369263820fb8ed8` | Checklist 9 met, 0 partial, 0 missing under provider-like morphology path |
 | DP-HONEY runtime smoke | `introspection/data/reports/aegis_default_mock_provider_smoke_dp_honey_segment_v2.json` | `0282c1c7edbebd22ebb111a55fcf13ab67b631e953c14715a5861d0389067859` | Honeytoken substitution, raw egress block, canary tool pre-dispatch block |
-| Learned NIMBUS live beta smoke | `introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v2.json` | `f15d0ac32f530e1195066d7d7ff13591c17342b57d6f3fffad4147022d60239c` | TP=4, TN=1, FP=0, FN=0 in live beta smoke; readiness says non-promotable |
-| Learned NIMBUS promotion binder | `introspection/data/reports/aegis_nimbus_promotion_evidence_v1.json` | `ab868f4e5673878dda0ecf507af1563c2fba95392e479b092c311c5b8530c02a` | `promote_learned_runtime=false`; missing promoted manifest and live head-to-head complement proof |
+| Learned NIMBUS live beta smoke | `introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v3.json` | `504e598182f2c9e93492e916f614befc3cac259fb5c1a5dc055b6dac8fc3e939` | TP=4, TN=2, FP=0, FN=0 in live beta smoke; includes adversarial-benign no-block; readiness says non-promotable |
+| Learned NIMBUS promotion binder | `introspection/data/reports/aegis_nimbus_promotion_evidence_v2.json` | `ae389ec1a37533b70a94d1e694c657c1fd9c168cbd13e48f73df1386f6312f3c` | `reject_learned_runtime=true`; `keep_deterministic_default=true`; missing head-to-head, latency, hybrid, and promotion-manifest gates |
 | Console evidence | `introspection/data/reports/aegis_console_integrated_refresh_v1.json` | `6caa3d97f6f365ab16414398f2d7b450575b02f618dfe4519c6876d32fd89f3e` | Console API summarizes gateway, CIFT, DP-HONEY, NIMBUS, smoke, and timelines |
 | Loopback provider verification | `introspection/data/reports/aegis_loopback_real_provider_smoke_evidence_verification_v2.json` | `964ea69a8a11a96655ce88d1c3a207f0c9ea1ebad162c5cbc5c2c3bf7cffaccd` | Local OpenAI-compatible adapter path verified without external network |
 
@@ -217,8 +217,8 @@ Evidence hygiene checks for the release-critical artifacts:
 rg -n "safe-canary|ghp_real|sk_live_|github_pat_" \
   introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_integrated_refresh_v1.json \
   introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_integrated_refresh_audit_v1.jsonl \
-  introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v2.json \
-  introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_audit_v2.jsonl \
+  introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v3.json \
+  introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_audit_v3.jsonl \
   introspection/data/reports/aegis_default_mock_provider_smoke_dp_honey_segment_v2.json \
   introspection/data/reports/aegis_default_mock_provider_smoke_dp_honey_segment_audit_v2.jsonl
 ```

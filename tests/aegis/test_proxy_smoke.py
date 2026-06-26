@@ -166,6 +166,7 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
                         canary_count=1,
                     ),
                 ),
+                HttpJsonResponse(status_code=200, payload=_adversarial_benign_chat_response()),
                 HttpJsonResponse(status_code=400, payload=_ambiguous_protected_workflow_error_response()),
                 HttpJsonResponse(status_code=200, payload=_egress_guard_chat_response()),
                 HttpJsonResponse(status_code=200, payload=_tool_argument_canary_chat_response()),
@@ -240,12 +241,13 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
     assert client.requests[6][0:2] == ("POST", f"{base_url}/test/reset")
     assert client.requests[7][0:2] == ("POST", f"{base_url}/test/reset")
     benign_request = client.requests[8][2]
-    ambiguous_request = client.requests[9][2]
-    egress_request = client.requests[10][2]
-    tool_argument_request = client.requests[11][2]
-    leak_request = client.requests[12][2]
-    slot_leak_request = client.requests[13][2]
-    partial_leak_request = client.requests[14][2]
+    adversarial_benign_request = client.requests[9][2]
+    ambiguous_request = client.requests[10][2]
+    egress_request = client.requests[11][2]
+    tool_argument_request = client.requests[12][2]
+    leak_request = client.requests[13][2]
+    slot_leak_request = client.requests[14][2]
+    partial_leak_request = client.requests[15][2]
     tool_summary = report["checks"]["tool_argument_canary_leak"]
     assert isinstance(tool_summary, dict)
     nimbus_tool_summary = tool_summary["nimbus_tool"]
@@ -253,6 +255,7 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
     assert nimbus_tool_summary["present"] is True
     assert nimbus_tool_summary["critic_kind"] == "canary"
     assert isinstance(benign_request, dict)
+    assert isinstance(adversarial_benign_request, dict)
     assert isinstance(ambiguous_request, dict)
     assert isinstance(egress_request, dict)
     assert isinstance(tool_argument_request, dict)
@@ -265,6 +268,15 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
     assert benign_request["metadata"]["credential_slots"] == [
         {"slot_name": "repo_pat", "credential_type": "github_pat"}
     ]
+    assert adversarial_benign_request["metadata"]["session_id"] == "smoke-session"
+    assert adversarial_benign_request["metadata"]["turn_index"] == 1
+    adversarial_benign_summary = report["checks"]["adversarial_benign_no_block"]
+    assert isinstance(adversarial_benign_summary, dict)
+    assert adversarial_benign_summary["final_action"] == "allow"
+    adversarial_nimbus = adversarial_benign_summary["nimbus"]
+    assert isinstance(adversarial_nimbus, dict)
+    assert adversarial_nimbus["present"] is True
+    assert adversarial_nimbus["recommended_action"] == "allow"
     assert ambiguous_request["metadata"]["session_id"] == "smoke-ambiguous-protected-session"
     assert ambiguous_request["metadata"]["protected_workflow"] is True
     assert "credential_slots" not in ambiguous_request["metadata"]
@@ -313,6 +325,7 @@ def test_gateway_smoke_accepts_required_self_hosted_cift_pre_generation_block() 
                         canary_count=1,
                     ),
                 ),
+                HttpJsonResponse(status_code=200, payload=_adversarial_benign_chat_response()),
                 HttpJsonResponse(status_code=400, payload=_ambiguous_protected_workflow_error_response()),
                 HttpJsonResponse(status_code=200, payload=_cift_block_chat_response()),
                 HttpJsonResponse(status_code=200, payload=_egress_guard_chat_response()),
@@ -376,7 +389,7 @@ def test_gateway_smoke_accepts_required_self_hosted_cift_pre_generation_block() 
     assert cift_summary["cift_action"] == "block"
     assert cift_summary["provider_status"] == "skipped"
     assert cift_summary["provider_reason"] == "pre_generation_policy_block"
-    cift_request = client.requests[10][2]
+    cift_request = client.requests[11][2]
     assert isinstance(cift_request, dict)
     assert cift_request["metadata"]["session_id"] == "smoke-cift-session"
     assert cift_request["metadata"]["protected_workflow"] is True
@@ -467,6 +480,7 @@ def test_gateway_smoke_accepts_real_provider_mode_without_mock_leak_controls() -
     assert report["checks"]["encoded_canary_leak"]["status"] == "skipped"
     assert report["checks"]["metadata_slot_canary_leak"]["status"] == "skipped"
     assert report["checks"]["nimbus_partial_leak"]["status"] == "skipped"
+    assert report["checks"]["adversarial_benign_no_block"]["status"] == "skipped"
     chat_requests = [
         request for request in client.requests if request[0] == "POST" and request[1].endswith("/v1/chat/completions")
     ]
@@ -561,6 +575,7 @@ def test_gateway_smoke_rejects_missing_encoded_canary_result() -> None:
                         canary_count=1,
                     ),
                 ),
+                HttpJsonResponse(status_code=200, payload=_adversarial_benign_chat_response()),
                 HttpJsonResponse(status_code=400, payload=_ambiguous_protected_workflow_error_response()),
                 HttpJsonResponse(status_code=200, payload=_egress_guard_chat_response()),
                 HttpJsonResponse(status_code=200, payload=_tool_argument_canary_chat_response()),
@@ -615,6 +630,7 @@ def _healthy_smoke_client(
                         canary_count=1,
                     ),
                 ),
+                HttpJsonResponse(status_code=200, payload=_adversarial_benign_chat_response()),
                 HttpJsonResponse(status_code=400, payload=_ambiguous_protected_workflow_error_response()),
                 HttpJsonResponse(status_code=200, payload=_egress_guard_chat_response()),
                 HttpJsonResponse(status_code=200, payload=_tool_argument_canary_chat_response()),
@@ -856,6 +872,60 @@ def _chat_response(
                     "latency_ms": 0.0,
                 }
                 for detector_name in detector_names
+            ],
+        },
+    }
+
+
+def _adversarial_benign_chat_response() -> dict[str, JsonValue]:
+    return {
+        "id": "chatcmpl-smoke-adversarial-benign",
+        "object": "chat.completion",
+        "model": "mock-model",
+        "choices": [
+            {"index": 0, "message": {"role": "assistant", "content": "internal only"}, "finish_reason": "stop"}
+        ],
+        "aegis": {
+            "trace_id": "smoke-adversarial-benign-trace",
+            "runtime_trace": _runtime_trace(dp_honey_status="active", canary_count=1),
+            "policy_decision": {
+                "final_action": "allow",
+                "reason": "test",
+                "triggered_detectors": [],
+                "risk_score": 0.0,
+                "sanitized_output": None,
+            },
+            "detector_results": [
+                {
+                    "detector_name": "activation_unavailable",
+                    "component": "cift",
+                    "score": 0.0,
+                    "confidence": 0.0,
+                    "recommended_action": "allow",
+                    "capability_required": None,
+                    "capability_status": "unavailable",
+                    "evidence": {},
+                    "latency_ms": 0.0,
+                },
+                {
+                    "detector_name": "nimbus",
+                    "component": "nimbus",
+                    "score": 0.0,
+                    "confidence": 0.8,
+                    "recommended_action": "allow",
+                    "capability_required": None,
+                    "capability_status": "active",
+                    "evidence": {
+                        "budget_fraction": 0.0,
+                        "critic_kind": "canary",
+                        "critic_version": "canary-v0",
+                        "paper_faithful_learned_critic": False,
+                        "promotion_status": "deterministic_canary_beta",
+                        "turn_estimated_leakage_bits": 0.0,
+                        "cumulative_estimated_leakage_bits": 0.0,
+                    },
+                    "latency_ms": 0.0,
+                },
             ],
         },
     }

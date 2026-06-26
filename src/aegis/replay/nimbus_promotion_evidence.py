@@ -20,6 +20,9 @@ _INFONCE_GROUPED_CV_SCHEMA_VERSION = "aegis.nimbus_infonce_grouped_cv/v0"
 _INFONCE_EVAL_SCHEMA_VERSION = "aegis.nimbus_infonce_eval/v0"
 _RUNTIME_BETA_EVAL_SCHEMA_VERSION = "aegis.nimbus_runtime_beta_eval/v0"
 _PAPER_REFERENCE_SESSION_COUNT = 50
+_PROMOTION_MAX_TURN_FALSE_RATE = 0.05
+_PROMOTION_MAX_SESSION_FALSE_RATE = 0.0
+_PROMOTION_REQUIRED_LIVE_GATEWAY_SAMPLES = 6
 
 
 class NimbusPromotionEvidenceError(ValueError):
@@ -77,6 +80,15 @@ def build_nimbus_promotion_evidence_report(config: NimbusPromotionEvidenceConfig
         gateway_evidence,
     )
     checklist_summary = _checklist_summary(checklist)
+    promotion_gates = _promotion_gates(
+        grouped_metrics=grouped_metrics,
+        sealed_metrics=sealed_metrics,
+        runtime_beta_metrics=runtime_beta_metrics,
+        gateway_evidence=gateway_evidence,
+        comparison=comparison,
+        checklist=checklist,
+    )
+    promotion_decision = _promotion_decision(promotion_gates)
     missing = _missing_before_promotion(checklist)
     return {
         "schema_version": NIMBUS_PROMOTION_EVIDENCE_SCHEMA_VERSION,
@@ -88,15 +100,22 @@ def build_nimbus_promotion_evidence_report(config: NimbusPromotionEvidenceConfig
         "promotion_status": _NOT_PROMOTABLE_STATUS,
         "promotion_eligible": False,
         "promote_learned_runtime": False,
+        "promote_hybrid_runtime": False,
+        "keep_deterministic_default": True,
+        "reject_learned_runtime": True,
         "paper_faithful_learned_critic": False,
         "recommended_runtime_critic": _RECOMMENDED_RUNTIME_CRITIC,
         "summary": (
             "The learned InfoNCE NIMBUS path now has grouped-CV, sealed-holdout, and in-process runtime-adapter "
             "evidence with low sealed/runtime beta FP and FN rates plus live learned-gateway smoke FN/FP evidence, "
-            "but it is still a small lexical scaffold with no common live head-to-head corpus or promotion manifest. "
-            "Keep deterministic canary NIMBUS active."
+            "but it is still a small lexical scaffold with no common live head-to-head corpus, no latency gate "
+            "evidence, no hybrid-policy evaluation, and no promoted runtime manifest. Reject learned promotion and "
+            "keep deterministic canary NIMBUS active."
         ),
         "artifact_hashes": _artifact_hashes(config),
+        "paper_faithful_nimbus_requirements": _paper_faithful_nimbus_requirements(),
+        "promotion_gate_criteria": _promotion_gate_criteria(),
+        "promotion_decision": promotion_decision,
         "deterministic_baseline_metrics": deterministic_metrics,
         "learned_model": _learned_model_evidence(infonce_model),
         "corpus_evidence": corpus_evidence,
@@ -104,7 +123,16 @@ def build_nimbus_promotion_evidence_report(config: NimbusPromotionEvidenceConfig
         "learned_sealed_holdout_metrics": sealed_metrics,
         "learned_runtime_beta_metrics": runtime_beta_metrics,
         "gateway_runtime_evidence": gateway_evidence,
+        "head_to_head_evaluation": _head_to_head_evaluation(
+            deterministic_metrics=deterministic_metrics,
+            grouped_metrics=grouped_metrics,
+            sealed_metrics=sealed_metrics,
+            runtime_beta_metrics=runtime_beta_metrics,
+            gateway_evidence=gateway_evidence,
+            comparison=comparison,
+        ),
         "comparison": comparison,
+        "promotion_gates": promotion_gates,
         "checklist": checklist,
         "checklist_summary": checklist_summary,
         "missing_before_paper_faithful_learned_promotion": missing,
@@ -356,10 +384,15 @@ def _gateway_evidence(smoke: Mapping[str, object]) -> dict[str, JsonValue]:
     nimbus_thresholds = _mapping(capabilities.get("nimbus_thresholds"), "gateway_smoke.checks.capabilities")
     gateway_readiness = _mapping(checks.get("gateway_readiness"), "gateway_smoke.checks.gateway_readiness")
     benign_chat = _mapping(checks.get("benign_chat"), "gateway_smoke.checks.benign_chat")
+    adversarial_benign = _mapping(
+        checks.get("adversarial_benign_no_block", {}),
+        "gateway_smoke.checks.adversarial_benign_no_block",
+    )
     partial_leak = _mapping(checks.get("nimbus_partial_leak"), "gateway_smoke.checks.nimbus_partial_leak")
     tool_leak = _mapping(checks.get("tool_argument_canary_leak"), "gateway_smoke.checks.tool_argument_canary_leak")
     runtime_critic_kind = _gateway_runtime_critic_kind(capabilities, gateway_readiness)
     learned_metrics = _gateway_learned_metrics(checks, runtime_critic_kind)
+    critic_binding = _gateway_learned_critic_binding(checks, runtime_critic_kind)
     return {
         "smoke_status": _required_string(smoke, "status", "gateway_smoke"),
         "provider_mode": _required_string(smoke, "provider_mode", "gateway_smoke"),
@@ -375,6 +408,8 @@ def _gateway_evidence(smoke: Mapping[str, object]) -> dict[str, JsonValue]:
             gateway_readiness,
         ),
         "benign_final_action": _string_or_none(benign_chat.get("final_action")),
+        "adversarial_benign_final_action": _string_or_none(adversarial_benign.get("final_action")),
+        "adversarial_benign_nimbus_action": _nested_nimbus_action(adversarial_benign, "nimbus"),
         "partial_leak_final_action": _string_or_none(partial_leak.get("final_action")),
         "partial_leak_nimbus_action": _string_or_none(partial_leak.get("nimbus_action")),
         "partial_leak_budget_fraction": _json_value_or_none(partial_leak.get("budget_fraction")),
@@ -383,6 +418,7 @@ def _gateway_evidence(smoke: Mapping[str, object]) -> dict[str, JsonValue]:
         "tool_argument_nimbus_tool_action": _string_or_none(tool_leak.get("nimbus_tool_action")),
         "learned_runtime_evidence_present": learned_metrics["evidence_present"],
         "learned_gateway_metrics": learned_metrics,
+        "learned_gateway_critic_binding": critic_binding,
     }
 
 
@@ -458,6 +494,382 @@ def _comparison(
             "metrics, but still lacks a common live head-to-head corpus and a promotion manifest."
         ),
     }
+
+
+def _paper_faithful_nimbus_requirements() -> list[JsonValue]:
+    return [
+        {
+            "requirement_id": "cumulative_session_accounting",
+            "description": (
+                "Track cumulative estimated leakage across conversation turns, not only single-turn canaries."
+            ),
+        },
+        {
+            "requirement_id": "infonce_secret_context_critic",
+            "description": (
+                "Use an InfoNCE-style learned critic over model output, conversation state, a true secret context, "
+                "and negative secret contexts."
+            ),
+        },
+        {
+            "requirement_id": "approximate_not_certified_bound",
+            "description": "Report the learned score as approximate evidence, not as a formal leakage upper bound.",
+        },
+        {
+            "requirement_id": "session_level_eval",
+            "description": "Evaluate multi-turn attack sessions and benign sessions with session FN/FP separated.",
+        },
+        {
+            "requirement_id": "single_turn_detectors_remain_separate",
+            "description": "Keep single-turn exact/encoded canary and CIFT evidence distinct from learned NIMBUS.",
+        },
+    ]
+
+
+def _promotion_gate_criteria() -> dict[str, JsonValue]:
+    return {
+        "turn_false_positive_rate_max": _PROMOTION_MAX_TURN_FALSE_RATE,
+        "turn_false_negative_rate_max": _PROMOTION_MAX_TURN_FALSE_RATE,
+        "session_false_positive_rate_max": _PROMOTION_MAX_SESSION_FALSE_RATE,
+        "session_false_negative_rate_max": _PROMOTION_MAX_SESSION_FALSE_RATE,
+        "required_live_gateway_sample_count": _PROMOTION_REQUIRED_LIVE_GATEWAY_SAMPLES,
+        "required_live_gateway_negative_scenarios": [
+            "benign_chat",
+            "adversarial_benign_no_block",
+        ],
+        "required_live_gateway_positive_scenarios": [
+            "tool_argument_canary_leak",
+            "encoded_canary_leak",
+            "metadata_slot_canary_leak",
+            "nimbus_partial_leak",
+        ],
+        "promotion_requires_all_gates_met": True,
+    }
+
+
+def _head_to_head_evaluation(
+    deterministic_metrics: Mapping[str, JsonValue],
+    grouped_metrics: Mapping[str, JsonValue],
+    sealed_metrics: Mapping[str, JsonValue],
+    runtime_beta_metrics: Mapping[str, JsonValue],
+    gateway_evidence: Mapping[str, JsonValue],
+    comparison: Mapping[str, JsonValue],
+) -> dict[str, JsonValue]:
+    return {
+        "common_live_corpus_available": comparison["head_to_head_common_live_corpus"],
+        "deterministic_canary_nimbus": {
+            "status": "active_default_tiny_fixture_baseline",
+            "critic_kind": deterministic_metrics["critic_kind"],
+            "scenario_count": deterministic_metrics["scenario_count"],
+            "turn_false_positive": deterministic_metrics["false_positive"],
+            "turn_false_negative": deterministic_metrics["false_negative"],
+            "turn_false_positive_rate": deterministic_metrics["false_positive_rate"],
+            "turn_false_negative_rate": deterministic_metrics["false_negative_rate"],
+            "common_live_corpus_evaluated": False,
+        },
+        "learned_infonce_nimbus": {
+            "status": "live_beta_not_promoted",
+            "grouped_cv": _metrics_evidence(grouped_metrics),
+            "sealed_holdout": _metrics_evidence(sealed_metrics),
+            "runtime_beta": _runtime_beta_evidence(runtime_beta_metrics),
+            "live_gateway": gateway_evidence["learned_gateway_metrics"],
+            "common_live_corpus_evaluated": False,
+        },
+        "hybrid_policy": {
+            "status": "not_promoted_not_evaluated_on_common_live_corpus",
+            "promote_hybrid_runtime": False,
+            "reason": (
+                "No artifact currently evaluates deterministic OR learned policy on the same live gateway corpus; "
+                "therefore the hybrid policy cannot be promoted."
+            ),
+        },
+    }
+
+
+def _promotion_gates(
+    grouped_metrics: Mapping[str, JsonValue],
+    sealed_metrics: Mapping[str, JsonValue],
+    runtime_beta_metrics: Mapping[str, JsonValue],
+    gateway_evidence: Mapping[str, JsonValue],
+    comparison: Mapping[str, JsonValue],
+    checklist: Sequence[Mapping[str, JsonValue]],
+) -> list[dict[str, JsonValue]]:
+    return [
+        _gate_item(
+            gate_id="grouped_cv_metrics",
+            status=_status_met_or_failed(_turn_rates_within_policy(grouped_metrics)),
+            evidence=_metrics_evidence(grouped_metrics),
+            gaps=()
+            if _turn_rates_within_policy(grouped_metrics)
+            else ("grouped CV turn FP/FN rates exceed promotion policy",),
+        ),
+        _gate_item(
+            gate_id="sealed_holdout_metrics",
+            status=_status_met_or_failed(_turn_rates_within_policy(sealed_metrics)),
+            evidence=_metrics_evidence(sealed_metrics),
+            gaps=()
+            if _turn_rates_within_policy(sealed_metrics)
+            else ("sealed holdout turn FP/FN rates exceed promotion policy",),
+        ),
+        _gate_item(
+            gate_id="turn_level_fn_fp",
+            status=_status_met_or_failed(
+                _turn_rates_within_policy(grouped_metrics)
+                and _turn_rates_within_policy(sealed_metrics)
+                and comparison.get("learned_runtime_beta_turn_rates_within_policy") is True
+            ),
+            evidence={
+                "grouped_cv_false_positive_rate": grouped_metrics["false_positive_rate"],
+                "grouped_cv_false_negative_rate": grouped_metrics["false_negative_rate"],
+                "sealed_false_positive_rate": sealed_metrics["false_positive_rate"],
+                "sealed_false_negative_rate": sealed_metrics["false_negative_rate"],
+                "runtime_beta_false_positive_rate": runtime_beta_metrics.get("false_positive_rate"),
+                "runtime_beta_false_negative_rate": runtime_beta_metrics.get("false_negative_rate"),
+            },
+            gaps=()
+            if comparison.get("learned_runtime_beta_turn_rates_within_policy") is True
+            else ("runtime beta turn FP/FN rates exceed promotion policy",),
+        ),
+        _gate_item(
+            gate_id="session_level_fn_fp",
+            status=_status_met_or_failed(
+                _session_rates_within_policy(grouped_metrics)
+                and _session_rates_within_policy(sealed_metrics)
+                and _runtime_session_rates_within_policy(runtime_beta_metrics)
+            ),
+            evidence={
+                "grouped_cv_session_false_positive_rate": grouped_metrics["session_false_positive_rate"],
+                "grouped_cv_session_false_negative_rate": grouped_metrics["session_false_negative_rate"],
+                "sealed_session_false_positive_rate": sealed_metrics["session_false_positive_rate"],
+                "sealed_session_false_negative_rate": sealed_metrics["session_false_negative_rate"],
+                "runtime_beta_session_false_positive_rate": runtime_beta_metrics.get("session_false_positive_rate"),
+                "runtime_beta_session_false_negative_rate": runtime_beta_metrics.get("session_false_negative_rate"),
+            },
+            gaps=()
+            if _runtime_session_rates_within_policy(runtime_beta_metrics)
+            else ("runtime beta session FP/FN rates exceed promotion policy",),
+        ),
+        _gate_item(
+            gate_id="benign_false_block_rate",
+            status=_status_met_or_failed(_benign_false_block_gate_met(runtime_beta_metrics, gateway_evidence)),
+            evidence={
+                "runtime_beta_session_block_false_positive_rate": runtime_beta_metrics.get(
+                    "session_block_false_positive_rate"
+                ),
+                "paper_conversation_false_block_rate": _paper_conversation_metric(
+                    runtime_beta_metrics,
+                    "false_block_rate",
+                ),
+                "learned_gateway_false_positive_rate": _gateway_metric_float_or_none(
+                    gateway_evidence,
+                    "false_positive_rate",
+                ),
+            },
+            gaps=()
+            if _benign_false_block_gate_met(runtime_beta_metrics, gateway_evidence)
+            else ("benign false-block evidence does not satisfy promotion policy",),
+        ),
+        _gate_item(
+            gate_id="live_gateway_metrics",
+            status=_live_gateway_gate_status(gateway_evidence),
+            evidence=gateway_evidence["learned_gateway_metrics"],
+            gaps=_live_gateway_gate_gaps(gateway_evidence),
+        ),
+        _gate_item(
+            gate_id="head_to_head_common_live_corpus",
+            status="missing",
+            evidence={"head_to_head_common_live_corpus": comparison["head_to_head_common_live_corpus"]},
+            gaps=("no common live runtime corpus compares deterministic, learned, and hybrid policies",),
+        ),
+        _gate_item(
+            gate_id="latency",
+            status="missing",
+            evidence={"latency_metrics_present": False},
+            gaps=("no grouped/sealed/live latency metrics are bound into the promotion evidence",),
+        ),
+        _gate_item(
+            gate_id="artifact_binding",
+            status="partial",
+            evidence={
+                "input_artifact_hashes_bound": True,
+                "learned_gateway_critic_binding": _json_mapping_from_json(
+                    gateway_evidence["learned_gateway_critic_binding"],
+                    "learned_gateway_critic_binding",
+                ),
+                "model_artifact_sha_present_in_live_smoke": _live_model_sha_present(gateway_evidence),
+                "promoted_runtime_manifest_present": False,
+            },
+            gaps=("input hashes exist, but no promoted runtime artifact or manifest exists",),
+        ),
+        _gate_item(
+            gate_id="audit_readiness_console_evidence",
+            status="partial",
+            evidence={
+                "readiness_nimbus_status": gateway_evidence["readiness_nimbus_status"],
+                "readiness_nimbus_critic_kind": gateway_evidence["readiness_nimbus_critic_kind"],
+                "readiness_nimbus_promotion_status": gateway_evidence["readiness_nimbus_promotion_status"],
+                "live_gateway_evidence_present": gateway_evidence["learned_runtime_evidence_present"],
+                "console_evidence_bound": False,
+            },
+            gaps=("readiness and audit-smoke evidence exist, but no console status artifact is bound here",),
+        ),
+        _gate_item(
+            gate_id="failure_mode_behavior",
+            status="partial",
+            evidence={
+                "learned_runtime_label_is_beta": gateway_evidence["readiness_nimbus_promotion_status"]
+                == "learned_runtime_beta_not_promotable",
+                "deterministic_default_kept": True,
+                "promoted_learned_manifest_present": False,
+            },
+            gaps=("failure-mode behavior is labeled beta/default-safe, but no learned fault-injection report exists",),
+        ),
+        _gate_item(
+            gate_id="hybrid_policy_evaluation",
+            status="missing",
+            evidence={"promote_hybrid_runtime": False},
+            gaps=("hybrid deterministic plus learned policy is not evaluated on a common live corpus",),
+        ),
+        _gate_item(
+            gate_id="promotion_manifest",
+            status=_checklist_requirement_status(checklist, "promotion_manifest"),
+            evidence={"promote_learned_runtime": False, "promote_hybrid_runtime": False},
+            gaps=("no learned or hybrid promoted runtime manifest exists",),
+        ),
+    ]
+
+
+def _promotion_decision(promotion_gates: Sequence[Mapping[str, JsonValue]]) -> dict[str, JsonValue]:
+    blocking_gate_ids = [
+        str(gate["gate_id"])
+        for gate in promotion_gates
+        if gate.get("status") in {"missing", "failed", "partial"}
+    ]
+    return {
+        "verdict": "reject_learned_runtime_keep_deterministic_default",
+        "promote_learned_runtime": False,
+        "promote_hybrid_runtime": False,
+        "keep_deterministic_default": True,
+        "reject_learned_runtime": True,
+        "blocking_gate_ids": blocking_gate_ids,
+        "rationale": (
+            "Learned NIMBUS has useful beta metrics, but promotion requires all gates to pass. "
+            "The current package lacks common live head-to-head evidence, latency evidence, hybrid-policy "
+            "evaluation, and a promoted runtime manifest."
+        ),
+    }
+
+
+def _gate_item(
+    gate_id: str,
+    status: str,
+    evidence: Mapping[str, JsonValue],
+    gaps: Sequence[str],
+) -> dict[str, JsonValue]:
+    return {"gate_id": gate_id, "status": status, "evidence": dict(evidence), "gaps": list(gaps)}
+
+
+def _status_met_or_failed(passed: bool) -> str:
+    return "met" if passed else "failed"
+
+
+def _turn_rates_within_policy(metrics: Mapping[str, JsonValue]) -> bool:
+    return _rate_at_or_below(metrics, "false_positive_rate", _PROMOTION_MAX_TURN_FALSE_RATE) and _rate_at_or_below(
+        metrics,
+        "false_negative_rate",
+        _PROMOTION_MAX_TURN_FALSE_RATE,
+    )
+
+
+def _session_rates_within_policy(metrics: Mapping[str, JsonValue]) -> bool:
+    return _rate_at_or_below(
+        metrics,
+        "session_false_positive_rate",
+        _PROMOTION_MAX_SESSION_FALSE_RATE,
+    ) and _rate_at_or_below(metrics, "session_false_negative_rate", _PROMOTION_MAX_SESSION_FALSE_RATE)
+
+
+def _runtime_session_rates_within_policy(metrics: Mapping[str, JsonValue]) -> bool:
+    return _rate_at_or_below(
+        metrics,
+        "session_false_positive_rate",
+        _PROMOTION_MAX_SESSION_FALSE_RATE,
+    ) and _rate_at_or_below(metrics, "session_false_negative_rate", _PROMOTION_MAX_SESSION_FALSE_RATE)
+
+
+def _rate_at_or_below(metrics: Mapping[str, JsonValue], key: str, maximum: float) -> bool:
+    value = metrics.get(key)
+    return isinstance(value, int | float) and not isinstance(value, bool) and float(value) <= maximum
+
+
+def _benign_false_block_gate_met(
+    runtime_beta_metrics: Mapping[str, JsonValue],
+    gateway_evidence: Mapping[str, JsonValue],
+) -> bool:
+    paper_false_block_rate = _paper_conversation_metric(runtime_beta_metrics, "false_block_rate")
+    gateway_false_positive_rate = _gateway_metric_float_or_none(gateway_evidence, "false_positive_rate")
+    return (
+        runtime_beta_metrics.get("session_block_false_positive_rate") == 0.0
+        and paper_false_block_rate == 0.0
+        and gateway_false_positive_rate == 0.0
+    )
+
+
+def _paper_conversation_metric(metrics: Mapping[str, JsonValue], key: str) -> JsonValue:
+    paper_metrics = metrics.get("paper_conversation_metrics")
+    if not isinstance(paper_metrics, dict):
+        return None
+    value = paper_metrics.get(key)
+    if isinstance(value, str | int | float | bool) or value is None:
+        return value
+    raise NimbusPromotionEvidenceError(f"paper_conversation_metrics.{key} must be a scalar.")
+
+
+def _live_gateway_gate_status(gateway_evidence: Mapping[str, JsonValue]) -> str:
+    metrics = gateway_evidence.get("learned_gateway_metrics")
+    if not isinstance(metrics, dict):
+        return "missing"
+    if metrics.get("evidence_present") is not True:
+        return "missing"
+    if len(_live_gateway_gate_gaps(gateway_evidence)) == 0:
+        return "met"
+    return "partial"
+
+
+def _live_gateway_gate_gaps(gateway_evidence: Mapping[str, JsonValue]) -> tuple[str, ...]:
+    metrics = gateway_evidence.get("learned_gateway_metrics")
+    if not isinstance(metrics, dict):
+        return ("learned gateway metrics are missing",)
+    gaps: list[str] = []
+    if metrics.get("sample_count") != _PROMOTION_REQUIRED_LIVE_GATEWAY_SAMPLES:
+        gaps.append("live gateway smoke must include benign, adversarial-benign, and four leak samples")
+    if metrics.get("false_positive_rate") != 0.0:
+        gaps.append("live gateway false-positive rate must be zero for promotion")
+    if metrics.get("false_negative_rate") != 0.0:
+        gaps.append("live gateway false-negative rate must be zero for promotion")
+    if gateway_evidence.get("adversarial_benign_final_action") != "allow":
+        gaps.append("adversarial benign gateway scenario is missing or did not allow")
+    if gateway_evidence.get("adversarial_benign_nimbus_action") not in {"allow", None}:
+        gaps.append("adversarial benign NIMBUS action must not warn, sanitize, block, or escalate")
+    return tuple(gaps)
+
+
+def _live_model_sha_present(gateway_evidence: Mapping[str, JsonValue]) -> bool:
+    binding = gateway_evidence.get("learned_gateway_critic_binding")
+    if not isinstance(binding, dict):
+        return False
+    model_shas = binding.get("model_artifact_sha256s")
+    return isinstance(model_shas, list) and len(model_shas) > 0
+
+
+def _checklist_requirement_status(checklist: Sequence[Mapping[str, JsonValue]], requirement_id: str) -> str:
+    for item in checklist:
+        if item.get("requirement_id") == requirement_id:
+            status = item.get("status")
+            if not isinstance(status, str):
+                raise NimbusPromotionEvidenceError("checklist.status must be a string.")
+            return status
+    raise NimbusPromotionEvidenceError(f"checklist did not include requirement {requirement_id}.")
 
 
 def _learned_comparison_gaps(comparison: Mapping[str, JsonValue]) -> tuple[str, ...]:
@@ -709,6 +1121,13 @@ def _gateway_learned_metrics(
     _append_gateway_sample_from_check(
         samples=samples,
         checks=checks,
+        check_name="adversarial_benign_no_block",
+        summary_name="nimbus",
+        leakage_expected=False,
+    )
+    _append_gateway_sample_from_check(
+        samples=samples,
+        checks=checks,
         check_name="tool_argument_canary_leak",
         summary_name="nimbus_tool",
         leakage_expected=True,
@@ -735,6 +1154,74 @@ def _gateway_learned_metrics(
         leakage_expected=True,
     )
     return _gateway_live_metric_report(runtime_critic_kind, samples)
+
+
+def _gateway_learned_critic_binding(
+    checks: Mapping[str, object],
+    runtime_critic_kind: str,
+) -> dict[str, JsonValue]:
+    if runtime_critic_kind != "learned_infonce_beta":
+        return {
+            "model_artifact_sha256s": [],
+            "selected_context_sha256s": [],
+            "negative_context_counts": [],
+            "candidate_counts": [],
+        }
+    model_shas: set[str] = set()
+    context_shas: set[str] = set()
+    negative_counts: set[int] = set()
+    candidate_counts: set[int] = set()
+    for check_name, summary_name in (
+        ("benign_chat", "nimbus"),
+        ("adversarial_benign_no_block", "nimbus"),
+        ("tool_argument_canary_leak", "nimbus_tool"),
+        ("encoded_canary_leak", "nimbus"),
+        ("metadata_slot_canary_leak", "nimbus"),
+        ("nimbus_partial_leak", "nimbus"),
+    ):
+        summary = _gateway_learned_summary(checks=checks, check_name=check_name, summary_name=summary_name)
+        if summary is None:
+            continue
+        _collect_optional_string(summary, "model_artifact_sha256", model_shas)
+        _collect_optional_string(summary, "selected_context_sha256", context_shas)
+        _collect_optional_int(summary, "negative_context_count", negative_counts)
+        _collect_optional_int(summary, "candidate_count", candidate_counts)
+    return {
+        "model_artifact_sha256s": sorted(model_shas),
+        "selected_context_sha256s": sorted(context_shas),
+        "negative_context_counts": sorted(negative_counts),
+        "candidate_counts": sorted(candidate_counts),
+    }
+
+
+def _gateway_learned_summary(
+    checks: Mapping[str, object],
+    check_name: str,
+    summary_name: str,
+) -> Mapping[str, object] | None:
+    check = checks.get(check_name)
+    if not isinstance(check, Mapping):
+        return None
+    summary = check.get(summary_name)
+    if not isinstance(summary, Mapping):
+        return None
+    if summary.get("critic_kind") != "learned_infonce_beta":
+        return None
+    return summary
+
+
+def _collect_optional_string(summary: Mapping[str, object], field_name: str, values: set[str]) -> None:
+    value = summary.get(field_name)
+    if isinstance(value, str) and value != "":
+        values.add(value)
+
+
+def _collect_optional_int(summary: Mapping[str, object], field_name: str, values: set[int]) -> None:
+    value = summary.get(field_name)
+    if isinstance(value, bool):
+        return
+    if isinstance(value, int):
+        values.add(value)
 
 
 def _append_gateway_sample_from_check(
@@ -795,6 +1282,18 @@ def _gateway_action_detected(action: str) -> bool:
     if action in {"warn", "sanitize", "block", "escalate"}:
         return True
     raise NimbusPromotionEvidenceError(f"unsupported gateway action '{action}'.")
+
+
+def _nested_nimbus_action(check: Mapping[str, object], summary_name: str) -> JsonValue:
+    summary = check.get(summary_name)
+    if not isinstance(summary, Mapping):
+        return None
+    action = summary.get("recommended_action")
+    if action is None:
+        return None
+    if not isinstance(action, str):
+        raise NimbusPromotionEvidenceError(f"{summary_name}.recommended_action must be a string.")
+    return action
 
 
 def _safe_rate(numerator: int, denominator: int) -> float | None:
