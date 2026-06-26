@@ -132,9 +132,10 @@ uv run aegis-console \
 
 Open `http://127.0.0.1:8780` to see gateway readiness, protection state,
 active model/CIFT certification binding, recent allow/block decisions, detector
-activity, and setup commands. The optional sample audit path is used only when
-the live gateway audit is empty, so the console can still show the strict smoke
-stage timeline without replaying it as production evidence.
+activity, NIMBUS critic kind/promotion status, and setup commands. The optional
+sample audit path is used only when the live gateway audit is empty, so the
+console can still show the strict smoke stage timeline without replaying it as
+production evidence.
 
 `GET /aegis/capabilities` returns the machine-readable development contract:
 provider kind, whether mock controls are enabled, supported mock response modes,
@@ -892,8 +893,20 @@ uv run aegis-nimbus-eval-infonce \
   --output introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json
 ```
 
+Evaluate the learned InfoNCE scaffold through the in-process runtime adapter
+against the sealed holdout. This is beta evidence only; it uses registered
+canary contexts rather than a production secret-context candidate store and
+does not count as live gateway evidence:
+
+```bash
+uv run aegis-nimbus-runtime-beta-eval \
+  --input introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_v0.jsonl \
+  --model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
+  --output introspection/data/reports/aegis_nimbus_runtime_beta_eval_v0.json
+```
+
 Bind the deterministic runtime baseline, learned scaffold evals, sealed holdout,
-and gateway smoke into a single promotion decision:
+runtime beta eval, and gateway smoke into a single promotion decision:
 
 ```bash
 uv run aegis-nimbus-promotion-evidence \
@@ -904,20 +917,25 @@ uv run aegis-nimbus-promotion-evidence \
   --grouped-cv introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json \
   --sealed-holdout introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json \
   --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json \
+  --runtime-beta-eval introspection/data/reports/aegis_nimbus_runtime_beta_eval_v0.json \
   --output introspection/data/reports/aegis_nimbus_promotion_evidence_v0.json
 ```
 
 The v0 InfoNCE artifact is an offline lexical scaffold. It reports
 `promotion_status=not_promotable_offline_scaffold` and
-`paper_faithful_learned_critic=false`; it is not wired into runtime policy.
+`paper_faithful_learned_critic=false`. It can be wired into runtime policy only
+with the explicit `learned_infonce_beta` configuration below, and remains
+non-promotable.
 The `--allow-training-eval` flag labels the main report as a training
 diagnostic. Current grouped-CV and sealed-holdout evidence both report turn-level
 FP/FN and session-level FP/FN separately: turn FPR `0.0`, turn FNR `0.214286`,
-session FPR `0.0`, and session FNR `0.0`. The scaffold still remains
-non-promotable because it is a tiny lexical offline model without a learned
-runtime adapter, live gateway FN/FP evidence, or a promotion manifest. The
-promotion evidence report records `promote_learned_runtime=false` and recommends
-keeping deterministic canary NIMBUS as the active runtime critic.
+session FPR `0.0`, and session FNR `0.0`. The runtime beta eval reports turn
+FP=0, turn FN=5, turn FPR `0.0`, turn FNR `0.357143`, session FP=0, session
+FN=1, session FPR `0.0`, and session FNR `0.125`. The scaffold remains
+non-promotable because it is a tiny lexical model with runtime false negatives,
+no live learned gateway FN/FP evidence, and no promotion manifest. The promotion
+evidence report records `promote_learned_runtime=false` and recommends keeping
+deterministic canary NIMBUS as the active runtime critic.
 
 Generate a local in-process NIMBUS fixture JSONL when the external redteam
 runner is not available:
@@ -945,8 +963,9 @@ The active runtime critic is deterministic canary-based beta
 (`critic_kind=canary`, `paper_faithful_learned_critic=false`). A paper-faithful
 learned NIMBUS release now has a bootstrap corpus contract and offline lexical
 InfoNCE scaffold with turn-level and session-level grouped-CV plus small sealed
-holdout evidence, but still needs a larger session-leakage corpus, a runtime
-learned critic adapter, live runtime FN/FP metrics, and promotion evidence.
+holdout evidence plus an opt-in in-process runtime beta adapter, but still
+needs a larger session-leakage corpus, a production secret-context candidate
+store, live gateway FN/FP metrics, and a promotion manifest.
 `aegis-nimbus-eval` is the deterministic-beta labeled evaluation wrapper; it
 is not a learned NIMBUS promotion path.
 
@@ -962,6 +981,17 @@ AEGIS_NIMBUS_SANITIZE_THRESHOLD=0.6
 AEGIS_NIMBUS_BLOCK_THRESHOLD=0.9
 AEGIS_NIMBUS_MAX_TURNS=20
 AEGIS_NIMBUS_CRITIC_VERSION=canary-v0
+```
+
+To exercise the learned runtime beta path explicitly, provide the model path
+and set the critic kind. This mode fails closed if the model artifact cannot be
+loaded and surfaces `promotion_status=learned_runtime_beta_not_promotable` in
+readiness/capability evidence:
+
+```bash
+AEGIS_NIMBUS_CRITIC_KIND=learned_infonce_beta
+AEGIS_NIMBUS_INFONCE_MODEL_PATH=introspection/data/reports/aegis_nimbus_infonce_model_v0.json
+AEGIS_NIMBUS_CRITIC_VERSION=nimbus-infonce-lexical-v0
 ```
 
 For a stricter local profile where one roughly half-token partial fragment can

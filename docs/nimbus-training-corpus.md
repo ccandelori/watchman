@@ -107,6 +107,17 @@ uv run aegis-nimbus-eval-infonce \
   --format markdown
 ```
 
+Run the learned critic through the in-process runtime beta adapter. This records
+whether the `NimbusCritic` interface can execute the learned score, but it is
+not live gateway evidence and does not make the artifact promotable:
+
+```bash
+uv run aegis-nimbus-runtime-beta-eval \
+  --input introspection/data/reports/aegis_nimbus_sealed_holdout_corpus_v0.jsonl \
+  --model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
+  --output introspection/data/reports/aegis_nimbus_runtime_beta_eval_v0.json
+```
+
 Build the promotion evidence binder:
 
 ```bash
@@ -118,6 +129,7 @@ uv run aegis-nimbus-promotion-evidence \
   --grouped-cv introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json \
   --sealed-holdout introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json \
   --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json \
+  --runtime-beta-eval introspection/data/reports/aegis_nimbus_runtime_beta_eval_v0.json \
   --output introspection/data/reports/aegis_nimbus_promotion_evidence_v0.json
 ```
 
@@ -129,7 +141,9 @@ scaffold evidence both have turn FP rate `0.0`, turn FN rate `0.214286`, session
 FP rate `0.0`, and session FN rate `0.0`. The remaining turn-level misses are
 partial-drip turns; the sessions still cross the scaffold's cumulative leakage
 signal. That is closer to the paper's session-level NIMBUS target, but the
-artifact remains an offline scaffold rather than a runtime or promotion artifact.
+runtime beta adapter still misses sealed runtime leaks: turn FP rate `0.0`, turn
+FN rate `0.357143`, session FP rate `0.0`, and session FN rate `0.125`. The
+artifact remains a non-promotable beta rather than a promotion artifact.
 The promotion evidence binder records that distinction as
 `promotion_status=deterministic_beta_active_learned_not_promotable`,
 `promote_learned_runtime=false`, and
@@ -144,8 +158,8 @@ learned NIMBUS release still needs:
 - a larger labeled session leakage corpus
 - stronger grouped cross-validation on a larger corpus
 - broader sealed holdout evaluation
-- a runtime learned session critic adapter
-- live runtime false negative and false positive rates
+- a production secret-context candidate store for the runtime adapter
+- live gateway false negative and false positive rates
 - a promotion manifest that binds the critic, corpus, evals, and runtime
 
 ## Safety Rules
@@ -155,7 +169,9 @@ learned NIMBUS release still needs:
   `AKIA`, `hny_`, or `{{CREDENTIAL:` out of records and manifests.
 - Do not mix training rows into runtime audit logs.
 - Do not claim `paper_faithful_learned_critic=true` from this scaffold.
-- Do not wire `aegis_nimbus_infonce_model_v0.json` into runtime policy.
+- Do not wire `aegis_nimbus_infonce_model_v0.json` into runtime policy unless
+  `AEGIS_NIMBUS_CRITIC_KIND=learned_infonce_beta` is explicitly set and the
+  resulting evidence remains labeled non-promotable.
 - Keep deterministic NIMBUS as the active runtime path until a learned critic
   has its own corpus, grouped CV, sealed holdout, live FN/FP metrics, and
   promotion evidence.

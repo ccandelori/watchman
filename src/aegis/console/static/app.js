@@ -402,7 +402,9 @@ function nimbusBetaView(nimbus) {
     ["Status", nimbus.status],
     ["Critic kind", nimbus.critic_kind],
     ["Critic version", nimbus.critic_version],
+    ["Promotion status", nimbus.promotion_status],
     ["Paper-faithful learned critic", nimbus.paper_faithful_learned_critic],
+    ["InfoNCE model", nimbus.infonce_model_path],
     ["Thresholds", JSON.stringify(nimbus.thresholds || {})],
   ]);
 }

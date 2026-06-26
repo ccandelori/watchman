@@ -165,6 +165,13 @@ def console_setup(settings: ConsoleSettings) -> dict[str, JsonValue]:
                 "fix": "This is expected until learned paper-faithful NIMBUS is trained and promoted.",
             },
             {
+                "state": "nimbus_learned_runtime_beta_not_promotable",
+                "fix": (
+                    "Use this only for explicit learned-runtime beta evaluation; keep deterministic NIMBUS active "
+                    "for release evidence."
+                ),
+            },
+            {
                 "state": "audit_not_durable",
                 "fix": "Set AEGIS_AUDIT_JSONL_PATH before starting the gateway.",
             },
@@ -273,7 +280,10 @@ def _protection_checklist(
     provider = _optional_mapping(ready_payload.get("provider"))
     dp_honey = _optional_mapping(ready_payload.get("dp_honey"))
     provider_guard = _optional_mapping(ready_payload.get("provider_egress_guard"))
-    nimbus = _optional_mapping(ready_payload.get("nimbus"))
+    nimbus = {
+        **_optional_mapping(capabilities_payload.get("nimbus")),
+        **_optional_mapping(ready_payload.get("nimbus")),
+    }
     audit = _optional_mapping(capabilities_payload.get("audit"))
     model_id = _model_summary(readiness, capabilities, last_event).get("model_id")
     return [
@@ -292,7 +302,7 @@ def _protection_checklist(
             _optional_string(provider_guard.get("status")) or "",
         ),
         _checklist_item("Provider", provider.get("status") == "ready", _optional_string(provider.get("name")) or ""),
-        _checklist_item("NIMBUS", nimbus.get("status") == "deterministic_beta", "deterministic beta"),
+        _checklist_item("NIMBUS", _nimbus_runtime_status_ready(nimbus), _nimbus_status_detail(nimbus)),
         _checklist_item("Audit", audit.get("durable_jsonl_enabled") is True, _audit_status_text(audit)),
         _checklist_item(
             "Last smoke",
@@ -306,6 +316,22 @@ def _protection_checklist(
 def _checklist_item(label: str, ok: bool, detail: str) -> dict[str, JsonValue]:
     status = "passed" if ok else "unavailable"
     return {"label": label, "status": status, "detail": detail}
+
+
+def _nimbus_runtime_status_ready(nimbus: Mapping[str, JsonValue]) -> bool:
+    return nimbus.get("status") in ("deterministic_beta", "learned_runtime_beta")
+
+
+def _nimbus_status_detail(nimbus: Mapping[str, JsonValue]) -> str:
+    status = _optional_string(nimbus.get("status")) or "unknown"
+    critic_kind = _optional_string(nimbus.get("critic_kind"))
+    promotion_status = _optional_string(nimbus.get("promotion_status"))
+    details = [status]
+    if critic_kind is not None:
+        details.append(critic_kind)
+    if promotion_status is not None:
+        details.append(promotion_status)
+    return " / ".join(details)
 
 
 def _model_summary(
@@ -384,14 +410,34 @@ def _nimbus_summary(readiness: Mapping[str, JsonValue], capabilities: Mapping[st
     capabilities_payload = _payload(capabilities)
     readiness_nimbus = _optional_mapping(ready_payload.get("nimbus"))
     capability_nimbus = _optional_mapping(capabilities_payload.get("nimbus"))
+    status = readiness_nimbus.get("status") or capability_nimbus.get("status")
+    critic_kind = capability_nimbus.get("critic_kind")
+    promotion_status = capability_nimbus.get("promotion_status")
     return {
-        "status": readiness_nimbus.get("status") or capability_nimbus.get("status"),
+        "status": status,
         "critic_version": readiness_nimbus.get("critic_version"),
-        "critic_kind": capability_nimbus.get("critic_kind"),
+        "critic_kind": critic_kind,
         "paper_faithful_learned_critic": capability_nimbus.get("paper_faithful_learned_critic"),
+        "promotion_status": promotion_status,
         "thresholds": capability_nimbus.get("thresholds"),
-        "label": "deterministic beta",
+        "infonce_model_path": capability_nimbus.get("infonce_model_path"),
+        "label": _nimbus_label(status, critic_kind, promotion_status),
     }
+
+
+def _nimbus_label(status: JsonValue, critic_kind: JsonValue, promotion_status: JsonValue) -> str:
+    status_text = _optional_string(status)
+    if status_text == "learned_runtime_beta":
+        return "learned runtime beta"
+    if status_text == "deterministic_beta":
+        return "deterministic beta"
+    critic_text = _optional_string(critic_kind)
+    if critic_text is not None:
+        return critic_text
+    promotion_text = _optional_string(promotion_status)
+    if promotion_text is not None:
+        return promotion_text
+    return "unknown"
 
 
 def _event_summary(record: dict[str, JsonValue]) -> dict[str, JsonValue]:

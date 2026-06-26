@@ -29,6 +29,44 @@ def test_console_overview_summarizes_protected_cift_state() -> None:
     assert overview["last_request"]["final_action"] == "block"
 
 
+def test_console_overview_summarizes_learned_nimbus_runtime_beta() -> None:
+    ready_payload = _ready_payload()
+    ready_payload["nimbus"] = {
+        "status": "learned_runtime_beta",
+        "critic_version": "nimbus-infonce-lexical-v0",
+        "promotion_status": "learned_runtime_beta_not_promotable",
+    }
+    capabilities_payload = _capabilities_payload()
+    capabilities_payload["nimbus"] = {
+        "status": "learned_runtime_beta",
+        "critic_kind": "learned_infonce_beta",
+        "critic_version": "nimbus-infonce-lexical-v0",
+        "paper_faithful_learned_critic": False,
+        "promotion_status": "learned_runtime_beta_not_promotable",
+        "infonce_model_path": "introspection/data/reports/aegis_nimbus_infonce_model_v0.json",
+    }
+
+    overview = console_overview(
+        settings=_settings(),
+        fetcher=_gateway_fetcher_with_payloads(
+            events=(_audit_record(),),
+            ready_payload=ready_payload,
+            capabilities_payload=capabilities_payload,
+        ),
+    )
+
+    assert overview["nimbus"]["label"] == "learned runtime beta"
+    assert overview["nimbus"]["critic_kind"] == "learned_infonce_beta"
+    assert overview["nimbus"]["promotion_status"] == "learned_runtime_beta_not_promotable"
+    assert overview["nimbus"]["infonce_model_path"] == "introspection/data/reports/aegis_nimbus_infonce_model_v0.json"
+    checklist = {item["label"]: item for item in overview["checklist"]}
+    assert checklist["NIMBUS"] == {
+        "label": "NIMBUS",
+        "status": "passed",
+        "detail": "learned_runtime_beta / learned_infonce_beta / learned_runtime_beta_not_promotable",
+    }
+
+
 def test_console_overview_surfaces_cift_smoke_metrics(tmp_path: Path) -> None:
     smoke_path = tmp_path / "cift-smoke.json"
     smoke_path.write_text(json.dumps(_cift_smoke_report()), encoding="utf-8")
@@ -91,11 +129,15 @@ def test_console_app_serves_static_shell_and_api() -> None:
 
     page = client.get("/")
     overview = client.get("/api/overview")
+    setup = client.get("/api/setup")
 
     assert page.status_code == 200
     assert "Aegis Watchman Console" in page.text
     assert overview.status_code == 200
     assert overview.json()["protection"]["state"] == "Protected"
+    assert setup.status_code == 200
+    degraded_states = {item["state"] for item in setup.json()["common_degraded_states"]}
+    assert "nimbus_learned_runtime_beta_not_promotable" in degraded_states
 
 
 def _settings(
@@ -114,10 +156,22 @@ def _settings(
 def _gateway_fetcher(
     events: tuple[dict[str, JsonValue], ...],
 ) -> Callable[[ConsoleSettings, str, tuple[tuple[str, str], ...]], dict[str, JsonValue]]:
+    return _gateway_fetcher_with_payloads(
+        events=events,
+        ready_payload=_ready_payload(),
+        capabilities_payload=_capabilities_payload(),
+    )
+
+
+def _gateway_fetcher_with_payloads(
+    events: tuple[dict[str, JsonValue], ...],
+    ready_payload: dict[str, JsonValue],
+    capabilities_payload: dict[str, JsonValue],
+) -> Callable[[ConsoleSettings, str, tuple[tuple[str, str], ...]], dict[str, JsonValue]]:
     payloads: dict[str, dict[str, JsonValue]] = {
         "/health": {"status": "ok"},
-        "/ready": _ready_payload(),
-        "/aegis/capabilities": _capabilities_payload(),
+        "/ready": ready_payload,
+        "/aegis/capabilities": capabilities_payload,
         "/audit/recent": {"events": [event for event in events]},
     }
 
