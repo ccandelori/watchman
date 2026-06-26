@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 
+from aegis.core.contracts import JsonValue
 from aegis.replay.nimbus_promotion_evidence import (
     NIMBUS_PROMOTION_EVIDENCE_SCHEMA_VERSION,
     NimbusPromotionEvidenceConfig,
@@ -50,6 +51,7 @@ def test_nimbus_promotion_evidence_keeps_learned_scaffold_non_promotable() -> No
     assert report["learned_runtime_beta_metrics"]["session_false_positive_rate"] == 1.0
     assert report["gateway_runtime_evidence"]["readiness_nimbus_status"] == "deterministic_beta"
     assert report["gateway_runtime_evidence"]["learned_runtime_evidence_present"] is False
+    assert report["gateway_runtime_evidence"]["learned_gateway_metrics"]["sample_count"] == 0
     assert checklist["session_level_corpus_coverage"]["status"] == "met"
     assert checklist["negative_contexts_for_infonce"]["status"] == "met"
     assert checklist["grouped_cross_validation"]["status"] == "met"
@@ -64,6 +66,45 @@ def test_nimbus_promotion_evidence_keeps_learned_scaffold_non_promotable() -> No
     assert "live runtime head-to-head" in missing
     assert "promotion manifest" in missing
     assert "runtime adapter" not in missing
+
+
+def test_nimbus_promotion_evidence_recognizes_opt_in_learned_gateway_metrics(tmp_path: Path) -> None:
+    gateway_smoke_path = tmp_path / "learned-gateway-smoke.json"
+    smoke = json.loads(GATEWAY_SMOKE_PATH.read_text(encoding="utf-8"))
+    checks = smoke["checks"]
+    checks["gateway_readiness"]["nimbus_status"] = "learned_runtime_beta"
+    checks["gateway_readiness"]["nimbus_critic_kind"] = "learned_infonce_beta"
+    checks["gateway_readiness"]["nimbus_paper_faithful_learned_critic"] = False
+    checks["gateway_readiness"]["nimbus_promotion_status"] = "learned_runtime_beta_not_promotable"
+    checks["capabilities"]["nimbus_status"] = "learned_runtime_beta"
+    checks["capabilities"]["nimbus_critic_kind"] = "learned_infonce_beta"
+    checks["capabilities"]["nimbus_paper_faithful_learned_critic"] = False
+    checks["capabilities"]["nimbus_promotion_status"] = "learned_runtime_beta_not_promotable"
+    checks["benign_chat"]["nimbus"] = _learned_nimbus_summary("allow")
+    checks["tool_argument_canary_leak"]["nimbus_tool"] = _learned_nimbus_summary("block")
+    checks["encoded_canary_leak"]["nimbus"] = _learned_nimbus_summary("block")
+    checks["metadata_slot_canary_leak"]["nimbus"] = _learned_nimbus_summary("block")
+    checks["nimbus_partial_leak"]["nimbus"] = _learned_nimbus_summary("warn")
+    gateway_smoke_path.write_text(json.dumps(smoke), encoding="utf-8")
+
+    report = build_nimbus_promotion_evidence_report(_config_with_gateway_smoke(gateway_smoke_path))
+    checklist = {str(item["requirement_id"]): item for item in _checklist(report)}
+    learned_gateway_metrics = report["gateway_runtime_evidence"]["learned_gateway_metrics"]
+
+    assert report["promotion_eligible"] is False
+    assert report["promote_learned_runtime"] is False
+    assert report["gateway_runtime_evidence"]["runtime_critic_kind"] == "learned_infonce_beta"
+    assert report["gateway_runtime_evidence"]["learned_runtime_evidence_present"] is True
+    assert learned_gateway_metrics["sample_count"] == 5
+    assert learned_gateway_metrics["true_positive"] == 4
+    assert learned_gateway_metrics["true_negative"] == 1
+    assert learned_gateway_metrics["false_positive"] == 0
+    assert learned_gateway_metrics["false_negative"] == 0
+    assert learned_gateway_metrics["false_positive_rate"] == 0.0
+    assert learned_gateway_metrics["false_negative_rate"] == 0.0
+    assert report["comparison"]["learned_runtime_gateway_evidence_present"] is True
+    assert checklist["live_gateway_learned_fn_fp"]["status"] == "met"
+    assert checklist["promotion_manifest"]["status"] == "missing"
 
 
 def test_nimbus_promotion_evidence_cli_writes_json(tmp_path: Path, monkeypatch) -> None:
@@ -171,6 +212,33 @@ def _config_with_grouped_cv(grouped_cv_path: Path) -> NimbusPromotionEvidenceCon
         gateway_smoke_path=GATEWAY_SMOKE_PATH,
         runtime_beta_eval_path=RUNTIME_BETA_EVAL_PATH,
     )
+
+
+def _config_with_gateway_smoke(gateway_smoke_path: Path) -> NimbusPromotionEvidenceConfig:
+    return NimbusPromotionEvidenceConfig(
+        deterministic_eval_path=DETERMINISTIC_EVAL_PATH,
+        calibration_manifest_path=CALIBRATION_MANIFEST_PATH,
+        sealed_manifest_path=SEALED_MANIFEST_PATH,
+        infonce_model_path=INFONCE_MODEL_PATH,
+        grouped_cv_path=GROUPED_CV_PATH,
+        sealed_holdout_path=SEALED_HOLDOUT_PATH,
+        gateway_smoke_path=gateway_smoke_path,
+        runtime_beta_eval_path=RUNTIME_BETA_EVAL_PATH,
+    )
+
+
+def _learned_nimbus_summary(recommended_action: str) -> dict[str, JsonValue]:
+    return {
+        "present": True,
+        "detector_name": "nimbus",
+        "recommended_action": recommended_action,
+        "critic_kind": "learned_infonce_beta",
+        "critic_version": "nimbus-infonce-lexical-v0",
+        "paper_faithful_learned_critic": False,
+        "promotion_status": "learned_runtime_beta_not_promotable",
+        "turn_estimated_leakage_bits": 1.0 if recommended_action != "allow" else 0.0,
+        "budget_fraction": 1.0 if recommended_action != "allow" else 0.0,
+    }
 
 
 def _checklist(report: dict[str, object]) -> tuple[dict[str, object], ...]:

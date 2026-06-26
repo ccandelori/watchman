@@ -197,6 +197,13 @@ def _check_readiness(config: GatewaySmokeConfig, client: GatewayHttpClient) -> d
         "provider_mock_controls_enabled": provider_summary["provider_mock_controls_enabled"],
         "dp_honey_status": _component_status(dp_honey, "dp_honey"),
         "nimbus_status": _component_status(nimbus, "nimbus"),
+        "nimbus_critic_kind": _optional_component_string(nimbus, "critic_kind"),
+        "nimbus_critic_version": _optional_component_string(nimbus, "critic_version"),
+        "nimbus_paper_faithful_learned_critic": _optional_component_bool(
+            nimbus,
+            "paper_faithful_learned_critic",
+        ),
+        "nimbus_promotion_status": _optional_component_string(nimbus, "promotion_status"),
         "cift_status": _component_status(cift, "cift"),
         "cift_capability_mode": _component_capability_mode(cift, "cift"),
     }
@@ -223,6 +230,15 @@ def _check_capabilities(config: GatewaySmokeConfig, client: GatewayHttpClient) -
     return {
         "mock_response_modes": [mode for mode in mock_response_modes if isinstance(mode, str)],
         "provider_mode": config.provider_mode.value,
+        "nimbus_status": _optional_component_string(nimbus, "status"),
+        "nimbus_critic_kind": _optional_component_string(nimbus, "critic_kind"),
+        "nimbus_critic_version": _optional_component_string(nimbus, "critic_version"),
+        "nimbus_paper_faithful_learned_critic": _optional_component_bool(
+            nimbus,
+            "paper_faithful_learned_critic",
+        ),
+        "nimbus_promotion_status": _optional_component_string(nimbus, "promotion_status"),
+        "nimbus_infonce_model_path": _optional_component_string(nimbus, "infonce_model_path"),
         "nimbus_thresholds": nimbus["thresholds"],
         "cift_capability_mode": cift["capability_mode"],
         "cift_detectors": cift["detectors"],
@@ -280,6 +296,7 @@ def _check_benign_chat(config: GatewaySmokeConfig, client: GatewayHttpClient) ->
         "dp_honey_status": "active",
         "credential_slot_status": "honeytoken_substituted",
         "provider_status": "completed",
+        "nimbus": _optional_nimbus_detector_summary(aegis, "nimbus"),
         "stage_evidence": _stage_evidence(aegis),
     }
 
@@ -514,6 +531,10 @@ def _check_tool_argument_canary_leak(config: GatewaySmokeConfig, client: Gateway
         "final_action": final_action.value,
         "tool_canary_action": tool_canary_action.value,
         "nimbus_tool_action": nimbus_tool_action.value,
+        "nimbus_tool": _nimbus_detector_summary_from_result(
+            result=nimbus_tool,
+            detector_name="nimbus_tool_egress",
+        ),
         "provider_status": "skipped",
         "provider_reason": "pre_generation_policy_block",
         "tool_canary_reason": "registered_canary_tool_egress_detected",
@@ -564,6 +585,7 @@ def _check_encoded_canary_leak(config: GatewaySmokeConfig, client: GatewayHttpCl
     return {
         "final_action": final_action.value,
         "detectors": detector_values,
+        "nimbus": _optional_nimbus_detector_summary(aegis, "nimbus"),
         "stage_evidence": _stage_evidence(aegis),
     }
 
@@ -611,6 +633,7 @@ def _check_metadata_slot_canary_leak(config: GatewaySmokeConfig, client: Gateway
         "final_action": final_action.value,
         "detectors": detector_values,
         "dp_honey_status": "active",
+        "nimbus": _optional_nimbus_detector_summary(aegis, "nimbus"),
         "stage_evidence": _stage_evidence(aegis),
     }
 
@@ -648,6 +671,7 @@ def _check_nimbus_partial_profile(config: GatewaySmokeConfig, client: GatewayHtt
     return {
         "final_action": final_action.value,
         "nimbus_action": nimbus_action.value,
+        "nimbus": _nimbus_detector_summary_from_result(result=nimbus, detector_name="nimbus"),
         "budget_fraction": _json_float(nimbus_evidence, "budget_fraction"),
         "block_threshold": _json_float(nimbus_evidence, "block_threshold"),
         "stage_evidence": _stage_evidence(aegis),
@@ -792,6 +816,15 @@ def _detector_result(aegis: dict[str, JsonValue], detector_name: str) -> dict[st
     return matches[0]
 
 
+def _optional_detector_result(aegis: dict[str, JsonValue], detector_name: str) -> dict[str, JsonValue] | None:
+    matches = [result for result in _detector_results(aegis) if result.get("detector_name") == detector_name]
+    if len(matches) == 0:
+        return None
+    if len(matches) != 1:
+        raise GatewaySmokeError(f"expected at most one {detector_name} detector result.")
+    return matches[0]
+
+
 def _detector_action(result: dict[str, JsonValue], detector_name: str) -> Action:
     recommended_action = result.get("recommended_action")
     if not isinstance(recommended_action, str):
@@ -807,6 +840,39 @@ def _detector_evidence(result: dict[str, JsonValue], detector_name: str) -> dict
     if not isinstance(evidence, dict):
         raise GatewaySmokeError(f"{detector_name}.evidence must be an object.")
     return evidence
+
+
+def _optional_nimbus_detector_summary(aegis: dict[str, JsonValue], detector_name: str) -> dict[str, JsonValue]:
+    result = _optional_detector_result(aegis=aegis, detector_name=detector_name)
+    if result is None:
+        return {"present": False, "detector_name": detector_name}
+    return _nimbus_detector_summary_from_result(result=result, detector_name=detector_name)
+
+
+def _nimbus_detector_summary_from_result(
+    result: dict[str, JsonValue],
+    detector_name: str,
+) -> dict[str, JsonValue]:
+    evidence = _detector_evidence(result=result, detector_name=detector_name)
+    action = _detector_action(result=result, detector_name=detector_name)
+    return {
+        "present": True,
+        "detector_name": detector_name,
+        "recommended_action": action.value,
+        "critic_kind": _optional_evidence_string(evidence, "critic_kind"),
+        "critic_version": _optional_evidence_string(evidence, "critic_version"),
+        "paper_faithful_learned_critic": _optional_evidence_bool(
+            evidence,
+            "paper_faithful_learned_critic",
+        ),
+        "promotion_status": _optional_evidence_string(evidence, "promotion_status"),
+        "turn_estimated_leakage_bits": _optional_evidence_json_value(evidence, "turn_estimated_leakage_bits"),
+        "cumulative_estimated_leakage_bits": _optional_evidence_json_value(
+            evidence,
+            "cumulative_estimated_leakage_bits",
+        ),
+        "budget_fraction": _optional_evidence_json_value(evidence, "budget_fraction"),
+    }
 
 
 def _provider_egress_match_summary(evidence: dict[str, JsonValue]) -> list[JsonValue]:
@@ -967,6 +1033,24 @@ def _component_capability_mode(component: dict[str, JsonValue], component_name: 
     return capability_mode
 
 
+def _optional_component_string(component: dict[str, JsonValue], key: str) -> JsonValue:
+    value = component.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise GatewaySmokeError(f"component {key} must be a string when present.")
+    return value
+
+
+def _optional_component_bool(component: dict[str, JsonValue], key: str) -> JsonValue:
+    value = component.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise GatewaySmokeError(f"component {key} must be a boolean when present.")
+    return value
+
+
 def _readiness_provider_summary(
     provider: dict[str, JsonValue],
     config: GatewaySmokeConfig,
@@ -1024,6 +1108,45 @@ def _optional_summary_string(payload: dict[str, JsonValue], key: str) -> JsonVal
     if not isinstance(value, str):
         raise GatewaySmokeError(f"expected optional summary string {key}.")
     return value
+
+
+def _optional_evidence_string(payload: dict[str, JsonValue], key: str) -> JsonValue:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise GatewaySmokeError(f"expected optional evidence string {key}.")
+    return value
+
+
+def _optional_evidence_bool(payload: dict[str, JsonValue], key: str) -> JsonValue:
+    value = payload.get(key)
+    if value is None:
+        return None
+    if not isinstance(value, bool):
+        raise GatewaySmokeError(f"expected optional evidence boolean {key}.")
+    return value
+
+
+def _optional_evidence_json_value(payload: dict[str, JsonValue], key: str) -> JsonValue:
+    value = payload.get(key)
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    if isinstance(value, list):
+        return [_json_value_from_evidence(item, key) for item in value]
+    if isinstance(value, dict):
+        return {str(item_key): _json_value_from_evidence(item_value, key) for item_key, item_value in value.items()}
+    raise GatewaySmokeError(f"expected JSON evidence value {key}.")
+
+
+def _json_value_from_evidence(value: JsonValue, key: str) -> JsonValue:
+    if value is None or isinstance(value, str | int | float | bool):
+        return value
+    if isinstance(value, list):
+        return [_json_value_from_evidence(item, key) for item in value]
+    if isinstance(value, dict):
+        return {str(item_key): _json_value_from_evidence(item_value, key) for item_key, item_value in value.items()}
+    raise GatewaySmokeError(f"expected JSON evidence value {key}.")
 
 
 def _json_float(payload: dict[str, JsonValue], key: str) -> float:

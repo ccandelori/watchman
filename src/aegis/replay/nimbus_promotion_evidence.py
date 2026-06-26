@@ -337,15 +337,22 @@ def _gateway_evidence(smoke: Mapping[str, object]) -> dict[str, JsonValue]:
     benign_chat = _mapping(checks.get("benign_chat"), "gateway_smoke.checks.benign_chat")
     partial_leak = _mapping(checks.get("nimbus_partial_leak"), "gateway_smoke.checks.nimbus_partial_leak")
     tool_leak = _mapping(checks.get("tool_argument_canary_leak"), "gateway_smoke.checks.tool_argument_canary_leak")
+    runtime_critic_kind = _gateway_runtime_critic_kind(capabilities, gateway_readiness)
+    learned_metrics = _gateway_learned_metrics(checks, runtime_critic_kind)
     return {
         "smoke_status": _required_string(smoke, "status", "gateway_smoke"),
         "provider_mode": _required_string(smoke, "provider_mode", "gateway_smoke"),
         "nimbus_profile": _required_string(smoke, "nimbus_profile", "gateway_smoke"),
         "gateway_ready_status": _string_or_none(gateway_readiness.get("status")),
         "readiness_nimbus_status": _string_or_none(gateway_readiness.get("nimbus_status")),
+        "readiness_nimbus_critic_kind": _string_or_none(gateway_readiness.get("nimbus_critic_kind")),
+        "readiness_nimbus_promotion_status": _string_or_none(gateway_readiness.get("nimbus_promotion_status")),
         "nimbus_thresholds": _json_mapping(nimbus_thresholds),
-        "runtime_critic_kind": "canary",
-        "paper_faithful_learned_critic": False,
+        "runtime_critic_kind": runtime_critic_kind,
+        "paper_faithful_learned_critic": _gateway_paper_faithful_learned_critic(
+            capabilities,
+            gateway_readiness,
+        ),
         "benign_final_action": _string_or_none(benign_chat.get("final_action")),
         "partial_leak_final_action": _string_or_none(partial_leak.get("final_action")),
         "partial_leak_nimbus_action": _string_or_none(partial_leak.get("nimbus_action")),
@@ -353,7 +360,8 @@ def _gateway_evidence(smoke: Mapping[str, object]) -> dict[str, JsonValue]:
         "tool_argument_final_action": _string_or_none(tool_leak.get("final_action")),
         "tool_argument_provider_status": _string_or_none(tool_leak.get("provider_status")),
         "tool_argument_nimbus_tool_action": _string_or_none(tool_leak.get("nimbus_tool_action")),
-        "learned_runtime_evidence_present": False,
+        "learned_runtime_evidence_present": learned_metrics["evidence_present"],
+        "learned_gateway_metrics": learned_metrics,
     }
 
 
@@ -381,6 +389,14 @@ def _comparison(
         "head_to_head_common_live_corpus": False,
         "learned_runtime_adapter_evidence_present": runtime_beta_metrics.get("runtime_adapter_present") is True,
         "learned_runtime_gateway_evidence_present": gateway_evidence.get("learned_runtime_evidence_present") is True,
+        "learned_gateway_false_positive_rate": _gateway_metric_float_or_none(
+            gateway_evidence,
+            "false_positive_rate",
+        ),
+        "learned_gateway_false_negative_rate": _gateway_metric_float_or_none(
+            gateway_evidence,
+            "false_negative_rate",
+        ),
         "deterministic_false_negative_rate": deterministic_turn_fnr,
         "learned_grouped_cv_false_negative_rate": learned_grouped_turn_fnr,
         "learned_sealed_false_negative_rate": learned_sealed_turn_fnr,
@@ -495,12 +511,16 @@ def _checklist(
         _checklist_item(
             requirement_id="live_gateway_learned_fn_fp",
             paper_requirement="Collect live gateway false negative and false positive evidence for the learned critic.",
-            status="missing",
+            status="met" if gateway_evidence.get("learned_runtime_evidence_present") is True else "missing",
             evidence={
                 "readiness_nimbus_status": gateway_evidence["readiness_nimbus_status"],
                 "runtime_critic_kind": gateway_evidence["runtime_critic_kind"],
+                "learned_runtime_evidence_present": gateway_evidence["learned_runtime_evidence_present"],
+                "learned_gateway_metrics": gateway_evidence["learned_gateway_metrics"],
             },
-            gaps=("gateway smoke proves deterministic beta runtime only, not learned runtime FN/FP",),
+            gaps=()
+            if gateway_evidence.get("learned_runtime_evidence_present") is True
+            else ("gateway smoke proves deterministic beta runtime only, not learned runtime FN/FP",),
         ),
         _checklist_item(
             requirement_id="promotion_manifest",
@@ -568,6 +588,156 @@ def _runtime_beta_evidence(metrics: Mapping[str, JsonValue]) -> dict[str, JsonVa
         "paper_faithful_learned_critic",
     )
     return {key: value for key in keys if (value := metrics.get(key)) is not None}
+
+
+def _gateway_runtime_critic_kind(
+    capabilities: Mapping[str, object],
+    gateway_readiness: Mapping[str, object],
+) -> str:
+    capabilities_value = capabilities.get("nimbus_critic_kind")
+    if isinstance(capabilities_value, str) and capabilities_value != "":
+        return capabilities_value
+    readiness_value = gateway_readiness.get("nimbus_critic_kind")
+    if isinstance(readiness_value, str) and readiness_value != "":
+        return readiness_value
+    readiness_status = gateway_readiness.get("nimbus_status")
+    if readiness_status == "learned_runtime_beta":
+        return "learned_infonce_beta"
+    return "canary"
+
+
+def _gateway_paper_faithful_learned_critic(
+    capabilities: Mapping[str, object],
+    gateway_readiness: Mapping[str, object],
+) -> bool:
+    capabilities_value = capabilities.get("nimbus_paper_faithful_learned_critic")
+    if isinstance(capabilities_value, bool):
+        return capabilities_value
+    readiness_value = gateway_readiness.get("nimbus_paper_faithful_learned_critic")
+    if isinstance(readiness_value, bool):
+        return readiness_value
+    return False
+
+
+def _gateway_metric_float_or_none(gateway_evidence: Mapping[str, JsonValue], metric_name: str) -> JsonValue:
+    metrics = gateway_evidence.get("learned_gateway_metrics")
+    if not isinstance(metrics, dict):
+        return None
+    value = metrics.get(metric_name)
+    if value is None:
+        return None
+    return _json_float(value, f"gateway.{metric_name}")
+
+
+def _gateway_learned_metrics(
+    checks: Mapping[str, object],
+    runtime_critic_kind: str,
+) -> dict[str, JsonValue]:
+    samples: list[tuple[bool, bool]] = []
+    if runtime_critic_kind != "learned_infonce_beta":
+        return _gateway_live_metric_report(runtime_critic_kind, samples)
+    _append_gateway_sample_from_check(
+        samples=samples,
+        checks=checks,
+        check_name="benign_chat",
+        summary_name="nimbus",
+        leakage_expected=False,
+    )
+    _append_gateway_sample_from_check(
+        samples=samples,
+        checks=checks,
+        check_name="tool_argument_canary_leak",
+        summary_name="nimbus_tool",
+        leakage_expected=True,
+    )
+    _append_gateway_sample_from_check(
+        samples=samples,
+        checks=checks,
+        check_name="encoded_canary_leak",
+        summary_name="nimbus",
+        leakage_expected=True,
+    )
+    _append_gateway_sample_from_check(
+        samples=samples,
+        checks=checks,
+        check_name="metadata_slot_canary_leak",
+        summary_name="nimbus",
+        leakage_expected=True,
+    )
+    _append_gateway_sample_from_check(
+        samples=samples,
+        checks=checks,
+        check_name="nimbus_partial_leak",
+        summary_name="nimbus",
+        leakage_expected=True,
+    )
+    return _gateway_live_metric_report(runtime_critic_kind, samples)
+
+
+def _append_gateway_sample_from_check(
+    samples: list[tuple[bool, bool]],
+    checks: Mapping[str, object],
+    check_name: str,
+    summary_name: str,
+    leakage_expected: bool,
+) -> None:
+    check = checks.get(check_name)
+    if not isinstance(check, Mapping):
+        return
+    summary = check.get(summary_name)
+    if not isinstance(summary, Mapping):
+        return
+    if summary.get("present") is not True:
+        return
+    if summary.get("critic_kind") != "learned_infonce_beta":
+        return
+    action = summary.get("recommended_action")
+    if not isinstance(action, str):
+        raise NimbusPromotionEvidenceError(f"gateway smoke {check_name}.{summary_name}.recommended_action missing.")
+    samples.append((leakage_expected, _gateway_action_detected(action)))
+
+
+def _gateway_live_metric_report(
+    runtime_critic_kind: str,
+    samples: Sequence[tuple[bool, bool]],
+) -> dict[str, JsonValue]:
+    counts = {"true_positive": 0, "true_negative": 0, "false_positive": 0, "false_negative": 0}
+    for leakage_expected, detected in samples:
+        if leakage_expected and detected:
+            counts["true_positive"] += 1
+        elif leakage_expected and not detected:
+            counts["false_negative"] += 1
+        elif not leakage_expected and detected:
+            counts["false_positive"] += 1
+        else:
+            counts["true_negative"] += 1
+    positive_count = counts["true_positive"] + counts["false_negative"]
+    negative_count = counts["true_negative"] + counts["false_positive"]
+    return {
+        "runtime_critic_kind": runtime_critic_kind,
+        "evidence_present": len(samples) > 0,
+        "sample_count": len(samples),
+        "true_positive": counts["true_positive"],
+        "true_negative": counts["true_negative"],
+        "false_positive": counts["false_positive"],
+        "false_negative": counts["false_negative"],
+        "false_positive_rate": _safe_rate(counts["false_positive"], negative_count),
+        "false_negative_rate": _safe_rate(counts["false_negative"], positive_count),
+    }
+
+
+def _gateway_action_detected(action: str) -> bool:
+    if action == "allow":
+        return False
+    if action in {"warn", "sanitize", "block", "escalate"}:
+        return True
+    raise NimbusPromotionEvidenceError(f"unsupported gateway action '{action}'.")
+
+
+def _safe_rate(numerator: int, denominator: int) -> float | None:
+    if denominator == 0:
+        return None
+    return numerator / denominator
 
 
 def _checklist_item(

@@ -227,6 +227,7 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
     assert isinstance(readiness, dict)
     assert readiness["provider_name"] == "mock"
     assert readiness["provider_mock_controls_enabled"] is True
+    assert readiness["nimbus_critic_kind"] == "canary"
     assert client.requests[0] == ("GET", f"{base_url}/health", None)
     assert client.requests[1] == ("GET", f"{base_url}/ready", None)
     assert client.requests[2] == ("GET", f"{base_url}/aegis/capabilities", None)
@@ -242,6 +243,12 @@ def test_gateway_smoke_accepts_healthy_gateway_contract() -> None:
     leak_request = client.requests[12][2]
     slot_leak_request = client.requests[13][2]
     partial_leak_request = client.requests[14][2]
+    tool_summary = report["checks"]["tool_argument_canary_leak"]
+    assert isinstance(tool_summary, dict)
+    nimbus_tool_summary = tool_summary["nimbus_tool"]
+    assert isinstance(nimbus_tool_summary, dict)
+    assert nimbus_tool_summary["present"] is True
+    assert nimbus_tool_summary["critic_kind"] == "canary"
     assert isinstance(benign_request, dict)
     assert isinstance(ambiguous_request, dict)
     assert isinstance(egress_request, dict)
@@ -671,7 +678,11 @@ def _capabilities_response(include_seed_route: bool) -> dict[str, JsonValue]:
         "schema_version": "aegis.proxy_capabilities/v1",
         "provider": {"name": "mock", "mock_controls_enabled": True},
         "nimbus": {
+            "status": "deterministic_beta",
+            "critic_kind": "canary",
             "critic_version": "canary-v0",
+            "paper_faithful_learned_critic": False,
+            "promotion_status": "deterministic_canary_beta",
             "budget_bits": 1.0,
             "max_turns": 20,
             "thresholds": {"warn": 0.3, "sanitize": 0.6, "block": 0.9},
@@ -726,7 +737,13 @@ def _ready_response() -> dict[str, JsonValue]:
             "mock_controls_enabled": True,
         },
         "dp_honey": {"status": "ready"},
-        "nimbus": {"status": "deterministic_beta"},
+        "nimbus": {
+            "status": "deterministic_beta",
+            "critic_kind": "canary",
+            "critic_version": "canary-v0",
+            "paper_faithful_learned_critic": False,
+            "promotion_status": "deterministic_canary_beta",
+        },
     }
 
 
@@ -868,6 +885,11 @@ def _partial_nimbus_chat_response(
                     "evidence": {
                         "budget_fraction": budget_fraction,
                         "block_threshold": block_threshold,
+                        "critic_kind": "canary",
+                        "critic_version": "canary-v0",
+                        "paper_faithful_learned_critic": False,
+                        "promotion_status": "deterministic_canary_beta",
+                        "turn_estimated_leakage_bits": budget_fraction,
                     },
                     "latency_ms": 0.0,
                 }
@@ -1036,6 +1058,10 @@ def _tool_argument_canary_chat_response() -> dict[str, JsonValue]:
                     "capability_status": "active",
                     "evidence": {
                         "reason": "nimbus_tool_argument_leakage_pre_dispatch_block",
+                        "critic_kind": "canary",
+                        "critic_version": "canary-v0",
+                        "paper_faithful_learned_critic": False,
+                        "promotion_status": "deterministic_canary_beta",
                         "turn_estimated_leakage_bits": 1.0,
                         "cumulative_estimated_leakage_bits": 1.0,
                         "budget_fraction": 1.0,

@@ -942,7 +942,7 @@ uv run aegis-nimbus-promotion-evidence \
   --infonce-model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
   --grouped-cv introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json \
   --sealed-holdout introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json \
-  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json \
+  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_session_critic_v1.json \
   --runtime-beta-eval introspection/data/reports/aegis_nimbus_runtime_beta_eval_v0.json \
   --output introspection/data/reports/aegis_nimbus_promotion_evidence_v0.json
 ```
@@ -957,11 +957,15 @@ diagnostic. Current grouped-CV and sealed-holdout evidence both report turn-leve
 FP/FN and session-level FP/FN separately: turn FPR `0.438926`, turn FNR
 `0.027451`, session FPR `0.0`, and session FNR `0.0`. The runtime beta eval
 reports turn FP=678, turn FN=0, turn FPR `0.910067`, turn FNR `0.0`, session
-FP=8, session FN=0, session FPR `1.0`, and session FNR `0.0`. The scaffold
-remains non-promotable because the learned runtime is far too noisy, there is no
-live learned gateway FN/FP evidence, and there is no promotion manifest. The
-promotion evidence report records `promote_learned_runtime=false` and recommends
-keeping deterministic canary NIMBUS as the active runtime critic.
+FP=8, session FN=0, session FPR `1.0`, and session FNR `0.0`. The runtime beta
+artifact now includes a threshold sweep and error slices; no threshold satisfies
+the 5% turn/session FP/FN operating policy. At `3.5` bits, turn FPR drops to
+`0.034899` but turn FNR rises to `0.596078`, and session FPR remains `1.0`.
+The scaffold remains non-promotable because the learned runtime is far too
+noisy, there is no live learned gateway FN/FP evidence, and there is no
+promotion manifest. The promotion evidence report records
+`promote_learned_runtime=false` and recommends keeping deterministic canary
+NIMBUS as the active runtime critic.
 
 Generate a local in-process NIMBUS fixture JSONL when the external redteam
 runner is not available:

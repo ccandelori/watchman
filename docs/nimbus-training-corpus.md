@@ -128,7 +128,7 @@ uv run aegis-nimbus-promotion-evidence \
   --infonce-model introspection/data/reports/aegis_nimbus_infonce_model_v0.json \
   --grouped-cv introspection/data/reports/aegis_nimbus_infonce_grouped_cv_v0.json \
   --sealed-holdout introspection/data/reports/aegis_nimbus_infonce_sealed_holdout_eval_v0.json \
-  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_dp_honey_refresh_v2.json \
+  --gateway-smoke introspection/data/reports/aegis_default_mock_provider_smoke_nimbus_session_critic_v1.json \
   --runtime-beta-eval introspection/data/reports/aegis_nimbus_runtime_beta_eval_v0.json \
   --output introspection/data/reports/aegis_nimbus_promotion_evidence_v0.json
 ```
@@ -142,8 +142,11 @@ session FP rate `0.0`, and session FN rate `0.0`. The sessions still cross the
 scaffold's cumulative leakage signal, but the turn-level false-positive rate is
 too high for promotion. The runtime beta adapter is even noisier on benign
 turns: turn FP rate `0.910067`, turn FN rate `0.0`, session FP rate `1.0`, and
-session FN rate `0.0`. The artifact remains a non-promotable beta rather than a
-promotion artifact.
+session FN rate `0.0`. Its diagnostic threshold sweep does not find an
+acceptable 5% turn/session FP/FN operating point: at `3.5` bits turn FPR falls
+to `0.034899`, but turn FNR rises to `0.596078`, while session FPR remains
+`1.0` across the sweep. The artifact remains a non-promotable beta rather than
+a promotion artifact.
 The promotion evidence binder records that distinction as
 `promotion_status=deterministic_beta_active_learned_not_promotable`,
 `promote_learned_runtime=false`, and

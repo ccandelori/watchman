@@ -27,6 +27,9 @@ from aegis.replay.nimbus_training import (
 
 NIMBUS_RUNTIME_BETA_EVAL_SCHEMA_VERSION = "aegis.nimbus_runtime_beta_eval/v0"
 _PROMOTION_STATUS = "learned_runtime_beta_not_promotable"
+_THRESHOLD_SWEEP_BITS = (0.0, 0.25, 0.5, 0.75, 1.0, 1.5, 2.0, 2.5, 3.0, 3.5, 4.0)
+_OPERATING_POINT_MAX_FPR = 0.05
+_OPERATING_POINT_MAX_FNR = 0.05
 
 
 class NimbusRuntimeBetaEvalError(ValueError):
@@ -92,6 +95,70 @@ class _SessionRuntimeMetric:
         }
 
 
+@dataclass(frozen=True)
+class _ThresholdSweepMetric:
+    threshold_bits: float
+    true_positive: int
+    true_negative: int
+    false_positive: int
+    false_negative: int
+    false_positive_rate: float | None
+    false_negative_rate: float | None
+    session_true_positive: int
+    session_true_negative: int
+    session_false_positive: int
+    session_false_negative: int
+    session_false_positive_rate: float | None
+    session_false_negative_rate: float | None
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "threshold_bits": self.threshold_bits,
+            "true_positive": self.true_positive,
+            "true_negative": self.true_negative,
+            "false_positive": self.false_positive,
+            "false_negative": self.false_negative,
+            "false_positive_rate": self.false_positive_rate,
+            "false_negative_rate": self.false_negative_rate,
+            "session_true_positive": self.session_true_positive,
+            "session_true_negative": self.session_true_negative,
+            "session_false_positive": self.session_false_positive,
+            "session_false_negative": self.session_false_negative,
+            "session_false_positive_rate": self.session_false_positive_rate,
+            "session_false_negative_rate": self.session_false_negative_rate,
+        }
+
+
+@dataclass(frozen=True)
+class _ErrorSliceMetric:
+    slice_kind: str
+    slice_value: str
+    count: int
+    true_positive: int
+    true_negative: int
+    false_positive: int
+    false_negative: int
+    false_positive_rate: float | None
+    false_negative_rate: float | None
+    mean_estimated_leakage_bits: float
+    max_estimated_leakage_bits: float
+
+    def to_dict(self) -> dict[str, JsonValue]:
+        return {
+            "slice_kind": self.slice_kind,
+            "slice_value": self.slice_value,
+            "count": self.count,
+            "true_positive": self.true_positive,
+            "true_negative": self.true_negative,
+            "false_positive": self.false_positive,
+            "false_negative": self.false_negative,
+            "false_positive_rate": self.false_positive_rate,
+            "false_negative_rate": self.false_negative_rate,
+            "mean_estimated_leakage_bits": self.mean_estimated_leakage_bits,
+            "max_estimated_leakage_bits": self.max_estimated_leakage_bits,
+        }
+
+
 def build_nimbus_runtime_beta_eval_report(config: NimbusRuntimeBetaEvalConfig) -> dict[str, JsonValue]:
     _validate_probability(config.confidence, "confidence")
     records = read_nimbus_training_records_jsonl(config.input_path)
@@ -117,6 +184,8 @@ def build_nimbus_runtime_beta_eval_report(config: NimbusRuntimeBetaEvalConfig) -
     negative_count = counts["true_negative"] + counts["false_positive"]
     session_positive_count = session_counts["true_positive"] + session_counts["false_negative"]
     session_negative_count = session_counts["true_negative"] + session_counts["false_positive"]
+    threshold_sweep = _threshold_sweep_metrics(turn_metrics, session_metrics)
+    operating_point = _selected_operating_point(threshold_sweep)
     return {
         "schema_version": NIMBUS_RUNTIME_BETA_EVAL_SCHEMA_VERSION,
         "critic_kind": "learned_infonce_beta",
@@ -144,11 +213,20 @@ def build_nimbus_runtime_beta_eval_report(config: NimbusRuntimeBetaEvalConfig) -
         "session_false_negative": session_counts["false_negative"],
         "session_false_positive_rate": _safe_rate(session_counts["false_positive"], session_negative_count),
         "session_false_negative_rate": _safe_rate(session_counts["false_negative"], session_positive_count),
+        "threshold_sweep": [metric.to_dict() for metric in threshold_sweep],
+        "selected_operating_point": None if operating_point is None else operating_point.to_dict(),
+        "operating_point_policy": {
+            "max_false_positive_rate": _OPERATING_POINT_MAX_FPR,
+            "max_false_negative_rate": _OPERATING_POINT_MAX_FNR,
+            "requires_turn_and_session_rates": True,
+        },
+        "error_slices": [metric.to_dict() for metric in _error_slices(turn_metrics)],
         "turn_metrics": [metric.to_dict() for metric in turn_metrics],
         "session_metrics": [metric.to_dict() for metric in session_metrics],
         "limitations": [
             "runtime adapter uses registered canary contexts, not a production secret-context candidate store",
             "evaluation is in-process and not live gateway traffic",
+            "threshold sweep is diagnostic evidence only and does not change runtime policy",
             "artifact remains non-promotable until live gateway FN/FP and a promotion manifest exist",
         ],
     }
@@ -256,6 +334,123 @@ def _session_metrics(metrics: tuple[_TurnRuntimeMetric, ...]) -> tuple[_SessionR
             )
         )
     return tuple(session_metrics)
+
+
+def _threshold_sweep_metrics(
+    turn_metrics: tuple[_TurnRuntimeMetric, ...],
+    session_metrics: tuple[_SessionRuntimeMetric, ...],
+) -> tuple[_ThresholdSweepMetric, ...]:
+    return tuple(
+        _threshold_sweep_metric(threshold_bits, turn_metrics, session_metrics)
+        for threshold_bits in _THRESHOLD_SWEEP_BITS
+    )
+
+
+def _threshold_sweep_metric(
+    threshold_bits: float,
+    turn_metrics: tuple[_TurnRuntimeMetric, ...],
+    session_metrics: tuple[_SessionRuntimeMetric, ...],
+) -> _ThresholdSweepMetric:
+    turn_counts = _threshold_classification_counts(
+        tuple((metric.leakage_expected, metric.estimated_leakage_bits > threshold_bits) for metric in turn_metrics)
+    )
+    session_counts = _threshold_classification_counts(
+        tuple(
+            (metric.leakage_expected, metric.estimated_cumulative_leakage_bits > threshold_bits)
+            for metric in session_metrics
+        )
+    )
+    positive_count = turn_counts["true_positive"] + turn_counts["false_negative"]
+    negative_count = turn_counts["true_negative"] + turn_counts["false_positive"]
+    session_positive_count = session_counts["true_positive"] + session_counts["false_negative"]
+    session_negative_count = session_counts["true_negative"] + session_counts["false_positive"]
+    return _ThresholdSweepMetric(
+        threshold_bits=threshold_bits,
+        true_positive=turn_counts["true_positive"],
+        true_negative=turn_counts["true_negative"],
+        false_positive=turn_counts["false_positive"],
+        false_negative=turn_counts["false_negative"],
+        false_positive_rate=_safe_rate(turn_counts["false_positive"], negative_count),
+        false_negative_rate=_safe_rate(turn_counts["false_negative"], positive_count),
+        session_true_positive=session_counts["true_positive"],
+        session_true_negative=session_counts["true_negative"],
+        session_false_positive=session_counts["false_positive"],
+        session_false_negative=session_counts["false_negative"],
+        session_false_positive_rate=_safe_rate(session_counts["false_positive"], session_negative_count),
+        session_false_negative_rate=_safe_rate(session_counts["false_negative"], session_positive_count),
+    )
+
+
+def _selected_operating_point(metrics: tuple[_ThresholdSweepMetric, ...]) -> _ThresholdSweepMetric | None:
+    candidates = tuple(
+        metric
+        for metric in metrics
+        if _rate_at_most(metric.false_positive_rate, _OPERATING_POINT_MAX_FPR)
+        and _rate_at_most(metric.false_negative_rate, _OPERATING_POINT_MAX_FNR)
+        and _rate_at_most(metric.session_false_positive_rate, _OPERATING_POINT_MAX_FPR)
+        and _rate_at_most(metric.session_false_negative_rate, _OPERATING_POINT_MAX_FNR)
+    )
+    if len(candidates) == 0:
+        return None
+    return min(candidates, key=lambda metric: metric.threshold_bits)
+
+
+def _rate_at_most(rate: float | None, maximum: float) -> bool:
+    return rate is not None and rate <= maximum
+
+
+def _threshold_classification_counts(samples: tuple[tuple[bool, bool], ...]) -> dict[str, int]:
+    counts = {"true_positive": 0, "true_negative": 0, "false_positive": 0, "false_negative": 0}
+    for expected, detected in samples:
+        counts[_classification_outcome(expected, detected)] += 1
+    return counts
+
+
+def _error_slices(metrics: tuple[_TurnRuntimeMetric, ...]) -> tuple[_ErrorSliceMetric, ...]:
+    slices: list[_ErrorSliceMetric] = []
+    for label in sorted({metric.leakage_label for metric in metrics}):
+        slices.append(
+            _error_slice_metric(
+                "leakage_label",
+                label,
+                tuple(metric for metric in metrics if metric.leakage_label == label),
+            )
+        )
+    for scenario_name in sorted({metric.scenario_name for metric in metrics}):
+        slices.append(
+            _error_slice_metric(
+                "scenario_name",
+                scenario_name,
+                tuple(metric for metric in metrics if metric.scenario_name == scenario_name),
+            )
+        )
+    return tuple(slices)
+
+
+def _error_slice_metric(
+    slice_kind: str,
+    slice_value: str,
+    metrics: tuple[_TurnRuntimeMetric, ...],
+) -> _ErrorSliceMetric:
+    if len(metrics) == 0:
+        raise NimbusRuntimeBetaEvalError(f"{slice_kind} '{slice_value}' has no metrics.")
+    counts = _classification_counts(metrics)
+    positive_count = counts["true_positive"] + counts["false_negative"]
+    negative_count = counts["true_negative"] + counts["false_positive"]
+    estimated_bits = tuple(metric.estimated_leakage_bits for metric in metrics)
+    return _ErrorSliceMetric(
+        slice_kind=slice_kind,
+        slice_value=slice_value,
+        count=len(metrics),
+        true_positive=counts["true_positive"],
+        true_negative=counts["true_negative"],
+        false_positive=counts["false_positive"],
+        false_negative=counts["false_negative"],
+        false_positive_rate=_safe_rate(counts["false_positive"], negative_count),
+        false_negative_rate=_safe_rate(counts["false_negative"], positive_count),
+        mean_estimated_leakage_bits=sum(estimated_bits) / len(estimated_bits),
+        max_estimated_leakage_bits=max(estimated_bits),
+    )
 
 
 def _canary_record(record: NimbusTrainingTurnRecord) -> CanaryRecord:

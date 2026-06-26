@@ -2,10 +2,10 @@
   "artifact_hashes": {
     "calibration_manifest_sha256": "7e07cc8cf970366d2292ab976f979f1f579d423d229d96d475a2914280a6efc9",
     "deterministic_eval_sha256": "61f797ebda1c8749a8d6df66fca4602e3ee52a18a3a25e7dbecbc66e8030d380",
-    "gateway_smoke_sha256": "2ad28da2089f682bdef4fbc1e6745e029141ce7f6e711de6ab388e0fb4e74fb1",
+    "gateway_smoke_sha256": "c9520d8a6d458481a3f8bbbc4a5ef2167c847c0e031189d531078df827abf506",
     "grouped_cv_sha256": "e483f90c9c02a462d89494d625e45cc5d195c50eae7e23e4f00937e58da0d0a5",
     "infonce_model_sha256": "36d13b777e61189bb39974d472d179b981a728bf9ad6718669c18288bb5322a3",
-    "runtime_beta_eval_sha256": "e4a416b89e02e3919fee3ac24ce74cce16a1d746c52e0ff48e76523f2596cbd3",
+    "runtime_beta_eval_sha256": "7be7a20db087e36d083006984b00e7b97261aa65600cef3bd76a04b1a01356d8",
     "sealed_holdout_sha256": "1bf22a99fac535b06eab56f73d435a335d52c6c163a21ecdf7df7caddd7bdd59",
     "sealed_manifest_sha256": "b129275033170c221b3a9b10502cabb699d690d7e656effd616a6c4f3fec4fcc"
   },
@@ -157,6 +157,18 @@
     },
     {
       "evidence": {
+        "learned_gateway_metrics": {
+          "evidence_present": false,
+          "false_negative": 0,
+          "false_negative_rate": null,
+          "false_positive": 0,
+          "false_positive_rate": null,
+          "runtime_critic_kind": "canary",
+          "sample_count": 0,
+          "true_negative": 0,
+          "true_positive": 0
+        },
+        "learned_runtime_evidence_present": false,
         "readiness_nimbus_status": "deterministic_beta",
         "runtime_critic_kind": "canary"
       },
@@ -190,6 +202,8 @@
     "deterministic_false_negative_rate": 0.0,
     "head_to_head_common_live_corpus": false,
     "learned_eval_is_offline_scaffold": true,
+    "learned_gateway_false_negative_rate": null,
+    "learned_gateway_false_positive_rate": null,
     "learned_grouped_cv_false_negative_rate": 0.027450980392156862,
     "learned_promotion_blocked_reason": "Learned scaffold/runtime beta is not reliable enough under held-out and runtime evidence and has no live learned gateway FN/FP evidence or promotion manifest.",
     "learned_runtime_adapter_evidence_present": true,
@@ -260,6 +274,17 @@
   "gateway_runtime_evidence": {
     "benign_final_action": "allow",
     "gateway_ready_status": "ready",
+    "learned_gateway_metrics": {
+      "evidence_present": false,
+      "false_negative": 0,
+      "false_negative_rate": null,
+      "false_positive": 0,
+      "false_positive_rate": null,
+      "runtime_critic_kind": "canary",
+      "sample_count": 0,
+      "true_negative": 0,
+      "true_positive": 0
+    },
     "learned_runtime_evidence_present": false,
     "nimbus_profile": "default",
     "nimbus_thresholds": {
@@ -272,6 +297,8 @@
     "partial_leak_final_action": "sanitize",
     "partial_leak_nimbus_action": "sanitize",
     "provider_mode": "mock",
+    "readiness_nimbus_critic_kind": "canary",
+    "readiness_nimbus_promotion_status": "deterministic_canary_beta",
     "readiness_nimbus_status": "deterministic_beta",
     "runtime_critic_kind": "canary",
     "smoke_status": "ok",
