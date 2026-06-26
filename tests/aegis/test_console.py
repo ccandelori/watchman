@@ -190,8 +190,34 @@ def test_console_app_serves_static_shell_and_api() -> None:
     assert overview.status_code == 200
     assert overview.json()["protection"]["state"] == "Protected"
     assert setup.status_code == 200
-    degraded_states = {item["state"] for item in setup.json()["common_degraded_states"]}
+    setup_payload = setup.json()
+    assert setup_payload["agent_gateway_base_url"] == "http://127.0.0.1:8000/v1"
+    assert setup_payload["openai_compatible_endpoint"] == "http://127.0.0.1:8000/v1/chat/completions"
+    assert setup_payload["agent_settings"] == {
+        "base_url": "http://127.0.0.1:8000/v1",
+        "api_key": "aegis-local-dev-key",
+        "model": "match the local provider model configured by AEGIS_OPENAI_MODEL",
+    }
+    assert setup_payload["cift_sidecar"] == {
+        "default_base_url": "http://127.0.0.1:9000",
+        "status_source": "/ready.cift",
+        "certification_rule": "sidecar attestation must match the promoted model-specific CIFT artifact",
+    }
+    assert {item["component"] for item in setup_payload["architecture"]} == {
+        "agent_app",
+        "aegis_gateway",
+        "local_model_provider",
+        "cift_sidecar",
+    }
+    assert {item["name"] for item in setup_payload["provider_examples"]} == {
+        "Generic OpenAI-compatible local server",
+        "Ollama OpenAI-compatible endpoint",
+        "LM Studio or llama.cpp OpenAI-compatible endpoint",
+    }
+    assert any("strict CIFT blocks exfiltration intent" in item for item in setup_payload["smoke_expectations"])
+    degraded_states = {item["state"] for item in setup_payload["common_degraded_states"]}
     assert "nimbus_learned_runtime_beta_not_promotable" in degraded_states
+    assert "provider_unreachable" in degraded_states
 
 
 def _settings(
@@ -246,7 +272,7 @@ def _ready_payload() -> dict[str, JsonValue]:
         "ready": True,
         "status": "ready",
         "strict_protected_mode": {"enabled": True},
-        "provider": {"status": "ready", "name": "mock"},
+        "provider": {"status": "ready", "name": "openai_compatible", "target_url": "http://127.0.0.1:8776/v1"},
         "dp_honey": {"status": "ready"},
         "provider_egress_guard": {"status": "ready"},
         "nimbus": {"status": "deterministic_beta", "critic_version": "canary-v0"},
@@ -277,6 +303,11 @@ def _capabilities_payload() -> dict[str, JsonValue]:
             "status": "deterministic_beta",
             "critic_kind": "deterministic_canary",
             "paper_faithful_learned_critic": False,
+        },
+        "provider": {
+            "name": "openai_compatible",
+            "target_url": "http://127.0.0.1:8776/v1",
+            "mock_controls_enabled": False,
         },
         "cift": {
             "capability_mode": "self_hosted_introspection",

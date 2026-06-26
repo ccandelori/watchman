@@ -22,6 +22,7 @@ def test_provider_config_defaults_to_mock_provider() -> None:
 
     assert config.kind == ProviderKind.MOCK
     assert config.provider_name == "mock"
+    assert config.provider_target_url is None
     assert config.mock_controls_enabled is True
     assert isinstance(config.model_provider, MockModelProvider)
 
@@ -85,6 +86,7 @@ def test_provider_config_builds_openai_compatible_provider() -> None:
 
     assert config.kind == ProviderKind.OPENAI_COMPATIBLE
     assert config.provider_name == "openai_compatible"
+    assert config.provider_target_url == "https://provider.example"
     assert config.mock_controls_enabled is False
     assert isinstance(config.model_provider, OpenAICompatibleProvider)
 
@@ -99,6 +101,7 @@ def test_provider_config_accepts_loopback_http_openai_base_url() -> None:
     )
 
     assert config.kind == ProviderKind.OPENAI_COMPATIBLE
+    assert config.provider_target_url == "http://127.0.0.1:8080/v1"
     assert config.mock_controls_enabled is False
 
 

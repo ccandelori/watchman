@@ -186,6 +186,7 @@ def _mock_provider_config(model_provider: ModelProvider) -> ProxyProviderConfig:
     return ProxyProviderConfig(
         kind=ProviderKind.MOCK,
         provider_name="mock",
+        provider_target_url=None,
         model_provider=model_provider,
         mock_controls_enabled=True,
     )

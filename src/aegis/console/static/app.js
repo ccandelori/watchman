@@ -181,15 +181,27 @@ function renderSetup() {
   const gateway = overview.gateway || {};
   const readiness = gateway.readiness || {};
   const readyPayload = readiness.payload || {};
+  const capabilitiesPayload = gateway.capabilities?.payload || {};
+  const providerReady = readyPayload.provider || {};
+  const providerCapabilities = capabilitiesPayload.provider || {};
   const ciftReady = readyPayload.cift || {};
+  const ciftSidecar = setup.cift_sidecar || {};
   const commands = setup.commands || {};
   const rows = [
     ["Gateway base URL", setup.gateway_base_url],
+    ["Agent app base URL", setup.agent_gateway_base_url],
     ["OpenAI-compatible endpoint", setup.openai_compatible_endpoint],
+    ["Example agent API key", setup.agent_settings?.api_key],
+    ["Example agent model", setup.agent_settings?.model],
+    ["Active provider mode", providerReady.name || providerCapabilities.name],
+    ["Provider target URL", providerReady.target_url || providerCapabilities.target_url],
+    ["Mock controls enabled", providerReady.mock_controls_enabled ?? providerCapabilities.mock_controls_enabled],
     ["Current /ready fetch", readiness.status],
     ["Current /ready status", readyPayload.status],
     ["Current /ready boolean", readyPayload.ready],
     ["Protection state", overview.protection?.state],
+    ["Default CIFT sidecar URL", ciftSidecar.default_base_url],
+    ["CIFT sidecar status source", ciftSidecar.status_source],
     ["CIFT support tier", ciftReady.support_tier],
     ["CIFT support scope", ciftReady.support_scope],
     ["CIFT /ready status", ciftReady.status],
@@ -203,6 +215,10 @@ function renderSetup() {
       "div",
       { class: "grid" },
       panel("Connection", keyValueTable(rows), "span-12"),
+      panel("Agent Settings", keyValueTable(Object.entries(setup.agent_settings || {}).map(([key, value]) => [commandLabel(key), value])), "span-6"),
+      panel("Request Path", setupArchitecture(setup.architecture || []), "span-6"),
+      panel("Provider Examples", providerExamples(setup.provider_examples || []), "span-12"),
+      panel("Smoke Evidence", setupList(setup.smoke_expectations || []), "span-12"),
       el("section", { class: "span-12 grid" }, ...commandBlocks),
       panel("Common Degraded States", degradedStates(setup.common_degraded_states || []), "span-12"),
     ),
@@ -420,6 +436,47 @@ function nimbusBetaView(nimbus) {
 function degradedStates(states) {
   const rows = states.map((item) => el("tr", {}, el("td", { class: "mono" }, item.state || ""), el("td", {}, item.fix || "")));
   return el("table", { class: "kv" }, el("tbody", {}, ...rows));
+}
+
+function setupArchitecture(items) {
+  const rows = items.map((item) =>
+    el(
+      "tr",
+      {},
+      el("td", { class: "mono" }, item.component || ""),
+      el("td", {}, item.connection || ""),
+      el("td", { class: "mono" }, item.endpoint || ""),
+    ),
+  );
+  return el(
+    "table",
+    { class: "event-table" },
+    el("thead", {}, el("tr", {}, ...["Component", "Connection", "Endpoint"].map((heading) => el("th", {}, heading)))),
+    el("tbody", {}, ...rows),
+  );
+}
+
+function providerExamples(items) {
+  const rows = items.map((item) =>
+    el(
+      "tr",
+      {},
+      el("td", {}, item.name || ""),
+      el("td", { class: "mono" }, item.provider_base_url || ""),
+      el("td", { class: "mono" }, item.agent_base_url || ""),
+      el("td", { class: "mono" }, item.provider_env || ""),
+    ),
+  );
+  return el(
+    "table",
+    { class: "event-table" },
+    el("thead", {}, el("tr", {}, ...["Provider", "Provider URL", "Agent URL", "Gateway env"].map((heading) => el("th", {}, heading)))),
+    el("tbody", {}, ...rows),
+  );
+}
+
+function setupList(items) {
+  return el("ul", { class: "setup-list" }, ...items.map((item) => el("li", {}, String(item))));
 }
 
 function commandLabel(name) {

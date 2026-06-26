@@ -51,6 +51,7 @@ _TRUSTED_SELF_HOSTED_CIFT_FEATURE_SOURCE = "self_hosted_activation_extractor"
 class ProxyProviderConfig:
     kind: ProviderKind
     provider_name: str
+    provider_target_url: str | None
     model_provider: ModelProvider
     mock_controls_enabled: bool
 
@@ -103,6 +104,7 @@ def provider_config_from_env(env: Mapping[str, str] | None = None) -> ProxyProvi
         return ProxyProviderConfig(
             kind=provider_kind,
             provider_name="mock",
+            provider_target_url=None,
             model_provider=MockModelProvider(
                 default_content=values.get("AEGIS_MOCK_DEFAULT_CONTENT", "Aegis mock response.")
             ),
@@ -117,12 +119,14 @@ def provider_config_from_env(env: Mapping[str, str] | None = None) -> ProxyProvi
         if api_key == "":
             raise ProxyConfigError("AEGIS_OPENAI_API_KEY must be set when AEGIS_PROVIDER=openai_compatible.")
         timeout_seconds = _float_env(values, "AEGIS_OPENAI_TIMEOUT_SECONDS", 30.0)
+        validated_base_url = _validated_http_base_url(base_url, "AEGIS_OPENAI_BASE_URL")
         return ProxyProviderConfig(
             kind=provider_kind,
             provider_name="openai_compatible",
+            provider_target_url=validated_base_url,
             model_provider=OpenAICompatibleProvider(
                 config=OpenAICompatibleProviderConfig(
-                    base_url=_validated_http_base_url(base_url, "AEGIS_OPENAI_BASE_URL"),
+                    base_url=validated_base_url,
                     api_key=api_key,
                     default_model=_optional_non_empty(values.get("AEGIS_OPENAI_MODEL")),
                     timeout_seconds=timeout_seconds,

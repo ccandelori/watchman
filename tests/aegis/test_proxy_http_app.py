@@ -70,6 +70,7 @@ def test_http_ready_route_returns_ok_when_cift_is_not_required() -> None:
         "ready": True,
         "status": "ready",
         "name": "mock",
+        "target_url": None,
         "mock_controls_enabled": True,
     }
     assert payload["provider_egress_guard"]["blocks_non_honeytoken_sensitive_spans_before_provider"] is True
@@ -86,6 +87,7 @@ def test_http_capabilities_route_returns_redteam_discovery_contract() -> None:
     payload = response.json()
     assert payload["schema_version"] == "aegis.proxy_capabilities/v1"
     assert payload["provider"]["name"] == "mock"
+    assert payload["provider"]["target_url"] is None
     assert payload["provider"]["mock_controls_enabled"] is True
     assert "partial_first_honeytoken" in payload["mock_response_modes"]
     assert payload["contract"]["error_schema_version"] == "aegis.proxy_error/v1"
@@ -2622,6 +2624,7 @@ def _proxy_with_provider(model_provider: FailingProvider) -> MockProxyApp:
             model_provider=model_provider,
         ),
         provider_name="openai_compatible",
+        provider_target_url="http://127.0.0.1:8776/v1",
         mock_controls_enabled=False,
         nimbus_config=nimbus_config,
     )

@@ -287,6 +287,7 @@ class MockProxyApp:
         nimbus_critic: RegisteredCanaryNimbusCritic,
         runtime_factory: ProxyRuntimeFactory,
         provider_name: str,
+        provider_target_url: str | None,
         mock_controls_enabled: bool,
         nimbus_config: ProxyNimbusConfig,
         cift_readiness_probe: CiftReadinessProbe | None = None,
@@ -296,6 +297,7 @@ class MockProxyApp:
         self._nimbus_critic = nimbus_critic
         self._runtime_factory = runtime_factory
         self._provider_name = provider_name
+        self._provider_target_url = provider_target_url
         self._mock_controls_enabled = mock_controls_enabled
         self._nimbus_config = nimbus_config
         self._cift_readiness_probe = (
@@ -426,6 +428,7 @@ class MockProxyApp:
             },
             "provider": {
                 "name": self._provider_name,
+                "target_url": self._provider_target_url,
                 "mock_controls_enabled": self._mock_controls_enabled,
             },
             "cift": _cift_capabilities(self._runtime_factory.cift_capability),
@@ -469,6 +472,7 @@ class MockProxyApp:
                 "ready": True,
                 "status": "ready",
                 "name": self._provider_name,
+                "target_url": self._provider_target_url,
                 "mock_controls_enabled": self._mock_controls_enabled,
             },
             "canary": {
@@ -1963,6 +1967,7 @@ def create_proxy(
         nimbus_critic=nimbus_critic,
         runtime_factory=runtime_factory,
         provider_name=provider_config.provider_name,
+        provider_target_url=provider_config.provider_target_url,
         mock_controls_enabled=provider_config.mock_controls_enabled,
         nimbus_config=nimbus_config,
         cift_readiness_probe=(

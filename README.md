@@ -192,6 +192,131 @@ controls. Redteam tooling should call this route before assuming that
 `mock_response_mode`, `/test/seed-canary`, or model-specific CIFT enforcement is
 available.
 
+### Put Aegis In Front Of A Local Agent
+
+For Hermes Agent, OpenClaw, Open WebUI, or any OpenAI-compatible local-agent
+client, point the agent at Aegis instead of the model server:
+
+```text
+agent app -> http://127.0.0.1:8000/v1 -> Aegis gateway -> local model provider
+                                                  |
+                                                  +-> CIFT sidecar on http://127.0.0.1:9000
+```
+
+Aegis exposes `POST /v1/chat/completions`. Allowed requests are forwarded to the
+configured local provider. The CIFT sidecar is a separate hidden-state extractor;
+strict CIFT enforcement is available only when the sidecar attests the same
+model id, immutable revision, tokenizer hash, chat-template hash, layer/window,
+device, and dtype as the promoted CIFT artifact.
+
+1. Start a local OpenAI-compatible model server. Use the provider's own command
+   for the model server, then note its `/v1` URL. Common local defaults are:
+
+```text
+Ollama OpenAI-compatible URL:     http://127.0.0.1:11434/v1
+LM Studio local server URL:       http://127.0.0.1:1234/v1
+llama.cpp server URL:             http://127.0.0.1:<server-port>/v1
+Generic local provider URL:       http://127.0.0.1:<provider-port>/v1
+```
+
+2. Start the Qwen3-4B CIFT sidecar when running the certified reference path:
+
+```bash
+export AEGIS_CIFT_EXTRACTOR_API_KEY="set-a-deployment-secret"
+
+PYTHONPATH=src:introspection/src \
+.venv-mps313/bin/python introspection/scripts/run_cift_extractor_sidecar.py \
+  --model-id Qwen/Qwen3-4B \
+  --revision 1cfa9a7208912126459214e8b04321603b3df60c \
+  --device mps \
+  --dtype device \
+  --feature-key selected_choice_window_layer_21 \
+  --selected-choice-readout-token-count 4 \
+  --host 127.0.0.1 \
+  --port 9000 \
+  --api-key-env-var AEGIS_CIFT_EXTRACTOR_API_KEY
+```
+
+Expected sidecar output includes:
+
+```text
+CIFT extractor sidecar listening on http://127.0.0.1:9000
+```
+
+3. Start Aegis with the local provider and strict CIFT env. Replace the provider
+   URL and model name with the model server you started in step 1:
+
+```bash
+export AEGIS_PROVIDER=openai_compatible
+export AEGIS_OPENAI_BASE_URL=http://127.0.0.1:11434/v1
+export AEGIS_OPENAI_API_KEY=ollama
+export AEGIS_OPENAI_MODEL=<served-model-name>
+export AEGIS_AUDIT_JSONL_PATH=/tmp/aegis-local-agent-audit.jsonl
+export AEGIS_CIFT_EXTRACTOR_API_KEY="set-a-deployment-secret"
+source introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_strict_deployment_env.sh
+
+uv run aegis-proxy --host 127.0.0.1 --port 8000
+```
+
+Expected readiness when the certified sidecar is live:
+
+```bash
+curl -s http://127.0.0.1:8000/ready
+```
+
+The response should include `status="ready"`,
+`provider.name="openai_compatible"`, `provider.target_url` set to the local
+model server URL, `cift.support_tier="runtime-enforceable"`, and
+`cift.source_selected_device="mps"`.
+
+If you omit the strict CIFT env or sidecar, the gateway remains useful as a
+black-box guard for DP-HONEY, provider egress, canaries, deterministic NIMBUS,
+policy, and audit, but it must be treated as `cift.support_tier="unsupported"`.
+Do not claim CIFT enforcement for that model until its own certification passes.
+
+4. Point the agent app at Aegis:
+
+```text
+Base URL: http://127.0.0.1:8000/v1
+API key:  aegis-local-dev-key
+Model:    the same model name configured in AEGIS_OPENAI_MODEL
+```
+
+Most local OpenAI-compatible clients require a non-empty API key even when the
+gateway itself does not authenticate client requests. Provider credentials stay
+server-side in Aegis env; do not paste provider keys into the agent app.
+
+5. Open the operator console:
+
+```bash
+uv run aegis-console \
+  --gateway-url http://127.0.0.1:8000 \
+  --host 127.0.0.1 \
+  --port 8780
+```
+
+Open `http://127.0.0.1:8780`, then check the Setup tab. It shows the agent base
+URL, provider mode and target URL reported by the gateway, CIFT sidecar status,
+model certification status, smoke commands, and degraded-state fixes.
+
+6. Run smoke checks before demoing the agent:
+
+```bash
+uv run aegis-proxy-smoke \
+  --url http://127.0.0.1:8000 \
+  --timeout 120 \
+  --provider-mode real-provider \
+  --require-cift-pre-generation-block \
+  --output introspection/data/reports/aegis_local_agent_qwen3_4b_smoke_v1.json
+```
+
+Passing smoke proves the agent-style OpenAI request reaches Aegis, benign traffic
+can reach the provider, protected credential slots trigger DP-HONEY, strict CIFT
+blocks exfiltration intent before provider completion, provider egress blocks
+raw/tool leakage before provider completion, canary/NIMBUS checks still run, and
+audit traces are available. This is live gateway evidence; offline replay does
+not count as production evidence.
+
 By default, `aegis-proxy` runs with the deterministic mock provider. To point
 the development proxy at an OpenAI-compatible model endpoint, configure the
 provider explicitly:

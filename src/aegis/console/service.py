@@ -140,10 +140,75 @@ def console_trace(settings: ConsoleSettings, fetcher: GatewayFetcher, trace_id: 
 
 def console_setup(settings: ConsoleSettings) -> dict[str, JsonValue]:
     console_command = f"uv run aegis-console --gateway-url {settings.gateway_base_url} --host 127.0.0.1 --port 8780"
+    gateway_openai_base_url = _gateway_openai_base_url(settings.gateway_base_url)
     return {
         "schema_version": CONSOLE_SETUP_SCHEMA_VERSION,
         "gateway_base_url": settings.gateway_base_url,
-        "openai_compatible_endpoint": f"{settings.gateway_base_url.rstrip('/')}/v1/chat/completions",
+        "agent_gateway_base_url": gateway_openai_base_url,
+        "openai_compatible_endpoint": f"{gateway_openai_base_url}/chat/completions",
+        "agent_settings": {
+            "base_url": gateway_openai_base_url,
+            "api_key": "aegis-local-dev-key",
+            "model": "match the local provider model configured by AEGIS_OPENAI_MODEL",
+        },
+        "cift_sidecar": {
+            "default_base_url": "http://127.0.0.1:9000",
+            "status_source": "/ready.cift",
+            "certification_rule": "sidecar attestation must match the promoted model-specific CIFT artifact",
+        },
+        "architecture": [
+            {
+                "component": "agent_app",
+                "connection": "Configure Hermes, OpenClaw, Open WebUI, or any OpenAI-compatible client to use Aegis.",
+                "endpoint": gateway_openai_base_url,
+            },
+            {
+                "component": "aegis_gateway",
+                "connection": "Aegis exposes /v1/chat/completions and forwards allowed requests to the provider.",
+                "endpoint": settings.gateway_base_url,
+            },
+            {
+                "component": "local_model_provider",
+                "connection": "Configured with AEGIS_PROVIDER=openai_compatible and AEGIS_OPENAI_BASE_URL.",
+                "endpoint": "operator local provider URL",
+            },
+            {
+                "component": "cift_sidecar",
+                "connection": (
+                    "Separate hidden-state extractor; its attested model must match the certified CIFT artifact."
+                ),
+                "endpoint": "http://127.0.0.1:9000",
+            },
+        ],
+        "provider_examples": [
+            {
+                "name": "Generic OpenAI-compatible local server",
+                "provider_base_url": "http://127.0.0.1:<provider-port>/v1",
+                "agent_base_url": gateway_openai_base_url,
+                "provider_env": (
+                    "AEGIS_PROVIDER=openai_compatible AEGIS_OPENAI_BASE_URL=http://127.0.0.1:<provider-port>/v1 "
+                    "AEGIS_OPENAI_API_KEY=<local-provider-token> AEGIS_OPENAI_MODEL=<model-name>"
+                ),
+            },
+            {
+                "name": "Ollama OpenAI-compatible endpoint",
+                "provider_base_url": "http://127.0.0.1:11434/v1",
+                "agent_base_url": gateway_openai_base_url,
+                "provider_env": (
+                    "AEGIS_PROVIDER=openai_compatible AEGIS_OPENAI_BASE_URL=http://127.0.0.1:11434/v1 "
+                    "AEGIS_OPENAI_API_KEY=ollama AEGIS_OPENAI_MODEL=<ollama-model-name>"
+                ),
+            },
+            {
+                "name": "LM Studio or llama.cpp OpenAI-compatible endpoint",
+                "provider_base_url": "http://127.0.0.1:<server-port>/v1",
+                "agent_base_url": gateway_openai_base_url,
+                "provider_env": (
+                    "AEGIS_PROVIDER=openai_compatible AEGIS_OPENAI_BASE_URL=http://127.0.0.1:<server-port>/v1 "
+                    "AEGIS_OPENAI_API_KEY=<local-token> AEGIS_OPENAI_MODEL=<served-model-name>"
+                ),
+            },
+        ],
         "commands": {
             "start_console": console_command,
             "start_gateway": "uv run aegis-proxy --host 127.0.0.1 --port 8000",
@@ -155,10 +220,25 @@ def console_setup(settings: ConsoleSettings) -> dict[str, JsonValue]:
                 "uv run aegis-proxy-smoke --url http://127.0.0.1:8000 --timeout 120 --require-cift-pre-generation-block"
             ),
         },
+        "smoke_expectations": [
+            "benign agent-style OpenAI request reaches the configured provider",
+            "protected credential slot receives a registered DP-HONEY substitution",
+            "strict CIFT blocks exfiltration intent before provider generation when the certified sidecar is ready",
+            "provider egress guard blocks raw or tool-carried sensitive values before provider completion",
+            "canary and NIMBUS checks run after provider output when generation is allowed",
+            "audit events and console traces show the allow/block decision and detector evidence",
+        ],
         "common_degraded_states": [
             {
                 "state": "gateway_offline",
                 "fix": "Start the gateway and refresh the console.",
+            },
+            {
+                "state": "provider_unreachable",
+                "fix": (
+                    "Start the local OpenAI-compatible provider and set AEGIS_OPENAI_BASE_URL to that provider, "
+                    "not to Aegis."
+                ),
             },
             {
                 "state": "cift_black_box",
@@ -181,6 +261,10 @@ def console_setup(settings: ConsoleSettings) -> dict[str, JsonValue]:
             },
         ],
     }
+
+
+def _gateway_openai_base_url(gateway_base_url: str) -> str:
+    return f"{gateway_base_url.rstrip('/')}/v1"
 
 
 def default_gateway_fetcher(
