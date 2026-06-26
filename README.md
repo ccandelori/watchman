@@ -686,15 +686,19 @@ positive rates:
 
 ```bash
 uv run dp-honey eval-scanner \
-  --positive-per-format 25 \
-  --target-alpha 0.1 \
+  --positive-per-format 50 \
+  --target-alpha 0.01 \
+  --negative-count 1000 \
+  --calibration-count 1000 \
   --seed 11 \
   --output introspection/data/reports/dp_honey_scanner_eval_v1.json
 ```
 
 This registry-shaped scanner evaluation includes a split-conformal confidence
 threshold over benign calibration scores. It calibrates the scanner confidence
-gate, not generator indistinguishability.
+gate, not generator indistinguishability. The current paper-shaped scanner
+artifact uses 1,000 benign calibration texts and 1,000 benign held-out eval
+texts at target coverage 0.99.
 
 Generate DP-HONEY generation-realism evidence with aggregate generated-vs-
 reference metrics and no raw token serialization:
@@ -723,10 +727,11 @@ uv run dp-honey eval-statistical-distinguishers \
 ```
 
 This suite evaluates character entropy, bigram likelihood, numeric-substring
-features, and a discriminator MLP. The current promoted artifact passes all four
-families under the bounded same-format synthetic holdout, so
-`paper_faithful_statistical_distinguisher=true`. This is still not a
-production-secret indistinguishability proof.
+features, and a discriminator MLP. The current artifact passes all four families
+under the bounded same-format synthetic holdout and sets
+`synthetic_registry_statistical_distinguisher_passed=true`, but
+`paper_faithful_statistical_distinguisher=false` because the reference source is
+not provider-like or real-credential-distribution evidence.
 
 Generate the DP-HONEY paper-faithfulness checklist from the scanner,
 generation-realism, statistical-distinguisher, gateway smoke, and audit evidence:
@@ -744,9 +749,10 @@ uv run aegis-dp-honey-paper-evidence \
 The checklist is deliberately stricter than the scanner metric. It fails closed
 if runtime audit DP-HONEY generator metadata does not match the generation and
 statistical evaluation parameters. The current v4 report sets
-`paper_faithful_plus=true` and `promotion_eligible=true` for the local synthetic
-DP-HONEY registry. That claim does not cover provider-valid credentials,
-training on real secret corpora, or external secret-manager registration.
+`paper_faithful_plus=false` and `promotion_eligible=false`: DP-HONEY is a
+paper-aligned operational beta with strong local synthetic-registry evidence,
+but it still lacks provider-like or real-credential-distribution reference
+evidence for the statistical distinguisher claim.
 
 To seed a session canary without putting a placeholder in the user turn, use the
 mock-only test route:
@@ -948,14 +954,14 @@ with the explicit `learned_infonce_beta` configuration below, and remains
 non-promotable.
 The `--allow-training-eval` flag labels the main report as a training
 diagnostic. Current grouped-CV and sealed-holdout evidence both report turn-level
-FP/FN and session-level FP/FN separately: turn FPR `0.0`, turn FNR `0.214286`,
-session FPR `0.0`, and session FNR `0.0`. The runtime beta eval reports turn
-FP=0, turn FN=5, turn FPR `0.0`, turn FNR `0.357143`, session FP=0, session
-FN=1, session FPR `0.0`, and session FNR `0.125`. The scaffold remains
-non-promotable because it is a tiny lexical model with runtime false negatives,
-no live learned gateway FN/FP evidence, and no promotion manifest. The promotion
-evidence report records `promote_learned_runtime=false` and recommends keeping
-deterministic canary NIMBUS as the active runtime critic.
+FP/FN and session-level FP/FN separately: turn FPR `0.438926`, turn FNR
+`0.027451`, session FPR `0.0`, and session FNR `0.0`. The runtime beta eval
+reports turn FP=678, turn FN=0, turn FPR `0.910067`, turn FNR `0.0`, session
+FP=8, session FN=0, session FPR `1.0`, and session FNR `0.0`. The scaffold
+remains non-promotable because the learned runtime is far too noisy, there is no
+live learned gateway FN/FP evidence, and there is no promotion manifest. The
+promotion evidence report records `promote_learned_runtime=false` and recommends
+keeping deterministic canary NIMBUS as the active runtime critic.
 
 Generate a local in-process NIMBUS fixture JSONL when the external redteam
 runner is not available:

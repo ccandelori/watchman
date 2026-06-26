@@ -138,6 +138,8 @@ def build_parser() -> argparse.ArgumentParser:
     p_eval = sub.add_parser("eval-scanner", help="emit held-out scanner FP/FN evidence")
     p_eval.add_argument("--positive-per-format", type=int, required=True, dest="positive_per_format")
     p_eval.add_argument("--target-alpha", type=float, required=True, dest="target_alpha")
+    p_eval.add_argument("--negative-count", type=int, default=1000, dest="negative_count")
+    p_eval.add_argument("--calibration-count", type=int, default=1000, dest="calibration_count")
     p_eval.add_argument("--seed", type=int, default=0)
     p_eval.add_argument("--output", type=Path, required=False, help="optional JSON report output path")
     p_eval.set_defaults(func=cmd_eval_scanner)
@@ -333,6 +335,8 @@ def cmd_eval_scanner(args: argparse.Namespace) -> int:
             positive_per_format=args.positive_per_format,
             seed=args.seed,
             target_alpha=args.target_alpha,
+            negative_count=args.negative_count,
+            calibration_count=args.calibration_count,
         )
     )
     if args.output is not None:

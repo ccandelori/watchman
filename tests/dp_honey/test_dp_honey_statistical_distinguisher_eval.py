@@ -51,7 +51,9 @@ def test_statistical_distinguisher_eval_declared_flag_matches_required_test_stat
     passed = all(suite[test_name]["status"] == "passed" for test_name in REQUIRED_TESTS)
 
     assert report["all_required_tests_passed"] is passed
-    assert report["paper_faithful_statistical_distinguisher"] is passed
+    assert report["synthetic_registry_statistical_distinguisher_passed"] is passed
+    assert report["paper_faithful_statistical_distinguisher"] is False
+    assert report["reference_source"] == "same_format_uniform_synthetic_holdout"
 
 
 def test_statistical_distinguisher_eval_rejects_invalid_config() -> None:

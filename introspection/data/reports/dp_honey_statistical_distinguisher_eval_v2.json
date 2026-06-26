@@ -15,9 +15,10 @@
   "limits": [
     "No generated or reference token values are serialized.",
     "Reference tokens are same-format synthetic holdout examples, not provider-valid production secrets.",
-    "Passing means these bounded distinguishers did not separate generated tokens from the synthetic reference beyond configured thresholds; it is not a computational indistinguishability proof."
+    "Passing means these bounded distinguishers did not separate generated tokens from the synthetic reference beyond configured thresholds; it is not a computational indistinguishability proof.",
+    "paper_faithful_statistical_distinguisher remains false until the reference source is provider-like or real-credential-distribution evidence rather than same-format synthetic holdout data."
   ],
-  "paper_faithful_statistical_distinguisher": true,
+  "paper_faithful_statistical_distinguisher": false,
   "raw_values_serialized": false,
   "reference_source": "same_format_uniform_synthetic_holdout",
   "registry_version": "2",
@@ -697,6 +698,7 @@
     }
   },
   "status": "statistical_distinguisher_suite_evaluated",
+  "synthetic_registry_statistical_distinguisher_passed": true,
   "test_count_per_format": 25,
   "train_count_per_format": 25
 }

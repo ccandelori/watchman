@@ -144,7 +144,8 @@ def build_statistical_distinguisher_eval_report(
         "raw_values_serialized": False,
         "required_tests": list(REQUIRED_TESTS),
         "all_required_tests_passed": all_required_tests_passed,
-        "paper_faithful_statistical_distinguisher": all_required_tests_passed,
+        "synthetic_registry_statistical_distinguisher_passed": all_required_tests_passed,
+        "paper_faithful_statistical_distinguisher": False,
         "statistical_distinguisher_suite": suite,
         "audit_safety": {
             "raw_secret_values_in_report": False,
@@ -155,6 +156,8 @@ def build_statistical_distinguisher_eval_report(
             "Reference tokens are same-format synthetic holdout examples, not provider-valid production secrets.",
             "Passing means these bounded distinguishers did not separate generated tokens from the synthetic "
             "reference beyond configured thresholds; it is not a computational indistinguishability proof.",
+            "paper_faithful_statistical_distinguisher remains false until the reference source is provider-like "
+            "or real-credential-distribution evidence rather than same-format synthetic holdout data.",
         ],
     }
 

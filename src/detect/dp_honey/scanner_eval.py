@@ -29,10 +29,16 @@ class DPHoneyScannerEvalConfig:
     positive_per_format: int
     seed: int
     target_alpha: float
+    negative_count: int
+    calibration_count: int
 
     def __post_init__(self) -> None:
         if self.positive_per_format < 1:
             raise DPHoneyScannerEvalError("positive_per_format must be positive.")
+        if self.negative_count < 1:
+            raise DPHoneyScannerEvalError("negative_count must be positive.")
+        if self.calibration_count < 1:
+            raise DPHoneyScannerEvalError("calibration_count must be positive.")
         if not math.isfinite(self.target_alpha) or self.target_alpha <= 0.0 or self.target_alpha >= 1.0:
             raise DPHoneyScannerEvalError("target_alpha must be finite and in (0.0, 1.0).")
 
@@ -75,10 +81,10 @@ def build_scanner_eval_report(config: DPHoneyScannerEvalConfig) -> dict[str, Jso
     scannable_specs = tuple(spec for spec in list_formats() if spec.scannable)
     if len(scannable_specs) == 0:
         raise DPHoneyScannerEvalError("no scannable DP-HONEY formats are registered.")
-    calibration = _calibrate_confidence_threshold(config.target_alpha)
+    calibration = _calibrate_confidence_threshold(config)
     threshold = _required_numeric(calibration["threshold"], "conformal threshold")
     positive_metrics = tuple(_evaluate_format(spec, config, threshold) for spec in scannable_specs)
-    negative_texts = _negative_texts()
+    negative_texts = _negative_texts(config.negative_count, config.seed, "eval")
     negative_counts = _evaluate_negatives(negative_texts, threshold)
     true_positive = sum(metric.true_positive for metric in positive_metrics)
     false_negative = sum(metric.false_negative for metric in positive_metrics)
@@ -97,7 +103,10 @@ def build_scanner_eval_report(config: DPHoneyScannerEvalConfig) -> dict[str, Jso
         "registry_version": REGISTRY_VERSION,
         "seed": config.seed,
         "target_alpha": config.target_alpha,
+        "target_coverage": 1.0 - config.target_alpha,
         "positive_per_format": config.positive_per_format,
+        "negative_requested_count": config.negative_count,
+        "calibration_requested_count": config.calibration_count,
         "scannable_format_count": len(scannable_specs),
         "positive_example_count": positive_count,
         "negative_example_count": negative_count,
@@ -125,23 +134,26 @@ def write_scanner_eval_report(path: Path, report: dict[str, JsonValue]) -> None:
     path.write_text(render_scanner_eval_report_json(report), encoding="utf-8")
 
 
-def _calibrate_confidence_threshold(target_alpha: float) -> dict[str, JsonValue]:
-    calibration_texts = _calibration_negative_texts()
+def _calibrate_confidence_threshold(config: DPHoneyScannerEvalConfig) -> dict[str, JsonValue]:
+    calibration_texts = _calibration_negative_texts(config)
     scores = tuple(_max_confidence_score(scanner.scan(text)) for text in calibration_texts)
-    threshold = _conformal_quantile(scores, target_alpha)
+    threshold = _conformal_quantile(scores, config.target_alpha)
     accepted_scores = tuple(score for score in scores if score > threshold)
+    empirical_false_positive_rate = len(accepted_scores) / len(scores)
     return {
         "implemented": True,
         "status": "split_conformal_confidence_threshold",
-        "target_alpha": target_alpha,
+        "target_alpha": config.target_alpha,
+        "target_coverage": 1.0 - config.target_alpha,
         "calibration_benign_count": len(scores),
         "calibration_score_max": max(scores),
         "calibration_score_values": sorted(set(scores)),
-        "quantile_rank": _conformal_rank(len(scores), target_alpha),
+        "quantile_rank": _conformal_rank(len(scores), config.target_alpha),
         "threshold": threshold,
         "score_rule": "detect if max_confidence_score > threshold",
         "recommended_min_confidence": _recommended_min_confidence(threshold),
-        "empirical_calibration_false_positive_rate": len(accepted_scores) / len(scores),
+        "empirical_calibration_false_positive_rate": empirical_false_positive_rate,
+        "empirical_calibration_coverage": 1.0 - empirical_false_positive_rate,
         "paper_faithfulness_status": (
             "split conformal confidence threshold implemented for scanner findings; generator realism still requires "
             "stronger statistical distinguisher evidence"
@@ -190,31 +202,34 @@ def _evaluate_negatives(negative_texts: tuple[str, ...], threshold: float) -> DP
     )
 
 
-def _calibration_negative_texts() -> tuple[str, ...]:
-    return (
-        *_negative_texts(),
-        "vendor trace vendor_live_abC123XYZ999qweRTY456mno is a fake doc id, not a credential",
-        "local debug key debug_live_8dfA72qLmZ93pQaT0044 is a non-secret fixture",
-        "sample opaque id client_ref_9Vq8sL2mN7pQ4rT6wX0z appears in logs",
-        "release digest rel_7PqaL93nMx02Qrs88Tuv is benign build metadata",
-        "analytics opaque value metric_K9qW2eR7tY4uI8oP0aSd should not page security",
-        "base64-like benign blob bG9jYWwgc2FtcGxlIG1ldHJpYw== is documentation text",
-    )
+def _calibration_negative_texts(config: DPHoneyScannerEvalConfig) -> tuple[str, ...]:
+    return _negative_texts(config.calibration_count, config.seed + 65_537, "calibration")
 
 
-def _negative_texts() -> tuple[str, ...]:
-    return (
-        "nothing secret here, just ordinary repository policy text",
-        "request id Th1sIsJustSomeR4ndomX should not be treated as a credential",
-        "version 2026.06.25 build candidate release notes",
-        "token budget was 24000 but no credential-shaped material was present",
-        "user pasted a normal URL https://example.invalid/docs/path",
-        "trace id local-run-alpha-0001 completed without sensitive output",
-        "config key feature_flag_canary_mode=false is not a secret",
-        "short marker safe-canary without the required credential shape",
-        "base64-like prose c2FmZSBub24gc2VjcmV0IG1lc3NhZ2U= should remain benign",
-        "checksum discussion includes CRC32 and base62 words without a token",
+def _negative_texts(count: int, seed: int, corpus_role: str) -> tuple[str, ...]:
+    return tuple(_negative_text(index, seed, corpus_role) for index in range(count))
+
+
+def _negative_text(index: int, seed: int, corpus_role: str) -> str:
+    opaque = _opaque_id(index, seed)
+    templates = (
+        f"{corpus_role} benign task {index}: review repository policy text with request id req_{opaque}.",
+        f"{corpus_role} benign ticket {index}: token budget is {24000 + index}, no credential value is present.",
+        f"{corpus_role} benign trace {index}: feature_flag_canary_mode=false and safe-canary is only prose.",
+        f"{corpus_role} benign tool note {index}: client_ref_{opaque} is an opaque case identifier.",
+        f"{corpus_role} benign release {index}: digest rel_{opaque} documents build metadata.",
+        f"{corpus_role} benign analytics {index}: metric_{opaque} is a dashboard dimension.",
+        f"{corpus_role} benign blob {index}: c2FmZV9ub25fc2VjcmV0X3RleHQ= is sample documentation.",
+        f"{corpus_role} benign near-neighbor {index}: ghq_{opaque} is an invalid prefix fixture.",
+        f"{corpus_role} benign near-neighbor {index}: debug_live_{opaque} is a non-secret local label.",
+        f"{corpus_role} benign near-neighbor {index}: xoxc-{opaque} is not a Slack credential class.",
     )
+    return templates[index % len(templates)]
+
+
+def _opaque_id(index: int, seed: int) -> str:
+    value = ((seed + 1) * 1_315_423_911 + (index + 17) * 2_654_435_761) % 16**16
+    return f"{value:016x}"
 
 
 def _stable_slug_offset(slug: str) -> int:

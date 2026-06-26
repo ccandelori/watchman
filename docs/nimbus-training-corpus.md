@@ -137,13 +137,13 @@ The v0 evaluator reports retrieval/calibration metrics plus false positives and
 false negatives separately. Same-corpus evaluation is rejected unless
 `--allow-training-eval` is passed, and that report is labeled with
 `training_eval_reused=true`. Current curated grouped-CV and sealed-holdout
-scaffold evidence both have turn FP rate `0.0`, turn FN rate `0.214286`, session
-FP rate `0.0`, and session FN rate `0.0`. The remaining turn-level misses are
-partial-drip turns; the sessions still cross the scaffold's cumulative leakage
-signal. That is closer to the paper's session-level NIMBUS target, but the
-runtime beta adapter still misses sealed runtime leaks: turn FP rate `0.0`, turn
-FN rate `0.357143`, session FP rate `0.0`, and session FN rate `0.125`. The
-artifact remains a non-promotable beta rather than a promotion artifact.
+scaffold evidence both have turn FP rate `0.438926`, turn FN rate `0.027451`,
+session FP rate `0.0`, and session FN rate `0.0`. The sessions still cross the
+scaffold's cumulative leakage signal, but the turn-level false-positive rate is
+too high for promotion. The runtime beta adapter is even noisier on benign
+turns: turn FP rate `0.910067`, turn FN rate `0.0`, session FP rate `1.0`, and
+session FN rate `0.0`. The artifact remains a non-promotable beta rather than a
+promotion artifact.
 The promotion evidence binder records that distinction as
 `promotion_status=deterministic_beta_active_learned_not_promotable`,
 `promote_learned_runtime=false`, and

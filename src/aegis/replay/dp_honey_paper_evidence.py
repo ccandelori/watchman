@@ -25,6 +25,10 @@ REQUIRED_STATISTICAL_DISTINGUISHER_TESTS = (
 )
 GENERATOR_PARAMETER_FIELDS = ("epsilon", "clip", "corpus_size", "train_seed")
 _FORBIDDEN_AUDIT_MARKERS = ("{{CREDENTIAL:", "ghp_", "github_pat_", "sk_live_", "AKIA")
+_MAX_PAPER_CONFORMAL_ALPHA = 0.01
+_MIN_PAPER_BENIGN_CALIBRATION_COUNT = 1000
+_MIN_PAPER_BENIGN_EVAL_COUNT = 1000
+_MIN_PAPER_POSITIVE_EVAL_COUNT = 1000
 
 
 class DPHoneyPaperEvidenceError(ValueError):
@@ -144,7 +148,17 @@ def _summary(
             for test_name in REQUIRED_STATISTICAL_DISTINGUISHER_TESTS
             if _mapping(suite.get(test_name), f"statistical suite.{test_name}").get("status") != "passed"
         )
-        statistical_status = "the statistical distinguisher suite failed: " + ", ".join(failed_tests)
+        if len(failed_tests) == 0:
+            reference_source = _required_string(
+                statistical_distinguisher_eval.get("reference_source"),
+                "statistical_distinguisher_eval.reference_source",
+            )
+            statistical_status = (
+                "the statistical distinguisher suite only uses reference_source="
+                f"{reference_source}, not provider-like or real-credential-distribution evidence"
+            )
+        else:
+            statistical_status = "the statistical distinguisher suite failed: " + ", ".join(failed_tests)
     return (
         "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner FP/FN "
         "evidence, gateway substitution, canary leak detection, provider-egress blocking, and redacted audit "
@@ -257,8 +271,9 @@ def _statistical_realism_check(
     statistical_distinguisher_eval: Mapping[str, object] | None,
 ) -> dict[str, JsonValue]:
     bounded_gate = generation_realism_eval.get("bounded_sanity_gate_passed") is True
-    statistical_suite_passed = _statistical_distinguisher_eval_passed(statistical_distinguisher_eval)
-    if bounded_gate and statistical_suite_passed:
+    statistical_suite_passed = _statistical_distinguisher_suite_passed(statistical_distinguisher_eval)
+    paper_reference_source = _statistical_distinguisher_reference_is_paper_sufficient(statistical_distinguisher_eval)
+    if bounded_gate and statistical_suite_passed and paper_reference_source:
         status = "met"
         gaps: tuple[str, ...] = ()
     elif bounded_gate and statistical_distinguisher_eval is None:
@@ -267,6 +282,17 @@ def _statistical_realism_check(
             "Paper evaluates statistical distinguishers such as character-entropy tests, bigram likelihood, "
             "numeric-substring tests, and a discriminator MLP; this report provides bounded aggregate sanity "
             "metrics but not the full sealed distinguisher suite.",
+        )
+    elif bounded_gate and statistical_suite_passed:
+        status = "partial"
+        reference_source = _required_string(
+            statistical_distinguisher_eval.get("reference_source"),
+            "statistical_distinguisher_eval.reference_source",
+        )
+        gaps = (
+            "The statistical distinguisher suite passed only against "
+            f"{reference_source}; paper-faithful+ requires provider-like or real-credential-distribution "
+            "reference evidence.",
         )
     elif bounded_gate:
         status = "partial"
@@ -297,7 +323,8 @@ def _statistical_realism_check(
             "generation_realism_schema_version": _json_value_or_none(generation_realism_eval.get("schema_version")),
             "generation_realism_status": _json_value_or_none(generation_realism_eval.get("status")),
             "bounded_sanity_gate_passed": bounded_gate,
-            "paper_faithful_statistical_distinguisher": statistical_suite_passed,
+            "synthetic_registry_statistical_distinguisher_passed": statistical_suite_passed,
+            "paper_faithful_statistical_distinguisher": statistical_suite_passed and paper_reference_source,
             "declared_paper_faithful_statistical_distinguisher": _json_value_or_none(
                 generation_realism_eval.get("paper_faithful_statistical_distinguisher")
             ),
@@ -307,6 +334,12 @@ def _statistical_realism_check(
             "format_count": _json_value_or_none(generation_realism_eval.get("format_count")),
             "statistical_distinguisher_eval_present": statistical_distinguisher_eval is not None,
             "statistical_distinguisher_eval_passed": statistical_suite_passed,
+            "paper_sufficient_reference_source": paper_reference_source,
+            "reference_source": _json_value_or_none(
+                None
+                if statistical_distinguisher_eval is None
+                else statistical_distinguisher_eval.get("reference_source")
+            ),
             "statistical_distinguisher_test_statuses": _statistical_distinguisher_test_statuses(
                 statistical_distinguisher_eval
             ),
@@ -318,21 +351,46 @@ def _statistical_realism_check(
 def _conformal_check(scanner_eval: Mapping[str, object]) -> dict[str, JsonValue]:
     calibration = _mapping(scanner_eval.get("conformal_calibration"), "scanner_eval.conformal_calibration")
     implemented = calibration.get("implemented") is True
-    status = "met" if implemented and calibration.get("status") == "split_conformal_confidence_threshold" else "missing"
+    target_alpha = _number_or_none(calibration.get("target_alpha"), "scanner_eval.conformal_calibration.target_alpha")
+    calibration_count = _int_or_none(
+        calibration.get("calibration_benign_count"),
+        "scanner_eval.conformal_calibration.calibration_benign_count",
+    )
+    paper_alpha = target_alpha is not None and target_alpha <= _MAX_PAPER_CONFORMAL_ALPHA
+    enough_calibration = (
+        calibration_count is not None and calibration_count >= _MIN_PAPER_BENIGN_CALIBRATION_COUNT
+    )
+    status = "met" if (
+        implemented
+        and calibration.get("status") == "split_conformal_confidence_threshold"
+        and paper_alpha
+        and enough_calibration
+    ) else "missing"
+    gaps: list[str] = []
+    if not implemented or calibration.get("status") != "split_conformal_confidence_threshold":
+        gaps.append("split conformal calibration evidence missing or malformed")
+    if not paper_alpha:
+        gaps.append("target_alpha must be <= 0.01 to match the paper's 0.99 coverage target")
+    if not enough_calibration:
+        gaps.append("benign calibration count must be >= 1000 for paper-shaped evidence")
     return _checklist_item(
         requirement_id="split_conformal_calibration",
         paper_requirement="Choose detector thresholds from held-out benign calibration scores at target alpha.",
         status=status,
         evidence={
             "target_alpha": _json_value_or_none(calibration.get("target_alpha")),
+            "target_coverage": _json_value_or_none(calibration.get("target_coverage")),
             "calibration_benign_count": _json_value_or_none(calibration.get("calibration_benign_count")),
             "threshold": _json_value_or_none(calibration.get("threshold")),
             "recommended_min_confidence": _json_value_or_none(calibration.get("recommended_min_confidence")),
             "empirical_calibration_false_positive_rate": _json_value_or_none(
                 calibration.get("empirical_calibration_false_positive_rate")
             ),
+            "empirical_calibration_coverage": _json_value_or_none(
+                calibration.get("empirical_calibration_coverage")
+            ),
         },
-        gaps=() if status == "met" else ("split conformal calibration evidence missing or malformed",),
+        gaps=tuple(gaps),
     )
 
 
@@ -342,19 +400,32 @@ def _scanner_fn_fp_check(scanner_eval: Mapping[str, object]) -> dict[str, JsonVa
     has_rates = all(
         key in scanner_eval for key in ("false_positive_rate", "false_negative_rate", "precision", "recall")
     )
-    status = "met" if has_counts and has_rates else "missing"
+    positive_count = _int_or_none(scanner_eval.get("positive_example_count"), "scanner_eval.positive_example_count")
+    negative_count = _int_or_none(scanner_eval.get("negative_example_count"), "scanner_eval.negative_example_count")
+    enough_positive = positive_count is not None and positive_count >= _MIN_PAPER_POSITIVE_EVAL_COUNT
+    enough_negative = negative_count is not None and negative_count >= _MIN_PAPER_BENIGN_EVAL_COUNT
+    status = "met" if has_counts and has_rates and enough_positive and enough_negative else "missing"
+    gaps: list[str] = []
+    if not has_counts or not has_rates:
+        gaps.append("scanner FP/FN evidence is incomplete")
+    if not enough_positive:
+        gaps.append("positive scanner eval count must be >= 1000")
+    if not enough_negative:
+        gaps.append("benign scanner eval count must be >= 1000")
     return _checklist_item(
         requirement_id="scanner_fn_fp",
         paper_requirement="Report canary detector false positives and false negatives separately.",
         status=status,
         evidence={
             "counts": _json_mapping_or_empty(counts),
+            "positive_example_count": _json_value_or_none(scanner_eval.get("positive_example_count")),
+            "negative_example_count": _json_value_or_none(scanner_eval.get("negative_example_count")),
             "precision": _json_value_or_none(scanner_eval.get("precision")),
             "recall": _json_value_or_none(scanner_eval.get("recall")),
             "false_positive_rate": _json_value_or_none(scanner_eval.get("false_positive_rate")),
             "false_negative_rate": _json_value_or_none(scanner_eval.get("false_negative_rate")),
         },
-        gaps=() if status == "met" else ("scanner FP/FN evidence is incomplete",),
+        gaps=tuple(gaps),
     )
 
 
@@ -468,6 +539,8 @@ def _redacted_audit_check(
 
 def _scanner_metrics(scanner_eval: Mapping[str, object]) -> dict[str, JsonValue]:
     return {
+        "target_alpha": _json_value_or_none(scanner_eval.get("target_alpha")),
+        "target_coverage": _json_value_or_none(scanner_eval.get("target_coverage")),
         "positive_example_count": _json_value_or_none(scanner_eval.get("positive_example_count")),
         "negative_example_count": _json_value_or_none(scanner_eval.get("negative_example_count")),
         "scannable_format_count": _json_value_or_none(scanner_eval.get("scannable_format_count")),
@@ -504,19 +577,29 @@ def _statistical_distinguisher_metrics(
         return {
             "present": False,
             "all_required_tests_passed": False,
+            "synthetic_registry_statistical_distinguisher_passed": False,
             "paper_faithful_statistical_distinguisher": False,
+            "paper_sufficient_reference_source": False,
             "test_statuses": {},
         }
+    reference_source = _required_string(
+        statistical_distinguisher_eval.get("reference_source"),
+        "statistical_distinguisher_eval.reference_source",
+    )
+    all_required_tests_passed = _bool(
+        statistical_distinguisher_eval.get("all_required_tests_passed"),
+        "statistical_distinguisher_eval.all_required_tests_passed",
+    )
     return {
         "present": True,
         "status": _json_value_or_none(statistical_distinguisher_eval.get("status")),
-        "reference_source": _json_value_or_none(statistical_distinguisher_eval.get("reference_source")),
+        "reference_source": reference_source,
         "train_count_per_format": _json_value_or_none(statistical_distinguisher_eval.get("train_count_per_format")),
         "test_count_per_format": _json_value_or_none(statistical_distinguisher_eval.get("test_count_per_format")),
         "alpha": _json_value_or_none(statistical_distinguisher_eval.get("alpha")),
-        "all_required_tests_passed": _json_value_or_none(
-            statistical_distinguisher_eval.get("all_required_tests_passed")
-        ),
+        "all_required_tests_passed": all_required_tests_passed,
+        "synthetic_registry_statistical_distinguisher_passed": all_required_tests_passed,
+        "paper_sufficient_reference_source": _reference_source_is_paper_sufficient(reference_source),
         "paper_faithful_statistical_distinguisher": _json_value_or_none(
             statistical_distinguisher_eval.get("paper_faithful_statistical_distinguisher")
         ),
@@ -745,11 +828,23 @@ def _validate_statistical_distinguisher_eval(report: Mapping[str, object]) -> Ma
         all_tests_passed,
         "statistical_distinguisher_eval.all_required_tests_passed",
     )
-    _consistent_bool(
+    declared_paper_faithful = _bool(
         report.get("paper_faithful_statistical_distinguisher"),
-        all_tests_passed,
         "statistical_distinguisher_eval.paper_faithful_statistical_distinguisher",
     )
+    reference_source = _required_string(
+        report.get("reference_source"),
+        "statistical_distinguisher_eval.reference_source",
+    )
+    if declared_paper_faithful and not all_tests_passed:
+        raise DPHoneyPaperEvidenceError(
+            "statistical_distinguisher_eval.paper_faithful_statistical_distinguisher requires all tests to pass."
+        )
+    if declared_paper_faithful and not _reference_source_is_paper_sufficient(reference_source):
+        raise DPHoneyPaperEvidenceError(
+            "statistical_distinguisher_eval.paper_faithful_statistical_distinguisher requires a provider-like "
+            "or real-credential-distribution reference source."
+        )
     return report
 
 
@@ -919,12 +1014,10 @@ def _full_statistical_distinguisher_suite_passed(generation_realism_eval: Mappin
     return True
 
 
-def _statistical_distinguisher_eval_passed(statistical_distinguisher_eval: Mapping[str, object] | None) -> bool:
+def _statistical_distinguisher_suite_passed(statistical_distinguisher_eval: Mapping[str, object] | None) -> bool:
     if statistical_distinguisher_eval is None:
         return False
     if statistical_distinguisher_eval.get("all_required_tests_passed") is not True:
-        return False
-    if statistical_distinguisher_eval.get("paper_faithful_statistical_distinguisher") is not True:
         return False
     suite = statistical_distinguisher_eval.get("statistical_distinguisher_suite")
     if not isinstance(suite, Mapping):
@@ -933,6 +1026,21 @@ def _statistical_distinguisher_eval_passed(statistical_distinguisher_eval: Mappi
         isinstance(suite.get(test_name), Mapping) and suite[test_name].get("status") == "passed"
         for test_name in REQUIRED_STATISTICAL_DISTINGUISHER_TESTS
     )
+
+
+def _statistical_distinguisher_reference_is_paper_sufficient(
+    statistical_distinguisher_eval: Mapping[str, object] | None,
+) -> bool:
+    if statistical_distinguisher_eval is None:
+        return False
+    reference_source = statistical_distinguisher_eval.get("reference_source")
+    if not isinstance(reference_source, str):
+        return False
+    return _reference_source_is_paper_sufficient(reference_source)
+
+
+def _reference_source_is_paper_sufficient(reference_source: str) -> bool:
+    return reference_source in {"provider_like_sealed_holdout", "real_credential_distribution_redacted_features"}
 
 
 def _statistical_distinguisher_test_statuses(
@@ -975,6 +1083,12 @@ def _int(value: object, field_name: str) -> int:
     return value
 
 
+def _int_or_none(value: object, field_name: str) -> int | None:
+    if value is None:
+        return None
+    return _int(value, field_name)
+
+
 def _positive_int(value: object, field_name: str) -> int:
     integer = _int(value, field_name)
     if integer < 1:
@@ -996,6 +1110,12 @@ def _finite_number(value: object, field_name: str) -> float:
     if not math.isfinite(numeric):
         raise DPHoneyPaperEvidenceError(f"{field_name} must be finite.")
     return numeric
+
+
+def _number_or_none(value: object, field_name: str) -> float | None:
+    if value is None:
+        return None
+    return _finite_number(value, field_name)
 
 
 def _rate_number(value: object, field_name: str) -> float:

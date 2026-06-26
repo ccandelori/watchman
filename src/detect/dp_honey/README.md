@@ -90,8 +90,10 @@ python -m detect.dp_honey scan --file suspect.txt
 python -m detect.dp_honey auto-decoy --file suspect.txt --seed 1
 
 # 11. Emit held-out scanner FP/FN evidence with conformal confidence calibration
-python -m detect.dp_honey eval-scanner --positive-per-format 25 --seed 11 \
-    --target-alpha 0.1 \
+python -m detect.dp_honey eval-scanner --positive-per-format 50 --seed 11 \
+    --target-alpha 0.01 \
+    --negative-count 1000 \
+    --calibration-count 1000 \
     --output introspection/data/reports/dp_honey_scanner_eval_v1.json
 
 # 12. Emit all-format generation-realism evidence without raw token values
@@ -143,8 +145,9 @@ paper's full statistical-distinguisher suite.
 entropy, bigram likelihood, numeric-substring features, and a discriminator MLP.
 It reports only aggregate metrics and pass/fail statuses. The current seeded v2
 artifact passes all four bounded same-format synthetic holdout tests. That is
-paper-faithful+ evidence for this local synthetic registry, not a production
-secret indistinguishability proof.
+useful local-registry evidence, but `paper_faithful_statistical_distinguisher`
+remains false until the reference source is provider-like or
+real-credential-distribution evidence.
 
 Prefix-less generic formats such as `aws-secret-access-key`, `oauth-bearer`, and
 `database-password` are excluded from registry classification to avoid noisy

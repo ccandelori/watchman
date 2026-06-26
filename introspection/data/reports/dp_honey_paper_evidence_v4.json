@@ -2,9 +2,9 @@
   "artifact_hashes": {
     "audit_jsonl_sha256": "91e5d770aad3b54aad41179f3375539a2da340b2baaa9614b03bb13b218816fc",
     "generation_realism_eval_sha256": "ae5cdffa01871844d7f634b2e5652d22713202243984b1c5d56a69a31b9a9e57",
-    "scanner_eval_sha256": "a2f0bf121607e13ca320c0b0bc1f46968a02c3fff25678bdf414349a63b3f13e",
+    "scanner_eval_sha256": "431cb44b62f329435508fb9ecff7fba06187a78d034e717d2b45b980d82f770d",
     "smoke_sha256": "0282c1c7edbebd22ebb111a55fcf13ab67b631e953c14715a5861d0389067859",
-    "statistical_distinguisher_eval_sha256": "215c91936ac69a19a09a873100ae9e40352de0da58a84eedac17cbdecdbcd5e8"
+    "statistical_distinguisher_eval_sha256": "51f8510a55feb9fcf81a8b9dfece7f750fdb7a526b798da3bd963795cbc7772d"
   },
   "checklist": [
     {
@@ -27,7 +27,7 @@
         "all_reference_tokens_valid": true,
         "all_scannable_positive_examples_detected": true,
         "generation_realism_format_count": 23,
-        "positive_example_count": 500,
+        "positive_example_count": 1000,
         "scannable_format_count": 20
       },
       "gaps": [],
@@ -50,7 +50,9 @@
           "character_entropy",
           "model_avg_log_likelihood"
         ],
-        "paper_faithful_statistical_distinguisher": true,
+        "paper_faithful_statistical_distinguisher": false,
+        "paper_sufficient_reference_source": false,
+        "reference_source": "same_format_uniform_synthetic_holdout",
         "statistical_distinguisher_eval_passed": true,
         "statistical_distinguisher_eval_present": true,
         "statistical_distinguisher_test_statuses": {
@@ -58,19 +60,24 @@
           "character_entropy_tests": "passed",
           "discriminator_mlp": "passed",
           "numeric_substring_tests": "passed"
-        }
+        },
+        "synthetic_registry_statistical_distinguisher_passed": true
       },
-      "gaps": [],
+      "gaps": [
+        "The statistical distinguisher suite passed only against same_format_uniform_synthetic_holdout; paper-faithful+ requires provider-like or real-credential-distribution reference evidence."
+      ],
       "paper_requirement": "Evaluate generated honeytokens against statistical distinguishers rather than only structural validity.",
       "requirement_id": "statistical_realism_distinguishers",
-      "status": "met"
+      "status": "partial"
     },
     {
       "evidence": {
-        "calibration_benign_count": 16,
+        "calibration_benign_count": 1000,
+        "empirical_calibration_coverage": 1.0,
         "empirical_calibration_false_positive_rate": 0.0,
         "recommended_min_confidence": "medium",
-        "target_alpha": 0.1,
+        "target_alpha": 0.01,
+        "target_coverage": 0.99,
         "threshold": 0.35
       },
       "gaps": [],
@@ -83,11 +90,13 @@
         "counts": {
           "false_negative": 0,
           "false_positive": 0,
-          "true_negative": 10,
-          "true_positive": 500
+          "true_negative": 1000,
+          "true_positive": 1000
         },
         "false_negative_rate": 0.0,
         "false_positive_rate": 0.0,
+        "negative_example_count": 1000,
+        "positive_example_count": 1000,
         "precision": 1.0,
         "recall": 1.0
       },
@@ -147,9 +156,9 @@
     }
   ],
   "checklist_summary": {
-    "met": 9,
+    "met": 8,
     "missing": 0,
-    "partial": 0,
+    "partial": 1,
     "total": 9
   },
   "component": "dp_honey",
@@ -189,28 +198,34 @@
     "spec_hash": "sha256:f1f83f62d0272ff1ae92df027581f84e3db7d4bcd8f5c1839401a13a1aea9ceb",
     "train_seed": 0
   },
-  "missing_before_paper_faithful_plus": [],
-  "paper_faithful_plus": true,
+  "missing_before_paper_faithful_plus": [
+    "The statistical distinguisher suite passed only against same_format_uniform_synthetic_holdout; paper-faithful+ requires provider-like or real-credential-distribution reference evidence."
+  ],
+  "paper_faithful_plus": false,
   "paper_source": "Research/2606.04141v1.pdf sections 4.3, 5.3, and 6",
-  "promotion_eligible": true,
-  "promotion_status": "paper_faithful_plus_candidate",
+  "promotion_eligible": false,
+  "promotion_status": "paper_aligned_operational_beta",
   "scanner_metrics": {
     "false_negative_rate": 0.0,
     "false_positive_rate": 0.0,
-    "negative_example_count": 10,
-    "positive_example_count": 500,
+    "negative_example_count": 1000,
+    "positive_example_count": 1000,
     "precision": 1.0,
     "recall": 1.0,
-    "scannable_format_count": 20
+    "scannable_format_count": 20,
+    "target_alpha": 0.01,
+    "target_coverage": 0.99
   },
   "schema_version": "aegis.dp_honey_paper_evidence/v1",
   "statistical_distinguisher_metrics": {
     "all_required_tests_passed": true,
     "alpha": 0.1,
-    "paper_faithful_statistical_distinguisher": true,
+    "paper_faithful_statistical_distinguisher": false,
+    "paper_sufficient_reference_source": false,
     "present": true,
     "reference_source": "same_format_uniform_synthetic_holdout",
     "status": "statistical_distinguisher_suite_evaluated",
+    "synthetic_registry_statistical_distinguisher_passed": true,
     "test_count_per_format": 25,
     "test_statuses": {
       "bigram_likelihood_tests": "passed",
@@ -220,5 +235,5 @@
     },
     "train_count_per_format": 25
   },
-  "summary": "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner FP/FN evidence, gateway substitution, canary leak detection, provider-egress blocking, redacted audit evidence, and a passed statistical distinguisher suite. This is paper-faithful+ evidence for the local synthetic DP-HONEY registry, not a production-secret indistinguishability proof."
+  "summary": "DP-HONEY has DP-noised bigram provenance, split-conformal scanner calibration, held-out scanner FP/FN evidence, gateway substitution, canary leak detection, provider-egress blocking, and redacted audit evidence. It remains a paper-aligned operational beta because the statistical distinguisher suite only uses reference_source=same_format_uniform_synthetic_holdout, not provider-like or real-credential-distribution evidence."
 }
