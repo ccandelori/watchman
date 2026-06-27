@@ -305,8 +305,9 @@ def _statistical_realism_check(
         )
     elif bounded_gate and statistical_suite_passed:
         status = "partial"
+        statistical_eval = cast(Mapping[str, object], statistical_distinguisher_eval)
         reference_source = _required_string(
-            statistical_distinguisher_eval.get("reference_source"),
+            statistical_eval.get("reference_source"),
             "statistical_distinguisher_eval.reference_source",
         )
         gaps = (
@@ -316,8 +317,9 @@ def _statistical_realism_check(
         )
     elif bounded_gate:
         status = "partial"
+        statistical_eval = cast(Mapping[str, object], statistical_distinguisher_eval)
         suite = _mapping(
-            statistical_distinguisher_eval.get("statistical_distinguisher_suite"),
+            statistical_eval.get("statistical_distinguisher_suite"),
             "statistical_distinguisher_eval.statistical_distinguisher_suite",
         )
         failed_tests = tuple(

@@ -7,6 +7,7 @@ import sys
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import cast
 
 from aegis.core.contracts import JsonValue
 
@@ -132,8 +133,8 @@ def build_nimbus_promotion_evidence_report(config: NimbusPromotionEvidenceConfig
             comparison=comparison,
         ),
         "comparison": comparison,
-        "promotion_gates": promotion_gates,
-        "checklist": checklist,
+        "promotion_gates": cast(JsonValue, promotion_gates),
+        "checklist": cast(JsonValue, checklist),
         "checklist_summary": checklist_summary,
         "missing_before_paper_faithful_learned_promotion": missing,
     }
@@ -666,7 +667,9 @@ def _promotion_gates(
         _gate_item(
             gate_id="live_gateway_metrics",
             status=_live_gateway_gate_status(gateway_evidence),
-            evidence=gateway_evidence["learned_gateway_metrics"],
+            evidence=_json_mapping_from_json(
+                gateway_evidence.get("learned_gateway_metrics"), "learned_gateway_metrics"
+            ),
             gaps=_live_gateway_gate_gaps(gateway_evidence),
         ),
         _gate_item(
@@ -686,9 +689,12 @@ def _promotion_gates(
             status="partial",
             evidence={
                 "input_artifact_hashes_bound": True,
-                "learned_gateway_critic_binding": _json_mapping_from_json(
-                    gateway_evidence["learned_gateway_critic_binding"],
-                    "learned_gateway_critic_binding",
+                "learned_gateway_critic_binding": cast(
+                    JsonValue,
+                    _json_mapping_from_json(
+                        gateway_evidence.get("learned_gateway_critic_binding"),
+                        "learned_gateway_critic_binding",
+                    ),
                 ),
                 "model_artifact_sha_present_in_live_smoke": _live_model_sha_present(gateway_evidence),
                 "promoted_runtime_manifest_present": False,
@@ -743,7 +749,7 @@ def _promotion_decision(promotion_gates: Sequence[Mapping[str, JsonValue]]) -> d
         "promote_hybrid_runtime": False,
         "keep_deterministic_default": True,
         "reject_learned_runtime": True,
-        "blocking_gate_ids": blocking_gate_ids,
+        "blocking_gate_ids": cast(JsonValue, blocking_gate_ids),
         "rationale": (
             "Learned NIMBUS has useful beta metrics, but promotion requires all gates to pass. "
             "The current package lacks common live head-to-head evidence, latency evidence, hybrid-policy "
@@ -1152,10 +1158,10 @@ def _gateway_learned_critic_binding(
 ) -> dict[str, JsonValue]:
     if runtime_critic_kind != "learned_infonce_beta":
         return {
-            "model_artifact_sha256s": [],
-            "selected_context_sha256s": [],
-            "negative_context_counts": [],
-            "candidate_counts": [],
+            "model_artifact_sha256s": cast(JsonValue, []),
+            "selected_context_sha256s": cast(JsonValue, []),
+            "negative_context_counts": cast(JsonValue, []),
+            "candidate_counts": cast(JsonValue, []),
         }
     model_shas: set[str] = set()
     context_shas: set[str] = set()
@@ -1177,10 +1183,10 @@ def _gateway_learned_critic_binding(
         _collect_optional_int(summary, "negative_context_count", negative_counts)
         _collect_optional_int(summary, "candidate_count", candidate_counts)
     return {
-        "model_artifact_sha256s": sorted(model_shas),
-        "selected_context_sha256s": sorted(context_shas),
-        "negative_context_counts": sorted(negative_counts),
-        "candidate_counts": sorted(candidate_counts),
+        "model_artifact_sha256s": cast(JsonValue, sorted(model_shas)),
+        "selected_context_sha256s": cast(JsonValue, sorted(context_shas)),
+        "negative_context_counts": cast(JsonValue, sorted(negative_counts)),
+        "candidate_counts": cast(JsonValue, sorted(candidate_counts)),
     }
 
 
@@ -1440,7 +1446,7 @@ def _json_mapping(value: Mapping[str, object]) -> dict[str, JsonValue]:
     return result
 
 
-def _json_mapping_from_json(value: JsonValue | None, context: str) -> Mapping[str, JsonValue]:
+def _json_mapping_from_json(value: JsonValue | None, context: str) -> dict[str, JsonValue]:
     if not isinstance(value, dict):
         raise NimbusPromotionEvidenceError(f"{context} must be an object.")
     return value
@@ -1468,7 +1474,7 @@ def _json_float(value: JsonValue | None, context: str) -> float:
     return float(value)
 
 
-def _json_float_or_none(value: JsonValue | None, context: str) -> JsonValue:
+def _json_float_or_none(value: JsonValue | None, context: str) -> float | None:
     if value is None:
         return None
     return _json_float(value, context)

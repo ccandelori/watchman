@@ -338,10 +338,10 @@ def nimbus_training_manifest(records: tuple[NimbusTrainingTurnRecord, ...]) -> d
     for record in records:
         validate_nimbus_training_record(record)
     corpus_profile = _corpus_profile_for_records(records)
-    label_counts = _counts(record.leakage_label.value for record in records)
-    scenario_counts = _counts(record.scenario_name for record in records)
-    session_counts = _counts(record.session_id for record in records)
-    split_group_counts = _counts(record.split_group_key for record in records)
+    label_counts = _counts(tuple(record.leakage_label.value for record in records))
+    scenario_counts = _counts(tuple(record.scenario_name for record in records))
+    session_counts = _counts(tuple(record.session_id for record in records))
+    split_group_counts = _counts(tuple(record.split_group_key for record in records))
     quality_gates = (
         _quality_gate(
             name="expected_negative_context_count",
@@ -352,14 +352,14 @@ def nimbus_training_manifest(records: tuple[NimbusTrainingTurnRecord, ...]) -> d
         _quality_gate(
             name="label_coverage",
             passed=set(label_counts) == {label.value for label in NimbusLeakageLabel},
-            observed=sorted(label_counts),
-            required=sorted(label.value for label in NimbusLeakageLabel),
+            observed=cast(JsonValue, sorted(label_counts)),
+            required=cast(JsonValue, sorted(label.value for label in NimbusLeakageLabel)),
         ),
         _quality_gate(
             name="scenario_family_coverage",
             passed=set(_REQUIRED_SCENARIO_NAMES).issubset(set(scenario_counts)),
-            observed=sorted(scenario_counts),
-            required=list(_REQUIRED_SCENARIO_NAMES),
+            observed=cast(JsonValue, sorted(scenario_counts)),
+            required=cast(JsonValue, list(_REQUIRED_SCENARIO_NAMES)),
         ),
         _quality_gate(
             name="credential_shaped_material_absent",
@@ -382,8 +382,8 @@ def nimbus_training_manifest(records: tuple[NimbusTrainingTurnRecord, ...]) -> d
         _quality_gate(
             name="paper_reference_turn_count",
             passed=set(session_counts.values()) == {NIMBUS_REFERENCE_TURNS_PER_CONVERSATION},
-            observed=sorted(set(session_counts.values())),
-            required=[NIMBUS_REFERENCE_TURNS_PER_CONVERSATION],
+            observed=cast(JsonValue, sorted(set(session_counts.values()))),
+            required=cast(JsonValue, [NIMBUS_REFERENCE_TURNS_PER_CONVERSATION]),
         ),
         _quality_gate(
             name="paper_reference_attack_turn_range",

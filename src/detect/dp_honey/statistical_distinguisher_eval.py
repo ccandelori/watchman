@@ -16,7 +16,7 @@ from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 import numpy as np
 
@@ -26,6 +26,7 @@ from .bigram import (
     DEFAULT_EPSILON,
     DEFAULT_TRAIN_SEED,
     START,
+    BigramHoneytokenModel,
     build_model,
     segment_char_state,
     segment_start_state,
@@ -156,7 +157,7 @@ class _ReferenceFeatureCorpus:
 @dataclass(frozen=True)
 class _FormatSamples:
     spec: FormatSpec
-    model: object
+    model: BigramHoneytokenModel
     generated_train: tuple[str, ...]
     reference_train: tuple[str, ...]
     generated_test: tuple[str, ...]
@@ -206,7 +207,7 @@ def build_statistical_distinguisher_eval_report(
         "all_required_tests_passed": all_required_tests_passed,
         "synthetic_registry_statistical_distinguisher_passed": all_required_tests_passed,
         "paper_faithful_statistical_distinguisher": all_required_tests_passed and paper_sufficient_reference_source,
-        "statistical_distinguisher_suite": suite,
+        "statistical_distinguisher_suite": cast(JsonValue, suite),
         "audit_safety": {
             "raw_secret_values_in_report": False,
             "finding_payload_redacted": True,
@@ -339,7 +340,7 @@ def _build_reference_feature_record(
     }
 
 
-def _build_reference_feature_split(tokens: tuple[str, ...], model: object) -> dict[str, JsonValue]:
+def _build_reference_feature_split(tokens: tuple[str, ...], model: BigramHoneytokenModel) -> dict[str, JsonValue]:
     report = compute_report(list(tokens), model)
     numeric = _numeric_profile(tokens)
     return {
@@ -353,7 +354,7 @@ def _build_reference_feature_split(tokens: tuple[str, ...], model: object) -> di
             "numeric_run_p95_length": numeric.numeric_run_p95_length,
             "numeric_run_max_length": numeric.numeric_run_max_length,
         },
-        "features": [_token_features(token, model) for token in tokens],
+        "features": cast(JsonValue, [_token_features(token, model) for token in tokens]),
     }
 
 
@@ -457,7 +458,7 @@ def _limits_for_reference_source(
     reference_source: str,
     reference_corpus: _ReferenceFeatureCorpus | None,
 ) -> list[JsonValue]:
-    limits = [
+    limits: list[JsonValue] = [
         "No generated or reference token values are serialized in this report.",
         "Passing means these bounded distinguishers did not separate generated tokens from the configured "
         "reference beyond thresholds; it is not a computational indistinguishability proof.",
@@ -585,7 +586,7 @@ def _character_entropy_tests(
             "threshold_mean_abs_delta_bits": MAX_CHAR_ENTROPY_MEAN_ABS_DELTA_BITS,
             "threshold_format_abs_delta_bits": MAX_CHAR_ENTROPY_FORMAT_ABS_DELTA_BITS,
         },
-        "format_metrics": metrics,
+        "format_metrics": cast(JsonValue, metrics),
     }
 
 
@@ -627,7 +628,7 @@ def _bigram_likelihood_tests(
             "threshold_mean_abs_delta": MAX_BIGRAM_LIKELIHOOD_MEAN_ABS_DELTA,
             "threshold_format_abs_delta": MAX_BIGRAM_LIKELIHOOD_FORMAT_ABS_DELTA,
         },
-        "format_metrics": metrics,
+        "format_metrics": cast(JsonValue, metrics),
     }
 
 
@@ -702,7 +703,7 @@ def _numeric_substring_tests(
             "threshold_numeric_run_avg_length_abs_delta": MAX_NUMERIC_RUN_AVG_LENGTH_FORMAT_ABS_DELTA,
             "threshold_numeric_run_p95_length_abs_delta": MAX_NUMERIC_RUN_P95_LENGTH_FORMAT_ABS_DELTA,
         },
-        "format_metrics": metrics,
+        "format_metrics": cast(JsonValue, metrics),
     }
 
 
@@ -797,7 +798,7 @@ def _reference_numeric_profile(sample: _FormatSamples) -> _NumericProfile:
     return _numeric_profile(sample.reference_test)
 
 
-def _token_features(token: str, model: object) -> list[float]:
+def _token_features(token: str, model: BigramHoneytokenModel) -> list[float]:
     numeric = _numeric_profile((token,))
     length = len(token)
     digit_count = sum(1 for char in token if char.isdigit())
@@ -918,7 +919,7 @@ def _single_token_entropy_bits(token: str) -> float:
     return entropy
 
 
-def _token_avg_log_likelihood(model: object, token: str) -> float:
+def _token_avg_log_likelihood(model: BigramHoneytokenModel, token: str) -> float:
     spec = model.format_spec
     variables = spec.extract_variables(token)
     if variables is None:
@@ -937,7 +938,14 @@ def _token_avg_log_likelihood(model: object, token: str) -> float:
     return (total_log / total_chars) if total_chars > 0 else 0.0
 
 
-def _char_probability(model: object, state: str, char: str, alphabet: str, *, fallback_state: str | None) -> float:
+def _char_probability(
+    model: BigramHoneytokenModel,
+    state: str,
+    char: str,
+    alphabet: str,
+    *,
+    fallback_state: str | None,
+) -> float:
     row = model.transitions.get(state, {})
     if not row and fallback_state is not None:
         row = model.transitions.get(fallback_state, {})
@@ -1034,7 +1042,7 @@ def _sha256_file(path: Path) -> str:
 
 def _sigmoid(logits: np.ndarray) -> np.ndarray:
     clipped = np.clip(logits, -50.0, 50.0)
-    return 1.0 / (1.0 + np.exp(-clipped))
+    return cast(np.ndarray, 1.0 / (1.0 + np.exp(-clipped)))
 
 
 def _test_passed(result: JsonValue) -> bool:

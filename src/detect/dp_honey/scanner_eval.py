@@ -6,7 +6,7 @@ import json
 import math
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 import numpy as np
 
@@ -110,13 +110,13 @@ def build_scanner_eval_report(config: DPHoneyScannerEvalConfig) -> dict[str, Jso
         "scannable_format_count": len(scannable_specs),
         "positive_example_count": positive_count,
         "negative_example_count": negative_count,
-        "counts": counts.to_dict(),
+        "counts": cast(JsonValue, counts.to_dict()),
         "precision": _safe_rate(counts.true_positive, detected_count),
         "recall": _safe_rate(counts.true_positive, positive_count),
         "false_positive_rate": _safe_rate(counts.false_positive, negative_count),
         "false_negative_rate": _safe_rate(counts.false_negative, positive_count),
         "one_token_detection": counts.false_negative == 0,
-        "format_metrics": [metric.to_dict() for metric in positive_metrics],
+        "format_metrics": cast(JsonValue, [metric.to_dict() for metric in positive_metrics]),
         "conformal_calibration": calibration,
         "audit_safety": {
             "raw_secret_values_in_report": False,
@@ -147,7 +147,7 @@ def _calibrate_confidence_threshold(config: DPHoneyScannerEvalConfig) -> dict[st
         "target_coverage": 1.0 - config.target_alpha,
         "calibration_benign_count": len(scores),
         "calibration_score_max": max(scores),
-        "calibration_score_values": sorted(set(scores)),
+        "calibration_score_values": cast(JsonValue, sorted(set(scores))),
         "quantile_rank": _conformal_rank(len(scores), config.target_alpha),
         "threshold": threshold,
         "score_rule": "detect if max_confidence_score > threshold",

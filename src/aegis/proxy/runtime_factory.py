@@ -275,6 +275,10 @@ def _gateway_smoke_bootstrap_window_selector_capability(
         raise ProxyConfigError("self_hosted_window_selector requires selected_choice_model_path.")
     if config.required_device is None:
         raise ProxyConfigError("self_hosted_window_selector requires required_device.")
+    if config.selected_choice_readout_token_count is None:
+        raise ProxyConfigError("self_hosted_window_selector requires selected_choice_readout_token_count.")
+    if config.selected_choice_readout_token_count < 1:
+        raise ProxyConfigError("self_hosted_window_selector selected_choice_readout_token_count must be positive.")
     try:
         runtime_model_sha256 = _sha256_file(config.selected_choice_model_path)
         runtime_model = load_cift_runtime_model_with_sha256(
