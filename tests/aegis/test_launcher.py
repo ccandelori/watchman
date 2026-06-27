@@ -3,8 +3,8 @@ from __future__ import annotations
 import subprocess
 import sys
 import time
+from collections.abc import Callable
 from pathlib import Path
-from typing import Callable
 
 from fastapi.testclient import TestClient
 
