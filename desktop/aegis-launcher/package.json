@@ -1,0 +1,45 @@
+{
+  "name": "@aegis/watchman-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "macOS desktop launcher for Aegis Watchman local protection.",
+  "main": "src/main.js",
+  "type": "commonjs",
+  "scripts": {
+    "dev": "electron .",
+    "start": "electron .",
+    "pack:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dir --arm64",
+    "dist:mac": "CSC_IDENTITY_AUTO_DISCOVERY=false electron-builder --mac dmg --arm64",
+    "test": "node --test test/*.test.js"
+  },
+  "build": {
+    "appId": "dev.gauntlet-aegis.watchman",
+    "productName": "Aegis Watchman",
+    "asar": true,
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "package.json",
+      "src/**/*",
+      "renderer/**/*"
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dir",
+        "dmg"
+      ]
+    },
+    "dmg": {
+      "artifactName": "Aegis-Watchman-${version}-${arch}.${ext}"
+    }
+  },
+  "devDependencies": {
+    "electron": "^41.2.1",
+    "electron-builder": "^26.15.3"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

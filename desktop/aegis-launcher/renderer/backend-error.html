@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aegis Watchman</title>
+  <link rel="stylesheet" href="backend-error.css" />
+</head>
+<body>
+  <div class="window-grip" aria-hidden="true"></div>
+  <main class="error-shell">
+    <section class="error-panel">
+      <p class="eyebrow">Launcher backend</p>
+      <h1>Aegis could not start the local control plane.</h1>
+      <p class="lead">The desktop app starts the existing Python launcher, then opens the local setup surface inside this window.</p>
+      <div class="facts" id="facts"></div>
+      <div class="actions">
+        <button id="select-repo" class="button primary" type="button">Select Aegis Folder</button>
+        <button id="retry" class="button primary" type="button">Retry</button>
+        <button id="open-browser" class="button" type="button">Open Web Fallback</button>
+      </div>
+      <details class="logs" open>
+        <summary>Backend output</summary>
+        <pre id="log-output">No output yet.</pre>
+      </details>
+    </section>
+  </main>
+  <script src="backend-error.js"></script>
+</body>
+</html>

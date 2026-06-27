@@ -1,0 +1,312 @@
+:root {
+  color-scheme: light;
+  --page: oklch(0.96 0.022 96);
+  --surface: oklch(0.985 0.012 96);
+  --surface-2: oklch(0.91 0.035 96);
+  --ink: oklch(0.18 0.03 245);
+  --muted: oklch(0.36 0.026 245);
+  --green-2: oklch(0.84 0.12 154);
+  --amber-2: oklch(0.91 0.14 92);
+  --red-2: oklch(0.86 0.095 28);
+  --border: 3px solid var(--ink);
+  --line: 2px solid var(--ink);
+  --shadow: 8px 8px 0 var(--ink);
+  --shadow-small: 4px 4px 0 var(--ink);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  background: var(--page);
+  color: var(--ink);
+}
+
+.window-grip {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: grid;
+  min-height: 34px;
+  place-items: center;
+  border-bottom: var(--border);
+  background: var(--amber-2);
+  padding-left: 84px;
+  user-select: none;
+  cursor: move;
+  -webkit-app-region: drag;
+}
+
+.window-grip::after {
+  width: 128px;
+  height: 10px;
+  border-top: var(--line);
+  border-bottom: var(--line);
+  background: repeating-linear-gradient(
+    90deg,
+    var(--ink) 0,
+    var(--ink) 2px,
+    transparent 2px,
+    transparent 12px
+  );
+  content: "";
+}
+
+button {
+  font: inherit;
+}
+
+h1,
+p {
+  margin-top: 0;
+}
+
+h1 {
+  max-width: 720px;
+  margin-bottom: 14px;
+  font-size: 44px;
+  line-height: 0.98;
+  letter-spacing: 0;
+}
+
+.error-shell {
+  display: grid;
+  min-height: calc(100vh - 34px);
+  place-items: center;
+  padding: 40px;
+}
+
+.error-panel {
+  width: min(920px, 100%);
+  border: var(--border);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 34px;
+}
+
+.eyebrow {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 12px;
+  border: var(--line);
+  padding: 5px 9px;
+  background: var(--green-2);
+  font-size: 12px;
+  font-weight: 880;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  box-shadow: var(--shadow-small);
+}
+
+.lead {
+  max-width: 65ch;
+  color: var(--muted);
+  font-size: 18px;
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border: var(--line);
+  margin: 24px 0;
+}
+
+.fact {
+  display: grid;
+  gap: 3px;
+  border-right: var(--line);
+  border-bottom: var(--line);
+  padding: 12px;
+  background: var(--surface-2);
+}
+
+.fact:nth-child(2n) {
+  border-right: 0;
+}
+
+.fact span {
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 760;
+}
+
+.fact strong {
+  overflow-wrap: anywhere;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-bottom: 24px;
+  -webkit-app-region: no-drag;
+}
+
+.button {
+  min-height: 42px;
+  border: var(--line);
+  background: var(--surface);
+  color: var(--ink);
+  padding: 0 16px;
+  font-weight: 900;
+  box-shadow: var(--shadow-small);
+  cursor: pointer;
+}
+
+.button:hover,
+.button:focus-visible {
+  transform: translate(-1px, -1px);
+  outline: none;
+  box-shadow: 5px 5px 0 var(--ink);
+}
+
+.button.primary {
+  background: var(--amber-2);
+}
+
+.logs {
+  border: var(--line);
+  background: var(--red-2);
+}
+
+.logs summary {
+  cursor: pointer;
+  padding: 12px;
+  font-weight: 900;
+}
+
+.logs pre {
+  max-height: 260px;
+  margin: 0;
+  overflow: auto;
+  border-top: var(--line);
+  padding: 14px;
+  background: var(--ink);
+  color: var(--surface);
+  white-space: pre-wrap;
+}
+
+/* Native-soft visual pass for first-run and backend recovery states. */
+:root {
+  --page: oklch(0.955 0.018 252);
+  --surface: oklch(0.982 0.009 252);
+  --surface-2: oklch(0.948 0.016 252);
+  --ink: oklch(0.23 0.035 258);
+  --muted: oklch(0.49 0.03 258);
+  --green-2: oklch(0.92 0.055 158);
+  --amber-2: oklch(0.94 0.055 78);
+  --red-2: oklch(0.94 0.045 28);
+  --blue: oklch(0.51 0.19 262);
+  --blue-2: oklch(0.92 0.045 262);
+  --hairline: oklch(0.78 0.025 252);
+  --glow: oklch(1 0.004 252 / 0.95);
+  --shade: oklch(0.52 0.045 258 / 0.16);
+  --border: 1px solid var(--hairline);
+  --line: 1px solid oklch(0.82 0.02 252);
+  --shadow: 18px 18px 34px var(--shade), -14px -14px 28px var(--glow);
+  --shadow-small: 8px 8px 18px oklch(0.52 0.045 258 / 0.12), -7px -7px 15px var(--glow);
+  --shadow-pressed: inset 7px 7px 14px oklch(0.52 0.045 258 / 0.14), inset -7px -7px 14px var(--glow);
+}
+
+body {
+  background:
+    radial-gradient(circle at 18% 0%, oklch(0.985 0.014 240) 0, transparent 32%),
+    linear-gradient(145deg, oklch(0.965 0.018 245), var(--page));
+}
+
+h1 {
+  font-size: 40px;
+  font-weight: 760;
+  line-height: 1.04;
+}
+
+.window-grip {
+  min-height: 34px;
+  border-bottom: var(--line);
+  background: var(--surface-2);
+  cursor: default;
+}
+
+.window-grip::after {
+  width: 108px;
+  height: 5px;
+  border: 0;
+  border-radius: 999px;
+  background: oklch(0.75 0.025 252);
+  box-shadow: var(--shadow-pressed);
+}
+
+.error-shell {
+  background: transparent;
+}
+
+.error-panel {
+  border: var(--border);
+  border-radius: 28px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+
+.eyebrow {
+  border: 0;
+  border-radius: 999px;
+  background: var(--blue-2);
+  color: var(--blue);
+  box-shadow: var(--shadow-pressed);
+  font-weight: 760;
+}
+
+.facts,
+.fact {
+  border-color: oklch(0.82 0.02 252);
+}
+
+.facts {
+  border-radius: 18px;
+  overflow: hidden;
+}
+
+.fact {
+  background: transparent;
+}
+
+.button {
+  border: 0;
+  border-radius: 999px;
+  background: var(--surface);
+  color: var(--ink);
+  font-weight: 740;
+  box-shadow: var(--shadow-small);
+  transition: box-shadow 180ms ease, transform 180ms ease, background 180ms ease;
+}
+
+.button:hover,
+.button:focus-visible {
+  transform: translateY(-1px);
+  outline: none;
+  box-shadow: 10px 10px 20px oklch(0.52 0.045 258 / 0.16), -8px -8px 18px var(--glow);
+}
+
+.button.primary {
+  background: var(--blue);
+  color: oklch(0.975 0.01 252);
+}
+
+.logs {
+  overflow: hidden;
+  border: var(--border);
+  border-radius: 18px;
+  background: var(--surface-2);
+}
+
+.logs pre {
+  border-top: var(--line);
+  background: oklch(0.22 0.035 258);
+  color: oklch(0.965 0.012 252);
+}

@@ -7,7 +7,7 @@ from pathlib import Path
 from fastapi.testclient import TestClient
 
 from aegis.console.app import create_app
-from aegis.console.service import ConsoleSettings, console_events, console_overview
+from aegis.console.service import ConsoleSettings, console_events, console_latency_summary, console_overview
 from aegis.core.contracts import JsonValue
 
 
@@ -174,8 +174,44 @@ def test_console_events_use_sample_audit_when_live_audit_is_empty(tmp_path: Path
     ]
     assert {stage["status"] for stage in timeline} <= {"passed", "blocked", "warned", "skipped", "unavailable"}
     assert timeline[3]["status"] == "blocked"
+    assert events["events"][0]["latency_ms"] == 1.0
+    assert events["events"][0]["runtime_evidence"]["detector_latency_ms"] is None
+    assert events["events"][0]["detector_results"][0]["latency_ms"] == 4.0
+    latency = console_latency_summary(events)
+
+    assert latency["request_latency_ms"] == {
+        "count": 1,
+        "p50": 1.0,
+        "p95": 1.0,
+        "min": 1.0,
+        "max": 1.0,
+    }
+    assert latency["detector_latency_by_name_ms"]["cift_runtime"]["p50"] == 4.0
+    assert latency["detector_latency_by_name_ms"]["provider_egress_guard"]["p50"] == 0.0
     assert "matches" not in json.dumps(events, sort_keys=True)
     assert "synthetic-sensitive-marker" not in json.dumps(events, sort_keys=True)
+
+
+def test_console_events_limits_sample_audit_newest_first(tmp_path: Path) -> None:
+    audit_path = tmp_path / "audit.jsonl"
+    records = [
+        {**_audit_record(), "trace_id": f"trace-{index}", "latency_ms": float(index)}
+        for index in range(4)
+    ]
+    audit_path.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
+    settings = _settings(sample_audit_jsonl_path=audit_path)
+
+    events = console_events(settings=settings, fetcher=_gateway_fetcher(events=()), limit=2, session_id=None)
+    latency = console_latency_summary(events)
+
+    assert [event["trace_id"] for event in events["events"]] == ["trace-3", "trace-2"]
+    assert latency["request_latency_ms"] == {
+        "count": 2,
+        "p50": 2.5,
+        "p95": 3.0,
+        "min": 2.0,
+        "max": 3.0,
+    }
 
 
 def test_console_app_serves_static_shell_and_api() -> None:

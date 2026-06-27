@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import math
 import os
 import urllib.error
 import urllib.parse
@@ -66,17 +67,26 @@ def settings_from_env(env: Mapping[str, str]) -> ConsoleSettings:
 
 
 def console_overview(settings: ConsoleSettings, fetcher: GatewayFetcher) -> dict[str, JsonValue]:
+    events = console_events(settings=settings, fetcher=fetcher, limit=20, session_id=None)
+    return console_overview_from_events(settings=settings, fetcher=fetcher, events_payload=events)
+
+
+def console_overview_from_events(
+    settings: ConsoleSettings,
+    fetcher: GatewayFetcher,
+    events_payload: Mapping[str, JsonValue],
+) -> dict[str, JsonValue]:
     health = _endpoint(settings=settings, fetcher=fetcher, path="/health", query=())
     readiness = _endpoint(settings=settings, fetcher=fetcher, path="/ready", query=())
     capabilities = _endpoint(settings=settings, fetcher=fetcher, path="/aegis/capabilities", query=())
-    events = console_events(settings=settings, fetcher=fetcher, limit=20, session_id=None)
-    last_event = _first_event(events)
+    last_event = _first_event(events_payload)
     protection = _protection_summary(
         settings=settings,
         health=health,
         readiness=readiness,
         capabilities=capabilities,
     )
+    smoke_report = _smoke_report_summary(settings.smoke_report_path)
     return {
         "schema_version": CONSOLE_OVERVIEW_SCHEMA_VERSION,
         "gateway": {
@@ -91,13 +101,43 @@ def console_overview(settings: ConsoleSettings, fetcher: GatewayFetcher) -> dict
             readiness=readiness,
             capabilities=capabilities,
             last_event=last_event,
-            smoke_report=_smoke_report_summary(settings.smoke_report_path),
+            smoke_report=smoke_report,
         ),
         "model": _model_summary(readiness=readiness, capabilities=capabilities, last_event=last_event),
         "cift": _cift_summary(readiness=readiness, capabilities=capabilities),
         "nimbus": _nimbus_summary(readiness=readiness, capabilities=capabilities),
         "last_request": last_event,
-        "last_smoke": _smoke_report_summary(settings.smoke_report_path),
+        "last_smoke": smoke_report,
+    }
+
+
+def console_latency_summary(events_payload: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    events = _event_summaries(events_payload)
+    request_latencies = [_number(event.get("latency_ms")) for event in events]
+    detector_latencies: dict[str, list[float]] = {}
+    for event in events:
+        detector_results = event.get("detector_results")
+        if not isinstance(detector_results, list):
+            continue
+        for detector in detector_results:
+            if not isinstance(detector, dict):
+                continue
+            name = detector.get("detector_name")
+            latency = _number(detector.get("latency_ms"))
+            if not isinstance(name, str) or latency is None:
+                continue
+            detector_latencies.setdefault(name, []).append(latency)
+    detector_values = [value for values in detector_latencies.values() for value in values]
+    return {
+        "request_latency_ms": _latency_stats([value for value in request_latencies if value is not None]),
+        "detector_latency_ms": _latency_stats(detector_values),
+        "detector_latency_by_name_ms": {
+            name: _latency_stats(values) for name, values in sorted(detector_latencies.items())
+        },
+        "direct_provider_baseline": {
+            "status": "not_measured",
+            "detail": "Run a paired provider benchmark before claiming direct-provider overhead.",
+        },
     }
 
 
@@ -116,7 +156,11 @@ def console_events(
     source = "gateway_audit_recent"
     raw_events = _events_from_endpoint(audit_recent)
     if len(raw_events) == 0 and settings.sample_audit_jsonl_path is not None:
-        raw_events = read_jsonl_audit_records(settings.sample_audit_jsonl_path)
+        raw_events = _recent_jsonl_audit_records(
+            path=settings.sample_audit_jsonl_path,
+            limit=limit,
+            session_id=session_id,
+        )
         source = "sample_audit_jsonl"
     event_summaries = tuple(_event_summary(event) for event in raw_events)
     return {
@@ -622,6 +666,7 @@ def _event_summary(record: dict[str, JsonValue]) -> dict[str, JsonValue]:
         "trace_id": record.get("trace_id"),
         "session_id": record.get("session_id"),
         "turn_index": record.get("turn_index"),
+        "latency_ms": record.get("latency_ms"),
         "final_action": policy.get("final_action"),
         "reason": policy.get("reason"),
         "provider_status": provider_state.get("status") or _provider_status_from_model_response(model_response),
@@ -844,6 +889,8 @@ def _runtime_evidence_summary(runtime_evidence: Mapping[str, JsonValue]) -> dict
         "policy_mode": runtime_evidence.get("policy_mode"),
         "provider_state": runtime_evidence.get("provider_state"),
         "credential_slot_status": runtime_evidence.get("credential_slot_status"),
+        "latency_ms": runtime_evidence.get("latency_ms"),
+        "detector_latency_ms": runtime_evidence.get("detector_latency_ms"),
         "detector_versions": runtime_evidence.get("detector_versions"),
         "artifact_hashes": runtime_evidence.get("artifact_hashes"),
         "cift": runtime_evidence.get("cift"),
@@ -876,6 +923,17 @@ def _events_from_endpoint(endpoint: Mapping[str, JsonValue]) -> tuple[dict[str, 
         if isinstance(event, dict):
             records.append(event)
     return tuple(records)
+
+
+def _recent_jsonl_audit_records(
+    path: Path,
+    limit: int,
+    session_id: str | None,
+) -> tuple[dict[str, JsonValue], ...]:
+    records = read_jsonl_audit_records(path)
+    if session_id is not None:
+        records = tuple(record for record in records if record.get("session_id") == session_id)
+    return tuple(reversed(records[-limit:]))
 
 
 def _smoke_report_summary(path: Path | None) -> dict[str, JsonValue]:
@@ -938,10 +996,56 @@ def _smoke_gateway_readiness_summary(gateway_readiness: Mapping[str, JsonValue])
 
 
 def _first_event(events_payload: Mapping[str, JsonValue]) -> JsonValue:
-    events = events_payload.get("events")
-    if not isinstance(events, list) or len(events) == 0:
+    events = _event_summaries(events_payload)
+    if len(events) == 0:
         return None
     return events[0]
+
+
+def _event_summaries(events_payload: Mapping[str, JsonValue]) -> tuple[dict[str, JsonValue], ...]:
+    events = events_payload.get("events")
+    if not isinstance(events, list):
+        return ()
+    return tuple(event for event in events if isinstance(event, dict))
+
+
+def _latency_stats(values: list[float]) -> dict[str, JsonValue]:
+    if len(values) == 0:
+        return {
+            "count": 0,
+            "p50": None,
+            "p95": None,
+            "min": None,
+            "max": None,
+        }
+    sorted_values = sorted(values)
+    return {
+        "count": len(sorted_values),
+        "p50": _median(sorted_values),
+        "p95": _percentile(sorted_values, 95.0),
+        "min": sorted_values[0],
+        "max": sorted_values[-1],
+    }
+
+
+def _median(sorted_values: list[float]) -> float:
+    midpoint = len(sorted_values) // 2
+    if len(sorted_values) % 2 == 1:
+        return sorted_values[midpoint]
+    return (sorted_values[midpoint - 1] + sorted_values[midpoint]) / 2.0
+
+
+def _percentile(sorted_values: list[float], percentile: float) -> float:
+    index = max(0, min(len(sorted_values) - 1, math.ceil((percentile / 100.0) * len(sorted_values)) - 1))
+    return sorted_values[index]
+
+
+def _number(value: JsonValue) -> float | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (float, int)):
+        return float(value)
+    return None
 
 
 def _payload(endpoint: Mapping[str, JsonValue]) -> Mapping[str, JsonValue]:
@@ -1046,11 +1150,6 @@ def _action_at_least(action: str, threshold: Action) -> bool:
 def _nested_bool(payload: Mapping[str, JsonValue], keys: tuple[str, str]) -> bool:
     nested = _optional_mapping(payload.get(keys[0]))
     return nested.get(keys[1]) is True
-
-
-def _nested_string(payload: Mapping[str, JsonValue], keys: tuple[str, str]) -> JsonValue:
-    nested = _optional_mapping(payload.get(keys[0]))
-    return nested.get(keys[1])
 
 
 def _optional_mapping(value: JsonValue) -> Mapping[str, JsonValue]:

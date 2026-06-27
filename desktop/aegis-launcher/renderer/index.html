@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aegis Watchman</title>
+  <link rel="stylesheet" href="index.css" />
+</head>
+<body>
+  <header class="window-frame">
+    <div class="window-grip" aria-hidden="true"></div>
+    <div class="titlebar">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">AW</span>
+        <div>
+          <strong>Aegis Watchman</strong>
+          <span>Local protection control</span>
+        </div>
+      </div>
+      <nav class="app-tabs" aria-label="Aegis sections" role="tablist">
+        <button class="tab-button active" type="button" data-tab="launch" role="tab" aria-controls="launch-view" aria-selected="true">Launch</button>
+        <button class="tab-button" type="button" data-tab="activity" role="tab" aria-controls="activity-view" aria-selected="false">Activity</button>
+        <button class="tab-button" type="button" data-tab="latency" role="tab" aria-controls="latency-view" aria-selected="false">Latency</button>
+        <button class="tab-button" type="button" data-tab="detectors" role="tab" aria-controls="detectors-view" aria-selected="false">Detectors</button>
+        <button class="tab-button" type="button" data-tab="trace" role="tab" aria-controls="trace-view" aria-selected="false">Trace</button>
+      </nav>
+      <div class="titlebar-actions">
+        <button id="refresh" class="button small" type="button">Refresh</button>
+        <button id="open-web" class="button small" type="button">Web Fallback</button>
+      </div>
+    </div>
+  </header>
+
+  <main class="app-shell">
+    <section id="message" class="message" hidden></section>
+
+    <section id="launch-view" class="tab-view" role="tabpanel">
+      <section class="hero-panel">
+        <div class="hero-copy">
+          <p class="eyebrow">Mac local runtime</p>
+          <h1>Start Aegis protection.</h1>
+          <p>Ollama stays on <code>11434</code>. Hermes points at Aegis on <code>8000/v1</code>.</p>
+        </div>
+        <aside id="summary" class="summary-panel" aria-live="polite"></aside>
+      </section>
+
+      <section class="control-grid">
+        <section class="main-panel">
+          <div class="panel-head">
+            <div>
+              <p class="eyebrow">Run</p>
+              <h2 id="run-title">Protection is stopped</h2>
+            </div>
+            <div class="run-actions">
+              <button id="primary-run" class="button primary" type="button">Start Protection</button>
+              <button id="verify-run" class="button" type="button">Run Verification</button>
+            </div>
+          </div>
+          <div id="active-process" class="active-process" hidden></div>
+          <div id="timeline" class="timeline" aria-live="polite"></div>
+        </section>
+
+        <aside class="side-column">
+          <section class="side-panel">
+            <div class="side-head">
+              <p class="eyebrow">Provider</p>
+              <button id="start-ollama" class="button small" type="button">Start Ollama</button>
+            </div>
+            <div id="provider-card" class="provider-card"></div>
+          </section>
+
+          <section class="side-panel">
+            <div class="side-head">
+              <p class="eyebrow">Agent</p>
+              <button id="copy-agent" class="button small" type="button">Copy</button>
+            </div>
+            <div id="agent-settings" class="settings-list"></div>
+          </section>
+
+          <section class="side-panel">
+            <div class="side-head">
+              <p class="eyebrow">Diagnostics</p>
+              <button id="clear-statuses" class="button small" type="button">Clear</button>
+            </div>
+            <div id="diagnostics" class="diagnostics"></div>
+          </section>
+        </aside>
+      </section>
+
+      <section class="logs-panel">
+        <details open>
+          <summary>Logs and command output</summary>
+          <div id="logs" class="logs"></div>
+        </details>
+      </section>
+    </section>
+
+    <section id="activity-view" class="tab-view" role="tabpanel" hidden>
+      <section class="observability-panel">
+        <div class="observability-head">
+          <div>
+            <p class="eyebrow">Activity</p>
+            <h2>Recent decisions</h2>
+          </div>
+          <div id="observability-status" class="observability-status"></div>
+        </div>
+        <div id="activity-list" class="event-list" aria-live="polite"></div>
+      </section>
+    </section>
+
+    <section id="latency-view" class="tab-view" role="tabpanel" hidden>
+      <section class="observability-panel">
+        <div class="observability-head">
+          <div>
+            <p class="eyebrow">Latency</p>
+            <h2>Aegis timing</h2>
+          </div>
+        </div>
+        <div id="latency-summary" class="latency-grid" aria-live="polite"></div>
+      </section>
+    </section>
+
+    <section id="detectors-view" class="tab-view" role="tabpanel" hidden>
+      <section class="observability-panel">
+        <div class="observability-head">
+          <div>
+            <p class="eyebrow">Detectors</p>
+            <h2>Behind the decision</h2>
+          </div>
+        </div>
+        <div id="detector-dashboard" class="detector-dashboard" aria-live="polite"></div>
+      </section>
+    </section>
+
+    <section id="trace-view" class="tab-view" role="tabpanel" hidden>
+      <section class="observability-panel">
+        <div class="observability-head">
+          <div>
+            <p class="eyebrow">Trace</p>
+            <h2>Request path</h2>
+          </div>
+        </div>
+        <div id="trace-detail" class="trace-detail" aria-live="polite"></div>
+      </section>
+    </section>
+  </main>
+
+  <script src="index.js"></script>
+</body>
+</html>

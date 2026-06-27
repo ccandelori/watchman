@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aegis Local Launcher</title>
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <header class="app-chrome">
+    <div class="window-grip" aria-hidden="true"></div>
+    <div class="topbar">
+      <a class="brand" href="/">
+        <span class="brand-mark" aria-hidden="true">AW</span>
+        <span>Aegis Local Launcher</span>
+      </a>
+      <nav class="nav" aria-label="Launcher sections">
+        <a href="#launch">Launch</a>
+        <a href="#preflight">Checks</a>
+        <a href="#agent">Agent</a>
+        <a href="#settings">Settings</a>
+        <a href="#logs">Logs</a>
+      </nav>
+      <button id="refresh" class="button" type="button">Refresh</button>
+    </div>
+  </header>
+
+  <main class="shell">
+    <section id="message" class="message" hidden></section>
+
+    <section class="launcher-board" id="launch">
+      <div class="board-header">
+        <div class="board-title">
+          <p class="eyebrow">Local gateway</p>
+          <h1>Start local protection.</h1>
+          <p class="lead">Aegis runs between your agent and the local model.</p>
+        </div>
+        <aside id="status" class="status-panel" aria-live="polite"></aside>
+      </div>
+
+      <section id="preflight" class="prereq-section">
+        <div class="section-title">
+          <p class="eyebrow">Local model</p>
+          <h2>Provider prerequisites</h2>
+        </div>
+        <div id="prerequisite-list" class="prerequisite-list"></div>
+      </section>
+
+      <section class="runtime-section">
+        <div class="runtime-head">
+          <div>
+            <p class="eyebrow">Aegis runtime</p>
+            <h2>Protection services</h2>
+          </div>
+          <div class="runtime-toolbar">
+            <div class="mode-toggle" role="tablist" aria-label="Launcher mode">
+              <button id="mode-normal" class="mode-button" type="button" role="tab">Normal</button>
+              <button id="mode-advanced" class="mode-button" type="button" role="tab">Advanced</button>
+            </div>
+            <div class="runtime-actions">
+              <button id="clear-statuses" class="button small" type="button">Clear Statuses</button>
+              <button id="stop-all" class="button danger small" type="button">Stop All</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="runtime-grid">
+          <section id="next-step" class="active-step" aria-live="polite"></section>
+          <div id="runtime-list" class="runtime-list"></div>
+        </div>
+      </section>
+
+      <section id="agent" class="agent-section">
+        <div class="section-title">
+          <p class="eyebrow">Agent</p>
+          <h2>Connection settings</h2>
+        </div>
+        <button id="copy-agent" class="button" type="button">Copy</button>
+        <div id="agent-card" class="agent-card"></div>
+      </section>
+    </section>
+
+    <section id="settings" class="details-grid">
+      <details class="panel detail-panel" open>
+        <summary>
+          <span>Configuration</span>
+          <strong>Editable provider, port, and local path fields.</strong>
+        </summary>
+        <form id="profile-form" class="form-grid"></form>
+        <div class="detail-actions">
+          <button id="save-profile" class="button primary" type="button">Save Profile</button>
+        </div>
+      </details>
+
+      <details class="panel detail-panel">
+        <summary>
+          <span>CIFT Certificate</span>
+          <strong>Locked model-specific evidence.</strong>
+        </summary>
+        <div id="cift-binding" class="binding-grid"></div>
+      </details>
+
+      <details id="logs" class="panel detail-panel">
+        <summary>
+          <span>Logs</span>
+          <strong>Output from launcher-started processes.</strong>
+        </summary>
+        <div id="log-list" class="log-list"></div>
+      </details>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>
