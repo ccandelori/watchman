@@ -397,9 +397,7 @@ def nimbus_training_manifest(records: tuple[NimbusTrainingTurnRecord, ...]) -> d
         ),
         _quality_gate(
             name="non_singleton_leakage_families",
-            passed=all(
-                count > 1 for label, count in label_counts.items() if label != NimbusLeakageLabel.BENIGN.value
-            ),
+            passed=all(count > 1 for label, count in label_counts.items() if label != NimbusLeakageLabel.BENIGN.value),
             observed=dict(sorted(label_counts.items())),
             required="all non-benign labels have more than one record",
         ),

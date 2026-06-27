@@ -92,23 +92,26 @@ def test_scanner_eval_rejects_invalid_negative_counts() -> None:
 def test_cli_eval_scanner_writes_report_file(tmp_path, capsys) -> None:
     output_path = tmp_path / "dp-honey-scanner-eval.json"
 
-    assert main(
-        [
-            "eval-scanner",
-            "--positive-per-format",
-            "2",
-            "--target-alpha",
-            "0.01",
-            "--negative-count",
-            "20",
-            "--calibration-count",
-            "20",
-            "--seed",
-            "3",
-            "--output",
-            str(output_path),
-        ]
-    ) == 0
+    assert (
+        main(
+            [
+                "eval-scanner",
+                "--positive-per-format",
+                "2",
+                "--target-alpha",
+                "0.01",
+                "--negative-count",
+                "20",
+                "--calibration-count",
+                "20",
+                "--seed",
+                "3",
+                "--output",
+                str(output_path),
+            ]
+        )
+        == 0
+    )
 
     stdout_payload = json.loads(capsys.readouterr().out)
     file_payload = json.loads(output_path.read_text(encoding="utf-8"))

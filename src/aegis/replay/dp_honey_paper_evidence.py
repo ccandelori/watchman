@@ -323,12 +323,10 @@ def _statistical_realism_check(
         failed_tests = tuple(
             test_name
             for test_name in REQUIRED_STATISTICAL_DISTINGUISHER_TESTS
-            if _mapping(suite.get(test_name), f"statistical_distinguisher_eval.{test_name}").get("status")
-            != "passed"
+            if _mapping(suite.get(test_name), f"statistical_distinguisher_eval.{test_name}").get("status") != "passed"
         )
         gaps = (
-            "The statistical distinguisher suite ran but did not pass all required tests: "
-            + ", ".join(failed_tests),
+            "The statistical distinguisher suite ran but did not pass all required tests: " + ", ".join(failed_tests),
         )
     else:
         status = "missing"
@@ -377,15 +375,17 @@ def _conformal_check(scanner_eval: Mapping[str, object]) -> dict[str, JsonValue]
         "scanner_eval.conformal_calibration.calibration_benign_count",
     )
     paper_alpha = target_alpha is not None and target_alpha <= _MAX_PAPER_CONFORMAL_ALPHA
-    enough_calibration = (
-        calibration_count is not None and calibration_count >= _MIN_PAPER_BENIGN_CALIBRATION_COUNT
+    enough_calibration = calibration_count is not None and calibration_count >= _MIN_PAPER_BENIGN_CALIBRATION_COUNT
+    status = (
+        "met"
+        if (
+            implemented
+            and calibration.get("status") == "split_conformal_confidence_threshold"
+            and paper_alpha
+            and enough_calibration
+        )
+        else "missing"
     )
-    status = "met" if (
-        implemented
-        and calibration.get("status") == "split_conformal_confidence_threshold"
-        and paper_alpha
-        and enough_calibration
-    ) else "missing"
     gaps: list[str] = []
     if not implemented or calibration.get("status") != "split_conformal_confidence_threshold":
         gaps.append("split conformal calibration evidence missing or malformed")
@@ -406,9 +406,7 @@ def _conformal_check(scanner_eval: Mapping[str, object]) -> dict[str, JsonValue]
             "empirical_calibration_false_positive_rate": _json_value_or_none(
                 calibration.get("empirical_calibration_false_positive_rate")
             ),
-            "empirical_calibration_coverage": _json_value_or_none(
-                calibration.get("empirical_calibration_coverage")
-            ),
+            "empirical_calibration_coverage": _json_value_or_none(calibration.get("empirical_calibration_coverage")),
         },
         gaps=tuple(gaps),
     )
@@ -778,8 +776,7 @@ def _validate_generation_realism_eval(report: Mapping[str, object]) -> Mapping[s
 def _validate_statistical_distinguisher_eval(report: Mapping[str, object]) -> Mapping[str, object]:
     if report.get("schema_version") != STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION:
         raise DPHoneyPaperEvidenceError(
-            "statistical_distinguisher_eval.schema_version must be "
-            f"{STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION}."
+            f"statistical_distinguisher_eval.schema_version must be {STATISTICAL_DISTINGUISHER_EVAL_SCHEMA_VERSION}."
         )
     if report.get("status") != STATISTICAL_DISTINGUISHER_EVAL_STATUS:
         raise DPHoneyPaperEvidenceError(

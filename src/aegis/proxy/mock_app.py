@@ -1782,8 +1782,7 @@ def _cift_unbound_support() -> dict[str, JsonValue]:
         "support_tier": _CIFT_SUPPORT_TIER_UNSUPPORTED,
         "support_scope": _CIFT_UNSUPPORTED_SUPPORT_SCOPE,
         "support_reason": (
-            "self-hosted CIFT has no certified runtime binding; "
-            "DP-HONEY, NIMBUS, and provider egress remain available."
+            "self-hosted CIFT has no certified runtime binding; DP-HONEY, NIMBUS, and provider egress remain available."
         ),
     }
 

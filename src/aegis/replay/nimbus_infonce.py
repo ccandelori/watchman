@@ -761,8 +761,7 @@ def _select_weights(
     if len(candidate_values) == 0:
         raise NimbusInfoNCEError("weight search space must not be empty.")
     candidate_values_by_feature = tuple(
-        _candidate_weights_for_feature(feature_name, candidate_values)
-        for feature_name in NIMBUS_INFONCE_FEATURE_NAMES
+        _candidate_weights_for_feature(feature_name, candidate_values) for feature_name in NIMBUS_INFONCE_FEATURE_NAMES
     )
     feature_rows_by_record = tuple(_feature_rows_for_record(record) for record in records)
     best_weights: tuple[float, ...] | None = None
@@ -900,8 +899,7 @@ def _feature_rows_for_record(record: NimbusTrainingTurnRecord) -> _CandidateFeat
 
 def _scores_from_feature_rows(weights: tuple[float, ...], feature_rows: _CandidateFeatureRows) -> tuple[float, ...]:
     return tuple(
-        sum(weight * feature for weight, feature in zip(weights, features, strict=True))
-        for features in feature_rows
+        sum(weight * feature for weight, feature in zip(weights, features, strict=True)) for features in feature_rows
     )
 
 
@@ -1058,9 +1056,7 @@ def _session_metrics(metrics: tuple[NimbusInfoNCETurnMetric, ...]) -> tuple[Nimb
                 ),
                 turn_count=len(session_turns),
                 attack_turn_count=sum(1 for metric in session_turns if metric.leakage_expected),
-                target_cumulative_leakage_bits=max(
-                    metric.target_cumulative_leakage_bits for metric in session_turns
-                ),
+                target_cumulative_leakage_bits=max(metric.target_cumulative_leakage_bits for metric in session_turns),
                 estimated_cumulative_leakage_bits=estimated_cumulative_leakage_bits,
                 max_estimated_turn_leakage_bits=max(metric.estimated_leakage_bits for metric in session_turns),
             )

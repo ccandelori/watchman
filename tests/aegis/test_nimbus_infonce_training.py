@@ -81,9 +81,7 @@ def test_trained_nimbus_infonce_model_scores_leaks_above_benign() -> None:
         "tool_output",
     }
     benign_scores = bits_by_label["benign"]
-    positive_scores = tuple(
-        score for label, scores in bits_by_label.items() if label != "benign" for score in scores
-    )
+    positive_scores = tuple(score for label, scores in bits_by_label.items() if label != "benign" for score in scores)
     assert sum(positive_scores) / len(positive_scores) > sum(benign_scores) / len(benign_scores)
     assert max(bits_by_label["partial"]) > max(bits_by_label["benign"])
     assert max(bits_by_label["encoded"]) > max(bits_by_label["benign"])
@@ -145,8 +143,7 @@ def test_nimbus_infonce_grouped_cv_reports_heldout_fn_fp_separately() -> None:
     assert report.session_false_negative_rate is not None
     assert len(report.session_metrics) == report.split_group_count
     assert all(
-        metric.training_split_group_count == NIMBUS_REFERENCE_CONVERSATION_COUNT - 1
-        for metric in report.fold_metrics
+        metric.training_split_group_count == NIMBUS_REFERENCE_CONVERSATION_COUNT - 1 for metric in report.fold_metrics
     )
     assert all(metric.eval_record_count == NIMBUS_REFERENCE_TURNS_PER_CONVERSATION for metric in report.fold_metrics)
     assert all(metric.eval_session_count == 1 for metric in report.fold_metrics)

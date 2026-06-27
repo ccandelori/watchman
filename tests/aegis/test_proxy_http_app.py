@@ -313,8 +313,7 @@ def test_ready_route_probes_configured_self_hosted_cift_sidecar(monkeypatch) -> 
     assert payload["cift"]["support_tier"] == "runtime-enforceable"
     assert payload["cift"]["support_scope"] == "model-specific CIFT enforcement for test-model on mps"
     assert (
-        payload["cift"]["support_reason"]
-        == "strict certification binding and live extractor readiness are satisfied."
+        payload["cift"]["support_reason"] == "strict certification binding and live extractor readiness are satisfied."
     )
     assert payload["cift"]["feature_key"] == "selected_choice_window_layer_15"
     assert payload["cift"]["feature_count"] == 2

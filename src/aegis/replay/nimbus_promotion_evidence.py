@@ -196,9 +196,7 @@ def _deterministic_metrics(report: Mapping[str, object]) -> dict[str, JsonValue]
     return {
         "critic_status": _required_string(report, "critic_status", "deterministic_eval"),
         "critic_kind": _required_string(report, "critic_kind", "deterministic_eval"),
-        "paper_faithful_learned_critic": _required_bool(
-            report, "paper_faithful_learned_critic", "deterministic_eval"
-        ),
+        "paper_faithful_learned_critic": _required_bool(report, "paper_faithful_learned_critic", "deterministic_eval"),
         "scenario_count": _required_int(report, "scenario_count", "deterministic_eval"),
         "positive_label_count": _required_int(report, "positive_label_count", "deterministic_eval"),
         "negative_label_count": _required_int(report, "negative_label_count", "deterministic_eval"),
@@ -219,9 +217,7 @@ def _learned_metrics(report: Mapping[str, object]) -> dict[str, JsonValue]:
         "schema_version": _required_string(report, "schema_version", "learned_metrics"),
         "model_id": _required_string(report, "model_id", "learned_metrics"),
         "promotion_status": _required_string(report, "promotion_status", "learned_metrics"),
-        "paper_faithful_learned_critic": _required_bool(
-            report, "paper_faithful_learned_critic", "learned_metrics"
-        ),
+        "paper_faithful_learned_critic": _required_bool(report, "paper_faithful_learned_critic", "learned_metrics"),
         "record_count": _required_int(report, "record_count", "learned_metrics"),
         "split_group_count": _required_int(report, "split_group_count", "learned_metrics"),
         "attack_top1_accuracy": _optional_float(report, "attack_top1_accuracy", "learned_metrics"),
@@ -436,9 +432,7 @@ def _comparison(
     learned_grouped_turn_fnr = _json_float(grouped_metrics.get("false_negative_rate"), "grouped.fnr")
     learned_grouped_turn_fpr = _json_float(grouped_metrics.get("false_positive_rate"), "grouped.fpr")
     runtime_beta_fpr = _json_float_or_none(runtime_beta_metrics.get("false_positive_rate"), "runtime_beta.fpr")
-    learned_sealed_session_fnr = _json_float(
-        sealed_metrics.get("session_false_negative_rate"), "sealed.session_fnr"
-    )
+    learned_sealed_session_fnr = _json_float(sealed_metrics.get("session_false_negative_rate"), "sealed.session_fnr")
     runtime_beta_fnr = _json_float_or_none(runtime_beta_metrics.get("false_negative_rate"), "runtime_beta.fnr")
     runtime_beta_session_fnr = _json_float_or_none(
         runtime_beta_metrics.get("session_false_negative_rate"),
@@ -741,9 +735,7 @@ def _promotion_gates(
 
 def _promotion_decision(promotion_gates: Sequence[Mapping[str, JsonValue]]) -> dict[str, JsonValue]:
     blocking_gate_ids = [
-        str(gate["gate_id"])
-        for gate in promotion_gates
-        if gate.get("status") in {"missing", "failed", "partial"}
+        str(gate["gate_id"]) for gate in promotion_gates if gate.get("status") in {"missing", "failed", "partial"}
     ]
     return {
         "verdict": "reject_learned_runtime_keep_deterministic_default",
@@ -924,9 +916,7 @@ def _checklist(
         _checklist_item(
             requirement_id="grouped_cross_validation",
             paper_requirement="Evaluate learned critic with session/scenario grouped splits.",
-            status="met"
-            if grouped_metrics.get("split_group_count") == _PAPER_REFERENCE_SESSION_COUNT
-            else "missing",
+            status="met" if grouped_metrics.get("split_group_count") == _PAPER_REFERENCE_SESSION_COUNT else "missing",
             evidence=_metrics_evidence(grouped_metrics),
             gaps=()
             if grouped_metrics.get("split_group_count") == _PAPER_REFERENCE_SESSION_COUNT

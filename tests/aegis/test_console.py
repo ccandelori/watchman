@@ -28,8 +28,7 @@ def test_console_overview_summarizes_protected_cift_state() -> None:
     assert overview["cift"]["support_tier"] == "runtime-enforceable"
     assert overview["cift"]["support_scope"] == "model-specific CIFT enforcement for Qwen/Qwen3-4B on mps"
     assert (
-        overview["cift"]["support_reason"]
-        == "strict certification binding and live extractor readiness are satisfied."
+        overview["cift"]["support_reason"] == "strict certification binding and live extractor readiness are satisfied."
     )
     assert overview["nimbus"]["label"] == "deterministic beta"
     assert overview["last_request"]["final_action"] == "block"
@@ -194,10 +193,7 @@ def test_console_events_use_sample_audit_when_live_audit_is_empty(tmp_path: Path
 
 def test_console_events_limits_sample_audit_newest_first(tmp_path: Path) -> None:
     audit_path = tmp_path / "audit.jsonl"
-    records = [
-        {**_audit_record(), "trace_id": f"trace-{index}", "latency_ms": float(index)}
-        for index in range(4)
-    ]
+    records = [{**_audit_record(), "trace_id": f"trace-{index}", "latency_ms": float(index)} for index in range(4)]
     audit_path.write_text("\n".join(json.dumps(record) for record in records) + "\n", encoding="utf-8")
     settings = _settings(sample_audit_jsonl_path=audit_path)
 
@@ -235,9 +231,7 @@ def test_console_app_serves_static_shell_and_api() -> None:
         "model": "match the local provider model configured by AEGIS_OPENAI_MODEL",
     }
     assert setup_payload["agent_settings_text"] == (
-        "Base URL: http://127.0.0.1:8000/v1\n"
-        "API key: aegis-local-dev-key\n"
-        "Model: match AEGIS_OPENAI_MODEL"
+        "Base URL: http://127.0.0.1:8000/v1\nAPI key: aegis-local-dev-key\nModel: match AEGIS_OPENAI_MODEL"
     )
     assert setup_payload["cift_sidecar"] == {
         "default_base_url": "http://127.0.0.1:9000",

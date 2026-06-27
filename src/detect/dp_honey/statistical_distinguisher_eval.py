@@ -520,9 +520,7 @@ def _sample_format(
     if reference_corpus is not None:
         reference_format = reference_corpus.formats.get(spec.slug)
         if reference_format is None:
-            raise DPHoneyStatisticalDistinguisherEvalError(
-                f"reference feature corpus missing format_slug: {spec.slug}"
-            )
+            raise DPHoneyStatisticalDistinguisherEvalError(f"reference feature corpus missing format_slug: {spec.slug}")
         return _FormatSamples(
             spec=spec,
             model=model,
@@ -580,9 +578,7 @@ def _character_entropy_tests(
     return {
         "status": _pass_fail(passed),
         "alpha": config.alpha,
-        "pass_criterion": (
-            "mean_abs_delta_bits <= 0.75 and every format abs_delta_bits <= 1.25 on held-out samples"
-        ),
+        "pass_criterion": ("mean_abs_delta_bits <= 0.75 and every format abs_delta_bits <= 1.25 on held-out samples"),
         "aggregate": {
             "mean_abs_delta_bits": _round_float(mean_abs_delta),
             "max_abs_delta_bits": _round_float(max_abs_delta),

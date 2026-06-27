@@ -277,8 +277,7 @@ def _reference_feature_manifest(
         "raw_values_serialized": False,
         "feature_names": list(FEATURE_NAMES),
         "format_features": [
-            _format_feature_record(spec, train_count_per_format, test_count_per_format)
-            for spec in list_formats()
+            _format_feature_record(spec, train_count_per_format, test_count_per_format) for spec in list_formats()
         ],
     }
 

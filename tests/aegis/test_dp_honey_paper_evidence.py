@@ -291,8 +291,8 @@ def test_dp_honey_paper_evidence_rejects_forged_provider_like_source_without_man
                 statistical_distinguisher_eval_path=forged_path,
                 smoke_path=PROMOTED_SMOKE_PATH,
                 audit_jsonl_path=PROMOTED_AUDIT_JSONL_PATH,
+            )
         )
-    )
 
 
 def test_dp_honey_paper_evidence_rejects_forged_provider_like_source_with_wrong_features(tmp_path: Path) -> None:

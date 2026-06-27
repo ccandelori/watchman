@@ -196,9 +196,7 @@ def console_setup(settings: ConsoleSettings) -> dict[str, JsonValue]:
             "model": "match the local provider model configured by AEGIS_OPENAI_MODEL",
         },
         "agent_settings_text": (
-            f"Base URL: {gateway_openai_base_url}\n"
-            "API key: aegis-local-dev-key\n"
-            "Model: match AEGIS_OPENAI_MODEL"
+            f"Base URL: {gateway_openai_base_url}\nAPI key: aegis-local-dev-key\nModel: match AEGIS_OPENAI_MODEL"
         ),
         "cift_sidecar": {
             "default_base_url": "http://127.0.0.1:9000",
