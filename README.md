@@ -1,23 +1,31 @@
-# Aegis
+# Aegis Watchman
 
-Aegis is a runtime credential-defense spine for LLM agents. It is designed to
-sit between agent traffic and model/tool execution, normalize each turn, run
-independent detector stages, apply policy in one place, and record auditable
-events.
+Aegis Watchman is a local security layer for LLM agents. It sits between an
+OpenAI-compatible agent client and a local or self-hosted model provider,
+normalizes each turn, plants safe canaries when credential-bearing context is
+needed, checks hidden-state exfiltration intent with CIFT before generation,
+guards provider egress, runs response/session leakage checks, applies policy,
+and records auditable evidence.
 
-The repository is intentionally small right now. The current code establishes
-the shared contracts and quality gates that future DP-HONEY, CIFT, NIMBUS,
-proxy, SDK, dashboard, and evaluation work will plug into.
+The current demo path is local-first: Ollama serves `qwen3:4b`, Hermes Agent or
+another OpenAI-compatible client points at the Aegis gateway on
+`http://127.0.0.1:8000/v1`, and the Aegis Watchman desktop launcher starts and
+observes the local protection stack.
 
 ## Current Status
 
-The first runtime spine is implemented and CI-enforced:
+The current branch contains a runnable local sentinel demo and a model-specific
+CIFT certification workflow. It is not a production/commercial release, and it
+does not claim universal model support.
 
 - Typed request, detector, policy, capability, and audit contracts.
-- A minimal orchestrator that normalizes a turn, runs detector stages, calls a
-  mock model provider, applies policy, and writes an audit event.
+- A gateway that normalizes OpenAI-compatible chat turns, runs detector stages,
+  forwards allowed traffic to a local provider, applies policy, and writes
+  redacted audit events.
 - A honeytoken ledger that replaces credential placeholders with registered
   canaries and emits `SensitiveSpan` metadata without exposing real secrets.
+- Deterministic credential-need detection for explicit slots, placeholders,
+  tool schemas, and env/config-shaped references.
 - First detector seams:
   - `ActivationUnavailableDetector` for explicit CIFT capability reporting in
     black-box/mock mode.
@@ -40,18 +48,27 @@ The first runtime spine is implemented and CI-enforced:
 - A runtime-native `NimbusDetector` with a canary-aware critic that estimates
   exact, encoded, and partial canary leakage bits into a per-session budget.
 - A development OpenAI-compatible proxy surface for `/health`,
-  `/v1/chat/completions`, and `/audit/recent`, with a mock provider by
-  default and an OpenAI-compatible HTTP provider adapter behind env config.
+  `/ready`, `/aegis/capabilities`, `/v1/chat/completions`, `/audit/recent`, and
+  `/audit/explain`, with a mock provider by default and an OpenAI-compatible HTTP
+  provider adapter behind env config.
+- A macOS Electron launcher that can start/check Ollama, select the local model,
+  start or adopt the CIFT sidecar and gateway, run verification, and show
+  Activity, Latency, Detectors, and Trace views.
+- A browser launcher and local operator console as fallback/debugging surfaces.
+- An `aegis-watchman-demo` harness that sends controlled OpenAI-compatible turns
+  through the same gateway used by an agent and writes redacted proof artifacts.
 - Mandatory CI gates for linting, formatting, strict typing, import-boundary
   checks, and tests with coverage.
 
-This is not yet a production security system. It is the enforced skeleton that
-keeps future detector and proxy work compatible.
+Certified CIFT enforcement is currently claimed only for the promoted
+`Qwen/Qwen3-4B` MPS reference path. Other local models are unsupported until
+they pass their own calibration, sealed holdout, live runtime benchmark, gateway
+smoke, artifact binding, and hardened release gate.
 
 For the current hardening assessment and component-by-component release table,
 see [`docs/aegis-watchman-release-readiness-2026-06-25.md`](docs/aegis-watchman-release-readiness-2026-06-25.md).
 
-## Capstone Release Rehearsal
+## Demo Claim
 
 The safe capstone claim is:
 
@@ -70,18 +87,54 @@ For the short evaluator-facing package, start with
 It lists the exact demo commands, evidence artifacts, hashes, component
 readiness, and remaining gaps.
 
-The local rehearsal has two modes:
+## Ten-Minute Demo Path
 
-1. **Certified CIFT sentinel path**: run the Qwen3-4B MPS sidecar, source the
-   strict CIFT deployment env, start the gateway, open the console, then run
-   `aegis-proxy-cift-smoke` and `aegis-proxy-smoke --require-cift-pre-generation-block`.
-   This proves certified hidden-state pre-generation prevention for the
-   Qwen3-4B/MPS reference profile.
-2. **Learned NIMBUS beta path**: start a gateway with
-   `AEGIS_NIMBUS_CRITIC_KIND=learned_infonce_beta` and run
-   `aegis-proxy-smoke --nimbus-profile strict-partial-block`. This proves the
-   learned critic is live, observable, and still labeled
-   `learned_runtime_beta_not_promotable`.
+The strongest live demo is the local-agent path:
+
+1. Start the Aegis Watchman desktop launcher.
+2. Confirm Ollama is running and `qwen3:4b` is selected.
+3. Start protection. The launcher starts or adopts the CIFT sidecar and gateway.
+4. Point Hermes Agent at `http://127.0.0.1:8000/v1`, not directly at Ollama on
+   `11434`.
+5. Run the demo harness to produce repeatable proof:
+
+```bash
+uv run aegis-watchman-demo \
+  --url http://127.0.0.1:8000 \
+  --model qwen3:4b \
+  --timeout 120 \
+  --hermes-cards \
+  --output introspection/data/reports/watchman_demo_run_v1.json
+```
+
+The harness sends controlled turns through the same gateway an agent uses:
+
+- Benign protected work is allowed and reaches the provider.
+- CIFT blocks exfiltration intent before model/provider completion.
+- The provider egress guard blocks raw credential-shaped tool payloads before
+  outbound provider calls.
+
+Open the Watchman app's Activity and Trace tabs after the run. They show the
+recent allow/block decisions, detector responsible for the decision, provider
+skipped/completed state, latency, and redacted runtime evidence.
+
+For a scripted CIFT-only release check, use the certified sidecar/gateway smoke:
+
+```bash
+uv run aegis-proxy-cift-smoke \
+  --url http://127.0.0.1:8000 \
+  --sidecar-url http://127.0.0.1:9000 \
+  --gateway-model qwen3:4b \
+  --timeout 120 \
+  --detector-name cift_runtime
+```
+
+For the learned NIMBUS beta path, start a gateway with
+`AEGIS_NIMBUS_CRITIC_KIND=learned_infonce_beta` and run
+`aegis-proxy-smoke --nimbus-profile strict-partial-block`. This proves the
+learned critic is live, observable, and still labeled
+`learned_runtime_beta_not_promotable`; it is not a promoted learned-NIMBUS
+release.
 
 Open the console with:
 
@@ -136,19 +189,78 @@ Install the project and development dependencies with `uv`:
 uv sync --extra dev
 ```
 
+### Start Local Protection
+
+```bash
+scripts/run-aegis-desktop-launcher.sh
+```
+
+The desktop launcher is the normal local setup path. It checks or starts
+Ollama, detects installed models, lets you select the provider model, starts or
+adopts the CIFT sidecar and gateway, and shows the agent settings to copy into
+Hermes Agent or another OpenAI-compatible client.
+
+For a packaged macOS app:
+
+```bash
+cd desktop/aegis-launcher
+npm run pack:mac
+open "dist/mac-arm64/Aegis Watchman.app"
+```
+
+Protected agent settings:
+
+```text
+Base URL: http://127.0.0.1:8000/v1
+API key:  aegis-local-dev-key
+Model:    qwen3:4b
+```
+
+Do not point the agent directly at Ollama on `http://127.0.0.1:11434/v1` while
+testing Aegis. Direct Ollama traffic bypasses DP-HONEY, CIFT, provider egress
+guard, canary detection, NIMBUS, policy, and audit.
+
+### Prove The Demo
+
+After protection is running, run:
+
+```bash
+uv run aegis-watchman-demo \
+  --url http://127.0.0.1:8000 \
+  --model qwen3:4b \
+  --timeout 120 \
+  --hermes-cards \
+  --output introspection/data/reports/watchman_demo_run_v1.json
+```
+
+The demo report should show:
+
+- A benign protected request allowed through to the model.
+- A CIFT exfiltration-intent request blocked before provider completion.
+- A provider-egress request blocked before raw credential-shaped data leaves the
+  gateway.
+
+Open the Activity, Latency, Detectors, and Trace tabs in the desktop app to see
+what happened behind the scenes.
+
+The full walkthrough lives in
+[`docs/aegis-watchman-demo-scenario.md`](docs/aegis-watchman-demo-scenario.md).
+
+### Developer Commands
+
 Run the full local quality gate:
 
 ```bash
 make quality
 ```
 
-Run the built-in demo scenarios:
+Run the older built-in runtime demo scenarios:
 
 ```bash
 uv run python scripts/run_demo.py
 ```
 
-Run the development HTTP proxy:
+Run the development HTTP proxy directly:
 
 ```bash
 uv run aegis-proxy --host 127.0.0.1 --port 8000
@@ -1493,6 +1605,7 @@ src/aegis/replay/      Offline replay harnesses for fixtures and demos
 src/aegis/sdk/         SDK entrypoint for embedding the runtime
 tests/aegis/           Runtime spine tests
 scripts/               Repository quality and architecture checks
+desktop/aegis-launcher/ macOS Electron launcher for local protection
 introspection/         Research notebooks, activation experiments, and CIFT reports
 docs/                  Project and setup documentation
 ```
