@@ -19,6 +19,7 @@ for source_path in (SRC_PATH, WORKSPACE_SRC_PATH):
 
 from aegis_introspection.runtime_bridge import RuntimeBridgeConfig, structured_prompt_to_normalized_turn  # noqa: E402
 from aegis_introspection.sealed_holdout_policy import (  # noqa: E402
+    SEALED_HOLDOUT_TAG,
     add_unseal_flag,
     assert_unsealed_jsonl_tags,
     assert_unsealed_paths,
@@ -39,6 +40,7 @@ class ExportRuntimeTurnsConfig:
     sensitive_source: str
     session_id: str
     allow_sealed_holdout: bool
+    sealed_holdout_split_id: str | None
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -60,6 +62,11 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--selected-device", required=False, default="cpu")
     parser.add_argument("--sensitive-source", required=False, default="dp_honey_lite")
     parser.add_argument("--session-id", required=False, default="introspection-offline-eval")
+    parser.add_argument(
+        "--sealed-holdout-split-id",
+        required=False,
+        help="When set, tag exported runtime turns with sealed_holdout and split:<id>.",
+    )
     add_unseal_flag(parser)
     return parser
 
@@ -77,6 +84,7 @@ def _parse_args(argv: Sequence[str]) -> ExportRuntimeTurnsConfig:
         sensitive_source=str(namespace.sensitive_source),
         session_id=str(namespace.session_id),
         allow_sealed_holdout=bool(namespace.allow_sealed_holdout),
+        sealed_holdout_split_id=_optional_string(namespace.sealed_holdout_split_id),
     )
 
 
@@ -122,6 +130,7 @@ def _runtime_bridge_config(
 
 
 def run_export(config: ExportRuntimeTurnsConfig) -> None:
+    _validate_sealed_tagging(config)
     assert_unsealed_paths(
         paths=(config.input_path, config.output_path),
         allow_sealed_holdout=config.allow_sealed_holdout,
@@ -140,9 +149,68 @@ def run_export(config: ExportRuntimeTurnsConfig) -> None:
                 record=record,
                 config=_runtime_bridge_config(record=record, export_config=config, turn_index=turn_index),
             )
+            _tag_sealed_holdout_turn(turn=turn, config=config)
             json.dump(cast(dict[str, JsonValue], turn), file, ensure_ascii=False)
             file.write("\n")
     print(f"Wrote {len(records)} runtime turn rows to {config.output_path}")
+
+
+def _validate_sealed_tagging(config: ExportRuntimeTurnsConfig) -> None:
+    if config.sealed_holdout_split_id is None:
+        return
+    if config.sealed_holdout_split_id == "":
+        raise ValueError("sealed_holdout_split_id must not be empty when set.")
+    if config.sealed_holdout_split_id.startswith("split:"):
+        raise ValueError("sealed_holdout_split_id must not include the 'split:' tag prefix.")
+    if not config.allow_sealed_holdout:
+        raise ValueError("sealed_holdout_split_id requires --allow-sealed-holdout.")
+
+
+def _tag_sealed_holdout_turn(turn: dict[str, JsonValue], config: ExportRuntimeTurnsConfig) -> None:
+    if config.sealed_holdout_split_id is None:
+        return
+    eval_metadata = _required_json_object(
+        record=_required_json_object(record=turn, field_name="metadata", context="runtime turn"),
+        field_name="eval",
+        context="runtime turn.metadata",
+    )
+    tags = _required_string_list(record=eval_metadata, field_name="tags", context="runtime turn.metadata.eval")
+    tagged = sorted(set(tags) | {SEALED_HOLDOUT_TAG, f"split:{config.sealed_holdout_split_id}"})
+    eval_metadata["tags"] = tagged
+
+
+def _required_json_object(
+    record: Mapping[str, JsonValue],
+    field_name: str,
+    context: str,
+) -> dict[str, JsonValue]:
+    value = record.get(field_name)
+    if not isinstance(value, dict):
+        raise ValueError(f"{context}.{field_name} must be an object.")
+    for key in value:
+        if not isinstance(key, str):
+            raise ValueError(f"{context}.{field_name} keys must be strings.")
+    return cast(dict[str, JsonValue], value)
+
+
+def _required_string_list(record: Mapping[str, JsonValue], field_name: str, context: str) -> tuple[str, ...]:
+    value = record.get(field_name)
+    if not isinstance(value, list):
+        raise ValueError(f"{context}.{field_name} must be a list of strings.")
+    strings: list[str] = []
+    for index, item in enumerate(value):
+        if not isinstance(item, str) or item == "":
+            raise ValueError(f"{context}.{field_name}[{index}] must be a non-empty string.")
+        strings.append(item)
+    return tuple(strings)
+
+
+def _optional_string(value: object) -> str | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError("optional string argument must be a string when set.")
+    return value
 
 
 def main(argv: Sequence[str]) -> None:

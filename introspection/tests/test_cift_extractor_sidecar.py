@@ -127,7 +127,58 @@ def test_cift_extractor_sidecar_returns_final_token_feature_without_selected_cho
     assert payload["extraction_receipt"]["schema_version"] == CIFT_EXTRACTION_RECEIPT_SCHEMA_VERSION
     assert payload["extraction_receipt"]["selected_choice_readout_token_indices"] is None
     assert payload["extraction_receipt"]["selected_choice_readout_token_count"] == 0
+    assert payload["extraction_receipt"]["readout_token_indices"] == [33]
+    assert payload["extraction_receipt"]["readout_token_indices_sha256"] == _json_sha256([33])
+    assert payload["extraction_receipt"]["readout_window_source"] == "final_token"
+    assert payload["extraction_receipt"]["readout_source"] == {
+        "source": "sidecar_freeform",
+        "readout_window": "final_token",
+        "readout_token_count": 1,
+    }
     assert extractor.calls == [("trace-sidecar-test", "final_token_layer_19")]
+
+
+def test_cift_extractor_sidecar_derives_freeform_query_tail_indices() -> None:
+    extractor = RecordingExtractor(feature_vector=(3.5, 7.0))
+    client = TestClient(
+        create_cift_extractor_sidecar_app(
+            extractor=extractor,
+            expected_api_key=None,
+            model_attestation=_model_attestation(),
+            turn_adapter=_turn_adapter(),
+        )
+    )
+
+    response = client.post(
+        "/v1/cift/features",
+        json=_feature_request_payload(
+            feature_key="query_tail_window_layer_19",
+            turn=_turn(metadata={}, content="Say OK in one short sentence."),
+        ),
+    )
+
+    assert response.status_code == 200
+    payload = response.json()
+    prepared_cift = extractor.turns[0].metadata["cift"]
+    assert payload["schema_version"] == "aegis.cift_feature_extract_response/v1"
+    assert payload["feature_key"] == "query_tail_window_layer_19"
+    assert payload["feature_vector"] == [3.5, 7.0]
+    assert payload["selected_choice_readout_token_indices"] is None
+    assert prepared_cift["readout_window_source"] == "query_tail"
+    assert prepared_cift["readout_token_indices"] == prepared_cift["query_tail_readout_token_indices"]
+    assert len(prepared_cift["query_tail_readout_token_indices"]) == 4
+    assert payload["extraction_receipt"]["readout_window_source"] == "query_tail"
+    assert payload["extraction_receipt"]["readout_token_indices"] == prepared_cift["readout_token_indices"]
+    assert payload["extraction_receipt"]["readout_token_indices_sha256"] == _json_sha256(
+        prepared_cift["readout_token_indices"]
+    )
+    assert payload["extraction_receipt"]["query_tail_readout_token_indices"] == prepared_cift[
+        "query_tail_readout_token_indices"
+    ]
+    assert payload["extraction_receipt"]["query_tail_readout_token_indices_sha256"] == _json_sha256(
+        prepared_cift["query_tail_readout_token_indices"]
+    )
+    assert extractor.calls == [("trace-sidecar-test", "query_tail_window_layer_19")]
 
 
 def test_cift_extractor_sidecar_returns_null_feature_when_selected_choice_geometry_is_missing() -> None:

@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Protocol, TypeAlias, cast
 
 from aegis_introspection.prompts import PromptLabel
+from aegis_introspection.sealed_holdout_policy import SEALED_HOLDOUT_TAG
 
 JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
@@ -303,25 +304,39 @@ def _explicit_selected_choice_readout(
         context=f"{context}.metadata.cift.selected_choice.fallback_reason",
     )
     if selected_fallback_reason is not None:
-        return None
+        raise TraceRecordAdapterError(f"{context}: selected_choice fallback_reason cannot include geometry.")
+    source = _required_string(
+        record=selected_choice_record,
+        field_name="source",
+        context=f"{context}.metadata.cift.selected_choice",
+    )
+    if source != "user_message":
+        raise TraceRecordAdapterError(f"{context}: selected_choice source must be user_message.")
 
     user_segments = tuple(segment for segment in message_segments if segment.role == "user")
     if len(user_segments) == 0:
         raise TraceRecordAdapterError(f"{context}: explicit selected-choice metadata requires a user message.")
     user_segment = user_segments[0]
+    relative_char_start = _required_int(
+        record=selected_choice_record,
+        field_name="char_start",
+        context=f"{context}.metadata.cift.selected_choice",
+    )
+    relative_char_end = _required_int(
+        record=selected_choice_record,
+        field_name="char_end",
+        context=f"{context}.metadata.cift.selected_choice",
+    )
+    selected_text = _required_string(
+        record=selected_choice_record,
+        field_name="text",
+        context=f"{context}.metadata.cift.selected_choice",
+    )
+    if selected_text != user_segment.content[relative_char_start:relative_char_end]:
+        raise TraceRecordAdapterError(f"{context}: selected_choice text does not match user message span.")
     selected_char_span = CharSpan(
-        start=user_segment.content_span.start
-        + _required_int(
-            record=selected_choice_record,
-            field_name="char_start",
-            context=f"{context}.metadata.cift.selected_choice",
-        ),
-        end=user_segment.content_span.start
-        + _required_int(
-            record=selected_choice_record,
-            field_name="char_end",
-            context=f"{context}.metadata.cift.selected_choice",
-        ),
+        start=user_segment.content_span.start + relative_char_start,
+        end=user_segment.content_span.start + relative_char_end,
     )
     selected_token_span = _token_span_for_char_span(
         offsets=offsets,
@@ -344,7 +359,7 @@ def _explicit_selected_choice_readout(
 def _has_explicit_selected_choice_metadata(cift_metadata: Mapping[str, object] | None) -> bool:
     if cift_metadata is None:
         return False
-    return cift_metadata.get("selected_choice") is not None
+    return "selected_choice" in cift_metadata
 
 
 def structured_prompt_records_from_trace_records(
@@ -357,9 +372,9 @@ def structured_prompt_records_from_trace_records(
     for index, record in enumerate(records, start=1):
         trace_id = _trace_id_for_record(record=record, context=f"record {index}")
         label = _required_label(record=record, context=f"record {index}")
-        secret_span = _find_source_span(record=record, source="dp_honey", context=f"record {index}")
+        secret_span = _find_message_secret_span(record=record, context=f"record {index}")
         if secret_span is None and label != "benign":
-            skipped.append(SkippedTraceRecord(record_id=trace_id, reason="no_dp_honey_secret_span"))
+            skipped.append(SkippedTraceRecord(record_id=trace_id, reason="no_message_secret_span"))
             continue
         converted.append(
             _convert_trace_record(
@@ -371,6 +386,14 @@ def structured_prompt_records_from_trace_records(
             )
         )
     return TracePromptConversionResult(records=tuple(converted), skipped_records=tuple(skipped))
+
+
+def _find_message_secret_span(record: Mapping[str, object], context: str) -> SensitiveSpanRecord | None:
+    for source in ("dp_honey", "proxy_raw_credential_scanner"):
+        span = _find_source_span(record=record, source=source, context=context)
+        if span is not None:
+            return span
+    return None
 
 
 def _convert_trace_record(
@@ -400,10 +423,11 @@ def _convert_trace_record(
         )
         secret_token_span = _token_span_for_char_span(offsets=offsets, char_span=secret_char_span, context=context)
     query_token_span = _token_span_for_char_span(offsets=offsets, char_span=query_char_span, context=context)
-    query_tail_readout_token_indices = _readout_indices_for_char_span(
+    query_tail_readout_token_indices = _query_tail_readout_indices(
         offsets=offsets,
-        char_span=query_char_span,
-        lower_bound=max(_optional_token_span_end(secret_token_span), query_token_span.start),
+        query_char_span=query_char_span,
+        query_token_span=query_token_span,
+        secret_token_span=secret_token_span,
         readout_token_count=config.readout_token_count,
         context=context,
     )
@@ -426,13 +450,7 @@ def _convert_trace_record(
         readout_tag = "readout:safe_payload" if payload_readout is not None else "readout:query_tail"
 
     if payload_readout is None:
-        readout_token_indices = _readout_indices_for_char_span(
-            offsets=offsets,
-            char_span=query_char_span,
-            lower_bound=max(_optional_token_span_end(secret_token_span), query_token_span.start),
-            readout_token_count=config.readout_token_count,
-            context=context,
-        )
+        readout_token_indices = query_tail_readout_token_indices
         tags = _tags_for_record(
             record=record,
             collection=collection,
@@ -536,6 +554,32 @@ def _optional_token_span_end(span: TokenSpan | None) -> int:
     if span is None:
         return 0
     return span.end
+
+
+def _query_tail_readout_indices(
+    offsets: tuple[TokenOffset, ...],
+    query_char_span: CharSpan,
+    query_token_span: TokenSpan,
+    secret_token_span: TokenSpan | None,
+    readout_token_count: int,
+    context: str,
+) -> tuple[int, ...]:
+    visibility_floor = max(_optional_token_span_end(secret_token_span), query_token_span.start)
+    indices = _readout_indices_for_char_span_or_none(
+        offsets=offsets,
+        char_span=query_char_span,
+        lower_bound=visibility_floor,
+        readout_token_count=readout_token_count,
+    )
+    if indices is not None:
+        return indices
+    return _readout_indices_for_char_span(
+        offsets=offsets,
+        char_span=query_char_span,
+        lower_bound=query_token_span.start,
+        readout_token_count=readout_token_count,
+        context=context,
+    )
 
 
 def _render_trace_prompt(
@@ -825,6 +869,20 @@ def _readout_indices_for_char_span(
     return indices[-readout_token_count:]
 
 
+def _readout_indices_for_char_span_or_none(
+    offsets: tuple[TokenOffset, ...],
+    char_span: CharSpan,
+    lower_bound: int,
+    readout_token_count: int,
+) -> tuple[int, ...] | None:
+    indices = tuple(
+        index for index in _token_indices_for_char_span(offsets=offsets, char_span=char_span) if index >= lower_bound
+    )
+    if len(indices) == 0:
+        return None
+    return indices[-readout_token_count:]
+
+
 def _token_indices_for_char_span(offsets: tuple[TokenOffset, ...], char_span: CharSpan) -> tuple[int, ...]:
     indices: list[int] = []
     for index, offset in enumerate(offsets):
@@ -841,7 +899,7 @@ def _tags_for_record(
     readout_tag: str,
     context: str,
 ) -> tuple[str, ...]:
-    return (
+    tags = [
         "trace_collection",
         _required_string(record=collection, field_name="source", context=context),
         readout_tag,
@@ -851,7 +909,13 @@ def _tags_for_record(
         f"participant:{_required_string(record=collection, field_name='participant_id', context=context)}",
         f"variant:{_required_string(record=collection, field_name='variant_id', context=context)}",
         f"credential_type:{_required_string(record=collection, field_name='credential_type', context=context)}",
-    )
+    ]
+    split_id = _optional_string_value(value=record.get("split_id"), context=f"{context}.split_id")
+    if split_id is not None:
+        tags.append(f"split:{split_id}")
+        if "sealed" in split_id:
+            tags.append(SEALED_HOLDOUT_TAG)
+    return tuple(dict.fromkeys(tags))
 
 
 def _messages_from_turn(turn: Mapping[str, object], context: str) -> tuple[MessageRecord, ...]:

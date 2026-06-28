@@ -35,6 +35,7 @@ LAUNCHER_STATE_SCHEMA_VERSION = "aegis.launcher_state/v1"
 LAUNCHER_PREFLIGHT_SCHEMA_VERSION = "aegis.launcher_preflight/v1"
 LAUNCHER_ACTION_SCHEMA_VERSION = "aegis.launcher_action/v1"
 LAUNCHER_OBSERVABILITY_SCHEMA_VERSION = "aegis.launcher_observability/v1"
+LAUNCHER_CAPABILITIES_SCHEMA_VERSION = "aegis.launcher_capabilities/v1"
 _LOG_BYTES = 12000
 _MAX_OBSERVABILITY_LIMIT = 100
 _LOCAL_PROVIDER_TIMEOUT_SECONDS = "90"
@@ -192,6 +193,11 @@ class LauncherService:
         profile = self.profile()
         preflight = run_preflight(settings=self._settings, profile=profile)
         commands = build_commands(settings=self._settings, profile=profile)
+        processes = _with_external_service_statuses(
+            processes=self._supervisor.statuses(),
+            profile=profile,
+            commands=commands,
+        )
         return {
             "schema_version": LAUNCHER_STATE_SCHEMA_VERSION,
             "repo_root": str(self._settings.repo_root),
@@ -201,17 +207,45 @@ class LauncherService:
             "provider_models": provider_models(profile),
             "preflight": preflight,
             "actions": [commands[action_id].to_dict() for action_id in sorted(commands)],
-            "processes": self._supervisor.statuses(),
+            "processes": processes,
+        }
+
+    def capabilities(self) -> dict[str, JsonValue]:
+        return {
+            "schema_version": LAUNCHER_CAPABILITIES_SCHEMA_VERSION,
+            "features": {
+                "state": True,
+                "profile_update": True,
+                "actions": True,
+                "observability": True,
+            },
+            "routes": [
+                "/api/state",
+                "/api/profile",
+                "/api/preflight",
+                "/api/actions/{action_id}/start",
+                "/api/actions/{action_id}/stop",
+                "/api/actions/stop-all",
+                "/api/actions/clear-statuses",
+                "/api/observability",
+                "/api/observability/traces/{trace_id}",
+                "/api/observability/trace",
+                "/api/launcher/capabilities",
+            ],
         }
 
     def preflight(self) -> dict[str, JsonValue]:
         return run_preflight(settings=self._settings, profile=self.profile())
 
     def start_action(self, action_id: str) -> dict[str, JsonValue]:
-        commands = build_commands(settings=self._settings, profile=self.profile())
+        profile = self.profile()
+        commands = build_commands(settings=self._settings, profile=profile)
         command = commands.get(action_id)
         if command is None:
             raise LauncherServiceError(f"unknown launcher action '{action_id}'.")
+        external_status = _external_service_status(profile=profile, command=command)
+        if external_status is not None:
+            return external_status
         return self._supervisor.start(command)
 
     def stop_action(self, action_id: str) -> dict[str, JsonValue]:
@@ -593,6 +627,85 @@ def _port_check(host: str, port: int, label: str) -> dict[str, JsonValue]:
     if result == 0:
         return _check(label, "warn", f"{host}:{port} already accepts connections.")
     return _check(label, "passed", f"{host}:{port} is available.")
+
+
+def _with_external_service_statuses(
+    processes: dict[str, JsonValue],
+    profile: LauncherProfile,
+    commands: dict[str, ManagedCommand],
+) -> dict[str, JsonValue]:
+    merged = dict(processes)
+    for action_id in ("cift_sidecar", "gateway"):
+        current = merged.get(action_id)
+        if _process_is_running(current):
+            continue
+        command = commands.get(action_id)
+        if command is None:
+            continue
+        external_status = _external_service_status(profile=profile, command=command)
+        if external_status is not None:
+            merged[action_id] = external_status
+    return merged
+
+
+def _process_is_running(process: JsonValue) -> bool:
+    return isinstance(process, dict) and process.get("status") == "running"
+
+
+def _external_service_status(profile: LauncherProfile, command: ManagedCommand) -> dict[str, JsonValue] | None:
+    if command.action_id == "cift_sidecar" and _sidecar_healthy(profile):
+        return _external_process_status(
+            command=command,
+            detail=f"CIFT is already responding on {profile.sidecar_host}:{profile.sidecar_port}.",
+        )
+    if command.action_id == "gateway" and _gateway_ready(profile):
+        return _external_process_status(
+            command=command,
+            detail=f"Gateway is already ready on {profile.gateway_host}:{profile.gateway_port}.",
+        )
+    return None
+
+
+def _external_process_status(command: ManagedCommand, detail: str) -> dict[str, JsonValue]:
+    observed_at = time.time()
+    return {
+        "action_id": command.action_id,
+        "label": command.label,
+        "pid": None,
+        "status": "running",
+        "exit_code": None,
+        "started_at": observed_at,
+        "finished_at": None,
+        "observed_at": observed_at,
+        "runtime_seconds": 0.0,
+        "kind": command.kind,
+        "log_path": "",
+        "log_excerpt": detail,
+        "source": "external",
+    }
+
+
+def _sidecar_healthy(profile: LauncherProfile) -> bool:
+    payload = _read_json_url(f"http://{profile.sidecar_host}:{profile.sidecar_port}/health", 0.5)
+    return payload is not None and payload.get("status") == "ok"
+
+
+def _gateway_ready(profile: LauncherProfile) -> bool:
+    payload = _read_json_url(f"http://{profile.gateway_host}:{profile.gateway_port}/ready", 0.5)
+    return payload is not None and payload.get("ready") is True
+
+
+def _read_json_url(url: str, timeout_seconds: float) -> dict[str, JsonValue] | None:
+    try:
+        with urllib.request.urlopen(url, timeout=timeout_seconds) as response:
+            if response.status != 200:
+                return None
+            payload = json.loads(response.read().decode("utf-8"))
+    except (TimeoutError, urllib.error.URLError, json.JSONDecodeError):
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return cast(dict[str, JsonValue], payload)
 
 
 def _url_check(url: str, label: str) -> dict[str, JsonValue]:

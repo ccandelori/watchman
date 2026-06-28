@@ -30,7 +30,10 @@ from aegis_introspection.trace_record_adapter import (
     MessageSegment,
     RenderedTracePrompt,
     SelectedChoiceReadout,
+    TokenOffset,
     TokenOffsetEncoder,
+    TokenSpan,
+    ToolArgumentSegment,
     ToolCallRecord,
     TraceRecordAdapterError,
     render_trace_prompt,
@@ -99,6 +102,13 @@ class CiftSidecarModelAttestation:
 
 
 @dataclass(frozen=True)
+class FreeformReadout:
+    readout_token_indices: tuple[int, ...]
+    query_tail_readout_token_indices: tuple[int, ...] | None
+    readout_window_source: str
+
+
+@dataclass(frozen=True)
 class CiftRenderedPromptTurnAdapter:
     offset_encoder: TokenOffsetEncoder
     selected_choice_readout_token_count: int
@@ -120,14 +130,24 @@ class CiftRenderedPromptTurnAdapter:
             rendered_prompt = _rendered_prompt_for_turn(turn)
         except TraceRecordAdapterError as exc:
             raise CiftSidecarTurnPreparationError(str(exc)) from exc
+        offsets = self.offset_encoder.encode_offsets(rendered_prompt.text)
         selected_choice_readout = self._selected_choice_readout(
             turn=turn,
             feature_key=feature_key,
             rendered_prompt=rendered_prompt,
+            offsets=offsets,
+        )
+        freeform_readout = _freeform_readout(
+            feature_key=feature_key,
+            rendered_prompt=rendered_prompt,
+            offsets=offsets,
+            readout_token_count=self.selected_choice_readout_token_count,
+            context=f"sidecar turn {turn.trace_id}",
         )
         metadata = _metadata_with_selected_choice_readout(
             metadata=turn.metadata,
             selected_choice_readout=selected_choice_readout,
+            freeform_readout=freeform_readout,
             selected_choice_readout_token_count=self.selected_choice_readout_token_count,
         )
         return NormalizedTurn(
@@ -147,11 +167,11 @@ class CiftRenderedPromptTurnAdapter:
         turn: NormalizedTurn,
         feature_key: str,
         rendered_prompt: RenderedTracePrompt,
+        offsets: tuple[TokenOffset, ...],
     ) -> SelectedChoiceReadout | None:
         if not _requires_selected_choice_indices(feature_key):
             return None
         try:
-            offsets = self.offset_encoder.encode_offsets(rendered_prompt.text)
             return semantic_indirection_selected_choice_readout(
                 rendered_prompt=rendered_prompt,
                 offsets=offsets,
@@ -209,12 +229,25 @@ def _is_single_rendered_prompt_turn(turn: NormalizedTurn) -> bool:
 def _metadata_with_selected_choice_readout(
     metadata: Mapping[str, JsonValue],
     selected_choice_readout: SelectedChoiceReadout | None,
+    freeform_readout: FreeformReadout | None,
     selected_choice_readout_token_count: int,
 ) -> dict[str, JsonValue]:
     copied_metadata = {key: value for key, value in metadata.items() if key != "cift"}
-    if selected_choice_readout is None:
-        return copied_metadata
     cift_metadata: dict[str, JsonValue] = {}
+    if freeform_readout is not None:
+        cift_metadata["readout_token_indices"] = list(freeform_readout.readout_token_indices)
+        if freeform_readout.query_tail_readout_token_indices is not None:
+            cift_metadata["query_tail_readout_token_indices"] = list(freeform_readout.query_tail_readout_token_indices)
+        cift_metadata["readout_window_source"] = freeform_readout.readout_window_source
+        cift_metadata["readout_source"] = {
+            "source": "sidecar_freeform",
+            "readout_window": freeform_readout.readout_window_source,
+            "readout_token_count": len(freeform_readout.readout_token_indices),
+        }
+    if selected_choice_readout is None:
+        if cift_metadata:
+            copied_metadata["cift"] = cift_metadata
+        return copied_metadata
     cift_metadata["selected_choice_char_span"] = selected_choice_readout.selected_choice_char_span.to_json()
     cift_metadata["selected_choice_token_span"] = selected_choice_readout.selected_choice_token_span.to_json()
     cift_metadata["selected_choice_readout_token_indices"] = list(
@@ -226,6 +259,136 @@ def _metadata_with_selected_choice_readout(
     }
     copied_metadata["cift"] = cift_metadata
     return copied_metadata
+
+
+def _freeform_readout(
+    feature_key: str,
+    rendered_prompt: RenderedTracePrompt,
+    offsets: tuple[TokenOffset, ...],
+    readout_token_count: int,
+    context: str,
+) -> FreeformReadout | None:
+    if feature_key.startswith("final_token_"):
+        if len(offsets) == 0:
+            raise CiftSidecarTurnPreparationError(f"{context}: tokenizer produced no prompt tokens.")
+        final_token_indices = (len(offsets) - 1,)
+        query_tail_indices = _query_tail_indices_or_none(
+            rendered_prompt=rendered_prompt,
+            offsets=offsets,
+            readout_token_count=readout_token_count,
+            context=context,
+        )
+        return FreeformReadout(
+            readout_token_indices=final_token_indices,
+            query_tail_readout_token_indices=query_tail_indices,
+            readout_window_source="final_token",
+        )
+    query_tail_indices = _query_tail_indices_or_none(
+        rendered_prompt=rendered_prompt,
+        offsets=offsets,
+        readout_token_count=readout_token_count,
+        context=context,
+    )
+    if query_tail_indices is None:
+        return None
+    payload_readout = _payload_readout(
+        tool_argument_segments=rendered_prompt.tool_argument_segments,
+        offsets=offsets,
+        readout_token_count=readout_token_count,
+        context=context,
+    )
+    if payload_readout is None:
+        return FreeformReadout(
+            readout_token_indices=query_tail_indices,
+            query_tail_readout_token_indices=query_tail_indices,
+            readout_window_source="query_tail",
+        )
+    return FreeformReadout(
+        readout_token_indices=payload_readout,
+        query_tail_readout_token_indices=query_tail_indices,
+        readout_window_source="tool_payload",
+    )
+
+
+def _query_tail_indices_or_none(
+    rendered_prompt: RenderedTracePrompt,
+    offsets: tuple[TokenOffset, ...],
+    readout_token_count: int,
+    context: str,
+) -> tuple[int, ...] | None:
+    query_span = _query_char_span(rendered_prompt.message_segments)
+    if query_span is None:
+        return None
+    query_token_span = _token_span_for_char_span(offsets=offsets, char_span=query_span, context=context)
+    return _readout_indices_for_char_span(
+        offsets=offsets,
+        char_span=query_span,
+        lower_bound=query_token_span.start,
+        readout_token_count=readout_token_count,
+        context=context,
+    )
+
+
+def _query_char_span(message_segments: tuple[MessageSegment, ...]) -> CharSpan | None:
+    for segment in message_segments:
+        if segment.role == "user":
+            return segment.content_span
+    return None
+
+
+def _payload_readout(
+    tool_argument_segments: tuple[ToolArgumentSegment, ...],
+    offsets: tuple[TokenOffset, ...],
+    readout_token_count: int,
+    context: str,
+) -> tuple[int, ...] | None:
+    if len(tool_argument_segments) == 0:
+        return None
+    credential_segments = tuple(
+        segment for segment in tool_argument_segments if segment.argument_path.endswith(".credential")
+    )
+    segment = credential_segments[0] if len(credential_segments) > 0 else tool_argument_segments[0]
+    return _readout_indices_for_char_span(
+        offsets=offsets,
+        char_span=segment.value_span,
+        lower_bound=_token_span_for_char_span(offsets=offsets, char_span=segment.value_span, context=context).start,
+        readout_token_count=readout_token_count,
+        context=context,
+    )
+
+
+def _token_span_for_char_span(
+    offsets: tuple[TokenOffset, ...],
+    char_span: CharSpan,
+    context: str,
+) -> TokenSpan:
+    indices = _token_indices_for_char_span(offsets=offsets, char_span=char_span)
+    if len(indices) == 0:
+        raise CiftSidecarTurnPreparationError(f"{context}: tokenizer produced no tokens for char span {char_span}.")
+    return TokenSpan(start=indices[0], end=indices[-1] + 1)
+
+
+def _readout_indices_for_char_span(
+    offsets: tuple[TokenOffset, ...],
+    char_span: CharSpan,
+    lower_bound: int,
+    readout_token_count: int,
+    context: str,
+) -> tuple[int, ...]:
+    indices = tuple(
+        index for index in _token_indices_for_char_span(offsets=offsets, char_span=char_span) if index >= lower_bound
+    )
+    if len(indices) == 0:
+        raise CiftSidecarTurnPreparationError(f"{context}: no readout tokens remain after visibility floor.")
+    return indices[-readout_token_count:]
+
+
+def _token_indices_for_char_span(offsets: tuple[TokenOffset, ...], char_span: CharSpan) -> tuple[int, ...]:
+    return tuple(
+        index
+        for index, offset in enumerate(offsets)
+        if offset.end > char_span.start and offset.start < char_span.end
+    )
 
 
 class CiftExtractorSidecarService:
@@ -651,20 +814,34 @@ def _extraction_receipt_payload(
                 "extractor provenance selected_choice_readout_token_indices_sha256 must match prepared turn indices."
             )
         receipt["selected_choice_readout_token_indices_sha256"] = expected_digest
-    _copy_selected_choice_span_receipt_fields(receipt=receipt, prepared_turn=prepared_turn)
+    _copy_cift_readout_receipt_fields(receipt=receipt, prepared_turn=prepared_turn)
     return receipt
 
 
-def _copy_selected_choice_span_receipt_fields(
+def _copy_cift_readout_receipt_fields(
     receipt: dict[str, JsonValue],
     prepared_turn: NormalizedTurn,
 ) -> None:
     cift_metadata = prepared_turn.metadata.get("cift")
     if not isinstance(cift_metadata, dict):
         return
-    for field_name in ("selected_choice_char_span", "selected_choice_token_span", "selected_choice_readout_source"):
+    for field_name in (
+        "readout_token_indices",
+        "query_tail_readout_token_indices",
+        "readout_window_source",
+        "readout_source",
+        "selected_choice_char_span",
+        "selected_choice_token_span",
+        "selected_choice_readout_source",
+    ):
         value = cift_metadata.get(field_name)
-        if isinstance(value, dict):
+        if isinstance(value, str | int | float | bool) or value is None:
+            receipt[field_name] = value
+        elif isinstance(value, list):
+            receipt[field_name] = list(value)
+            if field_name in ("readout_token_indices", "query_tail_readout_token_indices"):
+                receipt[f"{field_name}_sha256"] = _json_sha256(list(value))
+        elif isinstance(value, dict):
             receipt[field_name] = dict(value)
 
 

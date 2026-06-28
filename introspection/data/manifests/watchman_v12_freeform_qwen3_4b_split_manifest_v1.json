@@ -1,0 +1,180 @@
+{
+  "corpus_id": "watchman-v12-freeform",
+  "created_at": "2026-06-27T00:00:00Z",
+  "model_id": "Qwen/Qwen3-4B",
+  "model_revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+  "normalization_mode": "freeform_runtime_v2",
+  "schema_version": "aegis_introspection.freeform_split_manifest/v1",
+  "selected_choice_ledger_appended": false,
+  "selected_device": "mps",
+  "splits": {
+    "calibration": {
+      "family_counts": {
+        "analytics_platform": 319,
+        "ci_cd": 319,
+        "cloud_infra": 319,
+        "customer_support": 319,
+        "database_connection": 319,
+        "direct_paste": 60,
+        "email_service": 319,
+        "near_neighbor": 60,
+        "oauth_session": 319,
+        "payment_processor": 319,
+        "protected_context": 60,
+        "repository_access": 319,
+        "sms_provider": 319,
+        "tool_payload": 60,
+        "tool_payload_forwarding": 319,
+        "webhook_delivery": 319
+      },
+      "label_counts": {
+        "benign": 1356,
+        "exfiltration_intent": 1356,
+        "secret_present_safe": 1356
+      },
+      "path": "introspection/data/trace_records_watchman_v12_freeform_4068_calibration.jsonl",
+      "row_count": 4068,
+      "sha256": "83a720bf8c240e24d6581b694e7d650fdc3835e710edbdc1a32dd1ad80c2b82c"
+    },
+    "normalized": {
+      "family_counts": {
+        "analytics_platform": 400,
+        "ci_cd": 400,
+        "cloud_infra": 400,
+        "customer_support": 400,
+        "database_connection": 400,
+        "direct_paste": 75,
+        "email_service": 400,
+        "near_neighbor": 75,
+        "oauth_session": 400,
+        "payment_processor": 400,
+        "protected_context": 75,
+        "repository_access": 400,
+        "sms_provider": 400,
+        "tool_payload": 75,
+        "tool_payload_forwarding": 400,
+        "webhook_delivery": 400
+      },
+      "label_counts": {
+        "benign": 1700,
+        "exfiltration_intent": 1700,
+        "secret_present_safe": 1700
+      },
+      "path": "introspection/data/trace_records_watchman_v12_freeform_5100_normalized.jsonl",
+      "row_count": 5100,
+      "sha256": "3b2e0f47d2793500032eaa83e9d2abaffd19a47188261841a9bbb947af5c349c"
+    },
+    "runtime_turns_sealed_holdout_qwen3_4b": {
+      "family_counts": {
+        "analytics_platform": 81,
+        "ci_cd": 81,
+        "cloud_infra": 81,
+        "customer_support": 81,
+        "database_connection": 81,
+        "direct_paste": 15,
+        "email_service": 81,
+        "near_neighbor": 15,
+        "oauth_session": 81,
+        "payment_processor": 81,
+        "protected_context": 15,
+        "repository_access": 81,
+        "sms_provider": 81,
+        "tool_payload": 15,
+        "tool_payload_forwarding": 81,
+        "webhook_delivery": 81
+      },
+      "label_counts": {
+        "benign": 344,
+        "exfiltration_intent": 344,
+        "secret_present_safe": 344
+      },
+      "path": "introspection/data/runtime_turns_watchman_v12_freeform_1032_sealed_holdout_qwen3_4b_tagged.jsonl",
+      "row_count": 1032,
+      "sha256": "ec1c231219c79c9b16bbfde817828dd0a6809db0b74706ce9cc5c07e1312d14e"
+    },
+    "sealed_holdout": {
+      "family_counts": {
+        "analytics_platform": 81,
+        "ci_cd": 81,
+        "cloud_infra": 81,
+        "customer_support": 81,
+        "database_connection": 81,
+        "direct_paste": 15,
+        "email_service": 81,
+        "near_neighbor": 15,
+        "oauth_session": 81,
+        "payment_processor": 81,
+        "protected_context": 15,
+        "repository_access": 81,
+        "sms_provider": 81,
+        "tool_payload": 15,
+        "tool_payload_forwarding": 81,
+        "webhook_delivery": 81
+      },
+      "label_counts": {
+        "benign": 344,
+        "exfiltration_intent": 344,
+        "secret_present_safe": 344
+      },
+      "path": "introspection/data/trace_records_watchman_v12_freeform_1032_sealed_holdout.jsonl",
+      "row_count": 1032,
+      "sha256": "3303792010e90356cc8624687a0495fb67230a6fe0f8f4d9871907ee6ae1cb91"
+    },
+    "structured_calibration_qwen3_4b": {
+      "family_counts": {
+        "analytics_platform": 319,
+        "ci_cd": 319,
+        "cloud_infra": 319,
+        "customer_support": 319,
+        "database_connection": 319,
+        "direct_paste": 60,
+        "email_service": 319,
+        "near_neighbor": 60,
+        "oauth_session": 319,
+        "payment_processor": 319,
+        "protected_context": 60,
+        "repository_access": 319,
+        "sms_provider": 319,
+        "tool_payload": 60,
+        "tool_payload_forwarding": 319,
+        "webhook_delivery": 319
+      },
+      "label_counts": {
+        "benign": 1356,
+        "exfiltration_intent": 1356,
+        "secret_present_safe": 1356
+      },
+      "path": "introspection/data/structured_prompts_watchman_v12_freeform_4068_calibration_qwen3_4b.jsonl",
+      "row_count": 4068,
+      "sha256": "4c1d16653054f1edb26299af4dfe78afcc296a4c6cf49bf418b129aeba1878a4"
+    },
+    "structured_sealed_holdout_qwen3_4b": {
+      "family_counts": {
+        "analytics_platform": 81,
+        "ci_cd": 81,
+        "cloud_infra": 81,
+        "customer_support": 81,
+        "database_connection": 81,
+        "direct_paste": 15,
+        "email_service": 81,
+        "near_neighbor": 15,
+        "oauth_session": 81,
+        "payment_processor": 81,
+        "protected_context": 15,
+        "repository_access": 81,
+        "sms_provider": 81,
+        "tool_payload": 15,
+        "tool_payload_forwarding": 81,
+        "webhook_delivery": 81
+      },
+      "label_counts": {
+        "benign": 344,
+        "exfiltration_intent": 344,
+        "secret_present_safe": 344
+      },
+      "path": "introspection/data/structured_prompts_watchman_v12_freeform_1032_sealed_holdout_qwen3_4b.jsonl",
+      "row_count": 1032,
+      "sha256": "3aca9c4a4a7fe0f283b0eac79d9a5da03c25116ae996a15edcfadba8ff1755ff"
+    }
+  }
+}

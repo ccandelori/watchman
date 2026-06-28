@@ -11,6 +11,7 @@ const {
   isAegisRepoRoot,
   launcherBaseUrl,
   preferredPortFromEnv,
+  probeLauncher,
   repoRootFromConfig,
   repoRootFromAppPath,
   requestJson,
@@ -89,6 +90,71 @@ test("requestJson sends JSON and decodes launcher responses", async () => {
       url: "/api/profile",
       body: { provider_model: "qwen3:4b" },
     });
+  } finally {
+    await new Promise((resolve) => {
+      server.close(resolve);
+    });
+  }
+});
+
+test("probeLauncher rejects stale launcher backends without desktop capabilities", async () => {
+  const repo = makeRepoFixture();
+  const server = http.createServer((request, response) => {
+    response.setHeader("Content-Type", "application/json");
+    if (request.url === "/api/state") {
+      response.end(JSON.stringify({ schema_version: "aegis.launcher_state/v1", repo_root: repo }));
+      return;
+    }
+    response.statusCode = 404;
+    response.end(JSON.stringify({ detail: "Not Found" }));
+  });
+
+  await new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  assert.equal(typeof address, "object");
+  const baseUrl = launcherBaseUrl("127.0.0.1", address.port);
+
+  try {
+    assert.deepEqual(await probeLauncher({ baseUrl, repoRoot: repo }), { status: "unknown" });
+  } finally {
+    await new Promise((resolve) => {
+      server.close(resolve);
+    });
+  }
+});
+
+test("probeLauncher accepts current launcher backends with observability capabilities", async () => {
+  const repo = makeRepoFixture();
+  const server = http.createServer((request, response) => {
+    response.setHeader("Content-Type", "application/json");
+    if (request.url === "/api/state") {
+      response.end(JSON.stringify({ schema_version: "aegis.launcher_state/v1", repo_root: repo }));
+      return;
+    }
+    if (request.url === "/api/launcher/capabilities") {
+      response.end(
+        JSON.stringify({
+          schema_version: "aegis.launcher_capabilities/v1",
+          features: { observability: true },
+        }),
+      );
+      return;
+    }
+    response.statusCode = 404;
+    response.end(JSON.stringify({ detail: "Not Found" }));
+  });
+
+  await new Promise((resolve) => {
+    server.listen(0, "127.0.0.1", resolve);
+  });
+  const address = server.address();
+  assert.equal(typeof address, "object");
+  const baseUrl = launcherBaseUrl("127.0.0.1", address.port);
+
+  try {
+    assert.deepEqual(await probeLauncher({ baseUrl, repoRoot: repo }), { status: "launcher" });
   } finally {
     await new Promise((resolve) => {
       server.close(resolve);

@@ -1,0 +1,384 @@
+{
+  "calibration_record_count": 0,
+  "calibration_split_id": "grok-watchman-v10-freeform/calibration",
+  "corpus_id": "grok-watchman-v10-freeform",
+  "created_at": "2026-06-27T00:00:00Z",
+  "family_counts": {
+    "analytics_platform": 400,
+    "ci_cd": 400,
+    "cloud_infra": 400,
+    "customer_support": 400,
+    "database_connection": 400,
+    "email_service": 400,
+    "oauth_session": 400,
+    "payment_processor": 400,
+    "repository_access": 400,
+    "sms_provider": 400,
+    "tool_payload_forwarding": 400,
+    "webhook_delivery": 400
+  },
+  "family_label_counts": {
+    "analytics_platform": {
+      "exfiltration_intent": 400
+    },
+    "ci_cd": {
+      "secret_present_safe": 400
+    },
+    "cloud_infra": {
+      "secret_present_safe": 400
+    },
+    "customer_support": {
+      "benign": 400
+    },
+    "database_connection": {
+      "benign": 400
+    },
+    "email_service": {
+      "exfiltration_intent": 400
+    },
+    "oauth_session": {
+      "exfiltration_intent": 400
+    },
+    "payment_processor": {
+      "secret_present_safe": 400
+    },
+    "repository_access": {
+      "secret_present_safe": 400
+    },
+    "sms_provider": {
+      "exfiltration_intent": 400
+    },
+    "tool_payload_forwarding": {
+      "benign": 400
+    },
+    "webhook_delivery": {
+      "benign": 400
+    }
+  },
+  "hard_feature_rates": {
+    "hard_near_neighbor": 0.3077083333333333,
+    "multi_turn": 0.440625,
+    "tool_payload": 0.420625
+  },
+  "label_counts": {
+    "benign": 1600,
+    "exfiltration_intent": 1600,
+    "secret_present_safe": 1600
+  },
+  "normalization_mode": "freeform_runtime_v1",
+  "normalized_record_count": 0,
+  "outputs": {},
+  "quality_gates": [
+    {
+      "detail": "Number of shard_*.jsonl files must match the declared corpus shape.",
+      "name": "expected_shard_count",
+      "observed": 20,
+      "passed": true,
+      "required": 20
+    },
+    {
+      "detail": "Every shard must contain the expected number of JSONL records.",
+      "name": "expected_records_per_shard",
+      "observed": {
+        "shard_001.jsonl": 240,
+        "shard_002.jsonl": 240,
+        "shard_003.jsonl": 240,
+        "shard_004.jsonl": 240,
+        "shard_005.jsonl": 240,
+        "shard_006.jsonl": 240,
+        "shard_007.jsonl": 240,
+        "shard_008.jsonl": 240,
+        "shard_009.jsonl": 240,
+        "shard_010.jsonl": 240,
+        "shard_011.jsonl": 240,
+        "shard_012.jsonl": 240,
+        "shard_013.jsonl": 240,
+        "shard_014.jsonl": 240,
+        "shard_015.jsonl": 240,
+        "shard_016.jsonl": 240,
+        "shard_017.jsonl": 240,
+        "shard_018.jsonl": 240,
+        "shard_019.jsonl": 240,
+        "shard_020.jsonl": 240
+      },
+      "passed": true,
+      "required": 240
+    },
+    {
+      "detail": "Records must follow the Grok trace_collection/v1 envelope with usable normalized_turn data.",
+      "name": "schema_and_required_fields",
+      "observed": [],
+      "passed": true,
+      "required": []
+    },
+    {
+      "detail": "record_id values must be globally unique.",
+      "name": "unique_record_ids",
+      "observed": [],
+      "passed": true,
+      "required": []
+    },
+    {
+      "detail": "Global label counts must match the requested balanced corpus.",
+      "name": "expected_global_label_counts",
+      "observed": {
+        "benign": 1600,
+        "exfiltration_intent": 1600,
+        "secret_present_safe": 1600
+      },
+      "passed": true,
+      "required": {
+        "benign": 1600,
+        "exfiltration_intent": 1600,
+        "secret_present_safe": 1600
+      }
+    },
+    {
+      "detail": "Every family must have the expected number of records.",
+      "name": "expected_family_record_count",
+      "observed": {
+        "analytics_platform": 400,
+        "ci_cd": 400,
+        "cloud_infra": 400,
+        "customer_support": 400,
+        "database_connection": 400,
+        "email_service": 400,
+        "oauth_session": 400,
+        "payment_processor": 400,
+        "repository_access": 400,
+        "sms_provider": 400,
+        "tool_payload_forwarding": 400,
+        "webhook_delivery": 400
+      },
+      "passed": true,
+      "required": 400
+    },
+    {
+      "detail": "Hard near-neighbor tags must meet the minimum requested rate.",
+      "name": "hard_near_neighbor_rate",
+      "observed": 0.3077083333333333,
+      "passed": true,
+      "required": 0.3
+    },
+    {
+      "detail": "Tool-payload tags must meet the minimum requested rate.",
+      "name": "tool_payload_rate",
+      "observed": 0.420625,
+      "passed": true,
+      "required": 0.2
+    },
+    {
+      "detail": "Multi-turn/session-continuity tags must meet the minimum requested rate.",
+      "name": "multi_turn_rate",
+      "observed": 0.440625,
+      "passed": true,
+      "required": 0.2
+    },
+    {
+      "detail": "Synthetic secrets must be visibly non-functional test values.",
+      "name": "synthetic_secret_safety",
+      "observed": [],
+      "passed": true,
+      "required": []
+    },
+    {
+      "detail": "Prompt text diversity must be high enough to avoid training on repeated templates.",
+      "name": "unique_message_ratio",
+      "observed": 0.06125,
+      "passed": false,
+      "required": 0.7
+    },
+    {
+      "detail": "Each family should contain every label; otherwise family identity can leak the answer.",
+      "name": "family_label_crossing",
+      "observed": {
+        "analytics_platform": [
+          "exfiltration_intent"
+        ],
+        "ci_cd": [
+          "secret_present_safe"
+        ],
+        "cloud_infra": [
+          "secret_present_safe"
+        ],
+        "customer_support": [
+          "benign"
+        ],
+        "database_connection": [
+          "benign"
+        ],
+        "email_service": [
+          "exfiltration_intent"
+        ],
+        "oauth_session": [
+          "exfiltration_intent"
+        ],
+        "payment_processor": [
+          "secret_present_safe"
+        ],
+        "repository_access": [
+          "secret_present_safe"
+        ],
+        "sms_provider": [
+          "exfiltration_intent"
+        ],
+        "tool_payload_forwarding": [
+          "benign"
+        ],
+        "webhook_delivery": [
+          "benign"
+        ]
+      },
+      "passed": false,
+      "required": [
+        "secret_present_safe",
+        "exfiltration_intent",
+        "benign"
+      ]
+    },
+    {
+      "detail": "Synthetic credential values should not repeat across records used for certification evidence.",
+      "name": "unique_synthetic_secrets",
+      "observed": [
+        "***000061ABCDEF",
+        "***000062ABCDEF",
+        "***000063ABCDEF",
+        "***000064ABCDEF",
+        "***000065ABCDEF",
+        "***000066ABCDEF",
+        "***000067ABCDEF",
+        "***000068ABCDEF",
+        "***000069ABCDEF",
+        "***000070ABCDEF",
+        "***000071ABCDEF",
+        "***000072ABCDEF",
+        "***000073ABCDEF",
+        "***000074ABCDEF",
+        "***000075ABCDEF",
+        "***000076ABCDEF",
+        "***000077ABCDEF",
+        "***000078ABCDEF",
+        "***000079ABCDEF",
+        "***000080ABCDEF"
+      ],
+      "passed": false,
+      "required": []
+    }
+  ],
+  "schema_version": "aegis_introspection.grok_redteam_corpus_ingestion/v1",
+  "sealed_holdout_record_count": 0,
+  "sealed_holdout_split_id": "grok-watchman-v10-freeform/sealed",
+  "source_corpus_sha256": "72731e366c1be3cf7ae05ee9177d0ebb893928fad8c03f613ccd801a7c033813",
+  "source_dir": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data",
+  "source_files": [
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_001.jsonl",
+      "record_count": 240,
+      "sha256": "4a5964016c81de926fef6ee6418f0a4c18afacc66c130f94fdb688b2819a52da"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_002.jsonl",
+      "record_count": 240,
+      "sha256": "5a984722a751540fe1d8759af9b2a6851ecaba2ae1576bee61b2b4bf718b2b83"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_003.jsonl",
+      "record_count": 240,
+      "sha256": "e0310acf1b2bc439741f0beef6cf3a3b7bf5d90070886c754976973af72385f8"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_004.jsonl",
+      "record_count": 240,
+      "sha256": "4d8b0e02fa8a07f61709a962e09789e550ae5e5d25e6f08b316165a663c0c467"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_005.jsonl",
+      "record_count": 240,
+      "sha256": "740e1cd69d1ec1ba37c98417f7e29e831dff5bc593c3033330efc9f083920b85"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_006.jsonl",
+      "record_count": 240,
+      "sha256": "fecec7eab5120f80beb24683253f6fea894f7706d50315fb607e04b313012f63"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_007.jsonl",
+      "record_count": 240,
+      "sha256": "14492b10bfd356aaa98420506fd2910269d2cce67ee9289daaf955f7a419f703"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_008.jsonl",
+      "record_count": 240,
+      "sha256": "c7953f288571672cbd1a94eccaaa58089654d1fc6e74bbe88305a7b35c724b7f"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_009.jsonl",
+      "record_count": 240,
+      "sha256": "36d4fb40ef8eff4a4563246ea16322e907916422565703968635f8ef643ce9ac"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_010.jsonl",
+      "record_count": 240,
+      "sha256": "2e8183187ac6b5b2c260177e7adaefc64d0076f24d23420e3b55c9a17a5296a6"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_011.jsonl",
+      "record_count": 240,
+      "sha256": "b958c5ce9129ce3eeea7621f1c106eece84cdbff26615c463265ea183c012f29"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_012.jsonl",
+      "record_count": 240,
+      "sha256": "ab9d841f3e6365a5a21ddc7cf625f72c08f4dc8809ec08e3bce7a130d24c7740"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_013.jsonl",
+      "record_count": 240,
+      "sha256": "a4fb8d2d6fa92d45d5d74d0554077d72e5edfb15fa786f2bf6347c369c60042d"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_014.jsonl",
+      "record_count": 240,
+      "sha256": "aae84591e20efb492b23af8769280496091c468d38e45dabf8877d2b89431728"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_015.jsonl",
+      "record_count": 240,
+      "sha256": "229498500891d9a028d20694fa841fad72027ccca45cf2c33cc437348d568201"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_016.jsonl",
+      "record_count": 240,
+      "sha256": "b0f598bdcc20c6ebee0ddd0dc713ba0920ce4b3ef0c83059e2302135ff298a6f"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_017.jsonl",
+      "record_count": 240,
+      "sha256": "ab1af1e3a857a56849092bda88542c312b5050e39f3bb453924d48fab942644b"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_018.jsonl",
+      "record_count": 240,
+      "sha256": "ca72aa9001f07ab52fc750c06f136a88ba6981e9db8fef36e96424e8b7ca8e11"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_019.jsonl",
+      "record_count": 240,
+      "sha256": "3dd505f16312db4b7703c7113aa7258f5627df3c013acb95e233257fd0159cff"
+    },
+    {
+      "path": "/Users/sheep/Desktop/Gauntlet/watchman-redteam/synthetic_data/shard_020.jsonl",
+      "record_count": 240,
+      "sha256": "76971148405ff391653088a61923d7dcc3912d241938efe6924ccdbcb6bfd6b5"
+    }
+  ],
+  "source_record_count": 4800,
+  "split_policy": {
+    "grouping": "family_label",
+    "ordering": "sha256(source_record_id)",
+    "quarantine_output_allowed": false,
+    "sealed_fraction": 0.2
+  },
+  "status": "quarantined_not_training_eligible",
+  "training_eligible": false
+}

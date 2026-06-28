@@ -1,0 +1,3528 @@
+{
+  "source_model_id": "Qwen/Qwen3-4B",
+  "source_revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+  "source_selected_device": "mps",
+  "evaluation_strategy": "stratified_group_kfold",
+  "task_name": "non_exfiltration_vs_exfiltration",
+  "task_description": "Classify benign and safe secret handling against exfiltration-oriented secret handling.",
+  "label_names": [
+    "exfiltration_intent",
+    "non_exfiltration"
+  ],
+  "fold_count": 5,
+  "random_seed": 42,
+  "regularization_c": 1.0,
+  "max_iter": 1000,
+  "reference_feature_key": "query_tail_window_layer_21",
+  "best_feature_key": "final_token_layer_08",
+  "feature_count": 35,
+  "invalid_feature_count": 1,
+  "invalid_features": [
+    {
+      "feature_name": "mean_pool_layer_35",
+      "reason": "3863 non-finite values across 2323 rows"
+    }
+  ],
+  "features": [
+    {
+      "rank": 1,
+      "feature_name": "final_token_layer_08",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 2,
+      "feature_name": "final_token_layer_12",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 3,
+      "feature_name": "final_token_layer_16",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 4,
+      "feature_name": "final_token_layer_20",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 5,
+      "feature_name": "final_token_layer_21",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 6,
+      "feature_name": "final_token_layer_24",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 7,
+      "feature_name": "final_token_layer_28",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 8,
+      "feature_name": "final_token_layer_32",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 9,
+      "feature_name": "final_token_layer_35",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 10,
+      "feature_name": "mean_pool_layer_08",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 11,
+      "feature_name": "mean_pool_layer_12",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 12,
+      "feature_name": "mean_pool_layer_16",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 13,
+      "feature_name": "mean_pool_layer_20",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 14,
+      "feature_name": "mean_pool_layer_21",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 15,
+      "feature_name": "mean_pool_layer_24",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 16,
+      "feature_name": "mean_pool_layer_28",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 17,
+      "feature_name": "mean_pool_layer_32",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 18,
+      "feature_name": "query_tail_window_layer_12",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 19,
+      "feature_name": "query_tail_window_layer_16",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 20,
+      "feature_name": "query_tail_window_layer_20",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 21,
+      "feature_name": "query_tail_window_layer_21",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 22,
+      "feature_name": "query_tail_window_layer_24",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 23,
+      "feature_name": "readout_window_layer_08",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 24,
+      "feature_name": "readout_window_layer_12",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 25,
+      "feature_name": "readout_window_layer_16",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 26,
+      "feature_name": "readout_window_layer_20",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 27,
+      "feature_name": "readout_window_layer_24",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 28,
+      "feature_name": "readout_window_layer_28",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 29,
+      "feature_name": "readout_window_layer_32",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 1.0,
+      "accuracy_std": 0.0,
+      "macro_f1_mean": 1.0,
+      "macro_f1_std": 0.0,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          0,
+          2552
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 30,
+      "feature_name": "readout_window_layer_35",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 0.999791013584117,
+      "accuracy_std": 0.00041797283176592254,
+      "macro_f1_mean": 0.9997650741047593,
+      "macro_f1_std": 0.0004698517904814459,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          1,
+          2551
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 0.9989550679205852,
+          "macro_f1": 0.9988253705237964,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              1,
+              637
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 31,
+      "feature_name": "readout_window_layer_21",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 0.9996865203761756,
+      "accuracy_std": 0.0006269592476488839,
+      "macro_f1_mean": 0.9996480223323762,
+      "macro_f1_std": 0.0007039553352476968,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          1,
+          2551
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 0.9984326018808778,
+          "macro_f1": 0.9982401116618808,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              1,
+              424
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 32,
+      "feature_name": "query_tail_window_layer_08",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 0.9915360501567398,
+      "accuracy_std": 0.0169278996865204,
+      "macro_f1_mean": 0.9907590546619136,
+      "macro_f1_std": 0.01848189067617261,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          27,
+          2525
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 0.957680250783699,
+          "macro_f1": 0.9537952733095685,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              27,
+              398
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 33,
+      "feature_name": "query_tail_window_layer_35",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 0.990909090909091,
+      "accuracy_std": 0.018181818181818167,
+      "macro_f1_mean": 0.990094095916264,
+      "macro_f1_std": 0.019811808167471988,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          29,
+          2523
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 0.9545454545454546,
+          "macro_f1": 0.95047047958132,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              29,
+              396
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 34,
+      "feature_name": "query_tail_window_layer_32",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 0.9855799373040753,
+      "accuracy_std": 0.028840125391849547,
+      "macro_f1_mean": 0.9845328442533097,
+      "macro_f1_std": 0.030934311493380575,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          46,
+          2506
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 0.9278996865203761,
+          "macro_f1": 0.9226642212665486,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              46,
+              379
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "rank": 35,
+      "feature_name": "query_tail_window_layer_28",
+      "label_names": [
+        "exfiltration_intent",
+        "non_exfiltration"
+      ],
+      "example_count": 3828,
+      "accuracy_mean": 0.9836990595611285,
+      "accuracy_std": 0.03260188087774294,
+      "macro_f1_mean": 0.9826050481853169,
+      "macro_f1_std": 0.03478990362936632,
+      "confusion_matrix": [
+        [
+          1276,
+          0
+        ],
+        [
+          52,
+          2500
+        ]
+      ],
+      "folds": [
+        {
+          "fold_index": 1,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 2,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              319,
+              0
+            ],
+            [
+              0,
+              638
+            ]
+          ]
+        },
+        {
+          "fold_index": 3,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              212,
+              0
+            ],
+            [
+              0,
+              426
+            ]
+          ]
+        },
+        {
+          "fold_index": 4,
+          "accuracy": 0.9184952978056427,
+          "macro_f1": 0.9130252409265842,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              52,
+              373
+            ]
+          ]
+        },
+        {
+          "fold_index": 5,
+          "accuracy": 1.0,
+          "macro_f1": 1.0,
+          "confusion_matrix": [
+            [
+              213,
+              0
+            ],
+            [
+              0,
+              425
+            ]
+          ]
+        }
+      ]
+    }
+  ]
+}

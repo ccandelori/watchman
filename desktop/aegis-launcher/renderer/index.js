@@ -22,17 +22,17 @@ const state = {
 
 const protectionSteps = [
   { id: "ollama", title: "Ollama server", summary: "Start or detect the local provider." },
-  { id: "model", title: "Provider model", summary: "Use the selected model in Ollama." },
+  { id: "model", title: "Local model", summary: "Use the selected model in Ollama." },
   { id: "preflight", title: "Machine checks", summary: "Check paths, ports, and local tools." },
-  { id: "mps_preflight", title: "GPU", summary: "Verify the certified runtime device." },
-  { id: "cift_sidecar", title: "CIFT", summary: "Start hidden-state extraction." },
+  { id: "mps_preflight", title: "GPU", summary: "Choose the best available compute device." },
+  { id: "cift_sidecar", title: "CIFT", summary: "Start model introspection." },
   { id: "gateway", title: "Gateway", summary: "Put Aegis in front of the model." },
   { id: "console", title: "Console", summary: "Start the operator evidence view." },
 ];
 
 const verificationSteps = [
-  { id: "cift_smoke", title: "CIFT smoke", summary: "Prove exfiltration intent skips provider completion." },
-  { id: "real_provider_smoke", title: "Provider smoke", summary: "Prove benign traffic reaches the local model." },
+  { id: "cift_smoke", title: "CIFT block check", summary: "Prove exfiltration intent is blocked before response." },
+  { id: "real_provider_smoke", title: "Model allow check", summary: "Prove benign traffic reaches the local model." },
 ];
 
 const timeouts = {
@@ -46,6 +46,96 @@ const timeouts = {
   cift_smoke: 300,
   real_provider_smoke: 300,
 };
+
+const detectorDisplayNames = new Map([
+  ["cift_runtime", "CIFT intent check"],
+  ["encoded_canary", "Encoded canary check"],
+  ["nimbus", "Session leak check"],
+  ["nimbus_tool_egress", "Tool-output leak check"],
+  ["noop_canary", "Canary check"],
+  ["provider_egress_guard", "Provider safety check"],
+  ["text_canary", "Text canary check"],
+  ["tool_call_canary", "Tool-call leak check"],
+]);
+
+const stageDisplayNames = new Map([
+  ["normalize", "Prepare request"],
+  ["credential_slot", "Credential handling"],
+  ["dp_honey", "Honeytoken setup"],
+  ["cift", "CIFT intent check"],
+  ["provider_egress_guard", "Provider safety check"],
+  ["provider", "Local model"],
+  ["canary", "Canary checks"],
+  ["nimbus", "Session leak check"],
+  ["policy", "Policy decision"],
+  ["audit", "Audit log"],
+]);
+
+const statusDisplayNames = new Map([
+  ["active", "Active"],
+  ["allow", "Allow"],
+  ["block", "Block"],
+  ["blocked", "Blocked"],
+  ["completed", "Answered"],
+  ["done", "Done"],
+  ["failed", "Failed"],
+  ["idle", "Idle"],
+  ["not_configured", "Not configured"],
+  ["not_run", "Not run"],
+  ["optional", "Optional"],
+  ["passed", "Passed"],
+  ["running", "Running"],
+  ["skipped", "Not called"],
+  ["stopped", "Stopped"],
+  ["unavailable", "Not used"],
+  ["unknown", "Unknown"],
+  ["warn", "Warn"],
+  ["warned", "Needs review"],
+  ["waiting", "Waiting"],
+  ["written", "Written"],
+]);
+
+const fieldDisplayNames = new Map([
+  ["canary_count", "Canaries"],
+  ["credential_needed_count", "Credential requests"],
+  ["final_action", "Decision"],
+  ["honeytoken_substituted_count", "Honeytokens placed"],
+  ["model_id", "Model"],
+  ["provider", "Provider"],
+  ["reason", "Reason"],
+  ["real_secret_present_count", "Real secrets"],
+]);
+
+const valueDisplayNames = new Map([
+  ["blocked_sensitive_value_before_provider_egress", "Sensitive value was headed to the model"],
+  ["cift_pre_generation_policy_block", "CIFT stopped the turn before generation"],
+  ["deterministic_beta", "Deterministic beta"],
+  ["honeytoken_substituted", "Honeytoken substituted"],
+  ["learned_infonce_beta", "Learned leakage critic beta"],
+  ["learned_runtime_beta", "Learned beta"],
+  ["learned_runtime_beta_not_promotable", "Learned beta, not promotable"],
+  ["not_configured", "Not configured"],
+  ["pre_generation_policy_block", "Blocked before the model was called"],
+  ["real_secret_present", "A real secret was present"],
+  ["selected block from highest-severity detector recommendation.", "Blocked by the strongest detector result"],
+  ["self_hosted_introspection", "Self-hosted model introspection"],
+  ["severity", "Strongest detector wins"],
+]);
+
+const displayTokenOverrides = new Map([
+  ["api", "API"],
+  ["cift", "CIFT"],
+  ["cpu", "CPU"],
+  ["cuda", "CUDA"],
+  ["dp", "DP"],
+  ["honey", "HONEY"],
+  ["id", "ID"],
+  ["mps", "MPS"],
+  ["nimbus", "NIMBUS"],
+  ["noop", "No-op"],
+  ["openai", "OpenAI"],
+  ["url", "URL"],
+]);
 
 const el = (tag, attrs = {}, ...children) => {
   const node = document.createElement(tag);
@@ -196,6 +286,9 @@ function observabilityUnavailableState() {
 
 function renderObservabilityStatus() {
   const status = document.getElementById("observability-status");
+  if (!status) {
+    return;
+  }
   const observability = state.observability;
   if (!observability || observability.error) {
     status.replaceChildren(badge("unavailable"));
@@ -244,12 +337,14 @@ function renderLatency() {
   const requestStats = latency.request_latency_ms || {};
   const detectorStats = latency.detector_latency_ms || {};
   const detectorByName = latency.detector_latency_by_name_ms || {};
-  const detectorRows = Object.entries(detectorByName).map(([name, stats]) => latencyRow(name, stats));
+  const detectorRows = Object.entries(detectorByName)
+    .sort(([left], [right]) => displayDetectorName(left).localeCompare(displayDetectorName(right)))
+    .map(([name, stats]) => latencyRow(name, stats));
   container.replaceChildren(
-    metricCard("Aegis request p50", formatMs(requestStats.p50), `${requestStats.count || 0} recent audited requests`),
-    metricCard("Aegis request p95", formatMs(requestStats.p95), latencyRangeText(requestStats)),
-    metricCard("Detector p50", formatMs(detectorStats.p50), `${detectorStats.count || 0} detector timings`),
-    metricCard("Direct provider baseline", "Not measured", latency.direct_provider_baseline?.detail || "No paired benchmark."),
+    metricCard("Median Aegis request", formatMs(requestStats.p50), `${requestStats.count || 0} recent audited requests`),
+    metricCard("Slow Aegis request", formatMs(requestStats.p95), latencyRangeText(requestStats)),
+    metricCard("Median detector time", formatMs(detectorStats.p50), `${detectorStats.count || 0} detector timings`),
+    metricCard("Direct model baseline", "Not measured", modelBaselineDetail(latency.direct_provider_baseline)),
     el(
       "section",
       { class: "latency-table" },
@@ -271,12 +366,12 @@ function renderDetectors() {
   const cift = overview.cift || {};
   const nimbus = overview.nimbus || {};
   container.replaceChildren(
-    detectorCard("DP-HONEY", `${activity.dp_honey_substitutions || 0}`, "honeytoken substitutions", "credential-slot evidence"),
-    detectorCard("CIFT", `${activity.cift_pre_generation_blocks || 0}`, "pre-generation blocks", cift.support_scope || "model-specific hidden-state check"),
+    detectorCard("DP-HONEY", `${activity.dp_honey_substitutions || 0}`, "honeytoken substitutions", "credential handling evidence"),
+    detectorCard("CIFT", `${activity.cift_pre_generation_blocks || 0}`, "blocks before response", "certified model intent check"),
     detectorCard("Canaries", `${activity.canary_detections || 0}`, "canary detections", "response and tool-output leak checks"),
-    detectorCard("NIMBUS", `${activity.nimbus_warnings || 0}`, "warnings or stronger", nimbus.label || "session leakage critic"),
-    detectorCard("Provider guard", `${activity.provider_egress_blocks || 0}`, "provider egress blocks", "pre-provider value scanning"),
-    detectorCard("Fail closed", `${activity.fail_closed_events || 0}`, "fail-closed events", "runtime refusal evidence"),
+    detectorCard("NIMBUS", `${activity.nimbus_warnings || 0}`, "warnings or stronger", nimbus.label ? displayValue(nimbus.label, "session leak check") : "session leak check"),
+    detectorCard("Provider safety", `${activity.provider_egress_blocks || 0}`, "blocks before model call", "sensitive-value scanning"),
+    detectorCard("Fail closed", `${activity.fail_closed_events || 0}`, "fail closed events", "refusal evidence"),
   );
 }
 
@@ -298,11 +393,12 @@ function renderTrace() {
     el(
       "section",
       { class: "trace-summary" },
-      metricCard("Final action", event.final_action || "unknown", event.reason || "no reason available"),
-      metricCard("Provider", event.provider_status || "unknown", event.provider || "provider evidence unavailable"),
-      metricCard("Latency", formatMs(event.latency_ms), event.trace_id || "unknown trace"),
+      metricCard("Decision", displayStatus(event.final_action, "Unknown"), traceDecisionDetail(event)),
+      metricCard("Model call", modelCallValue(event.provider_status), modelCallDetail(event)),
+      metricCard("Elapsed time", formatMs(event.latency_ms), eventActivityContext(event)),
     ),
-    el("section", { class: "stage-rail" }, ...stageTimeline(event.stage_timeline || [])),
+    requestPreview(event),
+    el("section", { class: "stage-rail" }, ...stageTimeline(event.stage_timeline || [], event)),
     el(
       "section",
       { class: "detector-table" },
@@ -315,7 +411,7 @@ function renderTrace() {
 
 function eventCard(event) {
   const selected = event.trace_id === state.selectedTraceId;
-  const detectors = Array.isArray(event.detectors_fired) ? event.detectors_fired : [];
+  const detectors = eventDetectorIds(event);
   return el(
     "button",
     {
@@ -326,18 +422,127 @@ function eventCard(event) {
     el(
       "div",
       { class: "event-main" },
-      el("span", { class: "mono event-trace", text: event.trace_id || "unknown trace" }),
-      el("strong", { text: event.final_action || "unknown action" }),
-      el("p", { text: event.reason || "No policy reason recorded." }),
+      el("span", { class: "event-trace", text: eventActivityContext(event) }),
+      el("strong", { text: eventActivityTitle(event) }),
+      el("p", { text: eventActivityDetail(event) }),
+      requestPreview(event),
     ),
     el(
       "div",
       { class: "event-meta" },
-      badge(event.provider_status || "unknown"),
+      el("span", { text: formatEventTimestamp(event.created_at) }),
       el("span", { class: "mono", text: formatMs(event.latency_ms) }),
-      detectors.length > 0 ? el("span", { text: detectors.join(", ") }) : el("span", { text: "no detector fired" }),
+      detectors.length > 0 ? el("span", { text: detectors.map(displayDetectorName).join(", ") }) : el("span", { text: "No intervention" }),
     ),
   );
+}
+
+function requestPreview(event) {
+  const request = event && typeof event.request === "object" && event.request !== null ? event.request : {};
+  const preview = typeof request.preview === "string" && request.preview.trim() !== "" ? request.preview : "No request text recorded.";
+  return el(
+    "div",
+    { class: "request-preview" },
+    el("span", { text: "Request" }),
+    el("p", { text: preview }),
+    el("small", { text: requestFacts(request) }),
+  );
+}
+
+function requestFacts(request) {
+  const messages = numberLabel(request.message_count, "message", "messages");
+  const tools = numberLabel(request.tool_call_count, "tool call", "tool calls");
+  const sensitive = numberLabel(request.sensitive_span_count, "sensitive span", "sensitive spans");
+  return `${messages} | ${tools} | ${sensitive}`;
+}
+
+function eventDetectorIds(event) {
+  const fired = Array.isArray(event.detectors_fired) ? event.detectors_fired.filter((name) => typeof name === "string") : [];
+  if (fired.length > 0) return fired;
+  const results = Array.isArray(event.detector_results) ? event.detector_results : [];
+  return results
+    .filter((detector) => detector && detector.recommended_action && detector.recommended_action !== "allow")
+    .map((detector) => detector.detector_name)
+    .filter((name) => typeof name === "string");
+}
+
+function eventHasDetector(event, detectorName) {
+  return eventDetectorIds(event).includes(detectorName);
+}
+
+function eventActivityTitle(event) {
+  const action = typeof event.final_action === "string" ? event.final_action : "";
+  const providerStatus = typeof event.provider_status === "string" ? event.provider_status : "";
+  if (action === "block" && eventHasDetector(event, "cift_runtime")) {
+    return "CIFT blocked exfiltration intent";
+  }
+  if (action === "block" && eventHasDetector(event, "provider_egress_guard")) {
+    return "Sensitive data stopped before model";
+  }
+  if (action === "block") {
+    return "Request blocked";
+  }
+  if (action === "allow" && providerStatus === "completed") {
+    return "Request reached the local model";
+  }
+  if (action === "allow") {
+    return "Request allowed";
+  }
+  return displayIdentifier(action, "Decision recorded");
+}
+
+function eventActivityContext(event) {
+  const action = typeof event.final_action === "string" ? event.final_action : "";
+  const providerStatus = typeof event.provider_status === "string" ? event.provider_status : "";
+  if (action === "block" && providerStatus === "skipped" && eventHasDetector(event, "cift_runtime")) {
+    return "Blocked before response";
+  }
+  if (action === "block" && providerStatus === "skipped" && eventHasDetector(event, "provider_egress_guard")) {
+    return "Blocked before model";
+  }
+  if (action === "block" && providerStatus === "skipped") {
+    return "Blocked before model";
+  }
+  if (action === "allow" && providerStatus === "completed") {
+    return "Model answered";
+  }
+  return displayStatus(providerStatus || action, "Audited decision");
+}
+
+function eventActivityDetail(event) {
+  const action = typeof event.final_action === "string" ? event.final_action : "";
+  const providerStatus = typeof event.provider_status === "string" ? event.provider_status : "";
+  if (action === "block" && providerStatus === "skipped" && eventHasDetector(event, "cift_runtime")) {
+    return "CIFT saw unsafe intent, so Aegis stopped the turn before the model generated a response.";
+  }
+  if (action === "block" && providerStatus === "skipped" && eventHasDetector(event, "provider_egress_guard")) {
+    return "Sensitive content was headed toward the model, so Aegis stopped the turn before the model ran.";
+  }
+  if (action === "block" && providerStatus === "skipped") {
+    return "A detector required a block, so the model was not called.";
+  }
+  if (action === "allow" && providerStatus === "completed") {
+    return "No detector asked to intervene, so the local model completed the request.";
+  }
+  if (action === "allow") {
+    return "No detector asked to intervene.";
+  }
+  return displayValue(event.reason, "Aegis recorded this decision in the audit log.");
+}
+
+function traceDecisionDetail(event) {
+  const action = typeof event.final_action === "string" ? event.final_action : "";
+  const providerStatus = typeof event.provider_status === "string" ? event.provider_status : "";
+  if (action === "block" && providerStatus === "skipped" && eventHasDetector(event, "cift_runtime")) {
+    return "CIFT stopped the turn before the model generated a response.";
+  }
+  if (action === "block" && providerStatus === "skipped" && eventHasDetector(event, "provider_egress_guard")) {
+    return "Sensitive content was stopped before it reached the model.";
+  }
+  if (action === "allow" && providerStatus === "completed") {
+    return "No detector asked to intervene.";
+  }
+  return displayValue(event.reason, "Decision recorded in the audit log.");
 }
 
 function metricCard(label, value, detail) {
@@ -365,14 +570,32 @@ function latencyRow(name, stats) {
   return el(
     "div",
     { class: "latency-row" },
-    el("strong", { text: name }),
-    el("span", { text: `p50 ${formatMs(stats.p50)}` }),
-    el("span", { text: `p95 ${formatMs(stats.p95)}` }),
+    el("strong", { text: displayDetectorName(name) }),
+    el("span", { text: `median ${formatMs(stats.p50)}` }),
+    el("span", { text: `slow end ${formatMs(stats.p95)}` }),
     el("span", { text: `${stats.count || 0} samples` }),
   );
 }
 
-function stageTimeline(stages) {
+function modelCallValue(providerStatus) {
+  const status = typeof providerStatus === "string" ? providerStatus : "";
+  if (status === "skipped") return "Not called";
+  if (status === "completed") return "Answered";
+  return displayStatus(status, "Unknown");
+}
+
+function modelCallDetail(event) {
+  const providerStatus = typeof event.provider_status === "string" ? event.provider_status : "";
+  if (providerStatus === "skipped") {
+    return "Aegis made the decision before forwarding anything to the local model.";
+  }
+  if (providerStatus === "completed") {
+    return "The local model received the sanitized request and returned a response.";
+  }
+  return displayValue(event.provider, "Model-call evidence unavailable.");
+}
+
+function stageTimeline(stages, event) {
   if (!Array.isArray(stages) || stages.length === 0) {
     return [emptyState("No timeline", "This trace has no stage timeline.")];
   }
@@ -380,9 +603,9 @@ function stageTimeline(stages) {
     el(
       "article",
       { class: `stage-item ${stage.status || "unknown"}` },
-      badge(stage.status || "unknown"),
-      el("strong", { text: stage.stage || "unknown stage" }),
-      el("p", { text: stageDetail(stage) }),
+      stageBadge(stage),
+      el("strong", { text: displayStageName(stage.stage) }),
+      el("p", { text: stageDetail(stage, event) }),
     ),
   );
 }
@@ -398,9 +621,9 @@ function detectorRows(detectors) {
       el(
         "div",
         { class: "detector-row" },
-        el("strong", { text: detector.detector_name || "unknown" }),
+        el("strong", { text: displayDetectorName(detector.detector_name) }),
         badge(detector.recommended_action || "allow"),
-        el("span", { text: detector.component || "component unknown" }),
+        el("span", { text: displayComponentName(detector.component) }),
         el("span", { class: "mono", text: formatScore(detector.score) }),
         el("span", { class: "mono", text: formatMs(detector.latency_ms) }),
       ),
@@ -415,10 +638,10 @@ function runtimeEvidencePanel(runtimeEvidence) {
     "section",
     { class: "runtime-evidence" },
     el("h3", { text: "Runtime evidence" }),
-    summaryRow("Policy mode", runtimeEvidence.policy_mode || "unknown"),
-    summaryRow("Credential slot", runtimeEvidence.credential_slot_status || "unknown"),
-    summaryRow("Provider state", providerState.status || "unknown"),
-    summaryRow("Fail closed", String(failClosed)),
+    summaryRow("Decision policy", displayValue(runtimeEvidence.policy_mode, "Unknown")),
+    summaryRow("Credential handling", displayValue(runtimeEvidence.credential_slot_status, "Unknown")),
+    summaryRow("Model call", modelCallValue(providerState.status)),
+    summaryRow("Fail-closed events", String(failClosed)),
   );
 }
 
@@ -436,21 +659,91 @@ function selectedEvent() {
   return events.find((event) => event.trace_id === state.selectedTraceId) || events[0] || null;
 }
 
-function stageDetail(stage) {
+function stageDetail(stage, event) {
+  const customDetail = stageSpecificDetail(stage, event);
+  if (customDetail !== null) return customDetail;
   const keys = ["reason", "provider", "model_id", "final_action", "credential_needed_count", "honeytoken_substituted_count", "canary_count"];
   const values = keys
     .map((key) => {
       const value = stage[key];
-      return value === null || value === undefined ? null : `${key}: ${value}`;
+      const displayedValue = displayStageFieldValue(key, value);
+      return value === null || value === undefined ? null : `${displayFieldName(key)}: ${displayedValue}`;
     })
     .filter(Boolean);
   if (values.length > 0) return values.join(" | ");
-  return stage.detail || stage.original_status || "No additional detail.";
+  return displayValue(stage.detail || stage.original_status, "No additional detail.");
+}
+
+function stageSpecificDetail(stage, event) {
+  const stageName = typeof stage.stage === "string" ? stage.stage : "";
+  const status = typeof stage.status === "string" ? stage.status : "";
+  if (stageName === "normalize") return "Request prepared for Aegis checks.";
+  if (stageName === "credential_slot") return credentialStageDetail(stage);
+  if (stageName === "dp_honey") return honeytokenStageDetail(stage);
+  if (stageName === "cift") return ciftStageDetail(stage);
+  if (stageName === "provider_egress_guard") return providerSafetyStageDetail(stage);
+  if (stageName === "provider") return status === "skipped" ? "The local model was not called." : "The local model answered the request.";
+  if (stageName === "canary") return postResponseStageDetail(stage, event, "Canary checks");
+  if (stageName === "nimbus") return postResponseStageDetail(stage, event, "The session leak check");
+  if (stageName === "policy") return policyStageDetail(stage);
+  if (stageName === "audit") return "This decision was written to the audit log.";
+  return null;
+}
+
+function credentialStageDetail(stage) {
+  const neededCount = Number(stage.credential_needed_count);
+  const honeytokenCount = Number(stage.honeytoken_substituted_count);
+  const realSecretCount = Number(stage.real_secret_present_count);
+  if (realSecretCount > 0 || stage.original_status === "real_secret_present") return "A real secret was present in the request context.";
+  if (honeytokenCount > 0) return `${numberLabel(honeytokenCount, "honeytoken was", "honeytokens were")} placed before detector checks.`;
+  if (neededCount > 0) return `${numberLabel(neededCount, "credential slot was", "credential slots were")} identified.`;
+  return "No credential slot needed changes.";
+}
+
+function honeytokenStageDetail(stage) {
+  const canaryCount = Number(stage.canary_count);
+  if (Number.isFinite(canaryCount) && canaryCount > 0) return `${numberLabel(canaryCount, "canary was", "canaries were")} available for leak detection.`;
+  if (stage.status === "unavailable") return "Honeytoken setup was not used for this turn.";
+  return "No honeytokens were added for this turn.";
+}
+
+function ciftStageDetail(stage) {
+  if (stage.status === "blocked") return "Hidden-state intent looked unsafe, so CIFT stopped generation.";
+  if (stage.status === "active" || stage.status === "passed") return "Hidden-state intent check allowed this turn to continue.";
+  if (stage.status === "unavailable") return "Hidden-state intent check was not available for this turn.";
+  return displayValue(stage.original_status, "Hidden-state intent evidence recorded.");
+}
+
+function providerSafetyStageDetail(stage) {
+  if (stage.status === "blocked") return "Sensitive content would have reached the model, so Aegis stopped it.";
+  if (stage.status === "active" || stage.status === "passed") return "Sensitive content check allowed this turn to continue.";
+  return displayValue(stage.original_status, "Provider safety evidence recorded.");
+}
+
+function postResponseStageDetail(stage, event, detectorName) {
+  const providerStatus = typeof event.provider_status === "string" ? event.provider_status : "";
+  if (providerStatus === "skipped") return `${detectorName} did not run because the model was not called.`;
+  if (stage.status === "unavailable") return `${detectorName} was not configured for this turn.`;
+  if (stage.status === "passed" || stage.status === "active") return `${detectorName} found no leak evidence.`;
+  return displayValue(stage.original_status, `${detectorName} evidence recorded.`);
+}
+
+function policyStageDetail(stage) {
+  if (stage.final_action === "block" || stage.status === "blocked") return "Policy selected block from the strongest detector result.";
+  if (stage.final_action === "allow" || stage.status === "passed") return "Policy allowed the request.";
+  return displayValue(stage.reason, "Policy decision recorded.");
 }
 
 function latencyRangeText(stats) {
   if (!stats || stats.count === 0) return "No recent latency samples";
-  return `range ${formatMs(stats.min)} to ${formatMs(stats.max)}`;
+  return `Fastest ${formatMs(stats.min)}, slowest ${formatMs(stats.max)}`;
+}
+
+function modelBaselineDetail(baseline) {
+  if (!baseline || baseline.status === "not_measured") {
+    return "Run a direct-model benchmark to measure Aegis overhead.";
+  }
+  return displayValue(baseline.detail, "Direct-model benchmark evidence recorded.");
 }
 
 function formatMs(value) {
@@ -458,6 +751,28 @@ function formatMs(value) {
   if (!Number.isFinite(number)) return "n/a";
   if (number >= 1000) return `${(number / 1000).toFixed(2)}s`;
   return `${number.toFixed(number >= 10 ? 0 : 1)}ms`;
+}
+
+function formatEventTimestamp(value) {
+  if (typeof value !== "string" || value.trim() === "") {
+    return "Time unknown";
+  }
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Time unknown";
+  }
+  return new Intl.DateTimeFormat([], {
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  }).format(date);
+}
+
+function numberLabel(value, singular, plural) {
+  const number = Number(value);
+  const count = Number.isFinite(number) ? number : 0;
+  return `${count} ${count === 1 ? singular : plural}`;
 }
 
 function formatScore(value) {
@@ -681,6 +996,14 @@ function observedStepStatus(stepId) {
     if (status === "warn") return "warn";
     return "waiting";
   }
+  if (stepId === "mps_preflight" && protectionIsRunning()) return "done";
+  if (stepId === "console") {
+    const process = processById(stepId);
+    if (!process && protectionIsRunning()) return "optional";
+  }
+  if ((stepId === "cift_smoke" || stepId === "real_provider_smoke") && !processById(stepId)) {
+    return "not_run";
+  }
   const process = processById(stepId);
   if (!process) return "waiting";
   if (process.status === "running") return processKind(stepId) === "long-running" ? "done" : "running";
@@ -698,6 +1021,18 @@ function stepDetail(stepId, fallback, status) {
   }
   if (stepId === "preflight") {
     return `Readiness is ${state.launcher.preflight.overall_status}.`;
+  }
+  if (stepId === "mps_preflight" && status === "done" && protectionIsRunning()) {
+    return `CIFT is using ${runtimeDeviceLabel()}.`;
+  }
+  if (stepId === "console" && status === "optional") {
+    return "The desktop app is the operator view.";
+  }
+  if (stepId === "cift_smoke" && status === "not_run") {
+    return "Run verification to produce fresh block evidence.";
+  }
+  if (stepId === "real_provider_smoke" && status === "not_run") {
+    return "Run verification to prove benign traffic reaches the model.";
   }
   const process = processById(stepId);
   if (process) return processSummary(process, status);
@@ -852,6 +1187,8 @@ function stepComplete(stepId) {
   if (stepId === "ollama") return state.ollama.running;
   if (stepId === "model") return modelInstalled();
   if (stepId === "preflight") return ["passed", "warn"].includes(state.launcher.preflight.overall_status);
+  if (stepId === "mps_preflight" && protectionIsRunning()) return true;
+  if (stepId === "console" && protectionIsRunning()) return true;
   const process = processById(stepId);
   if (!process) return false;
   if (processKind(stepId) === "long-running") return process.status === "running";
@@ -902,8 +1239,8 @@ function progressDetail(stepId, seconds) {
   if (stepId === "cift_sidecar") return `Starting CIFT.${suffix}`;
   if (stepId === "gateway") return `Starting gateway.${suffix}`;
   if (stepId === "console") return `Starting console.${suffix}`;
-  if (stepId === "cift_smoke") return `Running CIFT smoke.${suffix}`;
-  if (stepId === "real_provider_smoke") return `Running provider smoke.${suffix}`;
+  if (stepId === "cift_smoke") return `Running CIFT block check.${suffix}`;
+  if (stepId === "real_provider_smoke") return `Running model allow check.${suffix}`;
   return `Running ${stepTitle(stepId)}.${suffix}`;
 }
 
@@ -916,8 +1253,8 @@ function completionDetail(stepId, seconds, alreadyComplete) {
   if (stepId === "cift_sidecar") return alreadyComplete ? "CIFT is already running." : `CIFT started in ${duration}.`;
   if (stepId === "gateway") return alreadyComplete ? "Gateway is already running." : `Gateway started in ${duration}.`;
   if (stepId === "console") return alreadyComplete ? "Console is already running." : `Console started in ${duration}.`;
-  if (stepId === "cift_smoke") return `CIFT smoke passed in ${duration}.`;
-  if (stepId === "real_provider_smoke") return `Provider smoke passed in ${duration}.`;
+  if (stepId === "cift_smoke") return `CIFT block check passed in ${duration}.`;
+  if (stepId === "real_provider_smoke") return `Model allow check passed in ${duration}.`;
   return `${stepTitle(stepId)} finished in ${duration}.`;
 }
 
@@ -974,6 +1311,82 @@ function runtimeDeviceLabel() {
   return String(device).toUpperCase();
 }
 
+function displayDetectorName(value) {
+  if (typeof value === "string") {
+    const displayName = detectorDisplayNames.get(value);
+    if (displayName) return displayName;
+  }
+  return displayIdentifier(value, "Unknown detector");
+}
+
+function displayStageName(value) {
+  if (typeof value === "string") {
+    const displayName = stageDisplayNames.get(value);
+    if (displayName) return displayName;
+  }
+  return displayIdentifier(value, "Unknown stage");
+}
+
+function displayComponentName(value) {
+  if (typeof value === "string") {
+    const displayName = detectorDisplayNames.get(value);
+    if (displayName) return displayName;
+  }
+  return displayIdentifier(value, "Component unknown");
+}
+
+function displayFieldName(value) {
+  if (typeof value === "string") {
+    const displayName = fieldDisplayNames.get(value);
+    if (displayName) return displayName;
+  }
+  return displayIdentifier(value, "Detail");
+}
+
+function displayStatus(value, fallback) {
+  if (typeof value === "string") {
+    const displayName = statusDisplayNames.get(value);
+    if (displayName) return displayName;
+  }
+  return displayValue(value, fallback);
+}
+
+function displayValue(value, fallback) {
+  if (value === null || value === undefined) return fallback;
+  if (typeof value !== "string") return String(value);
+  const trimmed = value.trim();
+  if (trimmed === "") return fallback;
+  const displayName = valueDisplayNames.get(trimmed.toLowerCase()) || valueDisplayNames.get(trimmed);
+  if (displayName) return displayName;
+  return displayIdentifier(trimmed, fallback);
+}
+
+function displayStageFieldValue(key, value) {
+  if (value === null || value === undefined) return "";
+  if (key === "model_id") return String(value);
+  if (key === "provider") return displayValue(value, String(value));
+  if (key === "final_action" || key === "reason") return displayValue(value, String(value));
+  return displayValue(value, String(value));
+}
+
+function displayIdentifier(value, fallback) {
+  if (typeof value !== "string") return fallback;
+  const trimmed = value.trim();
+  if (trimmed === "") return fallback;
+  return trimmed
+    .split(/[_-]+/)
+    .filter(Boolean)
+    .map(displayToken)
+    .join(" ");
+}
+
+function displayToken(value) {
+  const lower = value.toLowerCase();
+  const override = displayTokenOverrides.get(lower);
+  if (override) return override;
+  return `${lower.slice(0, 1).toUpperCase()}${lower.slice(1)}`;
+}
+
 function summaryRow(label, value) {
   return el("div", { class: "summary-row" }, el("span", { text: label }), el("strong", { class: "mono", text: value || "" }));
 }
@@ -983,7 +1396,20 @@ function processFact(label, value) {
 }
 
 function badge(status) {
-  return el("span", { class: `badge ${String(status).replaceAll("_", "-")}`, text: String(status) });
+  return statusBadge(status, displayStatus(String(status), "Unknown"));
+}
+
+function stageBadge(stage) {
+  const status = typeof stage.status === "string" ? stage.status : "unknown";
+  if (stage.stage === "provider" && status === "skipped") return statusBadge(status, "Not called");
+  if ((stage.stage === "canary" || stage.stage === "nimbus" || stage.stage === "dp_honey") && status === "unavailable") {
+    return statusBadge(status, "Not used");
+  }
+  return statusBadge(status, displayStatus(status, "Unknown"));
+}
+
+function statusBadge(status, text) {
+  return el("span", { class: `badge ${String(status).replaceAll("_", "-")}`, text });
 }
 
 function logItem(entry) {
@@ -996,6 +1422,7 @@ function logItem(entry) {
 }
 
 function processSummary(process, status) {
+  if (process.source === "external" && status === "done") return process.log_excerpt || "Already running.";
   if (status === "running") return `Running ${processElapsedText(process)}.`;
   if (status === "failed") return `Failed after ${processElapsedText(process)}.`;
   if (status === "done") return `Passed in ${processElapsedText(process)}.`;

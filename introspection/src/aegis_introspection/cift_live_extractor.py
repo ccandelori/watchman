@@ -83,7 +83,11 @@ class LiveCiftFeatureExtractor:
             provenance=_extraction_receipt_provenance(
                 feature_key=feature_key,
                 feature_vector=feature_vector,
+                readout_token_indices=readout_token_indices,
+                query_tail_readout_token_indices=query_tail_readout_token_indices,
                 selected_choice_readout_token_indices=selected_choice_readout_token_indices,
+                source_specs=self._source_specs,
+                turn=turn,
                 prompt=prompt,
                 forward_pass=forward_pass,
             ),
@@ -134,7 +138,11 @@ class LiveCiftFeatureSetExtractor:
             provenance=_extraction_receipt_provenance(
                 feature_key=feature_key,
                 feature_vector=feature_vector,
+                readout_token_indices=readout_token_indices,
+                query_tail_readout_token_indices=query_tail_readout_token_indices,
                 selected_choice_readout_token_indices=selected_choice_readout_token_indices,
+                source_specs=source_specs,
+                turn=turn,
                 prompt=prompt,
                 forward_pass=forward_pass,
             ),
@@ -308,11 +316,18 @@ def _feature_vector_from_forward_pass(
 def _extraction_receipt_provenance(
     feature_key: str,
     feature_vector: tuple[float, ...],
+    readout_token_indices: tuple[int, ...] | None,
+    query_tail_readout_token_indices: tuple[int, ...] | None,
     selected_choice_readout_token_indices: tuple[int, ...] | None,
+    source_specs: tuple[CiftSourceFeatureSpec, ...],
+    turn: NormalizedTurn,
     prompt: str,
     forward_pass: HiddenStateForwardPass,
 ) -> dict[str, JsonValue]:
     _validate_forward_pass_source_metadata(forward_pass)
+    provenance_readout_token_indices = (
+        _final_token_readout_indices(forward_pass) if _uses_only_final_token(source_specs) else readout_token_indices
+    )
     provenance: dict[str, JsonValue] = {
         "extraction_receipt_schema_version": CIFT_EXTRACTION_RECEIPT_SCHEMA_VERSION,
         "feature_key": feature_key,
@@ -325,12 +340,107 @@ def _extraction_receipt_provenance(
         "hidden_state_devices": [str(device) for device in forward_pass.source_hidden_state_devices],
         "hidden_state_dtypes": [str(dtype) for dtype in forward_pass.source_hidden_state_dtypes],
     }
+    if provenance_readout_token_indices is not None:
+        token_indices = [int(token_index) for token_index in provenance_readout_token_indices]
+        provenance["readout_token_indices"] = token_indices
+        provenance["readout_token_count"] = len(token_indices)
+        provenance["readout_token_indices_sha256"] = _json_sha256(token_indices)
+    if query_tail_readout_token_indices is not None:
+        token_indices = [int(token_index) for token_index in query_tail_readout_token_indices]
+        provenance["query_tail_readout_token_indices"] = token_indices
+        provenance["query_tail_readout_token_count"] = len(token_indices)
+        provenance["query_tail_readout_token_indices_sha256"] = _json_sha256(token_indices)
+    _copy_cift_readout_provenance(provenance=provenance, turn=turn)
+    _infer_missing_readout_provenance(
+        provenance=provenance,
+        source_specs=source_specs,
+        readout_token_indices=provenance_readout_token_indices,
+        query_tail_readout_token_indices=query_tail_readout_token_indices,
+    )
     if selected_choice_readout_token_indices is not None:
         token_indices = [int(token_index) for token_index in selected_choice_readout_token_indices]
         provenance["selected_choice_readout_token_indices"] = token_indices
         provenance["selected_choice_readout_token_count"] = len(token_indices)
         provenance["selected_choice_readout_token_indices_sha256"] = _json_sha256(token_indices)
     return provenance
+
+
+def _copy_cift_readout_provenance(provenance: dict[str, JsonValue], turn: NormalizedTurn) -> None:
+    cift_metadata = turn.metadata.get("cift")
+    if not isinstance(cift_metadata, dict):
+        return
+    for field_name in ("readout_window_source", "readout_source"):
+        value = cift_metadata.get(field_name)
+        if value is None:
+            continue
+        if isinstance(value, str | int | float | bool):
+            provenance[field_name] = value
+        elif isinstance(value, list):
+            provenance[field_name] = list(value)
+        elif isinstance(value, dict):
+            provenance[field_name] = dict(value)
+
+
+def _infer_missing_readout_provenance(
+    provenance: dict[str, JsonValue],
+    source_specs: tuple[CiftSourceFeatureSpec, ...],
+    readout_token_indices: tuple[int, ...] | None,
+    query_tail_readout_token_indices: tuple[int, ...] | None,
+) -> None:
+    if "readout_window_source" in provenance and "readout_source" in provenance:
+        return
+    inferred_window = _inferred_readout_window_source(source_specs)
+    if inferred_window is None:
+        return
+    if "readout_window_source" not in provenance:
+        provenance["readout_window_source"] = inferred_window
+    if "readout_source" not in provenance:
+        token_count = _inferred_readout_token_count(
+            inferred_window=inferred_window,
+            readout_token_indices=readout_token_indices,
+            query_tail_readout_token_indices=query_tail_readout_token_indices,
+        )
+        provenance["readout_source"] = {
+            "source": "live_cift_extractor",
+            "readout_window": inferred_window,
+            "readout_token_count": token_count,
+        }
+
+
+def _inferred_readout_window_source(source_specs: tuple[CiftSourceFeatureSpec, ...]) -> str | None:
+    pooling_methods = tuple(source_spec.pooling_method for source_spec in source_specs)
+    if "query_tail_window" in pooling_methods:
+        return "query_tail"
+    if "readout_window" in pooling_methods or "combined_readout_window" in pooling_methods:
+        return "metadata_readout"
+    if _uses_only_final_token(source_specs):
+        return "final_token"
+    return None
+
+
+def _inferred_readout_token_count(
+    inferred_window: str,
+    readout_token_indices: tuple[int, ...] | None,
+    query_tail_readout_token_indices: tuple[int, ...] | None,
+) -> int:
+    if inferred_window == "query_tail" and query_tail_readout_token_indices is not None:
+        return len(query_tail_readout_token_indices)
+    if readout_token_indices is not None:
+        return len(readout_token_indices)
+    return 0
+
+
+def _uses_only_final_token(source_specs: tuple[CiftSourceFeatureSpec, ...]) -> bool:
+    return len(source_specs) > 0 and all(source_spec.pooling_method == "final_token" for source_spec in source_specs)
+
+
+def _final_token_readout_indices(forward_pass: HiddenStateForwardPass) -> tuple[int, ...]:
+    if len(forward_pass.input_ids.shape) != 2:
+        raise CiftLiveExtractorError("Hidden-state forward pass input_ids must have shape [batch, sequence].")
+    sequence_length = int(forward_pass.input_ids.shape[1])
+    if sequence_length < 1:
+        raise CiftLiveExtractorError("Hidden-state forward pass input_ids must contain at least one token.")
+    return (sequence_length - 1,)
 
 
 def _validate_forward_pass_source_metadata(forward_pass: HiddenStateForwardPass) -> None:

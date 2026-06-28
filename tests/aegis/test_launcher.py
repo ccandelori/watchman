@@ -7,7 +7,9 @@ from collections.abc import Callable
 from pathlib import Path
 
 from fastapi.testclient import TestClient
+from pytest import MonkeyPatch
 
+import aegis.launcher.service as launcher_service
 from aegis.console.service import ConsoleGatewayError, ConsoleSettings
 from aegis.core.contracts import JsonValue
 from aegis.launcher.app import create_app
@@ -175,7 +177,10 @@ def test_process_supervisor_clears_exited_statuses_and_starts_fresh_log(tmp_path
     assert "old output" not in str(new_status["log_excerpt"])
 
 
-def test_launcher_app_serves_state_updates_profile_and_starts_action(tmp_path: Path) -> None:
+def test_launcher_app_serves_state_updates_profile_and_starts_action(
+    tmp_path: Path,
+    monkeypatch: MonkeyPatch,
+) -> None:
     settings = _settings(tmp_path)
     profile = default_profile()
     save_profile(settings.profile_path, profile)
@@ -183,10 +188,13 @@ def test_launcher_app_serves_state_updates_profile_and_starts_action(tmp_path: P
     _write_freeform_strict_env(tmp_path / profile.cift_binding.freeform_strict_deployment_env_path)
     supervisor = RecordingSupervisor()
     service = LauncherService(settings=settings, supervisor=supervisor)  # type: ignore[arg-type]
+    monkeypatch.setattr(launcher_service, "_sidecar_healthy", lambda running_profile: False)
+    monkeypatch.setattr(launcher_service, "_gateway_ready", lambda running_profile: False)
     client = TestClient(create_app(service))
 
     page = client.get("/")
     state = client.get("/api/state")
+    capabilities = client.get("/api/launcher/capabilities")
     update = client.put("/api/profile", json={"provider_model": "qwen3:4b-instruct"})
     start = client.post("/api/actions/gateway/start")
 
@@ -194,6 +202,10 @@ def test_launcher_app_serves_state_updates_profile_and_starts_action(tmp_path: P
     assert "Aegis Local Launcher" in page.text
     assert state.status_code == 200
     assert state.json()["agent_settings"]["base_url"] == "http://127.0.0.1:8000/v1"
+    assert capabilities.status_code == 200
+    assert capabilities.json()["schema_version"] == "aegis.launcher_capabilities/v1"
+    assert capabilities.json()["features"]["observability"] is True
+    assert "/api/observability" in capabilities.json()["routes"]
     assert update.status_code == 200
     assert update.json()["profile"]["provider_model"] == "qwen3:4b-instruct"
     assert update.json()["profile"]["cift_binding"]["model_id"] == "Qwen/Qwen3-4B"
@@ -212,6 +224,31 @@ def test_launcher_app_serves_state_updates_profile_and_starts_action(tmp_path: P
     assert clear.status_code == 200
     assert clear.json()["cleared"] == ["gateway"]
     assert supervisor.started == []
+
+
+def test_launcher_adopts_already_running_cift_and_gateway(tmp_path: Path, monkeypatch: MonkeyPatch) -> None:
+    settings = _settings(tmp_path)
+    profile = default_profile()
+    save_profile(settings.profile_path, profile)
+    _write_strict_env(tmp_path / profile.cift_binding.strict_deployment_env_path)
+    _write_freeform_strict_env(tmp_path / profile.cift_binding.freeform_strict_deployment_env_path)
+    supervisor = RecordingSupervisor()
+    service = LauncherService(settings=settings, supervisor=supervisor)  # type: ignore[arg-type]
+    monkeypatch.setattr(launcher_service, "_sidecar_healthy", lambda running_profile: True)
+    monkeypatch.setattr(launcher_service, "_gateway_ready", lambda running_profile: True)
+
+    gateway_start = service.start_action("gateway")
+    state = service.state()
+
+    assert gateway_start["status"] == "running"
+    assert gateway_start["source"] == "external"
+    assert supervisor.started == []
+    processes = state["processes"]
+    assert isinstance(processes, dict)
+    assert processes["cift_sidecar"]["status"] == "running"
+    assert processes["cift_sidecar"]["source"] == "external"
+    assert processes["gateway"]["status"] == "running"
+    assert processes["gateway"]["source"] == "external"
 
 
 def test_launcher_observability_summarizes_recent_events_and_latency(tmp_path: Path) -> None:
@@ -250,6 +287,13 @@ def test_launcher_observability_summarizes_recent_events_and_latency(tmp_path: P
     assert payload["overview"]["protection"]["gateway_online"] is True
     assert [event["trace_id"] for event in payload["events"]["events"]] == ["trace-one", "trace-two"]
     assert payload["events"]["events"][0]["latency_ms"] == 10.0
+    assert payload["events"]["events"][0]["request"] == {
+        "preview": "[REDACTED_SENSITIVE]",
+        "preview_role": "user",
+        "message_count": 1,
+        "tool_call_count": 0,
+        "sensitive_span_count": 0,
+    }
     assert payload["latency"]["request_latency_ms"] == {
         "count": 2,
         "p50": 20.0,

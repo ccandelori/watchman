@@ -25,7 +25,7 @@ from aegis.detectors.nimbus import (
 )
 from aegis.providers.openai_compatible import OpenAICompatibleProviderError
 from aegis.proxy.config import ProxyConfigError, ProxyNimbusConfig
-from aegis.proxy.http_app import create_default_http_app_with_cift_extractors, create_http_app
+from aegis.proxy.http_app import create_default_http_app, create_default_http_app_with_cift_extractors, create_http_app
 from aegis.proxy.mock_app import MockProxyApp, create_default_proxy
 from aegis.proxy.nimbus_profile import NimbusCriticKind
 from aegis.proxy.runtime_factory import ProxyRuntimeFactory, black_box_cift_capability
@@ -100,11 +100,51 @@ def test_http_capabilities_route_returns_redteam_discovery_contract() -> None:
     assert "tool_call_canary" in payload["detectors"]
     assert "nimbus_tool_egress" in payload["detectors"]
     assert {"method": "GET", "path": "/ready"} in payload["routes"]
+    assert {"method": "GET", "path": "/v1/models"} in payload["routes"]
     assert {"method": "GET", "path": "/audit/explain"} in payload["routes"]
     assert {"method": "POST", "path": "/test/seed-canary"} in payload["routes"]
     assert payload["audit"]["explain_route"] == "/audit/explain"
     assert payload["test_controls"]["seed_canary"]["schema_version"] == "aegis.test_seed_canary/v1"
     assert "turn_index" in payload["test_controls"]["seed_canary"]["request_fields"]
+
+
+def test_http_models_route_returns_mock_model_list() -> None:
+    client = TestClient(create_http_app(create_default_proxy()))
+
+    response = client.get("/v1/models")
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "object": "list",
+        "data": [
+            {
+                "id": "mock-model",
+                "object": "model",
+                "created": 0,
+                "owned_by": "aegis",
+            }
+        ],
+    }
+
+
+def test_http_models_route_advertises_configured_openai_compatible_model(monkeypatch) -> None:
+    monkeypatch.setenv("AEGIS_PROVIDER", "openai_compatible")
+    monkeypatch.setenv("AEGIS_OPENAI_BASE_URL", "http://127.0.0.1:11434/v1")
+    monkeypatch.setenv("AEGIS_OPENAI_API_KEY", "ollama")
+    monkeypatch.setenv("AEGIS_OPENAI_MODEL", "qwen3:4b")
+    client = TestClient(create_default_http_app())
+
+    response = client.get("/v1/models")
+
+    assert response.status_code == 200
+    assert response.json()["data"] == [
+        {
+            "id": "qwen3:4b",
+            "object": "model",
+            "created": 0,
+            "owned_by": "aegis",
+        }
+    ]
 
 
 def test_http_chat_completion_returns_aegis_block_and_audit_event() -> None:
@@ -140,6 +180,23 @@ def test_http_chat_completion_returns_aegis_block_and_audit_event() -> None:
     ]
     assert audit_response.status_code == 200
     assert audit_response.json()["events"][0]["trace_id"] == "trace-http-1"
+
+
+def test_http_chat_completion_rejects_invalid_max_tokens() -> None:
+    client = TestClient(create_http_app(create_default_proxy()))
+
+    response = client.post(
+        "/v1/chat/completions",
+        json={
+            "model": "mock-model",
+            "messages": [{"role": "user", "content": "hello"}],
+            "max_tokens": 0,
+            "metadata": {"trace_id": "trace-http-max-tokens", "session_id": "session-http-max-tokens"},
+        },
+    )
+
+    assert response.status_code == 400
+    assert response.json()["error"]["message"] == "field 'max_tokens' must be a positive integer when provided."
 
 
 def test_http_durable_audit_jsonl_writes_redacted_trace_and_explains_it(monkeypatch) -> None:
@@ -1089,6 +1146,7 @@ def test_http_metadata_credential_slot_drives_dp_honey_canary_leak_detection() -
     dp_honey_stage = _runtime_stage(payload["aegis"]["runtime_trace"], "dp_honey")
     assert dp_honey_stage["status"] == "active"
     assert dp_honey_stage["credential_slot_status"] == "honeytoken_substituted"
+    assert dp_honey_stage["honeytoken_substituted_count"] == 1
     text_canary = _detector_result(payload=payload, detector_name="text_canary")
     assert text_canary["evidence"]["reason"] == "registered_canary_leak_detected"
 
@@ -2105,7 +2163,9 @@ def _synthetic_runtime_detector_sha256(runtime_model_path: Path) -> str:
     runtime_model = load_cift_runtime_model(runtime_model_path)
     record = cift_runtime_model_to_dict(runtime_model)
     detector_record = {
-        key: value for key, value in record.items() if key not in ("candidate_status", "evaluation_report_ids")
+        key: value
+        for key, value in record.items()
+        if key not in ("candidate_status", "confidence", "evaluation_report_ids", "promotion_gates")
     }
     payload = json.dumps(detector_record, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
@@ -2624,6 +2684,7 @@ def _proxy_with_provider(model_provider: FailingProvider) -> MockProxyApp:
         ),
         provider_name="openai_compatible",
         provider_target_url="http://127.0.0.1:8776/v1",
+        advertised_model_ids=("mock-model",),
         mock_controls_enabled=False,
         nimbus_config=nimbus_config,
     )

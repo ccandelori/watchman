@@ -17,6 +17,7 @@ for source_path in (INTROSPECTION_SRC_PATH, RUNTIME_SRC_PATH):
 
 from aegis_introspection.cift_causal_patching import (  # noqa: E402
     CiftCounterfactualPatchingConfig,
+    CiftCounterfactualPatchingError,
     run_cift_counterfactual_patching,
 )
 from aegis_introspection.sealed_holdout_policy import add_unseal_flag  # noqa: E402
@@ -80,4 +81,8 @@ def _build_parser() -> argparse.ArgumentParser:
 
 
 if __name__ == "__main__":
-    raise SystemExit(run_counterfactual_patching_cli(tuple(sys.argv[1:])))
+    try:
+        raise SystemExit(run_counterfactual_patching_cli(tuple(sys.argv[1:])))
+    except CiftCounterfactualPatchingError as exc:
+        sys.stderr.write(f"error: {exc}\n")
+        raise SystemExit(1) from exc

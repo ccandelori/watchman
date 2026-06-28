@@ -62,9 +62,9 @@ class CiftDeploymentEnvTest(unittest.TestCase):
             ) as release_gate:
                 env_text = materialize_cift_deployment_env(config)
                 release_gate_report_sha256 = hashlib.sha256(config.release_gate_report_path.read_bytes()).hexdigest()
+                manifest_sha256 = hashlib.sha256(fixture["manifest"].read_bytes()).hexdigest()
+                report_sha256 = hashlib.sha256(fixture["report"].read_bytes()).hexdigest()
 
-        manifest_sha256 = hashlib.sha256(b"manifest").hexdigest()
-        report_sha256 = hashlib.sha256(b"report").hexdigest()
         self.assertIn("export AEGIS_CIFT_PROFILE=self_hosted_window_selector", env_text)
         self.assertIn("export AEGIS_CIFT_CERTIFICATION_MODE=strict", env_text)
         self.assertIn("export AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH=models/runtime.json", env_text)
@@ -83,6 +83,38 @@ class CiftDeploymentEnvTest(unittest.TestCase):
         self.assertEqual(manifest_sha256, release_config.certification_manifest_sha256)
         self.assertEqual(report_sha256, release_config.certification_report_sha256)
         self.assertFalse(release_config.allow_embedded_artifact_only)
+
+    def test_materialize_env_emits_freeform_route_exports_for_freeform_runtime(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            fixture = _write_fixture(root, feature_key="final_token_layer_12")
+            config = _config(root=root, fixture=fixture)
+
+            with patch(
+                "aegis_introspection.cift_deployment_env.evaluate_cift_release_gate",
+                return_value=CiftReleaseGateReport(
+                    runtime_model_path=fixture["runtime"],
+                    model_bundle_id="synthetic-runtime",
+                    candidate_status="runtime_candidate",
+                    required_runtime_prevention_device="mps",
+                    evidence_mode="certification_bound",
+                    eligible=True,
+                    diagnostic_eligible=False,
+                    failed_requirements=(),
+                ),
+            ):
+                env_text = materialize_cift_deployment_env(config)
+                release_gate_report_sha256 = hashlib.sha256(config.release_gate_report_path.read_bytes()).hexdigest()
+                manifest_sha256 = hashlib.sha256(fixture["manifest"].read_bytes()).hexdigest()
+                report_sha256 = hashlib.sha256(fixture["report"].read_bytes()).hexdigest()
+
+        self.assertIn("export AEGIS_CIFT_FREEFORM_MODEL_PATH=models/runtime.json", env_text)
+        self.assertIn("export AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH=models/selected_choice_runtime.json", env_text)
+        self.assertIn("export AEGIS_CIFT_FREEFORM_CERTIFICATION_MANIFEST_SHA256=" + manifest_sha256, env_text)
+        self.assertIn("export AEGIS_CIFT_FREEFORM_CERTIFICATION_REPORT_SHA256=" + report_sha256, env_text)
+        self.assertIn("export AEGIS_CIFT_FREEFORM_RELEASE_GATE_REPORT_PATH=reports/release_gate.json", env_text)
+        self.assertIn("export AEGIS_CIFT_FREEFORM_RELEASE_GATE_REPORT_SHA256=" + release_gate_report_sha256, env_text)
+        self.assertNotIn("export AEGIS_CIFT_CERTIFICATION_MANIFEST_SHA256=", env_text)
 
     def test_materialize_env_writes_release_gate_report(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -211,16 +243,34 @@ class CiftDeploymentEnvTest(unittest.TestCase):
             self.assertTrue(release_gate_report_path.is_file())
 
 
-def _write_fixture(root: Path) -> dict[str, Path]:
+def _write_fixture(root: Path, feature_key: str = "selected_choice_window_layer_21") -> dict[str, Path]:
     paths = {
         "runtime": root / "models" / "runtime.json",
+        "selected_choice_runtime": root / "models" / "selected_choice_runtime.json",
         "manifest": root / "reports" / "manifest.json",
         "report": root / "reports" / "run.json",
     }
     paths["runtime"].parent.mkdir(parents=True)
     paths["manifest"].parent.mkdir(parents=True)
-    paths["runtime"].write_text("runtime", encoding="utf-8")
-    paths["manifest"].write_text("manifest", encoding="utf-8")
+    paths["runtime"].write_text(json.dumps({"feature_key": feature_key}) + "\n", encoding="utf-8")
+    if feature_key.startswith("final_token_"):
+        paths["selected_choice_runtime"].write_text(
+            json.dumps({"feature_key": "selected_choice_window_layer_21"}) + "\n",
+            encoding="utf-8",
+        )
+        paths["manifest"].write_text(
+            json.dumps(
+                {
+                    "training": {
+                        "selected_choice_runtime_model_path": "models/selected_choice_runtime.json",
+                    }
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    else:
+        paths["manifest"].write_text("manifest", encoding="utf-8")
     paths["report"].write_text("report", encoding="utf-8")
     return paths
 

@@ -47,6 +47,7 @@ PYTHONPATH=src:introspection/src \
   --device mps \
   --dtype device \
   --feature-key selected_choice_window_layer_21 \
+  --feature-key final_token_layer_12 \
   --selected-choice-readout-token-count 4 \
   --host 127.0.0.1 \
   --port 9000 \
@@ -58,6 +59,7 @@ Terminal 2: start the strict certified gateway.
 ```bash
 export AEGIS_CIFT_EXTRACTOR_API_KEY="set-a-deployment-secret"
 source introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_strict_deployment_env.sh
+source introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_strict_deployment_env.sh
 AEGIS_AUDIT_JSONL_PATH=/tmp/aegis-cift-demo-audit.jsonl \
 uv run aegis-proxy --host 127.0.0.1 --port 8000
 ```
@@ -83,11 +85,11 @@ Terminal 4: run the strict CIFT and integrated sentinel smokes.
 uv run aegis-proxy-cift-smoke \
   --url http://127.0.0.1:8000 \
   --sidecar-url http://127.0.0.1:9000 \
-  --gateway-model mock-model \
-  --report-id qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_mps_receipt_recheck_v1 \
+  --gateway-model qwen3:4b \
+  --report-id qwen3_4b_launcher_cift_freeform_smoke_v1 \
   --timeout 120 \
   --detector-name cift_runtime \
-  --sidecar-feature-key selected_choice_window_layer_21 \
+  --sidecar-feature-key final_token_layer_12 \
   --expected-gateway-feature-source self_hosted_activation_extractor \
   --expected-extractor-id trusted-activation-sidecar \
   --expected-sidecar-model-id Qwen/Qwen3-4B \
@@ -100,7 +102,7 @@ uv run aegis-proxy-cift-smoke \
   --expected-sidecar-chat-template-sha256 a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8 \
   --selected-choice-readout-token-count 4 \
   --sidecar-api-key-env-var AEGIS_CIFT_EXTRACTOR_API_KEY \
-  --output introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_mps_receipt_recheck_v1.json
+  --output introspection/data/reports/qwen3_4b_launcher_cift_freeform_smoke_v1.json
 
 uv run aegis-proxy-smoke \
   --url http://127.0.0.1:8000 \
@@ -171,6 +173,9 @@ certified Qwen3-4B/MPS profile.
 | CIFT certification verification | `introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_certification_verification_current_turn_v1.json` | `ce3935dd6812ae9eac8857a31dbdbb97c9f30cffe9d7af53fcea0eadee35f757` | `status=certified`, model-specific Qwen3-4B reference only, release gate eligible |
 | CIFT strict gateway smoke | `introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_integrated_refresh_v1.json` | `b886e9e66b4e66b214c69363d61a1517197d2367b3c12ea287283be0df1c2c7f` | Benign allow, exfiltration block before provider/model completion, FN=0, FP=0 |
 | CIFT strict gateway audit | `introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_integrated_refresh_audit_v1.jsonl` | `6297d50ecfd991e943319ecc00c19f02063a23567c26f5a66303ca745f0c54ff` | Redacted audit JSONL for strict smoke |
+| CIFT freeform certification report | `docs/aegis-cift-freeform-runtime-certification-2026-06-27.md` | local doc | Selected-choice and freeform routes are separate certified Qwen3-4B/MPS routes; ordinary local-agent chat uses `final_token_layer_12` |
+| CIFT freeform certification verification | `introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_certification_verification_v1.json` | `f105fb9288568b9fb6cfb165fb8c8be73826281a8d795e3e763ff2683235ab17` | `status=certified`, `support_state=runtime-enforceable`, runtime SHA `90ba1dbfaebbe48be27baa72b17e06e07793485150517165228572e85bdb8f86` |
+| CIFT freeform gateway smoke | `introspection/data/reports/qwen3_4b_launcher_cift_freeform_smoke_v1.json` | `1db81add8a682053e7b126a3eb455f77b66f5c55c358b07c60452f7a7a3b7f51` | `Say OK.` reaches provider, safe credential is honeytoken-substituted, exfiltration blocks before provider, selected-choice recheck passes, FN=0, FP=0 |
 | DP-HONEY paper evidence | `introspection/data/reports/dp_honey_paper_evidence_v5.json` | `ae834ba0e1a57dd666629149aa38dd13f183564e49ac8338d369263820fb8ed8` | Checklist 9 met, 0 partial, 0 missing under provider-like morphology path |
 | DP-HONEY runtime smoke | `introspection/data/reports/aegis_default_mock_provider_smoke_dp_honey_segment_v2.json` | `0282c1c7edbebd22ebb111a55fcf13ab67b631e953c14715a5861d0389067859` | Honeytoken substitution, raw egress block, canary tool pre-dispatch block |
 | Learned NIMBUS live beta smoke | `introspection/data/reports/aegis_default_mock_provider_smoke_learned_nimbus_beta_v3.json` | `504e598182f2c9e93492e916f614befc3cac259fb5c1a5dc055b6dac8fc3e939` | TP=4, TN=2, FP=0, FN=0 in live beta smoke; includes adversarial-benign no-block; readiness says non-promotable |

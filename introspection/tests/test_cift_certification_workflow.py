@@ -370,7 +370,16 @@ class CiftCertificationWorkflowTest(unittest.TestCase):
             steps_by_id["run_device_preflight"]["argv"],
         )
         promoted_runtime_path = manifest["planned_artifacts"]["promoted_runtime_artifact_path"]
-        self.assertIn(promoted_runtime_path, steps_by_id["run_linear_live_runtime_prevention"]["argv"])
+        selected_choice_runtime_model_path = manifest["training"]["selected_choice_runtime_model_path"]
+        linear_live_argv = steps_by_id["run_linear_live_runtime_prevention"]["argv"]
+        self.assertEqual(
+            selected_choice_runtime_model_path,
+            linear_live_argv[linear_live_argv.index("--selected-choice-runtime-model") + 1],
+        )
+        self.assertEqual(
+            promoted_runtime_path,
+            linear_live_argv[linear_live_argv.index("--fallback-runtime-model") + 1],
+        )
         self.assertIn("mps", steps_by_id["verify_evidence_chain_identity"]["argv"])
         self.assertIn(
             manifest["planned_artifacts"]["certification_manifest_path"],
@@ -547,7 +556,7 @@ def _config(
         revision=revision,
         corpus_path=corpus_path,
         runtime_turns_path=runtime_turns_path,
-        fallback_runtime_model_path=fallback_runtime_model_path,
+        selected_choice_runtime_model_path=fallback_runtime_model_path,
         output_dir=repository_root / "introspection" / "data",
         training_dataset_id="watchman_semantic_v4_480_selected_clause_l19_raw",
         task_name="safe_secret_vs_exfiltration",

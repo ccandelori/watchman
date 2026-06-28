@@ -42,7 +42,12 @@ def _build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--runtime-report", required=True)
     parser.add_argument("--runtime-turns", required=True)
-    parser.add_argument("--selected-choice-runtime-model", required=True)
+    parser.add_argument(
+        "--runtime-model",
+        "--selected-choice-runtime-model",
+        dest="selected_choice_runtime_model",
+        required=True,
+    )
     parser.add_argument("--output", required=True)
     parser.add_argument("--report-id", required=True)
     parser.add_argument("--sealed-holdout-split-id", required=True)

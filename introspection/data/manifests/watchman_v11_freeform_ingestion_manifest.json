@@ -1,0 +1,369 @@
+{
+  "calibration_record_count": 3828,
+  "calibration_split_id": "watchman-v11-freeform/calibration",
+  "corpus_id": "watchman-v11-freeform",
+  "created_at": "2026-06-27T00:00:00Z",
+  "family_counts": {
+    "analytics_platform": 400,
+    "ci_cd": 400,
+    "cloud_infra": 400,
+    "customer_support": 400,
+    "database_connection": 400,
+    "email_service": 400,
+    "oauth_session": 400,
+    "payment_processor": 400,
+    "repository_access": 400,
+    "sms_provider": 400,
+    "tool_payload_forwarding": 400,
+    "webhook_delivery": 400
+  },
+  "family_label_counts": {
+    "analytics_platform": {
+      "benign": 133,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 134
+    },
+    "ci_cd": {
+      "benign": 133,
+      "exfiltration_intent": 134,
+      "secret_present_safe": 133
+    },
+    "cloud_infra": {
+      "benign": 134,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 133
+    },
+    "customer_support": {
+      "benign": 133,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 134
+    },
+    "database_connection": {
+      "benign": 133,
+      "exfiltration_intent": 134,
+      "secret_present_safe": 133
+    },
+    "email_service": {
+      "benign": 134,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 133
+    },
+    "oauth_session": {
+      "benign": 133,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 134
+    },
+    "payment_processor": {
+      "benign": 133,
+      "exfiltration_intent": 134,
+      "secret_present_safe": 133
+    },
+    "repository_access": {
+      "benign": 134,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 133
+    },
+    "sms_provider": {
+      "benign": 133,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 134
+    },
+    "tool_payload_forwarding": {
+      "benign": 133,
+      "exfiltration_intent": 134,
+      "secret_present_safe": 133
+    },
+    "webhook_delivery": {
+      "benign": 134,
+      "exfiltration_intent": 133,
+      "secret_present_safe": 133
+    }
+  },
+  "hard_feature_rates": {
+    "hard_near_neighbor": 0.415,
+    "multi_turn": 0.5025,
+    "tool_payload": 0.405
+  },
+  "label_counts": {
+    "benign": 1600,
+    "exfiltration_intent": 1600,
+    "secret_present_safe": 1600
+  },
+  "normalization_mode": "freeform_runtime_v1",
+  "normalized_record_count": 4800,
+  "outputs": {
+    "calibration": {
+      "path": "introspection/data/trace_records_watchman_v11_freeform_3828_calibration.jsonl",
+      "record_count": 3828,
+      "sha256": "2a32debb8c0478b3acad0f19eb18ed2bbdadf71de5f6c508d4e58a9a942beef0"
+    },
+    "manifest": {
+      "path": "introspection/data/manifests/watchman_v11_freeform_ingestion_manifest.json"
+    },
+    "normalized": {
+      "path": "introspection/data/trace_records_watchman_v11_freeform_4800_normalized.jsonl",
+      "record_count": 4800,
+      "sha256": "108d8ee906d80d823e572cebf2b1e11abadbad0ee0f16a560639153b5ba96b23"
+    },
+    "sealed_holdout": {
+      "path": "introspection/data/trace_records_watchman_v11_freeform_972_sealed_holdout.jsonl",
+      "record_count": 972,
+      "sha256": "39c0a302efa15cfd129bbc96fb12c55763c9760016181ea106fe87577e61612d"
+    }
+  },
+  "quality_gates": [
+    {
+      "detail": "Number of shard_*.jsonl files must match the declared corpus shape.",
+      "name": "expected_shard_count",
+      "observed": 20,
+      "passed": true,
+      "required": 20
+    },
+    {
+      "detail": "Every shard must contain the expected number of JSONL records.",
+      "name": "expected_records_per_shard",
+      "observed": {
+        "shard_001.jsonl": 240,
+        "shard_002.jsonl": 240,
+        "shard_003.jsonl": 240,
+        "shard_004.jsonl": 240,
+        "shard_005.jsonl": 240,
+        "shard_006.jsonl": 240,
+        "shard_007.jsonl": 240,
+        "shard_008.jsonl": 240,
+        "shard_009.jsonl": 240,
+        "shard_010.jsonl": 240,
+        "shard_011.jsonl": 240,
+        "shard_012.jsonl": 240,
+        "shard_013.jsonl": 240,
+        "shard_014.jsonl": 240,
+        "shard_015.jsonl": 240,
+        "shard_016.jsonl": 240,
+        "shard_017.jsonl": 240,
+        "shard_018.jsonl": 240,
+        "shard_019.jsonl": 240,
+        "shard_020.jsonl": 240
+      },
+      "passed": true,
+      "required": 240
+    },
+    {
+      "detail": "Records must follow the Grok trace_collection/v1 envelope with usable normalized_turn data.",
+      "name": "schema_and_required_fields",
+      "observed": [],
+      "passed": true,
+      "required": []
+    },
+    {
+      "detail": "record_id values must be globally unique.",
+      "name": "unique_record_ids",
+      "observed": [],
+      "passed": true,
+      "required": []
+    },
+    {
+      "detail": "Global label counts must match the requested balanced corpus.",
+      "name": "expected_global_label_counts",
+      "observed": {
+        "benign": 1600,
+        "exfiltration_intent": 1600,
+        "secret_present_safe": 1600
+      },
+      "passed": true,
+      "required": {
+        "benign": 1600,
+        "exfiltration_intent": 1600,
+        "secret_present_safe": 1600
+      }
+    },
+    {
+      "detail": "Every family must have the expected number of records.",
+      "name": "expected_family_record_count",
+      "observed": {
+        "analytics_platform": 400,
+        "ci_cd": 400,
+        "cloud_infra": 400,
+        "customer_support": 400,
+        "database_connection": 400,
+        "email_service": 400,
+        "oauth_session": 400,
+        "payment_processor": 400,
+        "repository_access": 400,
+        "sms_provider": 400,
+        "tool_payload_forwarding": 400,
+        "webhook_delivery": 400
+      },
+      "passed": true,
+      "required": 400
+    },
+    {
+      "detail": "Hard near-neighbor tags must meet the minimum requested rate.",
+      "name": "hard_near_neighbor_rate",
+      "observed": 0.415,
+      "passed": true,
+      "required": 0.3
+    },
+    {
+      "detail": "Tool-payload tags must meet the minimum requested rate.",
+      "name": "tool_payload_rate",
+      "observed": 0.405,
+      "passed": true,
+      "required": 0.2
+    },
+    {
+      "detail": "Multi-turn/session-continuity tags must meet the minimum requested rate.",
+      "name": "multi_turn_rate",
+      "observed": 0.5025,
+      "passed": true,
+      "required": 0.2
+    },
+    {
+      "detail": "Synthetic secrets must be visibly non-functional test values.",
+      "name": "synthetic_secret_safety",
+      "observed": [],
+      "passed": true,
+      "required": []
+    },
+    {
+      "detail": "Prompt text diversity must be high enough to avoid training on repeated templates.",
+      "name": "unique_message_ratio",
+      "observed": 1.0,
+      "passed": true,
+      "required": 0.7
+    },
+    {
+      "detail": "Each family should contain every label; otherwise family identity can leak the answer.",
+      "name": "family_label_crossing",
+      "observed": {},
+      "passed": true,
+      "required": [
+        "secret_present_safe",
+        "exfiltration_intent",
+        "benign"
+      ]
+    },
+    {
+      "detail": "Synthetic credential values should not repeat across records used for certification evidence.",
+      "name": "unique_synthetic_secrets",
+      "observed": [],
+      "passed": true,
+      "required": []
+    }
+  ],
+  "schema_version": "aegis_introspection.grok_redteam_corpus_ingestion/v1",
+  "sealed_holdout_record_count": 972,
+  "sealed_holdout_split_id": "watchman-v11-freeform/sealed",
+  "source_corpus_sha256": "d5d8bd1a674b8f48b52c7a1c75d458ba5cd4deaf09824641884d4b50af7f6fa2",
+  "source_dir": "introspection/data/source/watchman_synthetic_v11_crossed_4800",
+  "source_files": [
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_001.jsonl",
+      "record_count": 240,
+      "sha256": "4d5619c497e129e2d9e97dc42a0ff50fa6237d46317ff3abceb19d0aa1d161b2"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_002.jsonl",
+      "record_count": 240,
+      "sha256": "422b526b1306e65a56bcc4440cd82588ef5b64e70a6ea49b5117906b0943c378"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_003.jsonl",
+      "record_count": 240,
+      "sha256": "d10ce04f211f79a6e19ba05c2c68c73d3625eaaf83010921844749308f9ef36c"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_004.jsonl",
+      "record_count": 240,
+      "sha256": "21d632f56b8d417fbbcf53dee824e7f4f687563d12e1a384f87ad1b2ffc7152e"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_005.jsonl",
+      "record_count": 240,
+      "sha256": "ad582ec40966162617d8b02dc61d4fcbb7b7b168558d947d841e9229b4791820"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_006.jsonl",
+      "record_count": 240,
+      "sha256": "b7596708b18f8db80d319ebc71f2cc0e043b6bda7ab88e030a5b601fe9c98808"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_007.jsonl",
+      "record_count": 240,
+      "sha256": "5cd568f984e6f813b2c7fe115d5bd49db5de16ed74b21081fe7fdec1149b152a"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_008.jsonl",
+      "record_count": 240,
+      "sha256": "2d40400c44b925b614b97c5817b8f2b6ed5f24eaf14615c99373d07cbad830ad"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_009.jsonl",
+      "record_count": 240,
+      "sha256": "efc38ee02d80e431308ff94a4127ef74c22a94b0696ff1a384761830fb05414a"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_010.jsonl",
+      "record_count": 240,
+      "sha256": "e0d1667c0cfe46424742fee53bcf9dec4ce1620f19df06b512d5e8c0776d7126"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_011.jsonl",
+      "record_count": 240,
+      "sha256": "8ff60cb977d697402e6b87fb784ffe6fa2ba9f2fe2f320df573151521118d873"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_012.jsonl",
+      "record_count": 240,
+      "sha256": "5b564fa0566ce959a525806bf7d7969b9db015975686ccee8393ba3e50c54cc3"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_013.jsonl",
+      "record_count": 240,
+      "sha256": "8b3dd970a6f6fa8227b318ffa2dd7d7b07d65ebf24a9cf18029a6d956dd3e279"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_014.jsonl",
+      "record_count": 240,
+      "sha256": "2056e1363b273508a9e229ea68e3556d69da0dc4517a01c74662c0cd2386dbc6"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_015.jsonl",
+      "record_count": 240,
+      "sha256": "f8c4d75ac621937aa9d5c0f8dec75de906c5ea39b3da6de3e3efff271307d673"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_016.jsonl",
+      "record_count": 240,
+      "sha256": "e10ffbf205ad7dd43e92db43dbeb1e6067cc5ef269fa22f37ef86d26035d508e"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_017.jsonl",
+      "record_count": 240,
+      "sha256": "d2cccee75076125c7dab1759fc93709a40de0ffa55eae294ff524cb4a96fc4a1"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_018.jsonl",
+      "record_count": 240,
+      "sha256": "f75286bc15c3bb3618869b8a27323bfb5305518fba9e33ee27dec2a8512cc24c"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_019.jsonl",
+      "record_count": 240,
+      "sha256": "58eacd1a823dda7a2598de88567097c21aa0b7feef1d261682ebbb78a2e79fe0"
+    },
+    {
+      "path": "introspection/data/source/watchman_synthetic_v11_crossed_4800/shard_020.jsonl",
+      "record_count": 240,
+      "sha256": "9e71f30cf44debcf2dd807a1cbead2b213598d5de25ffa3398b0cbca9d98f914"
+    }
+  ],
+  "source_record_count": 4800,
+  "split_policy": {
+    "grouping": "family_label",
+    "ordering": "sha256(source_record_id)",
+    "quarantine_output_allowed": false,
+    "sealed_fraction": 0.2
+  },
+  "status": "training_eligible",
+  "training_eligible": true
+}

@@ -7,10 +7,11 @@ from collections import Counter, defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TypeAlias, cast
+from typing import Literal, TypeAlias, cast
 
 JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 JsonObject: TypeAlias = dict[str, JsonValue]
+GrokNormalizationMode: TypeAlias = Literal["selected_choice_ledger", "freeform_runtime_v1"]
 
 _SCHEMA_VERSION = "aegis_introspection.grok_redteam_corpus_ingestion/v1"
 _SOURCE_SCHEMA_VERSION = "trace_collection/v1"
@@ -47,6 +48,7 @@ class GrokRedteamCorpusConfig:
     min_unique_message_ratio: float
     sealed_fraction: float
     require_family_label_crossing: bool
+    normalization_mode: GrokNormalizationMode
     allow_quarantine_output: bool
     overwrite: bool
 
@@ -174,6 +176,8 @@ def _validate_config(config: GrokRedteamCorpusConfig) -> None:
     ):
         if value <= 0.0 or value >= 1.0:
             raise GrokRedteamCorpusError(f"{field_name} must be greater than 0.0 and less than 1.0.")
+    if config.normalization_mode not in ("selected_choice_ledger", "freeform_runtime_v1"):
+        raise GrokRedteamCorpusError(f"normalization_mode is unsupported: {config.normalization_mode}.")
 
 
 def _ensure_output_paths(config: GrokRedteamCorpusConfig) -> None:
@@ -461,6 +465,7 @@ def _normalize_record(record: Mapping[str, object], config: GrokRedteamCorpusCon
     canary_records: list[JsonObject] = []
     sensitive_spans: list[JsonObject] = []
     synthetic_secret = _optional_string(mutable_record, "synthetic_secret")
+    tool_secret_span: _ToolSecretSpan | None = None
     if label in _NON_BENIGN_LABELS and synthetic_secret is not None:
         secret_span, canary_record = _inject_secret_context(
             messages=messages,
@@ -479,20 +484,26 @@ def _normalize_record(record: Mapping[str, object], config: GrokRedteamCorpusCon
                 )
             )
 
-    selected_choice_metadata = _selected_choice_metadata(record=mutable_record, label=label, messages=messages)
-    cift_metadata["selected_choice"] = selected_choice_metadata
-    cift_metadata["chosen_readout_window"] = "selected_choice" if selected_choice_metadata is not None else "query_tail"
+    _normalize_cift_metadata(
+        cift_metadata=cift_metadata,
+        record=mutable_record,
+        label=label,
+        messages=messages,
+        tool_secret_span=tool_secret_span,
+        normalization_mode=config.normalization_mode,
+    )
+
+    collection_profile = f"{config.corpus_id}/{config.normalization_mode}"
     cift_metadata["fallback_reason"] = None
     cift_metadata["requires_tokenization"] = True
     cift_metadata["tokenization_status"] = "pending"
     cift_metadata["readout_window_status"] = "pending_tokenization"
-    cift_metadata["readout_window_candidates"] = ["selected_choice", "payload_secret", "query_tail"]
 
     collection.update(
         {
             "source": "grok_synthetic_seed",
             "schema_version": _SOURCE_SCHEMA_VERSION,
-            "profile": config.corpus_id,
+            "profile": collection_profile,
             "batch_id": _required_string(mutable_record, "batch_id", "record"),
             "family": _required_string(mutable_record, "family", "record"),
             "label": label,
@@ -585,6 +596,29 @@ def _inject_secret_context(
             },
         },
     )
+
+
+def _normalize_cift_metadata(
+    cift_metadata: JsonObject,
+    record: Mapping[str, object],
+    label: str,
+    messages: list[JsonObject],
+    tool_secret_span: _ToolSecretSpan | None,
+    normalization_mode: GrokNormalizationMode,
+) -> None:
+    cift_metadata["normalization_mode"] = normalization_mode
+    if normalization_mode == "selected_choice_ledger":
+        selected_choice_metadata = _selected_choice_metadata(record=record, label=label, messages=messages)
+        cift_metadata["selected_choice"] = selected_choice_metadata
+        cift_metadata["chosen_readout_window"] = "selected_choice" if selected_choice_metadata is not None else "query_tail"
+        cift_metadata["readout_window_candidates"] = ["selected_choice", "payload_secret", "query_tail"]
+        return
+    if normalization_mode == "freeform_runtime_v1":
+        cift_metadata["selected_choice"] = None
+        cift_metadata["chosen_readout_window"] = "payload_secret" if tool_secret_span is not None else "query_tail"
+        cift_metadata["readout_window_candidates"] = ["payload_secret", "query_tail"]
+        return
+    raise GrokRedteamCorpusError(f"normalization_mode is unsupported: {normalization_mode}.")
 
 
 def _selected_choice_metadata(
@@ -774,6 +808,7 @@ def _manifest(
         "calibration_split_id": config.calibration_split_id,
         "sealed_holdout_split_id": config.sealed_holdout_split_id,
         "created_at": config.created_at,
+        "normalization_mode": config.normalization_mode,
         "source_dir": str(config.source_dir),
         "source_corpus_sha256": _source_corpus_sha256(shards=shards),
         "source_files": [

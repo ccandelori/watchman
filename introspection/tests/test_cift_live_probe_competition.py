@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+from dataclasses import replace
 from pathlib import Path
 
 from aegis_introspection.cift_live_probe_competition import (
@@ -73,6 +74,23 @@ class CiftLiveProbeCompetitionTest(unittest.TestCase):
         self.assertEqual("mlp_128_64_1", method.probe_architecture)
         self.assertEqual("bce_with_l1_softplus_weight_sparsity", method.training_loss)
         self.assertIsNone(method.paper_faithfulness_exception)
+
+    def test_live_sealed_competition_treats_freeform_readout_key_as_raw_activation(self) -> None:
+        report = compare_cift_live_probe_candidates(
+            replace(
+                _config(),
+                feature_representation="final_token_layer_12",
+                activation_feature_key="final_token_layer_12",
+            )
+        )
+
+        method = live_promotion_paper_method_from_probe_competition(report)
+
+        self.assertEqual("raw_activation", method.feature_representation)
+        self.assertEqual("not_applicable", method.covariance_estimator)
+        self.assertEqual("not_applicable", method.layer_weighting)
+        self.assertEqual(0.0, method.ridge)
+        self.assertIn("final_token_layer_12", method.paper_faithfulness_exception or "")
 
     def test_materialize_live_competition_writes_self_identifying_json(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -5,6 +5,7 @@
   "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
   "created_at": "2026-06-25T13:45:22Z",
   "evaluation_split_id": "watchman_semantic_v8_480_selected_choice_sealed_qwen3_4b_immutable_revision",
+  "exfiltration_label_count": 240,
   "expected_label_counts": {
     "exfiltration_intent": 240,
     "secret_present_safe": 240
@@ -15,11 +16,12 @@
   "false_positive_rate": 0.0,
   "metric_name": "sealed_holdout_macro_f1",
   "metric_value": 1.0,
+  "negative_label_count": 240,
   "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_sealed_holdout_metric_v1",
   "request_count": 480,
   "runtime_prevention_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_v1",
   "runtime_prevention_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_v1.json",
-  "runtime_prevention_report_sha256": "2bb13e21e8f0a813cb7481904d91c428cf8931994437d5b7ec260eb0389cd715",
+  "runtime_prevention_report_sha256": "aaaaf6b27958a377b9afd616c75037b97d3956838dbb6fdf4f9b917286812170",
   "runtime_turns_path": "introspection/data/runtime_turns_watchman_semantic_v8_480_selected_choice_sealed_qwen3_4b_immutable_revision.jsonl",
   "runtime_turns_sha256": "20ebbb1df0f03e90f78ab7f32946c423080800e0af21d83e0b74ea2296e80cd1",
   "schema_version": "aegis_introspection.cift_sealed_holdout_metric/v1",
@@ -27,7 +29,7 @@
   "sealed_holdout_split_id": "watchman_semantic_v8_480_selected_choice_sealed_qwen3_4b_immutable_revision",
   "selected_choice_model_bundle_id": "cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_v1",
   "selected_choice_row_count": 480,
-  "selected_choice_runtime_model_detector_sha256": "7682a42c73283da7fa06a2295464386f1e2c4197cd6c5120694414c6301c29a8",
+  "selected_choice_runtime_model_detector_sha256": "9c53520afd3b66de94cf9defb2e173800432c584b68b5a4c321232c9f6814576",
   "selected_choice_runtime_model_path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_v1.json",
   "source_artifact_sha256": "07647a294f3bcf023b78a023b7800c732e53f3e31f95176694214f511e02e388",
   "source_hidden_size": 2560,
@@ -38,5 +40,6 @@
   "special_tokens_map_sha256": "edcb2fc2acbbe77f858a9c4fe51295ffdb84711efba5703ec5906b3d67282569",
   "task_name": "safe_secret_vs_exfiltration",
   "tokenizer_fingerprint_sha256": "41e00eccf531cffc2e562d38bdd879d41e5044ea279af5b73c6a32aabcc8fe04",
-  "training_dataset_id": "qwen3_4b/watchman_semantic_v9_selected_choice_immutable_calibration"
+  "training_dataset_id": "qwen3_4b/watchman_semantic_v9_selected_choice_immutable_calibration",
+  "window_family": "selected_choice"
 }

@@ -295,6 +295,22 @@ class TraceRecordAdapterTest(unittest.TestCase):
         self.assertGreaterEqual(parsed.readout_token_indices[0], parsed.secret_token_span.end)
         self.assertGreaterEqual(parsed.readout_token_indices[0], parsed.query_token_span.start)
 
+    def test_split_id_sealed_records_preserve_sealed_holdout_tags(self) -> None:
+        record = _safe_secret_record()
+        record["split_id"] = "watchman-v11-freeform/sealed-holdout"
+        encoder: TokenOffsetEncoder = WhitespaceOffsetEncoder()
+        result = structured_prompt_records_from_trace_records(
+            records=(record,),
+            encoder=encoder,
+            config=TracePromptConversionConfig(readout_token_count=4),
+        )
+
+        prompt_record = result.records[0].to_dict()
+        parsed = parse_structured_prompt_example(prompt_record, 1)
+
+        self.assertIn("split:watchman-v11-freeform/sealed-holdout", parsed.tags)
+        self.assertIn("sealed_holdout", parsed.tags)
+
     def test_safe_secret_record_with_tool_payload_converts_to_payload_readout_prompt(self) -> None:
         encoder: TokenOffsetEncoder = WhitespaceOffsetEncoder()
         result = structured_prompt_records_from_trace_records(

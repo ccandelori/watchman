@@ -45,6 +45,15 @@ class CiftCertificationMode(StrEnum):
 
 
 _TRUSTED_SELF_HOSTED_CIFT_FEATURE_SOURCE = "self_hosted_activation_extractor"
+_STRICT_FREEFORM_CERTIFICATION_ENV_KEYS = (
+    "AEGIS_CIFT_FREEFORM_CERTIFICATION_MANIFEST_PATH",
+    "AEGIS_CIFT_FREEFORM_CERTIFICATION_REPORT_PATH",
+    "AEGIS_CIFT_FREEFORM_CERTIFICATION_ARTIFACT_ROOT",
+    "AEGIS_CIFT_FREEFORM_CERTIFICATION_MANIFEST_SHA256",
+    "AEGIS_CIFT_FREEFORM_CERTIFICATION_REPORT_SHA256",
+    "AEGIS_CIFT_FREEFORM_RELEASE_GATE_REPORT_PATH",
+    "AEGIS_CIFT_FREEFORM_RELEASE_GATE_REPORT_SHA256",
+)
 
 
 @dataclass(frozen=True)
@@ -54,6 +63,19 @@ class ProxyProviderConfig:
     provider_target_url: str | None
     model_provider: ModelProvider
     mock_controls_enabled: bool
+    advertised_model_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ProxyCiftRouteCertificationConfig:
+    model_path: Path
+    certification_manifest_path: Path
+    certification_report_path: Path
+    certification_artifact_root: Path
+    certification_manifest_sha256: str
+    certification_report_sha256: str
+    release_gate_report_path: Path
+    release_gate_report_sha256: str
 
 
 @dataclass(frozen=True)
@@ -77,6 +99,8 @@ class ProxyCiftConfig:
     extractor_api_key: str | None
     extractor_timeout_seconds: float | None
     feature_source: str
+    freeform_certification: ProxyCiftRouteCertificationConfig | None = None
+    gateway_smoke_bootstrap_allow_real_provider: bool = False
 
 
 def audit_sink_from_env(env: Mapping[str, str] | None = None) -> InMemoryAuditSink:
@@ -87,6 +111,13 @@ def audit_sink_from_env(env: Mapping[str, str] | None = None) -> InMemoryAuditSi
     if path == "":
         raise ProxyConfigError("AEGIS_AUDIT_JSONL_PATH must not be empty when provided.")
     return JsonlAuditSink(Path(path))
+
+
+def _advertised_openai_compatible_models(values: Mapping[str, str]) -> tuple[str, ...]:
+    model = _optional_non_empty(values.get("AEGIS_OPENAI_MODEL"))
+    if model is None:
+        return ()
+    return (model,)
 
 
 def provider_config_from_env(env: Mapping[str, str] | None = None) -> ProxyProviderConfig:
@@ -109,6 +140,7 @@ def provider_config_from_env(env: Mapping[str, str] | None = None) -> ProxyProvi
                 default_content=values.get("AEGIS_MOCK_DEFAULT_CONTENT", "Aegis mock response.")
             ),
             mock_controls_enabled=True,
+            advertised_model_ids=("mock-model",),
         )
 
     if provider_kind == ProviderKind.OPENAI_COMPATIBLE:
@@ -134,6 +166,7 @@ def provider_config_from_env(env: Mapping[str, str] | None = None) -> ProxyProvi
                 sender=urllib_openai_sender,
             ),
             mock_controls_enabled=False,
+            advertised_model_ids=_advertised_openai_compatible_models(values),
         )
 
     raise ProxyConfigError(f"Unhandled provider kind '{provider_kind.value}'.")
@@ -193,13 +226,14 @@ def _strict_self_hosted_cift_config_from_env(
     profile: CiftProfile,
     detector_name: str,
 ) -> ProxyCiftConfig:
-    _reject_strict_fallback_model_path(values)
+    _reject_strict_legacy_fallback_model_path(values)
+    freeform_certification = _strict_freeform_certification_from_env(values)
     return ProxyCiftConfig(
         profile=profile,
         certification_mode=CiftCertificationMode.STRICT,
         detector_name=detector_name,
         selected_choice_model_path=Path(_required_non_empty_env(values, "AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH")),
-        fallback_model_path=None,
+        fallback_model_path=None if freeform_certification is None else freeform_certification.model_path,
         extractor_id=_required_non_empty_env(values, "AEGIS_CIFT_EXTRACTOR_ID"),
         certification_manifest_path=Path(_required_non_empty_env(values, "AEGIS_CIFT_CERTIFICATION_MANIFEST_PATH")),
         certification_report_path=Path(_required_non_empty_env(values, "AEGIS_CIFT_CERTIFICATION_REPORT_PATH")),
@@ -217,15 +251,50 @@ def _strict_self_hosted_cift_config_from_env(
         extractor_api_key=_optional_string_env(values, "AEGIS_CIFT_EXTRACTOR_API_KEY"),
         extractor_timeout_seconds=_optional_positive_float_env(values, "AEGIS_CIFT_EXTRACTOR_TIMEOUT_SECONDS"),
         feature_source=_trusted_self_hosted_cift_feature_source_env(values, "AEGIS_CIFT_FEATURE_SOURCE"),
+        freeform_certification=freeform_certification,
     )
 
 
-def _reject_strict_fallback_model_path(values: Mapping[str, str]) -> None:
+def _reject_strict_legacy_fallback_model_path(values: Mapping[str, str]) -> None:
     if "AEGIS_CIFT_FALLBACK_MODEL_PATH" in values:
         raise ProxyConfigError(
             "AEGIS_CIFT_FALLBACK_MODEL_PATH is not supported in strict CIFT mode; "
-            "strict selected-choice CIFT fails closed when selected-choice metadata is unavailable."
+            "use AEGIS_CIFT_FREEFORM_MODEL_PATH with freeform certification evidence."
         )
+
+
+def _strict_freeform_certification_from_env(
+    values: Mapping[str, str],
+) -> ProxyCiftRouteCertificationConfig | None:
+    model_path_text = _optional_string_env(values, "AEGIS_CIFT_FREEFORM_MODEL_PATH")
+    if model_path_text is None:
+        _reject_strict_freeform_certification_without_model(values)
+        return None
+    return ProxyCiftRouteCertificationConfig(
+        model_path=Path(model_path_text),
+        certification_manifest_path=Path(
+            _required_non_empty_env(values, "AEGIS_CIFT_FREEFORM_CERTIFICATION_MANIFEST_PATH")
+        ),
+        certification_report_path=Path(
+            _required_non_empty_env(values, "AEGIS_CIFT_FREEFORM_CERTIFICATION_REPORT_PATH")
+        ),
+        certification_artifact_root=Path(
+            _required_non_empty_env(values, "AEGIS_CIFT_FREEFORM_CERTIFICATION_ARTIFACT_ROOT")
+        ),
+        certification_manifest_sha256=_required_sha256_env(
+            values,
+            "AEGIS_CIFT_FREEFORM_CERTIFICATION_MANIFEST_SHA256",
+        ),
+        certification_report_sha256=_required_sha256_env(values, "AEGIS_CIFT_FREEFORM_CERTIFICATION_REPORT_SHA256"),
+        release_gate_report_path=Path(_required_non_empty_env(values, "AEGIS_CIFT_FREEFORM_RELEASE_GATE_REPORT_PATH")),
+        release_gate_report_sha256=_required_sha256_env(values, "AEGIS_CIFT_FREEFORM_RELEASE_GATE_REPORT_SHA256"),
+    )
+
+
+def _reject_strict_freeform_certification_without_model(values: Mapping[str, str]) -> None:
+    for key in _STRICT_FREEFORM_CERTIFICATION_ENV_KEYS:
+        if key in values:
+            raise ProxyConfigError(f"{key} requires AEGIS_CIFT_FREEFORM_MODEL_PATH.")
 
 
 def _gateway_smoke_bootstrap_cift_config_from_env(
@@ -233,13 +302,14 @@ def _gateway_smoke_bootstrap_cift_config_from_env(
     profile: CiftProfile,
     detector_name: str,
 ) -> ProxyCiftConfig:
-    _validate_gateway_smoke_bootstrap_env(values)
+    allow_real_provider = _bool_env(values, "AEGIS_CIFT_GATEWAY_SMOKE_BOOTSTRAP_ALLOW_REAL_PROVIDER")
+    _validate_gateway_smoke_bootstrap_env(values=values, allow_real_provider=allow_real_provider)
     return ProxyCiftConfig(
         profile=profile,
         certification_mode=CiftCertificationMode.GATEWAY_SMOKE_BOOTSTRAP,
         detector_name=detector_name,
         selected_choice_model_path=Path(_required_non_empty_env(values, "AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH")),
-        fallback_model_path=_optional_path_env(values, "AEGIS_CIFT_FALLBACK_MODEL_PATH"),
+        fallback_model_path=_optional_gateway_freeform_model_path_env(values),
         extractor_id=_required_non_empty_env(values, "AEGIS_CIFT_EXTRACTOR_ID"),
         certification_manifest_path=None,
         certification_report_path=None,
@@ -257,7 +327,20 @@ def _gateway_smoke_bootstrap_cift_config_from_env(
         extractor_api_key=_optional_string_env(values, "AEGIS_CIFT_EXTRACTOR_API_KEY"),
         extractor_timeout_seconds=_optional_positive_float_env(values, "AEGIS_CIFT_EXTRACTOR_TIMEOUT_SECONDS"),
         feature_source=_non_empty_env(values, "AEGIS_CIFT_FEATURE_SOURCE", "self_hosted_activation_extractor"),
+        gateway_smoke_bootstrap_allow_real_provider=allow_real_provider,
     )
+
+
+def _optional_gateway_freeform_model_path_env(values: Mapping[str, str]) -> Path | None:
+    fallback_present = "AEGIS_CIFT_FALLBACK_MODEL_PATH" in values
+    freeform_present = "AEGIS_CIFT_FREEFORM_MODEL_PATH" in values
+    if fallback_present and freeform_present:
+        raise ProxyConfigError(
+            "Set only one of AEGIS_CIFT_FREEFORM_MODEL_PATH or AEGIS_CIFT_FALLBACK_MODEL_PATH."
+        )
+    if freeform_present:
+        return _optional_path_env(values, "AEGIS_CIFT_FREEFORM_MODEL_PATH")
+    return _optional_path_env(values, "AEGIS_CIFT_FALLBACK_MODEL_PATH")
 
 
 def _cift_certification_mode_from_env(values: Mapping[str, str]) -> CiftCertificationMode:
@@ -271,10 +354,25 @@ def _cift_certification_mode_from_env(values: Mapping[str, str]) -> CiftCertific
         ) from exc
 
 
-def _validate_gateway_smoke_bootstrap_env(values: Mapping[str, str]) -> None:
+def _bool_env(values: Mapping[str, str], key: str) -> bool:
+    value = values.get(key)
+    if value is None:
+        return False
+    normalized = value.strip().lower()
+    if normalized in ("1", "true", "yes"):
+        return True
+    if normalized in ("0", "false", "no"):
+        return False
+    raise ProxyConfigError(f"{key} must be true or false when provided.")
+
+
+def _validate_gateway_smoke_bootstrap_env(values: Mapping[str, str], allow_real_provider: bool) -> None:
     provider_value = values.get("AEGIS_PROVIDER", ProviderKind.MOCK.value)
-    if provider_value != ProviderKind.MOCK.value:
-        raise ProxyConfigError("gateway_smoke_bootstrap requires AEGIS_PROVIDER=mock.")
+    if provider_value != ProviderKind.MOCK.value and not allow_real_provider:
+        raise ProxyConfigError(
+            "gateway_smoke_bootstrap requires AEGIS_PROVIDER=mock unless "
+            "AEGIS_CIFT_GATEWAY_SMOKE_BOOTSTRAP_ALLOW_REAL_PROVIDER=true."
+        )
     forbidden_keys = (
         "AEGIS_CIFT_CERTIFICATION_MANIFEST_PATH",
         "AEGIS_CIFT_CERTIFICATION_REPORT_PATH",

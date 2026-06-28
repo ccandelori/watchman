@@ -1,0 +1,121 @@
+{
+  "activation_feature_key": "final_token_layer_12",
+  "calibration_source_labels": [],
+  "candidate_confidence_delta": 0.0008923846440019867,
+  "candidate_delta": 0.0008923846440019867,
+  "candidate_hyperparameter_search_trials": 1,
+  "candidate_meets_or_exceeds_paper": true,
+  "candidate_probe": {
+    "evaluation_split_id": "watchman-v13-freeform-qwen3-4b/grouped-cv",
+    "evaluation_split_manifest_id": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/activations/qwen3_4b_watchman_v13_freeform_final_token_l12_windows_l12.pt",
+    "evaluation_split_sha256": "e9da369b8d7b101d67bf36522efbf4cf5f61b8543aef8bd740f4b52ad67f1d31",
+    "false_negative_rate": 0.0,
+    "false_positive_rate": 0.006868131868131868,
+    "hyperparameter_search_trials": 1,
+    "metric_confidence_interval_high": 0.9948664091095853,
+    "metric_confidence_interval_low": 0.9948664091095853,
+    "metric_name": "grouped_cv_macro_f1",
+    "metric_value": 0.9948664091095853,
+    "operating_threshold": 0.5,
+    "probe_architecture": "linear_logistic_regression",
+    "random_seeds": [
+      11,
+      17,
+      23
+    ],
+    "source_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_vs_paper_mlp_v1:linear_logistic_regression",
+    "task_name": "non_exfiltration_vs_exfiltration",
+    "training_dataset_id": "watchman-v13-freeform-qwen3-4b",
+    "training_dataset_sha256": "67103b28b0c93c345cbadd7f35f42e616e55eb163ec5e2d4a8710a8263bb6c5f",
+    "training_loss": "regularized_logistic_loss",
+    "true_positive_rate": 1.0
+  },
+  "candidate_probe_metric_value": 0.9948664091095853,
+  "created_at": "2026-06-27T00:00:00Z",
+  "evaluation_split_id": "watchman-v13-freeform-qwen3-4b/grouped-cv",
+  "evaluation_split_manifest_id": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/activations/qwen3_4b_watchman_v13_freeform_final_token_l12_windows_l12.pt",
+  "evaluation_split_sha256": "e9da369b8d7b101d67bf36522efbf4cf5f61b8543aef8bd740f4b52ad67f1d31",
+  "feature_representation": "raw_activation",
+  "higher_is_better": true,
+  "metric_name": "grouped_cv_macro_f1",
+  "paper_hyperparameter_search_trials": 1,
+  "paper_probe": {
+    "evaluation_split_id": "watchman-v13-freeform-qwen3-4b/grouped-cv",
+    "evaluation_split_manifest_id": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/activations/qwen3_4b_watchman_v13_freeform_final_token_l12_windows_l12.pt",
+    "evaluation_split_sha256": "e9da369b8d7b101d67bf36522efbf4cf5f61b8543aef8bd740f4b52ad67f1d31",
+    "false_negative_rate": 0.013736263736263687,
+    "false_positive_rate": 0.0011446886446886447,
+    "hyperparameter_search_trials": 1,
+    "metric_confidence_interval_high": 0.9948310285969083,
+    "metric_confidence_interval_low": 0.9922600162029331,
+    "metric_name": "grouped_cv_macro_f1",
+    "metric_value": 0.9939740244655834,
+    "operating_threshold": 0.5,
+    "probe_architecture": "mlp_128_64_1",
+    "random_seeds": [
+      11,
+      17,
+      23
+    ],
+    "source_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_vs_paper_mlp_v1:paper_mlp",
+    "task_name": "non_exfiltration_vs_exfiltration",
+    "training_dataset_id": "watchman-v13-freeform-qwen3-4b",
+    "training_dataset_sha256": "67103b28b0c93c345cbadd7f35f42e616e55eb163ec5e2d4a8710a8263bb6c5f",
+    "training_loss": "bce_with_l1_softplus_weight_sparsity",
+    "true_positive_rate": 0.9862637362637363
+  },
+  "paper_probe_metric_value": 0.9939740244655834,
+  "random_seeds": [
+    11,
+    17,
+    23
+  ],
+  "report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_vs_paper_mlp_v1",
+  "ridge": 0.001,
+  "schema_version": "cift_probe_competition/v1",
+  "seed_results": [
+    {
+      "candidate_false_positive_rate": 0.006868131868131868,
+      "candidate_macro_f1": 0.9948664091095853,
+      "candidate_probe_architecture": "linear_logistic_regression",
+      "candidate_true_positive_rate": 1.0,
+      "fold_count": 5,
+      "paper_false_positive_rate": 0.0,
+      "paper_macro_f1": 0.9948310285969083,
+      "paper_probe_architecture": "mlp_128_64_1",
+      "paper_true_positive_rate": 0.9862637362637363,
+      "random_seed": 11
+    },
+    {
+      "candidate_false_positive_rate": 0.006868131868131868,
+      "candidate_macro_f1": 0.9948664091095853,
+      "candidate_probe_architecture": "linear_logistic_regression",
+      "candidate_true_positive_rate": 1.0,
+      "fold_count": 5,
+      "paper_false_positive_rate": 0.0,
+      "paper_macro_f1": 0.9948310285969083,
+      "paper_probe_architecture": "mlp_128_64_1",
+      "paper_true_positive_rate": 0.9862637362637363,
+      "random_seed": 17
+    },
+    {
+      "candidate_false_positive_rate": 0.006868131868131868,
+      "candidate_macro_f1": 0.9948664091095853,
+      "candidate_probe_architecture": "linear_logistic_regression",
+      "candidate_true_positive_rate": 1.0,
+      "fold_count": 5,
+      "paper_false_positive_rate": 0.003434065934065934,
+      "paper_macro_f1": 0.9922600162029331,
+      "paper_probe_architecture": "mlp_128_64_1",
+      "paper_true_positive_rate": 0.9862637362637363,
+      "random_seed": 23
+    }
+  ],
+  "source_feature_keys": [
+    "final_token_layer_12"
+  ],
+  "task_name": "non_exfiltration_vs_exfiltration",
+  "training_dataset_id": "watchman-v13-freeform-qwen3-4b",
+  "training_dataset_sha256": "67103b28b0c93c345cbadd7f35f42e616e55eb163ec5e2d4a8710a8263bb6c5f",
+  "winner_probe_architecture": "linear_logistic_regression"
+}

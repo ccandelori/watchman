@@ -401,6 +401,12 @@ pre,
   color: var(--blue);
 }
 
+.badge.optional,
+.badge.not-run {
+  background: var(--surface-2);
+  color: var(--muted);
+}
+
 .timeline {
   display: grid;
 }
@@ -610,9 +616,11 @@ pre,
 }
 
 .event-main p,
+.request-preview p,
 .metric-card p,
 .detector-card p,
 .detector-card small,
+.request-preview small,
 .empty-state p,
 .stage-item p {
   margin-bottom: 0;
@@ -621,6 +629,29 @@ pre,
 
 .event-trace {
   color: var(--muted);
+  font-size: 12px;
+}
+
+.request-preview {
+  display: grid;
+  gap: 4px;
+  margin-top: 14px;
+  max-width: 76ch;
+}
+
+.request-preview span {
+  color: var(--blue);
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.request-preview p {
+  font-size: 14px;
+}
+
+.request-preview small {
   font-size: 12px;
 }
 
@@ -1045,6 +1076,12 @@ h3 {
 .badge.idle {
   background: var(--blue-2);
   color: var(--blue);
+}
+
+.badge.optional,
+.badge.not-run {
+  background: var(--surface-2);
+  color: var(--muted);
 }
 
 .timeline {

@@ -1,5 +1,5 @@
 {
-  "detector_sha256": "7682a42c73283da7fa06a2295464386f1e2c4197cd6c5120694414c6301c29a8",
+  "detector_sha256": "9c53520afd3b66de94cf9defb2e173800432c584b68b5a4c321232c9f6814576",
   "eligible": true,
   "failed_requirements": [],
   "gateway_smoke_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_mps_receipt_recheck_v1",

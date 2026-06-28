@@ -29,7 +29,8 @@ JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dic
 _SCHEMA_VERSION = "aegis_introspection.cift_counterfactual_patching/v1"
 _INTERVENTION_TYPE = "paired_feature_vector_replacement"
 _CLAIM_SCOPE = "runtime_detector_decision"
-_PAIRING_TAG_FIELDS = ("participant", "task", "family", "variant", "credential_type")
+_PAIRING_TAG_FIELDS = ("participant", "task", "family", "credential_type")
+_VARIANT_TAG_FIELD = "variant"
 _LIMITATION = (
     "This report patches persisted pooled CIFT feature vectors consumed by the runtime detector; "
     "it does not patch transformer hidden states or measure changed model generations."
@@ -90,6 +91,8 @@ class CiftCounterfactualPatchingReport:
     paper_faithfulness_limitation: str
     pairing_tag_fields: tuple[str, ...]
     pair_count: int
+    skipped_ambiguous_pair_count: int
+    skipped_ambiguous_pair_keys: tuple[str, ...]
     minimum_flip_rate: float
     safe_original_allow_rate: float
     exfil_original_block_rate: float
@@ -122,6 +125,12 @@ class _PairedRows:
     exfil: _ArtifactRow
 
 
+@dataclass(frozen=True)
+class _PairingSelection:
+    pairs: tuple[_PairedRows, ...]
+    skipped_ambiguous_pair_keys: tuple[str, ...]
+
+
 def run_cift_counterfactual_patching(
     config: CiftCounterfactualPatchingConfig,
 ) -> CiftCounterfactualPatchingReport:
@@ -139,15 +148,17 @@ def run_cift_counterfactual_patching(
         context="CIFT counterfactual patching",
     )
     feature_matrix = _feature_matrix(artifact=artifact, feature_key=model.feature_key)
-    pairs = _paired_rows(artifact=artifact, model=model)
+    pairing_selection = _paired_rows(artifact=artifact, model=model)
     patch_pairs = tuple(
-        _patch_pair(model=model, matrix=feature_matrix, paired_rows=paired_rows) for paired_rows in pairs
+        _patch_pair(model=model, matrix=feature_matrix, paired_rows=paired_rows)
+        for paired_rows in pairing_selection.pairs
     )
     report = _report_from_patch_pairs(
         config=config,
         model=model,
         source_artifact_sha256=artifact_sha256,
         patch_pairs=patch_pairs,
+        skipped_ambiguous_pair_keys=pairing_selection.skipped_ambiguous_pair_keys,
     )
     _write_json(path=config.output_path, record=cift_counterfactual_patching_report_to_json(report))
     return report
@@ -170,6 +181,8 @@ def cift_counterfactual_patching_report_to_json(
         "paper_faithfulness_limitation": report.paper_faithfulness_limitation,
         "pairing_tag_fields": cast(list[JsonValue], list(report.pairing_tag_fields)),
         "pair_count": report.pair_count,
+        "skipped_ambiguous_pair_count": report.skipped_ambiguous_pair_count,
+        "skipped_ambiguous_pair_keys": cast(list[JsonValue], list(report.skipped_ambiguous_pair_keys)),
         "minimum_flip_rate": report.minimum_flip_rate,
         "safe_original_allow_rate": report.safe_original_allow_rate,
         "exfil_original_block_rate": report.exfil_original_block_rate,
@@ -226,13 +239,13 @@ def _feature_matrix(artifact: CiftTrainingArtifact, feature_key: str) -> np.ndar
     return np.asarray(matrix, dtype=np.float32)
 
 
-def _paired_rows(artifact: CiftTrainingArtifact, model: CiftRuntimeModel) -> tuple[_PairedRows, ...]:
-    safe_label = _negative_label(model)
+def _paired_rows(artifact: CiftTrainingArtifact, model: CiftRuntimeModel) -> _PairingSelection:
+    safe_labels = _safe_labels(model)
     exfil_label = model.positive_label
     rows_by_key: dict[str, list[_ArtifactRow]] = defaultdict(list)
     metadata_by_key: dict[str, Mapping[str, str]] = {}
     for row_index, label in enumerate(artifact.labels):
-        if label not in (safe_label, exfil_label):
+        if label not in safe_labels and label != exfil_label:
             continue
         row = _ArtifactRow(
             row_index=row_index,
@@ -246,12 +259,16 @@ def _paired_rows(artifact: CiftTrainingArtifact, model: CiftRuntimeModel) -> tup
         rows_by_key[key].append(row)
         metadata_by_key[key] = key_metadata
     pairs: list[_PairedRows] = []
+    skipped_ambiguous_pair_keys: list[str] = []
     for key in sorted(rows_by_key):
         rows = tuple(rows_by_key[key])
-        safe_rows = tuple(row for row in rows if row.label == safe_label)
+        safe_rows = tuple(row for row in rows if row.label in safe_labels)
         exfil_rows = tuple(row for row in rows if row.label == exfil_label)
-        if len(safe_rows) != 1 or len(exfil_rows) != 1:
-            raise CiftCounterfactualPatchingError(f"Pair key '{key}' must contain exactly one safe and one exfil row.")
+        if len(safe_rows) == 0 or len(exfil_rows) == 0:
+            continue
+        if len(safe_rows) > 1 or len(exfil_rows) > 1:
+            skipped_ambiguous_pair_keys.append(key)
+            continue
         metadata = metadata_by_key[key]
         pairs.append(
             _PairedRows(
@@ -259,15 +276,21 @@ def _paired_rows(artifact: CiftTrainingArtifact, model: CiftRuntimeModel) -> tup
                 participant=metadata["participant"],
                 task=metadata["task"],
                 family=metadata["family"],
-                variant=metadata["variant"],
+                variant=_paired_variant(safe=safe_rows[0], exfil=exfil_rows[0]),
                 credential_type=metadata["credential_type"],
                 safe=safe_rows[0],
                 exfil=exfil_rows[0],
             )
         )
     if len(pairs) == 0:
-        raise CiftCounterfactualPatchingError("No exact safe/exfil row pairs were found.")
-    return tuple(pairs)
+        ambiguous_summary = ""
+        if len(skipped_ambiguous_pair_keys) > 0:
+            ambiguous_summary = f" Skipped ambiguous pair groups: {len(skipped_ambiguous_pair_keys)}."
+        raise CiftCounterfactualPatchingError(f"No exact safe/exfil row pairs were found.{ambiguous_summary}")
+    return _PairingSelection(
+        pairs=tuple(pairs),
+        skipped_ambiguous_pair_keys=tuple(skipped_ambiguous_pair_keys),
+    )
 
 
 def _pairing_metadata(row: _ArtifactRow) -> Mapping[str, str]:
@@ -285,6 +308,22 @@ def _pairing_metadata(row: _ArtifactRow) -> Mapping[str, str]:
     return {field: parsed_tags[field] for field in _PAIRING_TAG_FIELDS}
 
 
+def _paired_variant(safe: _ArtifactRow, exfil: _ArtifactRow) -> str:
+    safe_variant = _variant_from_row(safe)
+    exfil_variant = _variant_from_row(exfil)
+    if safe_variant == exfil_variant:
+        return safe_variant
+    return f"safe={safe_variant};exfil={exfil_variant}"
+
+
+def _variant_from_row(row: _ArtifactRow) -> str:
+    parsed_tags = _parse_tags(row.tags)
+    variant = parsed_tags.get(_VARIANT_TAG_FIELD, "")
+    if variant == "":
+        raise CiftCounterfactualPatchingError(f"Row '{row.example_id}' is missing variant tag field.")
+    return variant
+
+
 def _parse_tags(tags: tuple[str, ...]) -> dict[str, str]:
     parsed: dict[str, str] = {}
     for tag in tags:
@@ -297,6 +336,13 @@ def _parse_tags(tags: tuple[str, ...]) -> dict[str, str]:
 
 def _pair_key(metadata: Mapping[str, str]) -> str:
     return "|".join(f"{field}={metadata[field]}" for field in _PAIRING_TAG_FIELDS)
+
+
+def _safe_labels(model: CiftRuntimeModel) -> tuple[str, ...]:
+    negative_label = _negative_label(model)
+    if negative_label == "non_exfiltration":
+        return ("secret_present_safe",)
+    return (negative_label,)
 
 
 def _negative_label(model: CiftRuntimeModel) -> str:
@@ -348,6 +394,7 @@ def _report_from_patch_pairs(
     model: CiftRuntimeModel,
     source_artifact_sha256: str,
     patch_pairs: tuple[CiftPatchPair, ...],
+    skipped_ambiguous_pair_keys: tuple[str, ...],
 ) -> CiftCounterfactualPatchingReport:
     pair_count = len(patch_pairs)
     safe_original_allow_rate = _rate(
@@ -386,6 +433,8 @@ def _report_from_patch_pairs(
         paper_faithfulness_limitation=_LIMITATION,
         pairing_tag_fields=_PAIRING_TAG_FIELDS,
         pair_count=pair_count,
+        skipped_ambiguous_pair_count=len(skipped_ambiguous_pair_keys),
+        skipped_ambiguous_pair_keys=skipped_ambiguous_pair_keys,
         minimum_flip_rate=config.minimum_flip_rate,
         safe_original_allow_rate=safe_original_allow_rate,
         exfil_original_block_rate=exfil_original_block_rate,

@@ -752,7 +752,7 @@ def _runtime_prevention_failures(
     else:
         typed_rows = tuple(cast(Mapping[str, object], row) for row in rows)
         if any(
-            not _runtime_prevention_row_has_selected_choice_proof(
+            not _runtime_prevention_row_has_route_proof(
                 row=row,
                 requested_device=requested_device,
                 expected_selected_choice_readout_token_count=expected_selected_choice_readout_token_count,
@@ -760,7 +760,7 @@ def _runtime_prevention_failures(
             )
             for row in typed_rows
         ):
-            failures.append("runtime prevention rows must have selected-choice metadata proof")
+            failures.append("runtime prevention rows must have route-specific extraction metadata proof")
         if any(_optional_record_string(row, "capability_status") != "active" for row in typed_rows):
             failures.append("runtime prevention rows capability_status must be active")
         if any(not _record_has_positive_finite_number(row, "model_forward_ms") for row in typed_rows):
@@ -770,16 +770,29 @@ def _runtime_prevention_failures(
     return tuple(failures)
 
 
-def _runtime_prevention_row_has_selected_choice_proof(
+def _runtime_prevention_row_has_route_proof(
     row: Mapping[str, object],
     requested_device: str | None,
     expected_selected_choice_readout_token_count: int | None,
     expected_layer_count: int | None,
 ) -> bool:
+    expected_window_family = _optional_record_string(row, "expected_window_family")
+    window_family = _optional_record_string(row, "window_family")
+    if expected_window_family is None or window_family is None or expected_window_family != window_family:
+        return False
+    token_indices_field_name, token_indices_sha256_field_name = _route_token_index_fields(
+        window_family=window_family,
+        prefix="extractor_",
+    )
+    if token_indices_field_name is None or token_indices_sha256_field_name is None:
+        return False
+    expected_readout_count = (
+        expected_selected_choice_readout_token_count if window_family == "selected_choice" else None
+    )
+    expected_reason = _window_selection_reason(window_family)
     return (
-        _optional_record_string(row, "expected_window_family") == "selected_choice"
-        and _optional_record_string(row, "window_family") == "selected_choice"
-        and _optional_record_string(row, "window_selection_reason") == "selected_choice_metadata_present"
+        expected_reason is not None
+        and _optional_record_string(row, "window_selection_reason") == expected_reason
         and len(
             _extraction_receipt_record_failures(
                 record=row,
@@ -790,11 +803,11 @@ def _runtime_prevention_row_has_selected_choice_proof(
                 feature_vector_length_field_name="extractor_feature_vector_length",
                 feature_vector_sha256_field_name="extractor_feature_vector_sha256",
                 rendered_prompt_sha256_field_name="extractor_rendered_prompt_sha256",
-                token_indices_field_name="extractor_selected_choice_readout_token_indices",
-                token_indices_sha256_field_name="extractor_selected_choice_readout_token_indices_sha256",
+                token_indices_field_name=token_indices_field_name,
+                token_indices_sha256_field_name=token_indices_sha256_field_name,
                 hidden_state_layer_count_field_name="extractor_hidden_state_layer_count",
                 expected_device=requested_device,
-                expected_selected_choice_readout_token_count=expected_selected_choice_readout_token_count,
+                expected_selected_choice_readout_token_count=expected_readout_count,
                 expected_layer_count=expected_layer_count,
             )
         )
@@ -951,19 +964,30 @@ def _gateway_smoke_failures(
     contract: _GatewaySmokeSemanticContract,
 ) -> tuple[str, ...]:
     failures: list[str] = []
+    window_family = _window_family_from_feature_key(contract.feature_key)
     expected = record.get("expected")
     if isinstance(expected, dict):
         expected_record = cast(Mapping[str, object], expected)
         if _optional_record_string(expected_record, "gateway_feature_source") != "self_hosted_activation_extractor":
             failures.append("gateway smoke expected.gateway_feature_source must be self_hosted_activation_extractor")
-        failures.extend(
-            _gateway_smoke_count_contract_failures(
-                record=expected_record,
-                field_name="selected_choice_readout_token_count",
-                expected_count=contract.selected_choice_readout_token_count,
-                label="gateway smoke expected.selected_choice_readout_token_count",
+        if window_family == "selected_choice":
+            failures.extend(
+                _gateway_smoke_count_contract_failures(
+                    record=expected_record,
+                    field_name="selected_choice_readout_token_count",
+                    expected_count=contract.selected_choice_readout_token_count,
+                    label="gateway smoke expected.selected_choice_readout_token_count",
+                )
             )
-        )
+        elif window_family is not None:
+            failures.extend(
+                _gateway_smoke_window_family_failures(
+                    record=expected_record,
+                    field_name="cift_window_family",
+                    expected_window_family=window_family,
+                    label="gateway smoke expected.cift_window_family",
+                )
+            )
         failures.extend(
             _gateway_smoke_string_contract_failures(
                 record=expected_record,
@@ -1025,14 +1049,51 @@ def _gateway_smoke_failures(
             sidecar_record = cast(Mapping[str, object], sidecar)
             if _optional_record_string(sidecar_record, "selected_device") is None:
                 failures.append("gateway smoke sidecar feature extraction selected_device must be present")
-            failures.extend(
-                _gateway_smoke_count_contract_failures(
-                    record=sidecar_record,
-                    field_name="selected_choice_readout_token_count",
-                    expected_count=contract.selected_choice_readout_token_count,
-                    label="gateway smoke sidecar feature extraction selected_choice_readout_token_count",
+            if window_family == "selected_choice":
+                failures.extend(
+                    _gateway_smoke_count_contract_failures(
+                        record=sidecar_record,
+                        field_name="selected_choice_readout_token_count",
+                        expected_count=contract.selected_choice_readout_token_count,
+                        label="gateway smoke sidecar feature extraction selected_choice_readout_token_count",
+                    )
                 )
+            elif window_family is not None:
+                failures.extend(
+                    _gateway_smoke_window_family_failures(
+                        record=sidecar_record,
+                        field_name="cift_window_family",
+                        expected_window_family=window_family,
+                        label="gateway smoke sidecar feature extraction cift_window_family",
+                    )
+                )
+            token_indices_field_name, token_indices_sha256_field_name = _route_token_index_fields(
+                window_family=window_family,
+                prefix="",
             )
+            if token_indices_field_name is None or token_indices_sha256_field_name is None:
+                failures.append("gateway smoke sidecar feature extraction route token index fields must be known")
+            else:
+                failures.extend(
+                    _extraction_receipt_record_failures(
+                        record=sidecar_record,
+                        label="gateway smoke sidecar feature extraction",
+                        device_field_name="hidden_state_device_observed",
+                        input_device_field_name="input_device_observed",
+                        receipt_schema_field_name="extraction_receipt_schema_version",
+                        feature_vector_length_field_name="feature_vector_length",
+                        feature_vector_sha256_field_name="feature_vector_sha256",
+                        rendered_prompt_sha256_field_name="rendered_prompt_sha256",
+                        token_indices_field_name=token_indices_field_name,
+                        token_indices_sha256_field_name=token_indices_sha256_field_name,
+                        hidden_state_layer_count_field_name="hidden_state_layer_count",
+                        expected_device=contract.requested_device,
+                        expected_selected_choice_readout_token_count=(
+                            contract.selected_choice_readout_token_count if window_family == "selected_choice" else None
+                        ),
+                        expected_layer_count=contract.layer_count,
+                    )
+                )
             failures.extend(
                 _gateway_smoke_string_contract_failures(
                     record=sidecar_record,
@@ -1081,24 +1142,6 @@ def _gateway_smoke_failures(
                     label="gateway smoke sidecar feature extraction",
                     field_name="revision",
                     expected_revision=model_revision,
-                )
-            )
-            failures.extend(
-                _extraction_receipt_record_failures(
-                    record=sidecar_record,
-                    label="gateway smoke sidecar feature extraction",
-                    device_field_name="hidden_state_device_observed",
-                    input_device_field_name="input_device_observed",
-                    receipt_schema_field_name="extraction_receipt_schema_version",
-                    feature_vector_length_field_name="feature_vector_length",
-                    feature_vector_sha256_field_name="feature_vector_sha256",
-                    rendered_prompt_sha256_field_name="rendered_prompt_sha256",
-                    token_indices_field_name="selected_choice_readout_token_indices",
-                    token_indices_sha256_field_name="selected_choice_readout_token_indices_sha256",
-                    hidden_state_layer_count_field_name="hidden_state_layer_count",
-                    expected_device=contract.requested_device,
-                    expected_selected_choice_readout_token_count=contract.selected_choice_readout_token_count,
-                    expected_layer_count=contract.layer_count,
                 )
             )
         else:
@@ -1170,6 +1213,7 @@ def _gateway_smoke_failures(
                         expected_count=contract.selected_choice_readout_token_count,
                         expected_device=contract.requested_device,
                         expected_layer_count=contract.layer_count,
+                        window_family=window_family,
                     )
                 )
             else:
@@ -1196,6 +1240,7 @@ def _gateway_smoke_readiness_failures(
     model_revision: str | None,
 ) -> tuple[str, ...]:
     failures: list[str] = []
+    window_family = _window_family_from_feature_key(contract.feature_key)
     expected_strings = (
         ("status", "ready"),
         ("capability_mode", "self_hosted_introspection"),
@@ -1249,22 +1294,32 @@ def _gateway_smoke_readiness_failures(
         failures.append("gateway smoke gateway_readiness.feature_vector_length must be positive")
     if feature_count is not None and feature_vector_length is not None and feature_vector_length != feature_count:
         failures.append("gateway smoke gateway_readiness.feature_vector_length must match feature_count")
-    failures.extend(
-        _gateway_smoke_count_contract_failures(
-            record=readiness,
-            field_name="selected_choice_readout_token_count",
-            expected_count=contract.selected_choice_readout_token_count,
-            label="gateway smoke gateway_readiness.selected_choice_readout_token_count",
+    if window_family == "selected_choice":
+        failures.extend(
+            _gateway_smoke_count_contract_failures(
+                record=readiness,
+                field_name="selected_choice_readout_token_count",
+                expected_count=contract.selected_choice_readout_token_count,
+                label="gateway smoke gateway_readiness.selected_choice_readout_token_count",
+            )
         )
-    )
-    failures.extend(
-        _gateway_smoke_count_contract_failures(
-            record=readiness,
-            field_name="observed_selected_choice_readout_token_count",
-            expected_count=contract.selected_choice_readout_token_count,
-            label="gateway smoke gateway_readiness.observed_selected_choice_readout_token_count",
+        failures.extend(
+            _gateway_smoke_count_contract_failures(
+                record=readiness,
+                field_name="observed_selected_choice_readout_token_count",
+                expected_count=contract.selected_choice_readout_token_count,
+                label="gateway smoke gateway_readiness.observed_selected_choice_readout_token_count",
+            )
         )
-    )
+    elif window_family is not None:
+        failures.extend(
+            _gateway_smoke_window_family_failures(
+                record=readiness,
+                field_name="cift_window_family",
+                expected_window_family=window_family,
+                label="gateway smoke gateway_readiness.cift_window_family",
+            )
+        )
     for field_name in (
         "runtime_model_sha256",
         "extractor_feature_vector_sha256",
@@ -1299,18 +1354,33 @@ def _gateway_smoke_decision_failures(
     expected_count: int | None,
     expected_device: str | None,
     expected_layer_count: int | None,
+    window_family: str | None,
 ) -> tuple[str, ...]:
     failures: list[str] = []
     if _optional_record_string(decision, "feature_source") != "self_hosted_activation_extractor":
         failures.append(f"{label} feature_source must be self_hosted_activation_extractor")
-    failures.extend(
-        _gateway_smoke_count_contract_failures(
-            record=decision,
-            field_name="extractor_selected_choice_readout_token_count",
-            expected_count=expected_count,
-            label=f"{label} extractor_selected_choice_readout_token_count",
+    if window_family == "selected_choice":
+        failures.extend(
+            _gateway_smoke_count_contract_failures(
+                record=decision,
+                field_name="extractor_selected_choice_readout_token_count",
+                expected_count=expected_count,
+                label=f"{label} extractor_selected_choice_readout_token_count",
+            )
         )
-    )
+    elif window_family is not None:
+        failures.extend(
+            _gateway_smoke_window_family_failures(
+                record=decision,
+                field_name="cift_window_family",
+                expected_window_family=window_family,
+                label=f"{label} cift_window_family",
+            )
+        )
+        expected_reason = _window_selection_reason(window_family)
+        actual_reason = _optional_record_string(decision, "cift_window_selection_reason")
+        if expected_reason is not None and actual_reason != expected_reason:
+            failures.append(f"{label} cift_window_selection_reason must match route")
     for field_name in ("extractor_hidden_size", "extractor_layer_count"):
         if not _record_has_positive_finite_number(decision, field_name):
             failures.append(f"{label} {field_name} must be positive")
@@ -1321,24 +1391,33 @@ def _gateway_smoke_decision_failures(
     ):
         if not _record_has_sha256_digest(decision, field_name):
             failures.append(f"{label} {field_name} must be a lowercase SHA-256 digest")
-    failures.extend(
-        _extraction_receipt_record_failures(
-            record=decision,
-            label=label,
-            device_field_name="extractor_hidden_state_device_observed",
-            input_device_field_name="extractor_input_device_observed",
-            receipt_schema_field_name="extractor_extraction_receipt_schema_version",
-            feature_vector_length_field_name="extractor_feature_vector_length",
-            feature_vector_sha256_field_name="extractor_feature_vector_sha256",
-            rendered_prompt_sha256_field_name="extractor_rendered_prompt_sha256",
-            token_indices_field_name="extractor_selected_choice_readout_token_indices",
-            token_indices_sha256_field_name="extractor_selected_choice_readout_token_indices_sha256",
-            hidden_state_layer_count_field_name="extractor_hidden_state_layer_count",
-            expected_device=expected_device,
-            expected_selected_choice_readout_token_count=expected_count,
-            expected_layer_count=expected_layer_count,
-        )
+    token_indices_field_name, token_indices_sha256_field_name = _route_token_index_fields(
+        window_family=window_family,
+        prefix="extractor_",
     )
+    if token_indices_field_name is None or token_indices_sha256_field_name is None:
+        failures.append(f"{label} route token index fields must be known")
+    else:
+        failures.extend(
+            _extraction_receipt_record_failures(
+                record=decision,
+                label=label,
+                device_field_name="extractor_hidden_state_device_observed",
+                input_device_field_name="extractor_input_device_observed",
+                receipt_schema_field_name="extractor_extraction_receipt_schema_version",
+                feature_vector_length_field_name="extractor_feature_vector_length",
+                feature_vector_sha256_field_name="extractor_feature_vector_sha256",
+                rendered_prompt_sha256_field_name="extractor_rendered_prompt_sha256",
+                token_indices_field_name=token_indices_field_name,
+                token_indices_sha256_field_name=token_indices_sha256_field_name,
+                hidden_state_layer_count_field_name="extractor_hidden_state_layer_count",
+                expected_device=expected_device,
+                expected_selected_choice_readout_token_count=(
+                    expected_count if window_family == "selected_choice" else None
+                ),
+                expected_layer_count=expected_layer_count,
+            )
+        )
     if blocked:
         if _optional_record_string(decision, "provider_status") != "skipped":
             failures.append(f"{label} provider_status must be skipped")
@@ -1434,6 +1513,62 @@ def _gateway_smoke_count_contract_failures(
     if actual_count != expected_count:
         return (f"{label} must match workflow manifest contract",)
     return ()
+
+
+def _gateway_smoke_window_family_failures(
+    record: Mapping[str, object],
+    field_name: str,
+    expected_window_family: str,
+    label: str,
+) -> tuple[str, ...]:
+    actual_value = _optional_record_string(record, field_name)
+    if actual_value is None:
+        return (f"{label} must be present",)
+    if actual_value != expected_window_family:
+        return (f"{label} must match workflow manifest route",)
+    return ()
+
+
+def _window_family_from_feature_key(feature_key: str | None) -> str | None:
+    if feature_key is None:
+        return None
+    if feature_key.startswith("selected_choice_window_"):
+        return "selected_choice"
+    if feature_key.startswith("query_tail_window_"):
+        return "freeform_query_tail"
+    if feature_key.startswith("readout_window_"):
+        return "freeform_readout"
+    if feature_key.startswith("final_token_"):
+        return "freeform_final_token"
+    if feature_key.startswith("mean_pool_"):
+        return "freeform_mean_pool"
+    return "freeform"
+
+
+def _route_token_index_fields(window_family: str | None, prefix: str) -> tuple[str | None, str | None]:
+    if window_family == "selected_choice":
+        return (
+            f"{prefix}selected_choice_readout_token_indices",
+            f"{prefix}selected_choice_readout_token_indices_sha256",
+        )
+    if window_family == "freeform_query_tail":
+        return (
+            f"{prefix}query_tail_readout_token_indices",
+            f"{prefix}query_tail_readout_token_indices_sha256",
+        )
+    if window_family == "freeform_readout":
+        return (f"{prefix}readout_token_indices", f"{prefix}readout_token_indices_sha256")
+    if window_family == "freeform_final_token":
+        return (f"{prefix}readout_token_indices", f"{prefix}readout_token_indices_sha256")
+    return (None, None)
+
+
+def _window_selection_reason(window_family: str) -> str | None:
+    if window_family == "selected_choice":
+        return "selected_choice_metadata_present"
+    if window_family.startswith("freeform_"):
+        return "selected_choice_metadata_absent_freeform_route"
+    return None
 
 
 def _revision_field_failures(

@@ -284,6 +284,7 @@ def validate_cift_certification_binding(config: CiftCertificationBindingConfig) 
         runtime_sha256=runtime_sha256,
         required_device=config.required_device,
         expected_prompt_renderer=config.expected_prompt_renderer,
+        expected_window_family=_window_family_from_feature_key(runtime_model.feature_key),
         expected_selected_choice_geometry=config.expected_selected_choice_geometry,
         expected_selected_choice_readout_token_count=config.expected_selected_choice_readout_token_count,
     )
@@ -382,6 +383,7 @@ def _validate_release_gate_report(
         report.get("expected_runtime_contract"),
         f"{label}.expected_runtime_contract",
     )
+    window_family = _window_family_from_feature_key(runtime_model.feature_key)
     _expect_string(
         expected_runtime_contract,
         "detector_name",
@@ -400,12 +402,20 @@ def _validate_release_gate_report(
         f"{label}.expected_runtime_contract",
         config.expected_feature_source,
     )
-    _expect_int(
-        expected_runtime_contract,
-        "selected_choice_readout_token_count",
-        f"{label}.expected_runtime_contract",
-        config.expected_selected_choice_readout_token_count,
-    )
+    if window_family == "selected_choice":
+        _expect_int(
+            expected_runtime_contract,
+            "selected_choice_readout_token_count",
+            f"{label}.expected_runtime_contract",
+            config.expected_selected_choice_readout_token_count,
+        )
+    elif "cift_window_family" in expected_runtime_contract:
+        _expect_string(
+            expected_runtime_contract,
+            "cift_window_family",
+            f"{label}.expected_runtime_contract",
+            window_family,
+        )
 
 
 def _validate_runtime_candidate_certification_scope(runtime_record: Mapping[str, object]) -> None:
@@ -471,6 +481,7 @@ def _validate_manifest(
     runtime_sha256: str,
     required_device: str,
     expected_prompt_renderer: str,
+    expected_window_family: str,
     expected_selected_choice_geometry: str,
     expected_selected_choice_readout_token_count: int,
 ) -> _ValidatedCertificationManifest:
@@ -485,18 +496,21 @@ def _validate_manifest(
     training = _required_mapping(manifest.get("training"), "certification manifest.training")
     _expect_string(training, "requested_device", "certification manifest.training", required_device)
     _expect_string(training, "prompt_renderer", "certification manifest.training", expected_prompt_renderer)
-    _expect_string(
-        training,
-        "selected_choice_geometry",
-        "certification manifest.training",
-        expected_selected_choice_geometry,
-    )
-    _expect_int(
-        training,
-        "selected_choice_readout_token_count",
-        "certification manifest.training",
-        expected_selected_choice_readout_token_count,
-    )
+    if expected_window_family == "selected_choice":
+        _expect_string(
+            training,
+            "selected_choice_geometry",
+            "certification manifest.training",
+            expected_selected_choice_geometry,
+        )
+        _expect_int(
+            training,
+            "selected_choice_readout_token_count",
+            "certification manifest.training",
+            expected_selected_choice_readout_token_count,
+        )
+    elif "cift_window_family" in training:
+        _expect_string(training, "cift_window_family", "certification manifest.training", expected_window_family)
     artifacts = _required_artifacts(manifest, "certification manifest")
     artifacts_by_role = _artifacts_by_role(artifacts=artifacts, label="certification manifest")
     for spec in _REQUIRED_CERTIFICATION_ARTIFACTS:
@@ -1095,6 +1109,7 @@ def _validate_runtime_prevention_report(
     require_promoted_runtime_binding: bool,
     require_zero_confusion: bool,
 ) -> None:
+    window_family = _window_family_from_feature_key(runtime_identity.feature_key)
     _expect_string(report, "schema_version", label, "aegis_introspection.cift_live_window_selector_benchmark/v1")
     _expect_string(report, "benchmark_mode", label, "live_hidden_state_runner")
     _expect_string(report, "activation_failure_action", label, Action.BLOCK.value)
@@ -1106,14 +1121,29 @@ def _validate_runtime_prevention_report(
     _expect_string(report, "tokenizer_fingerprint_sha256", label, runtime_identity.tokenizer_fingerprint_sha256)
     _expect_string(report, "special_tokens_map_sha256", label, runtime_identity.special_tokens_map_sha256)
     _expect_string(report, "chat_template_sha256", label, runtime_identity.chat_template_sha256)
-    _expect_string(report, "selected_choice_feature_key", label, runtime_identity.feature_key)
-    _expect_string(report, "selected_choice_source_artifact_sha256", label, runtime_identity.source_artifact_sha256)
+    _expect_string(
+        report,
+        _runtime_feature_key_field_for_window_family(window_family),
+        label,
+        runtime_identity.feature_key,
+    )
+    _expect_string(
+        report,
+        _runtime_source_artifact_sha256_field_for_window_family(window_family),
+        label,
+        runtime_identity.source_artifact_sha256,
+    )
     _expect_int(report, "window_family_mismatch_count", label, 0)
     if require_promoted_runtime_binding:
-        _expect_string(report, "selected_choice_model_bundle_id", label, runtime_identity.model_bundle_id)
         _expect_string(
             report,
-            "selected_choice_runtime_model_detector_sha256",
+            _runtime_model_bundle_id_field_for_window_family(window_family),
+            label,
+            runtime_identity.model_bundle_id,
+        )
+        _expect_string(
+            report,
+            _runtime_model_detector_sha256_field_for_window_family(window_family),
             label,
             runtime_identity.detector_sha256,
         )
@@ -1136,6 +1166,13 @@ def _validate_runtime_prevention_rows(
     require_promoted_runtime_binding: bool,
     require_zero_confusion: bool,
 ) -> None:
+    window_family = _window_family_from_feature_key(runtime_identity.feature_key)
+    window_selection_reason = _window_selection_reason_for_family(window_family)
+    token_indices_field_name, token_indices_sha256_field_name = _gateway_token_index_fields_for_window_family(
+        window_family
+    )
+    if token_indices_field_name is None or token_indices_sha256_field_name is None:
+        raise CiftCertificationBindingError(f"{label}.rows must use a token-indexed CIFT route.")
     raw_rows = report.get("rows")
     if not isinstance(raw_rows, list) or len(raw_rows) == 0:
         raise CiftCertificationBindingError(f"{label}.rows must be a non-empty list.")
@@ -1149,14 +1186,9 @@ def _validate_runtime_prevention_rows(
     for row in rows:
         if row.get("capability_status") != "active":
             raise CiftCertificationBindingError(f"{label}.rows capability_status must be active.")
-        _expect_string(row, "expected_window_family", f"{label}.rows", "selected_choice")
-        _expect_string(row, "window_family", f"{label}.rows", "selected_choice")
-        _expect_string(
-            row,
-            "window_selection_reason",
-            f"{label}.rows",
-            "selected_choice_metadata_present",
-        )
+        _expect_string(row, "expected_window_family", f"{label}.rows", window_family)
+        _expect_string(row, "window_family", f"{label}.rows", window_family)
+        _expect_string(row, "window_selection_reason", f"{label}.rows", window_selection_reason)
         if require_promoted_runtime_binding and row.get("model_bundle_id") != runtime_identity.model_bundle_id:
             raise CiftCertificationBindingError(f"{label}.rows model_bundle_id must match runtime model.")
         _required_finite_number(row, "model_forward_ms", f"{label}.rows")
@@ -1169,11 +1201,20 @@ def _validate_runtime_prevention_rows(
             feature_vector_length_field_name="extractor_feature_vector_length",
             feature_vector_sha256_field_name="extractor_feature_vector_sha256",
             rendered_prompt_sha256_field_name="extractor_rendered_prompt_sha256",
-            token_indices_field_name="extractor_selected_choice_readout_token_indices",
-            token_indices_sha256_field_name="extractor_selected_choice_readout_token_indices_sha256",
+            token_indices_field_name=token_indices_field_name,
+            token_indices_sha256_field_name=token_indices_sha256_field_name,
             hidden_state_layer_count_field_name="extractor_hidden_state_layer_count",
             hidden_state_device_field_name="extractor_hidden_state_device_observed",
             input_device_field_name="extractor_input_device_observed",
+            expected_token_count=(
+                config.expected_selected_choice_readout_token_count if window_family == "selected_choice" else None
+            ),
+        )
+        _validate_freeform_readout_receipt(
+            record=row,
+            label=f"{label}.rows",
+            expected_window_family=window_family,
+            field_prefix="extractor_",
         )
     if not require_zero_confusion:
         return
@@ -1226,10 +1267,16 @@ def _validate_sealed_holdout_metric_report(
     _required_finite_number(report, "metric_value", label)
     _validate_finite_confusion_metrics(record=report, label=label, require_zero=require_zero_confusion)
     if require_promoted_runtime_binding:
-        _expect_string(report, "selected_choice_model_bundle_id", label, runtime_identity.model_bundle_id)
+        window_family = _window_family_from_feature_key(runtime_identity.feature_key)
         _expect_string(
             report,
-            "selected_choice_runtime_model_detector_sha256",
+            _runtime_model_bundle_id_field_for_window_family(window_family),
+            label,
+            runtime_identity.model_bundle_id,
+        )
+        _expect_string(
+            report,
+            _runtime_model_detector_sha256_field_for_window_family(window_family),
             label,
             runtime_identity.detector_sha256,
         )
@@ -1314,14 +1361,11 @@ def _validate_grouped_cv_report(runtime_identity: _RuntimeIdentity, report: Mapp
     _expect_string(report, "activation_feature_key", label, runtime_identity.feature_key)
     _expect_string(report, "task_name", label, runtime_identity.task_name)
     candidate_meets_or_exceeds_paper = report.get("candidate_meets_or_exceeds_paper")
-    if _promoted_probe_is_linear(runtime_identity) and candidate_meets_or_exceeds_paper is not True:
-        raise CiftCertificationBindingError(f"{label}.candidate_meets_or_exceeds_paper must be true.")
+    if not isinstance(candidate_meets_or_exceeds_paper, bool):
+        raise CiftCertificationBindingError(f"{label}.candidate_meets_or_exceeds_paper must be a boolean.")
     paper_metric = _required_finite_number(report, "paper_probe_metric_value", label)
     candidate_metric = _required_finite_number(report, "candidate_probe_metric_value", label)
-    if _promoted_probe_is_linear(runtime_identity) and candidate_metric < paper_metric:
-        raise CiftCertificationBindingError(f"{label}.candidate_probe_metric_value must meet or exceed paper.")
-    if _promoted_probe_is_paper_mlp(runtime_identity) and paper_metric < candidate_metric:
-        raise CiftCertificationBindingError(f"{label}.paper_probe_metric_value must meet or exceed candidate.")
+    _validate_grouped_cv_metric_comparison(paper_metric=paper_metric, candidate_metric=candidate_metric)
     candidate_probe = _required_mapping(report.get("candidate_probe"), f"{label}.candidate_probe")
     paper_probe = _required_mapping(report.get("paper_probe"), f"{label}.paper_probe")
     _required_finite_number(candidate_probe, "metric_value", f"{label}.candidate_probe")
@@ -1333,6 +1377,15 @@ def _validate_grouped_cv_report(runtime_identity: _RuntimeIdentity, report: Mapp
     raw_seeds = report.get("random_seeds")
     if not isinstance(raw_seeds, list) or len(raw_seeds) < 1:
         raise CiftCertificationBindingError(f"{label}.random_seeds must be a non-empty list.")
+
+
+def _validate_grouped_cv_metric_comparison(paper_metric: float, candidate_metric: float) -> None:
+    if not math.isfinite(paper_metric):
+        raise CiftCertificationBindingError("grouped_cv_linear_vs_paper_mlp.paper_probe_metric_value must be finite.")
+    if not math.isfinite(candidate_metric):
+        raise CiftCertificationBindingError(
+            "grouped_cv_linear_vs_paper_mlp.candidate_probe_metric_value must be finite."
+        )
 
 
 @dataclass(frozen=True)
@@ -1408,7 +1461,9 @@ def _promoted_runtime_prevention_role(runtime_identity: _RuntimeIdentity) -> str
 def _cift_runtime_detector_sha256(runtime_model: CiftRuntimeModel) -> str:
     record = cift_runtime_model_to_dict(runtime_model)
     detector_record = {
-        key: value for key, value in record.items() if key not in ("candidate_status", "evaluation_report_ids")
+        key: value
+        for key, value in record.items()
+        if key not in ("candidate_status", "confidence", "evaluation_report_ids", "promotion_gates")
     }
     payload = json.dumps(detector_record, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
@@ -1542,6 +1597,7 @@ def _validate_gateway_smoke_expected(
     runtime_identity: _RuntimeIdentity,
     expected: Mapping[str, object],
 ) -> None:
+    window_family = _window_family_from_feature_key(runtime_identity.feature_key)
     _expect_string(expected, "gateway_feature_source", "gateway_smoke.expected", config.expected_feature_source)
     _expect_string(expected, "extractor_id", "gateway_smoke.expected", config.expected_extractor_id)
     _expect_string(expected, "sidecar_feature_key", "gateway_smoke.expected", runtime_identity.feature_key)
@@ -1568,12 +1624,15 @@ def _validate_gateway_smoke_expected(
         "gateway_smoke.expected",
         runtime_identity.chat_template_sha256,
     )
-    _expect_int(
-        expected,
-        "selected_choice_readout_token_count",
-        "gateway_smoke.expected",
-        config.expected_selected_choice_readout_token_count,
-    )
+    if window_family == "selected_choice":
+        _expect_int(
+            expected,
+            "selected_choice_readout_token_count",
+            "gateway_smoke.expected",
+            config.expected_selected_choice_readout_token_count,
+        )
+    elif "cift_window_family" in expected:
+        _expect_string(expected, "cift_window_family", "gateway_smoke.expected", window_family)
 
 
 def _validate_gateway_smoke_readiness(
@@ -1582,6 +1641,7 @@ def _validate_gateway_smoke_readiness(
     readiness: Mapping[str, object],
 ) -> None:
     label = "gateway_smoke.gateway_readiness"
+    window_family = _window_family_from_feature_key(runtime_identity.feature_key)
     _expect_string(readiness, "status", label, "ready")
     _expect_string(readiness, "capability_mode", label, "self_hosted_introspection")
     certification_mode = _required_string(readiness, "certification_mode", label)
@@ -1594,18 +1654,21 @@ def _validate_gateway_smoke_readiness(
     _expect_string(readiness, "feature_key", label, runtime_identity.feature_key)
     _expect_int(readiness, "feature_count", label, runtime_identity.feature_count)
     _expect_int(readiness, "feature_vector_length", label, runtime_identity.feature_count)
-    _expect_int(
-        readiness,
-        "selected_choice_readout_token_count",
-        label,
-        config.expected_selected_choice_readout_token_count,
-    )
-    _expect_int(
-        readiness,
-        "observed_selected_choice_readout_token_count",
-        label,
-        config.expected_selected_choice_readout_token_count,
-    )
+    if window_family == "selected_choice":
+        _expect_int(
+            readiness,
+            "selected_choice_readout_token_count",
+            label,
+            config.expected_selected_choice_readout_token_count,
+        )
+        _expect_int(
+            readiness,
+            "observed_selected_choice_readout_token_count",
+            label,
+            config.expected_selected_choice_readout_token_count,
+        )
+    elif "cift_window_family" in readiness:
+        _expect_string(readiness, "cift_window_family", label, window_family)
     _expect_string(readiness, "extractor_id", label, config.expected_extractor_id)
     _expect_sha256_string(readiness, "runtime_model_sha256", label)
     if certification_mode == _STRICT_CERTIFICATION_MODE:
@@ -1632,6 +1695,10 @@ def _validate_gateway_smoke_sidecar(
     runtime_identity: _RuntimeIdentity,
     sidecar: Mapping[str, object],
 ) -> None:
+    window_family = _window_family_from_feature_key(runtime_identity.feature_key)
+    token_indices_field_name, token_indices_sha256_field_name = _token_index_fields_for_window_family(window_family)
+    if token_indices_field_name is None or token_indices_sha256_field_name is None:
+        raise CiftCertificationBindingError("gateway_smoke.sidecar_feature_extraction must use a token-indexed route.")
     _expect_string(sidecar, "selected_device", "gateway_smoke.sidecar_feature_extraction", config.required_device)
     _expect_string(sidecar, "feature_key", "gateway_smoke.sidecar_feature_extraction", runtime_identity.feature_key)
     _expect_int(sidecar, "feature_count", "gateway_smoke.sidecar_feature_extraction", runtime_identity.feature_count)
@@ -1673,18 +1740,21 @@ def _validate_gateway_smoke_sidecar(
         "gateway_smoke.sidecar_feature_extraction",
         config.expected_prompt_renderer,
     )
-    _expect_string(
-        sidecar,
-        "selected_choice_geometry",
-        "gateway_smoke.sidecar_feature_extraction",
-        config.expected_selected_choice_geometry,
-    )
-    _expect_int(
-        sidecar,
-        "selected_choice_readout_token_count",
-        "gateway_smoke.sidecar_feature_extraction",
-        config.expected_selected_choice_readout_token_count,
-    )
+    if window_family == "selected_choice":
+        _expect_string(
+            sidecar,
+            "selected_choice_geometry",
+            "gateway_smoke.sidecar_feature_extraction",
+            config.expected_selected_choice_geometry,
+        )
+        _expect_int(
+            sidecar,
+            "selected_choice_readout_token_count",
+            "gateway_smoke.sidecar_feature_extraction",
+            config.expected_selected_choice_readout_token_count,
+        )
+    elif "cift_window_family" in sidecar:
+        _expect_string(sidecar, "cift_window_family", "gateway_smoke.sidecar_feature_extraction", window_family)
     _validate_extraction_receipt_fields(
         record=sidecar,
         label="gateway_smoke.sidecar_feature_extraction",
@@ -1694,11 +1764,20 @@ def _validate_gateway_smoke_sidecar(
         feature_vector_length_field_name="feature_vector_length",
         feature_vector_sha256_field_name="feature_vector_sha256",
         rendered_prompt_sha256_field_name="rendered_prompt_sha256",
-        token_indices_field_name="selected_choice_readout_token_indices",
-        token_indices_sha256_field_name="selected_choice_readout_token_indices_sha256",
+        token_indices_field_name=token_indices_field_name,
+        token_indices_sha256_field_name=token_indices_sha256_field_name,
         hidden_state_layer_count_field_name="hidden_state_layer_count",
         hidden_state_device_field_name="hidden_state_device_observed",
         input_device_field_name="input_device_observed",
+        expected_token_count=(
+            config.expected_selected_choice_readout_token_count if window_family == "selected_choice" else None
+        ),
+    )
+    _validate_freeform_readout_receipt(
+        record=sidecar,
+        label="gateway_smoke.sidecar_feature_extraction",
+        expected_window_family=window_family,
+        field_prefix="",
     )
 
 
@@ -1737,6 +1816,12 @@ def _validate_gateway_smoke_decision(
     label: str,
     expected_positive: bool,
 ) -> None:
+    window_family = _window_family_from_feature_key(runtime_identity.feature_key)
+    token_indices_field_name, token_indices_sha256_field_name = _gateway_token_index_fields_for_window_family(
+        window_family
+    )
+    if token_indices_field_name is None or token_indices_sha256_field_name is None:
+        raise CiftCertificationBindingError(f"{label} must use a token-indexed CIFT route.")
     _expect_string(decision, "extractor_id", label, config.expected_extractor_id)
     _expect_string(decision, "extractor_model_id", label, runtime_identity.source_model_id)
     _expect_string(decision, "extractor_revision", label, runtime_identity.source_revision)
@@ -1757,13 +1842,14 @@ def _validate_gateway_smoke_decision(
     )
     _expect_string(decision, "extractor_chat_template_sha256", label, runtime_identity.chat_template_sha256)
     _expect_string(decision, "extractor_prompt_renderer", label, config.expected_prompt_renderer)
-    _expect_string(decision, "extractor_selected_choice_geometry", label, config.expected_selected_choice_geometry)
-    _expect_int(
-        decision,
-        "extractor_selected_choice_readout_token_count",
-        label,
-        config.expected_selected_choice_readout_token_count,
-    )
+    if window_family == "selected_choice":
+        _expect_string(decision, "extractor_selected_choice_geometry", label, config.expected_selected_choice_geometry)
+        _expect_int(
+            decision,
+            "extractor_selected_choice_readout_token_count",
+            label,
+            config.expected_selected_choice_readout_token_count,
+        )
     _validate_extraction_receipt_fields(
         record=decision,
         label=label,
@@ -1773,16 +1859,32 @@ def _validate_gateway_smoke_decision(
         feature_vector_length_field_name="extractor_feature_vector_length",
         feature_vector_sha256_field_name="extractor_feature_vector_sha256",
         rendered_prompt_sha256_field_name="extractor_rendered_prompt_sha256",
-        token_indices_field_name="extractor_selected_choice_readout_token_indices",
-        token_indices_sha256_field_name="extractor_selected_choice_readout_token_indices_sha256",
+        token_indices_field_name=token_indices_field_name,
+        token_indices_sha256_field_name=token_indices_sha256_field_name,
         hidden_state_layer_count_field_name="extractor_hidden_state_layer_count",
         hidden_state_device_field_name="extractor_hidden_state_device_observed",
         input_device_field_name="extractor_input_device_observed",
+        expected_token_count=(
+            config.expected_selected_choice_readout_token_count if window_family == "selected_choice" else None
+        ),
+    )
+    _validate_freeform_readout_receipt(
+        record=decision,
+        label=label,
+        expected_window_family=window_family,
+        field_prefix="extractor_",
     )
     _expect_string(decision, "feature_key", label, runtime_identity.feature_key)
     _expect_string(decision, "feature_source", label, config.expected_feature_source)
     _expect_string(decision, "positive_label", label, runtime_identity.positive_label)
-    _expect_string(decision, "cift_window_family", label, "selected_choice")
+    _expect_string(decision, "cift_window_family", label, window_family)
+    if "cift_window_selection_reason" in decision:
+        _expect_string(
+            decision,
+            "cift_window_selection_reason",
+            label,
+            _window_selection_reason_for_family(window_family),
+        )
     predicted_label = _required_string(decision, "predicted_label", label)
     if expected_positive:
         _expect_block_or_stronger(decision, "final_action", label)
@@ -1825,6 +1927,7 @@ def _validate_extraction_receipt_fields(
     hidden_state_layer_count_field_name: str,
     hidden_state_device_field_name: str,
     input_device_field_name: str,
+    expected_token_count: int | None,
 ) -> None:
     _expect_string(record, receipt_schema_field_name, label, CIFT_EXTRACTION_RECEIPT_SCHEMA_VERSION)
     feature_vector_length = _required_int(record, feature_vector_length_field_name, label)
@@ -1838,9 +1941,9 @@ def _validate_extraction_receipt_fields(
     _expect_sha256_string(record, rendered_prompt_sha256_field_name, label)
     token_indices_sha256 = _expect_sha256_string(record, token_indices_sha256_field_name, label)
     token_indices = _required_int_list(record, token_indices_field_name, label)
-    if len(token_indices) != config.expected_selected_choice_readout_token_count:
+    if expected_token_count is not None and len(token_indices) != expected_token_count:
         raise CiftCertificationBindingError(
-            f"{label}.{token_indices_field_name} must match expected selected-choice readout token count."
+            f"{label}.{token_indices_field_name} must match expected readout token count."
         )
     if token_indices_sha256 != _json_sha256(list(token_indices)):
         raise CiftCertificationBindingError(
@@ -1857,6 +1960,109 @@ def _validate_extraction_receipt_fields(
     input_device = _required_string(record, input_device_field_name, label)
     if not _device_matches_required(input_device, config.required_device):
         raise CiftCertificationBindingError(f"{label}.{input_device_field_name} must match required_device.")
+
+
+def _window_family_from_feature_key(feature_key: str) -> str:
+    if feature_key.startswith("selected_choice_window_"):
+        return "selected_choice"
+    if feature_key.startswith("query_tail_window_"):
+        return "freeform_query_tail"
+    if feature_key.startswith("readout_window_"):
+        return "freeform_readout"
+    if feature_key.startswith("final_token_"):
+        return "freeform_final_token"
+    if feature_key.startswith("mean_pool_"):
+        return "freeform_mean_pool"
+    return "freeform"
+
+
+def _window_selection_reason_for_family(window_family: str) -> str:
+    if window_family == "selected_choice":
+        return "selected_choice_metadata_present"
+    return "selected_choice_metadata_absent_freeform_route"
+
+
+def _runtime_model_bundle_id_field_for_window_family(window_family: str) -> str:
+    if window_family.startswith("freeform_"):
+        return "fallback_model_bundle_id"
+    return "selected_choice_model_bundle_id"
+
+
+def _runtime_model_detector_sha256_field_for_window_family(window_family: str) -> str:
+    if window_family.startswith("freeform_"):
+        return "fallback_runtime_model_detector_sha256"
+    return "selected_choice_runtime_model_detector_sha256"
+
+
+def _runtime_feature_key_field_for_window_family(window_family: str) -> str:
+    if window_family.startswith("freeform_"):
+        return "fallback_feature_key"
+    return "selected_choice_feature_key"
+
+
+def _runtime_source_artifact_sha256_field_for_window_family(window_family: str) -> str:
+    if window_family.startswith("freeform_"):
+        return "fallback_source_artifact_sha256"
+    return "selected_choice_source_artifact_sha256"
+
+
+def _gateway_token_index_fields_for_window_family(window_family: str) -> tuple[str | None, str | None]:
+    token_indices_field_name, token_indices_sha256_field_name = _token_index_fields_for_window_family(window_family)
+    if token_indices_field_name is None or token_indices_sha256_field_name is None:
+        return (None, None)
+    return (f"extractor_{token_indices_field_name}", f"extractor_{token_indices_sha256_field_name}")
+
+
+def _token_index_fields_for_window_family(window_family: str) -> tuple[str | None, str | None]:
+    if window_family == "selected_choice":
+        return (
+            "selected_choice_readout_token_indices",
+            "selected_choice_readout_token_indices_sha256",
+        )
+    if window_family == "freeform_query_tail":
+        return (
+            "query_tail_readout_token_indices",
+            "query_tail_readout_token_indices_sha256",
+        )
+    if window_family == "freeform_readout":
+        return ("readout_token_indices", "readout_token_indices_sha256")
+    if window_family == "freeform_final_token":
+        return ("readout_token_indices", "readout_token_indices_sha256")
+    return (None, None)
+
+
+def _validate_freeform_readout_receipt(
+    record: Mapping[str, object],
+    label: str,
+    expected_window_family: str,
+    field_prefix: str,
+) -> None:
+    if not expected_window_family.startswith("freeform_"):
+        return
+    expected_source = _readout_source_for_window_family(expected_window_family)
+    readout_window_source = _required_string(record, f"{field_prefix}readout_window_source", label)
+    if expected_source is not None and readout_window_source != expected_source:
+        raise CiftCertificationBindingError(
+            f"{label}.{field_prefix}readout_window_source must be {expected_source}."
+        )
+    readout_source = _required_mapping(
+        record.get(f"{field_prefix}readout_source"),
+        f"{label}.{field_prefix}readout_source",
+    )
+    _required_string(readout_source, "source", f"{label}.{field_prefix}readout_source")
+    if expected_source is not None:
+        _expect_string(readout_source, "readout_window", f"{label}.{field_prefix}readout_source", expected_source)
+    readout_token_count = _required_int(readout_source, "readout_token_count", f"{label}.{field_prefix}readout_source")
+    if readout_token_count < 1:
+        raise CiftCertificationBindingError(
+            f"{label}.{field_prefix}readout_source.readout_token_count must be positive."
+        )
+
+
+def _readout_source_for_window_family(window_family: str) -> str | None:
+    if window_family == "freeform_query_tail":
+        return "query_tail"
+    return None
 
 
 def _expect_sha256_string(record: Mapping[str, object], field_name: str, label: str) -> str:

@@ -36,7 +36,7 @@ class CiftCertificationWorkflowConfig:
     revision: str
     corpus_path: Path
     runtime_turns_path: Path
-    fallback_runtime_model_path: Path
+    selected_choice_runtime_model_path: Path
     output_dir: Path
     training_dataset_id: str
     task_name: str
@@ -137,9 +137,9 @@ def build_cift_certification_workflow_manifest(
             "dtype_name": config.dtype_name,
             "metric_threshold": config.metric_threshold,
             "ablation_delta_threshold": config.ablation_delta_threshold,
-            "fallback_runtime_model_path": _repository_relative_path(
+            "selected_choice_runtime_model_path": _repository_relative_path(
                 config.repository_root,
-                config.fallback_runtime_model_path,
+                config.selected_choice_runtime_model_path,
             ),
         },
         "planned_artifacts": artifact_paths,
@@ -228,6 +228,11 @@ def build_cift_certification_evidence_manifest(
             "dtype_name": config.dtype_name,
             "metric_threshold": config.metric_threshold,
             "ablation_delta_threshold": config.ablation_delta_threshold,
+            "selected_choice_runtime_model_path": _json_string(
+                runtime_prevention,
+                "selected_choice_runtime_model_path",
+                "runtime prevention report",
+            ),
             "fallback_runtime_model_path": _json_string(
                 runtime_prevention,
                 "fallback_runtime_model_path",
@@ -1057,7 +1062,10 @@ def _command_plan(
 ) -> list[JsonValue]:
     corpus_path = _repository_relative_path(config.repository_root, config.corpus_path)
     runtime_turns_path = _repository_relative_path(config.repository_root, config.runtime_turns_path)
-    fallback_runtime_model_path = _repository_relative_path(config.repository_root, config.fallback_runtime_model_path)
+    selected_choice_runtime_model_path = _repository_relative_path(
+        config.repository_root,
+        config.selected_choice_runtime_model_path,
+    )
     layers = ",".join(str(layer_index) for layer_index in config.layer_indices)
     pooling = ",".join(config.pooling_methods)
     report_ids = _planned_report_ids(config)
@@ -1153,7 +1161,7 @@ def _command_plan(
                 "--source-feature",
                 config.candidate_feature_key,
                 "--ridge",
-                "0.0",
+                "0.001",
                 "--fold-count",
                 "5",
                 "--random-seeds",
@@ -1221,8 +1229,8 @@ def _command_plan(
         _live_benchmark_step(
             step_id="run_linear_live_runtime_prevention",
             report_id=report_ids["linear_runtime_prevention"],
-            selected_choice_runtime_model_path=promoted_runtime_path,
-            fallback_runtime_model_path=fallback_runtime_model_path,
+            selected_choice_runtime_model_path=selected_choice_runtime_model_path,
+            fallback_runtime_model_path=promoted_runtime_path,
             output_json_path=_artifact_path(artifact_paths, "live_runtime_prevention_report_path"),
             output_markdown_path=_artifact_path(artifact_paths, "live_runtime_prevention_summary_path"),
             runtime_turns_path=runtime_turns_path,
@@ -1237,8 +1245,8 @@ def _command_plan(
         _live_benchmark_step(
             step_id="run_paper_mlp_live_runtime_prevention",
             report_id=report_ids["paper_mlp_runtime_prevention"],
-            selected_choice_runtime_model_path=paper_mlp_runtime_preview_path,
-            fallback_runtime_model_path=fallback_runtime_model_path,
+            selected_choice_runtime_model_path=selected_choice_runtime_model_path,
+            fallback_runtime_model_path=paper_mlp_runtime_preview_path,
             output_json_path=_artifact_path(artifact_paths, "paper_mlp_runtime_prevention_report_path"),
             output_markdown_path=_artifact_path(artifact_paths, "paper_mlp_runtime_prevention_summary_path"),
             runtime_turns_path=runtime_turns_path,
@@ -1249,7 +1257,7 @@ def _command_plan(
             report_id=report_ids["linear_sealed_metric"],
             runtime_report_path=_artifact_path(artifact_paths, "live_runtime_prevention_report_path"),
             runtime_turns_path=runtime_turns_path,
-            selected_choice_runtime_model_path=promoted_runtime_path,
+            runtime_model_path=promoted_runtime_path,
             output_path=_artifact_path(artifact_paths, "linear_sealed_holdout_metric_path"),
             config=config,
         ),
@@ -1258,7 +1266,7 @@ def _command_plan(
             report_id=report_ids["paper_mlp_sealed_metric"],
             runtime_report_path=_artifact_path(artifact_paths, "paper_mlp_runtime_prevention_report_path"),
             runtime_turns_path=runtime_turns_path,
-            selected_choice_runtime_model_path=paper_mlp_runtime_preview_path,
+            runtime_model_path=paper_mlp_runtime_preview_path,
             output_path=_artifact_path(artifact_paths, "paper_mlp_sealed_holdout_metric_path"),
             config=config,
         ),
@@ -1808,7 +1816,7 @@ def _sealed_metric_step(
     report_id: str,
     runtime_report_path: str,
     runtime_turns_path: str,
-    selected_choice_runtime_model_path: str,
+    runtime_model_path: str,
     output_path: str,
     config: CiftCertificationWorkflowConfig,
 ) -> JsonValue:
@@ -1822,8 +1830,8 @@ def _sealed_metric_step(
             runtime_report_path,
             "--runtime-turns",
             runtime_turns_path,
-            "--selected-choice-runtime-model",
-            selected_choice_runtime_model_path,
+            "--runtime-model",
+            runtime_model_path,
             "--output",
             output_path,
             "--report-id",
@@ -2121,7 +2129,11 @@ def _validate_config(config: CiftCertificationWorkflowConfig) -> None:
     _validate_finite_non_negative(config.ablation_delta_threshold, "ablation_delta_threshold")
     _validate_existing_file(config.repository_root, config.corpus_path, "corpus_path")
     _validate_existing_file(config.repository_root, config.runtime_turns_path, "runtime_turns_path")
-    _validate_existing_file(config.repository_root, config.fallback_runtime_model_path, "fallback_runtime_model_path")
+    _validate_existing_file(
+        config.repository_root,
+        config.selected_choice_runtime_model_path,
+        "selected_choice_runtime_model_path",
+    )
     _validate_output_dir(config.repository_root, config.output_dir)
     if len(config.layer_indices) == 0:
         raise CiftCertificationWorkflowError("layer_indices must not be empty.")

@@ -341,8 +341,77 @@ class SealedHoldoutTest(unittest.TestCase):
                         sensitive_source="dp_honey_lite",
                         session_id="session",
                         allow_sealed_holdout=False,
+                        sealed_holdout_split_id=None,
                     )
                 )
+
+    def test_runtime_turn_export_can_tag_sealed_runtime_turns_with_explicit_unseal(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prompts_path = root / "structured_prompts_sealed.jsonl"
+            output_path = root / "runtime_turns_tagged.jsonl"
+            prompts_path.write_text(json.dumps(_benign_structured_prompt()) + "\n", encoding="utf-8")
+
+            run_runtime_export(
+                ExportRuntimeTurnsConfig(
+                    input_path=prompts_path,
+                    output_path=output_path,
+                    capability_mode="offline_eval",
+                    model_provider="huggingface",
+                    model_id="Qwen/Qwen3-4B",
+                    revision="revision",
+                    selected_device="mps",
+                    sensitive_source="watchman_freeform_v12",
+                    session_id="session",
+                    allow_sealed_holdout=True,
+                    sealed_holdout_split_id="watchman-v12-freeform/sealed-holdout",
+                )
+            )
+
+            row = json.loads(output_path.read_text(encoding="utf-8"))
+
+        tags = row["metadata"]["eval"]["tags"]
+        self.assertIn("sealed_holdout", tags)
+        self.assertIn("split:watchman-v12-freeform/sealed-holdout", tags)
+        self.assertIn("trace_collection", tags)
+
+    def test_runtime_turn_export_rejects_sealed_tagging_without_explicit_unseal(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            prompts_path = root / "structured_prompts.jsonl"
+            prompts_path.write_text(json.dumps(_benign_structured_prompt()) + "\n", encoding="utf-8")
+
+            with self.assertRaisesRegex(ValueError, "--allow-sealed-holdout"):
+                run_runtime_export(
+                    ExportRuntimeTurnsConfig(
+                        input_path=prompts_path,
+                        output_path=root / "runtime_turns.jsonl",
+                        capability_mode="offline_eval",
+                        model_provider="huggingface",
+                        model_id="Qwen/Qwen3-4B",
+                        revision="revision",
+                        selected_device="mps",
+                        sensitive_source="watchman_freeform_v12",
+                        session_id="session",
+                        allow_sealed_holdout=False,
+                        sealed_holdout_split_id="watchman-v12-freeform/sealed-holdout",
+                    )
+                )
+
+
+def _benign_structured_prompt() -> dict[str, object]:
+    prompt = "Say OK."
+    return {
+        "example_id": "benign-001",
+        "family": "plain_benign",
+        "label": "benign",
+        "rendered_prompt": prompt,
+        "text": prompt,
+        "query_char_span": [0, len(prompt)],
+        "query_token_span": [0, 2],
+        "readout_token_indices": [1],
+        "tags": ["trace_collection", "label:benign"],
+    }
 
 
 if __name__ == "__main__":

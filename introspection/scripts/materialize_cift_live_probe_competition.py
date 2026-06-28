@@ -135,7 +135,7 @@ def _probe_run_from_metric(
         source_report_id=_required_string(record=metric, field_name="report_id"),
         probe_architecture=probe_architecture,
         training_loss=training_loss,
-        model_bundle_id=_required_string(record=metric, field_name="selected_choice_model_bundle_id"),
+        model_bundle_id=_runtime_model_bundle_id(metric),
         metric_value=_required_float(record=metric, field_name="metric_value"),
         false_negative_count=_required_int(record=metric, field_name="false_negative_count"),
         false_positive_count=_required_int(record=metric, field_name="false_positive_count"),
@@ -143,6 +143,15 @@ def _probe_run_from_metric(
         false_positive_rate=_required_float(record=metric, field_name="false_positive_rate"),
         operating_threshold=operating_threshold,
     )
+
+
+def _runtime_model_bundle_id(metric: Mapping[str, object]) -> str:
+    fallback_model_bundle_id = metric.get("fallback_model_bundle_id")
+    if fallback_model_bundle_id is not None:
+        if not isinstance(fallback_model_bundle_id, str) or fallback_model_bundle_id == "":
+            raise CiftLiveProbeCompetitionError("fallback_model_bundle_id must be a non-empty string when present.")
+        return fallback_model_bundle_id
+    return _required_string(record=metric, field_name="selected_choice_model_bundle_id")
 
 
 def _load_json_object(path: Path, label: str) -> Mapping[str, object]:

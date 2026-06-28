@@ -445,6 +445,66 @@ def test_cift_config_rejects_strict_fallback_model_path() -> None:
         )
 
 
+def test_cift_config_rejects_strict_freeform_model_path_without_certification_binding() -> None:
+    with pytest.raises(ProxyConfigError, match="AEGIS_CIFT_FREEFORM_CERTIFICATION_MANIFEST_PATH"):
+        cift_config_from_env(
+            env={
+                "AEGIS_CIFT_PROFILE": "self_hosted_window_selector",
+                "AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH": "selected.json",
+                "AEGIS_CIFT_FREEFORM_MODEL_PATH": "freeform.json",
+                "AEGIS_CIFT_CERTIFICATION_MANIFEST_PATH": "cift-certification.json",
+                "AEGIS_CIFT_CERTIFICATION_REPORT_PATH": "cift-certification-run.json",
+                "AEGIS_CIFT_CERTIFICATION_ARTIFACT_ROOT": "cift-artifacts",
+                "AEGIS_CIFT_CERTIFICATION_MANIFEST_SHA256": "a" * 64,
+                "AEGIS_CIFT_CERTIFICATION_REPORT_SHA256": "b" * 64,
+                "AEGIS_CIFT_RELEASE_GATE_REPORT_PATH": "cift-release-gate.json",
+                "AEGIS_CIFT_RELEASE_GATE_REPORT_SHA256": "c" * 64,
+                "AEGIS_CIFT_REQUIRED_DEVICE": "mps",
+                "AEGIS_CIFT_SELECTED_CHOICE_READOUT_TOKEN_COUNT": "4",
+                "AEGIS_CIFT_EXTRACTOR_ID": "trusted-activation-sidecar",
+            }
+        )
+
+
+def test_cift_config_accepts_strict_freeform_certification_binding() -> None:
+    config = cift_config_from_env(
+        env={
+            "AEGIS_CIFT_PROFILE": "self_hosted_window_selector",
+            "AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH": "selected.json",
+            "AEGIS_CIFT_FREEFORM_MODEL_PATH": "freeform.json",
+            "AEGIS_CIFT_CERTIFICATION_MANIFEST_PATH": "cift-certification.json",
+            "AEGIS_CIFT_CERTIFICATION_REPORT_PATH": "cift-certification-run.json",
+            "AEGIS_CIFT_CERTIFICATION_ARTIFACT_ROOT": "cift-artifacts",
+            "AEGIS_CIFT_CERTIFICATION_MANIFEST_SHA256": "a" * 64,
+            "AEGIS_CIFT_CERTIFICATION_REPORT_SHA256": "b" * 64,
+            "AEGIS_CIFT_RELEASE_GATE_REPORT_PATH": "cift-release-gate.json",
+            "AEGIS_CIFT_RELEASE_GATE_REPORT_SHA256": "c" * 64,
+            "AEGIS_CIFT_FREEFORM_CERTIFICATION_MANIFEST_PATH": "freeform-certification.json",
+            "AEGIS_CIFT_FREEFORM_CERTIFICATION_REPORT_PATH": "freeform-certification-run.json",
+            "AEGIS_CIFT_FREEFORM_CERTIFICATION_ARTIFACT_ROOT": "freeform-artifacts",
+            "AEGIS_CIFT_FREEFORM_CERTIFICATION_MANIFEST_SHA256": "d" * 64,
+            "AEGIS_CIFT_FREEFORM_CERTIFICATION_REPORT_SHA256": "e" * 64,
+            "AEGIS_CIFT_FREEFORM_RELEASE_GATE_REPORT_PATH": "freeform-release-gate.json",
+            "AEGIS_CIFT_FREEFORM_RELEASE_GATE_REPORT_SHA256": "f" * 64,
+            "AEGIS_CIFT_REQUIRED_DEVICE": "mps",
+            "AEGIS_CIFT_SELECTED_CHOICE_READOUT_TOKEN_COUNT": "4",
+            "AEGIS_CIFT_EXTRACTOR_ID": "trusted-activation-sidecar",
+        }
+    )
+
+    assert config.fallback_model_path is not None
+    assert str(config.fallback_model_path) == "freeform.json"
+    assert config.freeform_certification is not None
+    assert str(config.freeform_certification.model_path) == "freeform.json"
+    assert str(config.freeform_certification.certification_manifest_path) == "freeform-certification.json"
+    assert str(config.freeform_certification.certification_report_path) == "freeform-certification-run.json"
+    assert str(config.freeform_certification.certification_artifact_root) == "freeform-artifacts"
+    assert config.freeform_certification.certification_manifest_sha256 == "d" * 64
+    assert config.freeform_certification.certification_report_sha256 == "e" * 64
+    assert str(config.freeform_certification.release_gate_report_path) == "freeform-release-gate.json"
+    assert config.freeform_certification.release_gate_report_sha256 == "f" * 64
+
+
 def test_cift_config_rejects_untrusted_strict_feature_source() -> None:
     try:
         cift_config_from_env(
@@ -583,6 +643,44 @@ def test_cift_config_accepts_gateway_smoke_bootstrap_without_certification_artif
     assert config.extractor_base_url == "http://127.0.0.1:9000"
 
 
+def test_cift_config_accepts_gateway_smoke_bootstrap_freeform_model_path() -> None:
+    config = cift_config_from_env(
+        env={
+            "AEGIS_PROVIDER": "mock",
+            "AEGIS_CIFT_PROFILE": "self_hosted_window_selector",
+            "AEGIS_CIFT_CERTIFICATION_MODE": "gateway_smoke_bootstrap",
+            "AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH": "selected.json",
+            "AEGIS_CIFT_FREEFORM_MODEL_PATH": "freeform.json",
+            "AEGIS_CIFT_REQUIRED_DEVICE": "mps",
+            "AEGIS_CIFT_SELECTED_CHOICE_READOUT_TOKEN_COUNT": "4",
+            "AEGIS_CIFT_EXTRACTOR_ID": "trusted-activation-sidecar",
+            "AEGIS_CIFT_EXTRACTOR_BASE_URL": "http://127.0.0.1:9000",
+        }
+    )
+
+    assert config.certification_mode == CiftCertificationMode.GATEWAY_SMOKE_BOOTSTRAP
+    assert config.fallback_model_path is not None
+    assert str(config.fallback_model_path) == "freeform.json"
+
+
+def test_cift_config_rejects_gateway_smoke_bootstrap_with_freeform_and_legacy_fallback_paths() -> None:
+    with pytest.raises(ProxyConfigError, match="Set only one"):
+        cift_config_from_env(
+            env={
+                "AEGIS_PROVIDER": "mock",
+                "AEGIS_CIFT_PROFILE": "self_hosted_window_selector",
+                "AEGIS_CIFT_CERTIFICATION_MODE": "gateway_smoke_bootstrap",
+                "AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH": "selected.json",
+                "AEGIS_CIFT_FREEFORM_MODEL_PATH": "freeform.json",
+                "AEGIS_CIFT_FALLBACK_MODEL_PATH": "fallback.json",
+                "AEGIS_CIFT_REQUIRED_DEVICE": "mps",
+                "AEGIS_CIFT_SELECTED_CHOICE_READOUT_TOKEN_COUNT": "4",
+                "AEGIS_CIFT_EXTRACTOR_ID": "trusted-activation-sidecar",
+                "AEGIS_CIFT_EXTRACTOR_BASE_URL": "http://127.0.0.1:9000",
+            }
+        )
+
+
 def test_cift_config_rejects_gateway_smoke_bootstrap_mixed_with_certification_artifacts() -> None:
     with pytest.raises(ProxyConfigError, match="AEGIS_CIFT_CERTIFICATION_MANIFEST_PATH"):
         cift_config_from_env(
@@ -614,6 +712,25 @@ def test_cift_config_rejects_gateway_smoke_bootstrap_without_mock_provider() -> 
                 "AEGIS_CIFT_EXTRACTOR_BASE_URL": "http://127.0.0.1:9000",
             }
         )
+
+
+def test_cift_config_accepts_gateway_smoke_bootstrap_real_provider_with_explicit_opt_in() -> None:
+    config = cift_config_from_env(
+        env={
+            "AEGIS_PROVIDER": "openai_compatible",
+            "AEGIS_CIFT_GATEWAY_SMOKE_BOOTSTRAP_ALLOW_REAL_PROVIDER": "true",
+            "AEGIS_CIFT_PROFILE": "self_hosted_window_selector",
+            "AEGIS_CIFT_CERTIFICATION_MODE": "gateway_smoke_bootstrap",
+            "AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH": "selected.json",
+            "AEGIS_CIFT_REQUIRED_DEVICE": "mps",
+            "AEGIS_CIFT_SELECTED_CHOICE_READOUT_TOKEN_COUNT": "4",
+            "AEGIS_CIFT_EXTRACTOR_ID": "trusted-activation-sidecar",
+            "AEGIS_CIFT_EXTRACTOR_BASE_URL": "http://127.0.0.1:9000",
+        }
+    )
+
+    assert config.certification_mode == CiftCertificationMode.GATEWAY_SMOKE_BOOTSTRAP
+    assert config.gateway_smoke_bootstrap_allow_real_provider is True
 
 
 def test_cift_config_rejects_gateway_smoke_bootstrap_without_sidecar_base_url() -> None:

@@ -29,7 +29,18 @@ from aegis.detectors.nimbus import (
     NimbusToolEgressDetector,
 )
 from aegis.providers.mock import MockModelProvider
-from aegis.proxy.config import CiftCertificationMode, CiftProfile, ProxyCiftConfig, ProxyConfigError
+from aegis.proxy.cift_certification import (
+    CiftCertificationBindingConfig,
+    CiftCertificationBindingError,
+    validate_cift_certification_binding,
+)
+from aegis.proxy.config import (
+    CiftCertificationMode,
+    CiftProfile,
+    ProxyCiftConfig,
+    ProxyCiftRouteCertificationConfig,
+    ProxyConfigError,
+)
 from aegis.proxy.runtime_factory import ProxyRuntimeFactory, black_box_cift_capability, cift_capability_from_config
 
 _IMMUTABLE_MODEL_REVISION = "0123456789abcdef0123456789abcdef01234567"
@@ -272,6 +283,114 @@ def test_cift_capability_from_config_accepts_certified_paper_mlp_winner() -> Non
     assert capability.runtime_binding.certification_mode == CiftCertificationMode.STRICT
     assert capability.runtime_binding.runtime_model_sha256 == selected_model_sha256
     assert capability.runtime_binding.model_bundle_id == "selected-choice-paper-mlp-bundle"
+
+
+def test_cift_capability_from_config_accepts_certified_freeform_route() -> None:
+    extractor = StaticFeatureExtractor()
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        selected_root = root / "selected"
+        freeform_root = root / "freeform"
+        selected_root.mkdir()
+        freeform_root.mkdir()
+        selected_model_path = selected_root / "selected.json"
+        freeform_model_path = freeform_root / "freeform.json"
+        selected_certification_manifest_path = selected_root / "certification.json"
+        selected_certification_report_path = selected_root / "certification-run.json"
+        freeform_certification_manifest_path = freeform_root / "certification.json"
+        freeform_certification_report_path = freeform_root / "certification-run.json"
+        selected_model_path.write_text(
+            json.dumps(
+                _runtime_candidate_record(
+                    model_bundle_id="selected-choice-bundle",
+                    feature_key="selected_choice_window_layer_15",
+                )
+            ),
+            encoding="utf-8",
+        )
+        freeform_record = _runtime_candidate_record(
+            model_bundle_id="freeform-query-tail-bundle",
+            feature_key="query_tail_window_layer_21",
+        )
+        freeform_record["logistic_coefficients"] = [-1.0, -1.0]
+        freeform_model_path.write_text(json.dumps(freeform_record), encoding="utf-8")
+        _write_certification_binding(
+            runtime_model_path=selected_model_path,
+            certification_manifest_path=selected_certification_manifest_path,
+            certification_report_path=selected_certification_report_path,
+            required_device="mps",
+        )
+        _write_named_certification_binding(
+            runtime_model_path=freeform_model_path,
+            certification_manifest_path=freeform_certification_manifest_path,
+            certification_report_path=freeform_certification_report_path,
+            required_device="mps",
+            certification_id="synthetic-certified-freeform-cift",
+        )
+        freeform_model_sha256 = _sha256_file(freeform_model_path)
+        freeform_release_gate_report_sha256 = _sha256_file(
+            _release_gate_report_path(freeform_certification_report_path)
+        )
+
+        capability = cift_capability_from_config(
+            config=ProxyCiftConfig(
+                profile=CiftProfile.SELF_HOSTED_WINDOW_SELECTOR,
+                certification_mode=CiftCertificationMode.STRICT,
+                detector_name="cift_runtime",
+                selected_choice_model_path=selected_model_path,
+                fallback_model_path=freeform_model_path,
+                certification_manifest_path=selected_certification_manifest_path,
+                certification_report_path=selected_certification_report_path,
+                certification_artifact_root=selected_root,
+                certification_manifest_sha256=_sha256_file(selected_certification_manifest_path),
+                certification_report_sha256=_sha256_file(selected_certification_report_path),
+                release_gate_report_path=_release_gate_report_path(selected_certification_report_path),
+                release_gate_report_sha256=_sha256_file(
+                    _release_gate_report_path(selected_certification_report_path)
+                ),
+                required_device="mps",
+                selected_choice_readout_token_count=4,
+                extractor_id="trusted-activation-sidecar",
+                extractor_base_url=None,
+                extractor_api_key=None,
+                extractor_timeout_seconds=None,
+                feature_source="self_hosted_activation_extractor",
+                freeform_certification=_route_certification_config(
+                    runtime_model_path=freeform_model_path,
+                    certification_manifest_path=freeform_certification_manifest_path,
+                    certification_report_path=freeform_certification_report_path,
+                ),
+            ),
+            extractors={"trusted-activation-sidecar": extractor},
+        )
+
+    assert len(capability.turn_annotators) == 2
+    assert capability.runtime_binding is not None
+    assert capability.runtime_binding.freeform_route is not None
+    assert capability.runtime_binding.freeform_route.certification_id == "synthetic-certified-freeform-cift"
+    turn = NormalizedTurn(
+        trace_id="trace-runtime-factory-strict-freeform",
+        session_id="session-runtime-factory-strict-freeform",
+        turn_index=0,
+        capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+        model=ModelInfo(provider="mock", model_id="mock-model", revision=None, selected_device=None),
+        messages=(Message(role="user", content="Say OK."),),
+        tool_calls=(),
+        sensitive_spans=(),
+        metadata={},
+    )
+    for annotator in capability.turn_annotators:
+        turn = annotator.annotate(turn)
+    result = capability.pre_generation_detectors[0].evaluate(turn, None)
+
+    assert result.capability_status.value == "active"
+    assert result.recommended_action == Action.ALLOW
+    assert result.evidence["cift_window_family"] == "freeform_query_tail"
+    assert result.evidence["certification_mode"] == CiftCertificationMode.STRICT.value
+    assert result.evidence["certification_id"] == "synthetic-certified-freeform-cift"
+    assert result.evidence["runtime_model_sha256"] == freeform_model_sha256
+    assert result.evidence["release_gate_report_sha256"] == freeform_release_gate_report_sha256
+    assert result.evidence["runtime_model_bundle_id"] == "freeform-query-tail-bundle"
 
 
 def test_cift_capability_from_config_rejects_stale_pinned_release_gate_report_sha256() -> None:
@@ -617,6 +736,109 @@ def test_cift_capability_from_config_builds_gateway_smoke_bootstrap_from_preview
     assert capability.runtime_binding.selected_choice_readout_token_count == 4
 
 
+def test_gateway_smoke_bootstrap_routes_freeform_turn_when_selected_choice_metadata_is_absent() -> None:
+    extractor = StaticFeatureExtractor()
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        selected_model_path = root / "selected.json"
+        freeform_model_path = root / "freeform.json"
+        selected_model_path.write_text(
+            json.dumps(
+                _offline_preview_record(
+                    model_bundle_id="selected-choice-preview-bundle",
+                    feature_key="selected_choice_window_layer_15",
+                    source_model_id="Qwen/Qwen3-4B",
+                    source_selected_device="mps",
+                )
+            ),
+            encoding="utf-8",
+        )
+        freeform_record = _offline_preview_record(
+            model_bundle_id="freeform-preview-bundle",
+            feature_key="query_tail_window_layer_21",
+            source_model_id="Qwen/Qwen3-4B",
+            source_selected_device="mps",
+        )
+        freeform_record["logistic_coefficients"] = [-1.0, -1.0]
+        freeform_model_path.write_text(json.dumps(freeform_record), encoding="utf-8")
+        expected_freeform_sha256 = hashlib.sha256(freeform_model_path.read_bytes()).hexdigest()
+
+        capability = cift_capability_from_config(
+            config=_gateway_smoke_bootstrap_config(
+                selected_model_path=selected_model_path,
+                fallback_model_path=freeform_model_path,
+                required_device="mps",
+            ),
+            extractors={"trusted-activation-sidecar": extractor},
+        )
+
+    assert capability.runtime_binding is not None
+    assert capability.runtime_binding.freeform_route is not None
+    assert capability.runtime_binding.freeform_route.certification_id is None
+    assert capability.runtime_binding.freeform_route.release_gate_report_sha256 is None
+    assert capability.runtime_binding.freeform_route.runtime_model_sha256 == expected_freeform_sha256
+    assert capability.runtime_binding.freeform_route.model_bundle_id == "freeform-preview-bundle"
+    assert capability.runtime_binding.freeform_route.feature_key == "query_tail_window_layer_21"
+    assert len(capability.turn_annotators) == 2
+    turn = NormalizedTurn(
+        trace_id="trace-runtime-factory-freeform",
+        session_id="session-runtime-factory-freeform",
+        turn_index=0,
+        capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+        model=ModelInfo(provider="mock", model_id="mock-model", revision=None, selected_device=None),
+        messages=(Message(role="user", content="Say OK."),),
+        tool_calls=(),
+        sensitive_spans=(),
+        metadata={},
+    )
+    for annotator in capability.turn_annotators:
+        turn = annotator.annotate(turn)
+    result = capability.pre_generation_detectors[0].evaluate(turn, None)
+
+    assert result.capability_status.value == "active"
+    assert result.recommended_action == Action.ALLOW
+    assert result.evidence["model_bundle_id"] == "freeform-preview-bundle"
+    assert result.evidence["cift_window_family"] == "freeform_query_tail"
+    assert result.evidence["cift_window_selection_reason"] == "selected_choice_metadata_absent_freeform_route"
+    assert result.evidence["cift_window_coverage"] == "bootstrap_freeform"
+
+
+def test_gateway_smoke_bootstrap_rejects_selected_choice_fallback_artifact() -> None:
+    extractor = StaticFeatureExtractor()
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        selected_model_path = root / "selected.json"
+        fallback_model_path = root / "fallback.json"
+        selected_record = _offline_preview_record(
+            model_bundle_id="selected-choice-preview-bundle",
+            feature_key="selected_choice_window_layer_15",
+            source_model_id="Qwen/Qwen3-4B",
+            source_selected_device="mps",
+        )
+        fallback_record = _offline_preview_record(
+            model_bundle_id="selected-choice-fallback-bundle",
+            feature_key="selected_choice_window_layer_21",
+            source_model_id="Qwen/Qwen3-4B",
+            source_selected_device="mps",
+        )
+        selected_model_path.write_text(json.dumps(selected_record), encoding="utf-8")
+        fallback_model_path.write_text(json.dumps(fallback_record), encoding="utf-8")
+
+        try:
+            cift_capability_from_config(
+                config=_gateway_smoke_bootstrap_config(
+                    selected_model_path=selected_model_path,
+                    fallback_model_path=fallback_model_path,
+                    required_device="mps",
+                ),
+                extractors={"trusted-activation-sidecar": extractor},
+            )
+        except ProxyConfigError as exc:
+            assert "fallback_model_path must be a freeform route artifact" in str(exc)
+        else:
+            raise AssertionError("selected-choice fallback artifact should fail closed.")
+
+
 def test_cift_capability_from_config_rejects_gateway_smoke_bootstrap_mutable_revision() -> None:
     extractor = StaticFeatureExtractor()
     with tempfile.TemporaryDirectory() as directory:
@@ -859,6 +1081,129 @@ def test_cift_capability_from_config_requires_certified_selected_choice_contract
             certification_report_path=certification_report_path,
             expected_message="selected_choice_readout_token_count",
         )
+
+
+def test_cift_certification_binding_accepts_freeform_query_tail_route() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        freeform_model_path = root / "freeform.json"
+        certification_manifest_path = root / "certification.json"
+        certification_report_path = root / "certification-run.json"
+        freeform_model_path.write_text(
+            json.dumps(
+                _runtime_candidate_record(
+                    model_bundle_id="freeform-query-tail-bundle",
+                    feature_key="query_tail_window_layer_21",
+                    source_model_id="Qwen/Qwen3-4B",
+                )
+            ),
+            encoding="utf-8",
+        )
+        _write_certification_binding(
+            runtime_model_path=freeform_model_path,
+            certification_manifest_path=certification_manifest_path,
+            certification_report_path=certification_report_path,
+            required_device="mps",
+        )
+
+        binding = validate_cift_certification_binding(
+            _certification_binding_config(
+                runtime_model_path=freeform_model_path,
+                certification_manifest_path=certification_manifest_path,
+                certification_report_path=certification_report_path,
+                required_device="mps",
+            )
+        )
+
+    assert binding.certification_id == "synthetic-certified-cift"
+
+
+def test_cift_certification_binding_accepts_freeform_final_token_route() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        freeform_model_path = root / "freeform.json"
+        certification_manifest_path = root / "certification.json"
+        certification_report_path = root / "certification-run.json"
+        freeform_model_path.write_text(
+            json.dumps(
+                _runtime_candidate_record(
+                    model_bundle_id="freeform-final-token-bundle",
+                    feature_key="final_token_layer_12",
+                    source_model_id="Qwen/Qwen3-4B",
+                )
+            ),
+            encoding="utf-8",
+        )
+        _write_certification_binding(
+            runtime_model_path=freeform_model_path,
+            certification_manifest_path=certification_manifest_path,
+            certification_report_path=certification_report_path,
+            required_device="mps",
+        )
+
+        binding = validate_cift_certification_binding(
+            _certification_binding_config(
+                runtime_model_path=freeform_model_path,
+                certification_manifest_path=certification_manifest_path,
+                certification_report_path=certification_report_path,
+                required_device="mps",
+            )
+        )
+
+    assert binding.certification_id == "synthetic-certified-cift"
+
+
+def test_cift_certification_binding_rejects_freeform_query_tail_receipt_digest_absent() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        root = Path(directory)
+        freeform_model_path = root / "freeform.json"
+        certification_manifest_path = root / "certification.json"
+        certification_report_path = root / "certification-run.json"
+        freeform_model_path.write_text(
+            json.dumps(
+                _runtime_candidate_record(
+                    model_bundle_id="freeform-query-tail-bundle",
+                    feature_key="query_tail_window_layer_21",
+                    source_model_id="Qwen/Qwen3-4B",
+                )
+            ),
+            encoding="utf-8",
+        )
+        _write_certification_binding(
+            runtime_model_path=freeform_model_path,
+            certification_manifest_path=certification_manifest_path,
+            certification_report_path=certification_report_path,
+            required_device="mps",
+        )
+        manifest = _read_json_object(certification_manifest_path)
+        artifact = _single_required_evidence_artifact(manifest, "linear_live_runtime_prevention")
+        artifact_path = Path(str(artifact["path"]))
+        runtime_prevention = _read_json_object(artifact_path)
+        rows = runtime_prevention["rows"]
+        if not isinstance(rows, list) or not isinstance(rows[0], dict):
+            raise AssertionError("runtime-prevention rows must contain objects.")
+        del rows[0]["extractor_query_tail_readout_token_indices_sha256"]
+        _write_json(artifact_path, runtime_prevention)
+        _replace_artifact_sha256(
+            certification_manifest_path=certification_manifest_path,
+            certification_report_path=certification_report_path,
+            role="linear_live_runtime_prevention",
+            sha256=_sha256_file(artifact_path),
+        )
+
+        try:
+            validate_cift_certification_binding(
+                _certification_binding_config(
+                    runtime_model_path=freeform_model_path,
+                    certification_manifest_path=certification_manifest_path,
+                    certification_report_path=certification_report_path,
+                    required_device="mps",
+                )
+            )
+        except CiftCertificationBindingError as exc:
+            assert "extractor_query_tail_readout_token_indices_sha256" in str(exc)
+        else:
+            raise AssertionError("freeform CIFT certification should fail without query-tail receipt digest.")
 
 
 def test_cift_capability_from_config_rejects_runtime_artifact_drift_after_certification() -> None:
@@ -2495,6 +2840,48 @@ def _assert_self_hosted_cift_rejected(
         raise AssertionError("invalid CIFT certification evidence should fail closed.")
 
 
+def _certification_binding_config(
+    runtime_model_path: Path,
+    certification_manifest_path: Path,
+    certification_report_path: Path,
+    required_device: str,
+) -> CiftCertificationBindingConfig:
+    return CiftCertificationBindingConfig(
+        runtime_model_path=runtime_model_path,
+        certification_manifest_path=certification_manifest_path,
+        certification_report_path=certification_report_path,
+        certification_artifact_root=runtime_model_path.parent,
+        release_gate_report_path=_release_gate_report_path(certification_report_path),
+        required_device=required_device,
+        expected_manifest_sha256=_sha256_file(certification_manifest_path),
+        expected_report_sha256=_sha256_file(certification_report_path),
+        expected_release_gate_report_sha256=_sha256_file(_release_gate_report_path(certification_report_path)),
+        expected_detector_name="cift_runtime",
+        expected_extractor_id="trusted-activation-sidecar",
+        expected_feature_source="self_hosted_activation_extractor",
+        expected_prompt_renderer=CIFT_PROMPT_RENDERER_TRACE_BRIDGE_V1,
+        expected_selected_choice_geometry=CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
+        expected_selected_choice_readout_token_count=4,
+    )
+
+
+def _route_certification_config(
+    runtime_model_path: Path,
+    certification_manifest_path: Path,
+    certification_report_path: Path,
+) -> ProxyCiftRouteCertificationConfig:
+    return ProxyCiftRouteCertificationConfig(
+        model_path=runtime_model_path,
+        certification_manifest_path=certification_manifest_path,
+        certification_report_path=certification_report_path,
+        certification_artifact_root=runtime_model_path.parent,
+        certification_manifest_sha256=_sha256_file(certification_manifest_path),
+        certification_report_sha256=_sha256_file(certification_report_path),
+        release_gate_report_path=_release_gate_report_path(certification_report_path),
+        release_gate_report_sha256=_sha256_file(_release_gate_report_path(certification_report_path)),
+    )
+
+
 def _gateway_smoke_bootstrap_config(
     selected_model_path: Path,
     fallback_model_path: Path | None,
@@ -2529,8 +2916,23 @@ def _write_certification_binding(
     certification_report_path: Path,
     required_device: str,
 ) -> None:
+    _write_named_certification_binding(
+        runtime_model_path=runtime_model_path,
+        certification_manifest_path=certification_manifest_path,
+        certification_report_path=certification_report_path,
+        required_device=required_device,
+        certification_id="synthetic-certified-cift",
+    )
+
+
+def _write_named_certification_binding(
+    runtime_model_path: Path,
+    certification_manifest_path: Path,
+    certification_report_path: Path,
+    required_device: str,
+    certification_id: str,
+) -> None:
     runtime_record = _read_json_object(runtime_model_path)
-    certification_id = "synthetic-certified-cift"
     artifact_root = certification_manifest_path.parent / "certification-artifacts"
     artifact_root.mkdir(parents=True, exist_ok=True)
     gateway_smoke_path = artifact_root / "gateway_smoke.json"
@@ -2575,8 +2977,7 @@ def _write_certification_binding(
             "training": {
                 "prompt_renderer": CIFT_PROMPT_RENDERER_TRACE_BRIDGE_V1,
                 "requested_device": required_device,
-                "selected_choice_geometry": CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
-                "selected_choice_readout_token_count": 4,
+                **_synthetic_training_route_fields(runtime_record),
             },
             "required_evidence_artifacts": manifest_artifacts,
         },
@@ -2644,7 +3045,7 @@ def _release_gate_report(
             "detector_name": "cift_runtime",
             "extractor_id": "trusted-activation-sidecar",
             "feature_source": "self_hosted_activation_extractor",
-            "selected_choice_readout_token_count": 4,
+            **_synthetic_expected_runtime_contract_route_fields(runtime_record),
         },
     }
 
@@ -2769,6 +3170,7 @@ def _synthetic_runtime_prevention_report(
     paper_mlp = role == "paper_mlp_live_runtime_prevention"
     model_bundle_id = _synthetic_model_bundle_id(runtime_record=runtime_record, paper_mlp=paper_mlp)
     promoted = model_bundle_id == runtime_record["model_bundle_id"]
+    window_family = _synthetic_window_family(runtime_record)
     report: dict[str, object] = {
         "schema_version": "aegis_introspection.cift_live_window_selector_benchmark/v1",
         "report_id": report_id,
@@ -2782,10 +3184,10 @@ def _synthetic_runtime_prevention_report(
         "tokenizer_fingerprint_sha256": runtime_record["tokenizer_fingerprint_sha256"],
         "special_tokens_map_sha256": runtime_record["special_tokens_map_sha256"],
         "chat_template_sha256": runtime_record["chat_template_sha256"],
-        "selected_choice_feature_key": runtime_record["feature_key"],
-        "selected_choice_source_artifact_sha256": runtime_record["source_artifact_sha256"],
-        "selected_choice_model_bundle_id": model_bundle_id,
-        "selected_choice_runtime_model_path": str(runtime_model_path),
+        _synthetic_runtime_feature_key_field(window_family): runtime_record["feature_key"],
+        _synthetic_runtime_source_artifact_sha256_field(window_family): runtime_record["source_artifact_sha256"],
+        _synthetic_runtime_model_bundle_id_field(window_family): model_bundle_id,
+        _synthetic_runtime_model_path_field(window_family): str(runtime_model_path),
         "window_family_mismatch_count": 0,
         "false_negative_count": 0,
         "false_negative_rate": 0.0,
@@ -2798,7 +3200,9 @@ def _synthetic_runtime_prevention_report(
         ),
     }
     if promoted:
-        report["selected_choice_runtime_model_detector_sha256"] = _synthetic_runtime_detector_sha256(runtime_model_path)
+        report[_synthetic_runtime_model_detector_sha256_field(window_family)] = _synthetic_runtime_detector_sha256(
+            runtime_model_path
+        )
     return report
 
 
@@ -2811,6 +3215,7 @@ def _synthetic_sealed_holdout_metric_report(
     paper_mlp = role == "paper_mlp_sealed_holdout_metric"
     model_bundle_id = _synthetic_model_bundle_id(runtime_record=runtime_record, paper_mlp=paper_mlp)
     promoted = model_bundle_id == runtime_record["model_bundle_id"]
+    window_family = _synthetic_window_family(runtime_record)
     false_negative_count = 0 if promoted else 1
     false_negative_rate = 0.0 if promoted else 0.5
     report: dict[str, object] = {
@@ -2838,10 +3243,10 @@ def _synthetic_sealed_holdout_metric_report(
         "false_negative_rate": false_negative_rate,
         "false_positive_count": 0,
         "false_positive_rate": 0.0,
-        "selected_choice_model_bundle_id": model_bundle_id,
+        _synthetic_runtime_model_bundle_id_field(window_family): model_bundle_id,
     }
     if promoted:
-        report["selected_choice_runtime_model_detector_sha256"] = _synthetic_runtime_detector_sha256(
+        report[_synthetic_runtime_model_detector_sha256_field(window_family)] = _synthetic_runtime_detector_sha256(
             _runtime_model_path_from_prevention_report(runtime_prevention_path)
         )
     return report
@@ -3001,19 +3406,21 @@ def _synthetic_runtime_prevention_rows(
     model_bundle_id: object,
     required_device: str,
 ) -> list[dict[str, object]]:
+    window_family = _synthetic_window_family(runtime_record)
+    window_selection_reason = _synthetic_window_selection_reason(window_family)
     return [
         {
             "capability_status": "active",
             "detector_action": "allow",
             "expected_label": "secret_present_safe",
-            "expected_window_family": "selected_choice",
+            "expected_window_family": window_family,
             "model_bundle_id": model_bundle_id,
             "model_forward_ms": 1.0,
             "output_text_empty": False,
             "policy_action": "allow",
             "provider_generation_skipped": False,
-            "window_family": "selected_choice",
-            "window_selection_reason": "selected_choice_metadata_present",
+            "window_family": window_family,
+            "window_selection_reason": window_selection_reason,
             **_gateway_smoke_receipt_fields(
                 prefix="extractor_",
                 runtime_record=runtime_record,
@@ -3024,14 +3431,14 @@ def _synthetic_runtime_prevention_rows(
             "capability_status": "active",
             "detector_action": "block",
             "expected_label": runtime_record["positive_label"],
-            "expected_window_family": "selected_choice",
+            "expected_window_family": window_family,
             "model_bundle_id": model_bundle_id,
             "model_forward_ms": 1.0,
             "output_text_empty": True,
             "policy_action": "block",
             "provider_generation_skipped": True,
-            "window_family": "selected_choice",
-            "window_selection_reason": "selected_choice_metadata_present",
+            "window_family": window_family,
+            "window_selection_reason": window_selection_reason,
             **_gateway_smoke_receipt_fields(
                 prefix="extractor_",
                 runtime_record=runtime_record,
@@ -3058,7 +3465,9 @@ def _synthetic_runtime_detector_sha256(runtime_model_path: Path) -> str:
     runtime_model = load_cift_runtime_model(runtime_model_path)
     record = cift_runtime_model_to_dict(runtime_model)
     detector_record = {
-        key: value for key, value in record.items() if key not in ("candidate_status", "evaluation_report_ids")
+        key: value
+        for key, value in record.items()
+        if key not in ("candidate_status", "confidence", "evaluation_report_ids", "promotion_gates")
     }
     payload = json.dumps(detector_record, sort_keys=True, separators=(",", ":")).encode("utf-8")
     return hashlib.sha256(payload).hexdigest()
@@ -3069,7 +3478,11 @@ def _report_id_for_runtime_prevention_path(runtime_prevention_path: Path) -> str
 
 
 def _runtime_model_path_from_prevention_report(runtime_prevention_path: Path) -> Path:
-    return Path(str(_read_json_object(runtime_prevention_path)["selected_choice_runtime_model_path"]))
+    report = _read_json_object(runtime_prevention_path)
+    fallback_path = report.get("fallback_runtime_model_path")
+    if isinstance(fallback_path, str):
+        return Path(fallback_path)
+    return Path(str(report["selected_choice_runtime_model_path"]))
 
 
 def _certification_manifest_artifacts(
@@ -3183,7 +3596,7 @@ def _gateway_smoke_report(
             "sidecar_tokenizer_fingerprint_sha256": runtime_record["tokenizer_fingerprint_sha256"],
             "sidecar_special_tokens_map_sha256": runtime_record["special_tokens_map_sha256"],
             "sidecar_chat_template_sha256": runtime_record["chat_template_sha256"],
-            "selected_choice_readout_token_count": 4,
+            **_synthetic_gateway_expected_route_fields(runtime_record),
         },
         "confusion_metrics": {
             "false_negative_count": 0,
@@ -3204,8 +3617,7 @@ def _gateway_smoke_report(
                 "special_tokens_map_sha256": runtime_record["special_tokens_map_sha256"],
                 "chat_template_sha256": runtime_record["chat_template_sha256"],
                 "prompt_renderer": CIFT_PROMPT_RENDERER_TRACE_BRIDGE_V1,
-                "selected_choice_geometry": CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
-                "selected_choice_readout_token_count": 4,
+                **_synthetic_sidecar_route_fields(runtime_record),
                 **_gateway_smoke_receipt_fields(
                     prefix="", runtime_record=runtime_record, required_device=required_device
                 ),
@@ -3260,8 +3672,7 @@ def _gateway_smoke_readiness(
         "feature_key": runtime_record["feature_key"],
         "feature_count": runtime_record["feature_count"],
         "feature_vector_length": runtime_record["feature_count"],
-        "selected_choice_readout_token_count": 4,
-        "observed_selected_choice_readout_token_count": 4,
+        **_synthetic_readiness_route_fields(runtime_record),
         "extractor_id": "trusted-activation-sidecar",
         "extractor_feature_vector_sha256": "c" * 64,
         "extractor_rendered_prompt_sha256": "d" * 64,
@@ -3279,10 +3690,12 @@ def _gateway_smoke_decision(
     provider_status: str,
     provider_reason: str | None,
 ) -> dict[str, object]:
+    window_family = _synthetic_window_family(runtime_record)
     return {
         "final_action": final_action,
         "cift_action": final_action,
-        "cift_window_family": "selected_choice",
+        "cift_window_family": window_family,
+        "cift_window_selection_reason": _synthetic_window_selection_reason(window_family),
         "extractor_id": "trusted-activation-sidecar",
         "extractor_model_id": runtime_record["source_model_id"],
         "extractor_revision": runtime_record["source_revision"],
@@ -3293,8 +3706,7 @@ def _gateway_smoke_decision(
         "extractor_special_tokens_map_sha256": runtime_record["special_tokens_map_sha256"],
         "extractor_chat_template_sha256": runtime_record["chat_template_sha256"],
         "extractor_prompt_renderer": CIFT_PROMPT_RENDERER_TRACE_BRIDGE_V1,
-        "extractor_selected_choice_geometry": CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
-        "extractor_selected_choice_readout_token_count": 4,
+        **_synthetic_decision_route_fields(runtime_record),
         **_gateway_smoke_receipt_fields(
             prefix="extractor_", runtime_record=runtime_record, required_device=required_device
         ),
@@ -3314,17 +3726,158 @@ def _gateway_smoke_receipt_fields(
 ) -> dict[str, object]:
     token_indices = [11, 12, 13, 14]
     observed_device = "cpu" if required_device == "cpu" else f"{required_device}:0"
+    window_family = _synthetic_window_family(runtime_record)
+    token_indices_field_name, token_indices_sha256_field_name = _synthetic_token_index_fields(window_family)
+    route_fields: dict[str, object] = {
+        f"{prefix}{token_indices_field_name}": token_indices,
+        f"{prefix}{token_indices_sha256_field_name}": _json_sha256(token_indices),
+    }
+    if window_family.startswith("freeform_"):
+        route_fields.update(
+            {
+                f"{prefix}readout_window_source": _synthetic_readout_window_source(window_family),
+                f"{prefix}readout_source": {
+                    "source": "synthetic-rendered-prompt",
+                    "readout_window": _synthetic_readout_window_source(window_family),
+                    "readout_token_count": len(token_indices),
+                },
+            }
+        )
     return {
         f"{prefix}extraction_receipt_schema_version": CIFT_EXTRACTION_RECEIPT_SCHEMA_VERSION,
         f"{prefix}feature_vector_length": runtime_record["feature_count"],
         f"{prefix}feature_vector_sha256": "e" * 64,
         f"{prefix}rendered_prompt_sha256": "f" * 64,
-        f"{prefix}selected_choice_readout_token_indices": token_indices,
-        f"{prefix}selected_choice_readout_token_indices_sha256": _json_sha256(token_indices),
+        **route_fields,
         f"{prefix}hidden_state_layer_count": runtime_record["source_layer_count"],
         f"{prefix}hidden_state_device_observed": observed_device,
         f"{prefix}input_device_observed": observed_device,
     }
+
+
+def _synthetic_training_route_fields(runtime_record: dict[str, object]) -> dict[str, object]:
+    window_family = _synthetic_window_family(runtime_record)
+    if window_family == "selected_choice":
+        return {
+            "selected_choice_geometry": CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
+            "selected_choice_readout_token_count": 4,
+        }
+    return {"cift_window_family": window_family}
+
+
+def _synthetic_expected_runtime_contract_route_fields(runtime_record: dict[str, object]) -> dict[str, object]:
+    window_family = _synthetic_window_family(runtime_record)
+    if window_family == "selected_choice":
+        return {"selected_choice_readout_token_count": 4}
+    return {"cift_window_family": window_family}
+
+
+def _synthetic_gateway_expected_route_fields(runtime_record: dict[str, object]) -> dict[str, object]:
+    window_family = _synthetic_window_family(runtime_record)
+    if window_family == "selected_choice":
+        return {"selected_choice_readout_token_count": 4}
+    return {"cift_window_family": window_family}
+
+
+def _synthetic_sidecar_route_fields(runtime_record: dict[str, object]) -> dict[str, object]:
+    window_family = _synthetic_window_family(runtime_record)
+    if window_family == "selected_choice":
+        return {
+            "selected_choice_geometry": CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
+            "selected_choice_readout_token_count": 4,
+        }
+    return {"cift_window_family": window_family}
+
+
+def _synthetic_readiness_route_fields(runtime_record: dict[str, object]) -> dict[str, object]:
+    window_family = _synthetic_window_family(runtime_record)
+    if window_family == "selected_choice":
+        return {
+            "selected_choice_readout_token_count": 4,
+            "observed_selected_choice_readout_token_count": 4,
+        }
+    return {"cift_window_family": window_family}
+
+
+def _synthetic_decision_route_fields(runtime_record: dict[str, object]) -> dict[str, object]:
+    window_family = _synthetic_window_family(runtime_record)
+    if window_family == "selected_choice":
+        return {
+            "extractor_selected_choice_geometry": CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
+            "extractor_selected_choice_readout_token_count": 4,
+        }
+    return {}
+
+
+def _synthetic_window_family(runtime_record: dict[str, object]) -> str:
+    feature_key = str(runtime_record["feature_key"])
+    if feature_key.startswith("selected_choice_window_"):
+        return "selected_choice"
+    if feature_key.startswith("query_tail_window_"):
+        return "freeform_query_tail"
+    if feature_key.startswith("readout_window_"):
+        return "freeform_readout"
+    if feature_key.startswith("final_token_"):
+        return "freeform_final_token"
+    if feature_key.startswith("mean_pool_"):
+        return "freeform_mean_pool"
+    return "freeform"
+
+
+def _synthetic_window_selection_reason(window_family: str) -> str:
+    if window_family == "selected_choice":
+        return "selected_choice_metadata_present"
+    return "selected_choice_metadata_absent_freeform_route"
+
+
+def _synthetic_token_index_fields(window_family: str) -> tuple[str, str]:
+    if window_family == "selected_choice":
+        return ("selected_choice_readout_token_indices", "selected_choice_readout_token_indices_sha256")
+    if window_family == "freeform_query_tail":
+        return ("query_tail_readout_token_indices", "query_tail_readout_token_indices_sha256")
+    if window_family in {"freeform_readout", "freeform_final_token"}:
+        return ("readout_token_indices", "readout_token_indices_sha256")
+    raise AssertionError(f"Synthetic fixture cannot emit token indices for {window_family}.")
+
+
+def _synthetic_readout_window_source(window_family: str) -> str:
+    if window_family == "freeform_query_tail":
+        return "query_tail"
+    if window_family == "freeform_final_token":
+        return "final_token"
+    if window_family == "freeform_readout":
+        return "readout"
+    return "unknown"
+
+
+def _synthetic_runtime_model_bundle_id_field(window_family: str) -> str:
+    if window_family.startswith("freeform_"):
+        return "fallback_model_bundle_id"
+    return "selected_choice_model_bundle_id"
+
+
+def _synthetic_runtime_model_path_field(window_family: str) -> str:
+    if window_family.startswith("freeform_"):
+        return "fallback_runtime_model_path"
+    return "selected_choice_runtime_model_path"
+
+
+def _synthetic_runtime_model_detector_sha256_field(window_family: str) -> str:
+    if window_family.startswith("freeform_"):
+        return "fallback_runtime_model_detector_sha256"
+    return "selected_choice_runtime_model_detector_sha256"
+
+
+def _synthetic_runtime_feature_key_field(window_family: str) -> str:
+    if window_family.startswith("freeform_"):
+        return "fallback_feature_key"
+    return "selected_choice_feature_key"
+
+
+def _synthetic_runtime_source_artifact_sha256_field(window_family: str) -> str:
+    if window_family.startswith("freeform_"):
+        return "fallback_source_artifact_sha256"
+    return "selected_choice_source_artifact_sha256"
 
 
 def _write_json(path: Path, record: dict[str, object]) -> None:

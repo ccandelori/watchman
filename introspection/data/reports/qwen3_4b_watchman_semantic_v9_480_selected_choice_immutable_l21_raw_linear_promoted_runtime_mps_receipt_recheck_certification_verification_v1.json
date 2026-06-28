@@ -2,11 +2,11 @@
   "certification_binding": {
     "certification_artifact_root": ".",
     "certification_manifest_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_certification_workflow_v1.json",
-    "certification_manifest_sha256": "61fb5cc75d79dd1e6dddfa01e9c6cdfa87c5b19d0e909af5a97d09d58141a50f",
+    "certification_manifest_sha256": "90399f44e31fcf397334ea86aa22c975de79a2ce3d93f187b769454459f183b5",
     "certification_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_certification_workflow_run_v1.json",
-    "certification_report_sha256": "374e8fc3823e4b1f149ed7c0ad16098c4037956bf47dd062a015692f33d5928c",
+    "certification_report_sha256": "2bbcbe5d5c55dae57816a676ba72cf0fc5a26ad84350a886b56ae9cdfb0f4fb5",
     "release_gate_report_path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_release_gate_v1.json",
-    "release_gate_report_sha256": "306ad21e911087ecd1e25ff7dde7491f761351cb58bc52f5f23ac99c53c7d536"
+    "release_gate_report_sha256": "3b6d9e6638932e6964dd9b9fdc91eb21656535d09087a71ebc1bdf3c727538a1"
   },
   "certification_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck",
   "model_identity": {
@@ -27,12 +27,12 @@
   "runtime_binding": {
     "candidate_status": "runtime_candidate",
     "dtype_name": "device",
-    "expected_runtime_model_sha256": "b7efb486c369d0745533c49b608970f5e5b3a5c12a1ecee343856b13b4a02d60",
+    "expected_runtime_model_sha256": "ce4ed13f621119b17110312a6c5d98903f778b288c920133b3f93f2591ee6025",
     "feature_key": "selected_choice_window_layer_21",
     "model_bundle_id": "cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_v1",
     "pooling_method": "selected_choice_window",
     "runtime_model_path": "introspection/data/models/cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_v1.json",
-    "runtime_model_sha256": "b7efb486c369d0745533c49b608970f5e5b3a5c12a1ecee343856b13b4a02d60",
+    "runtime_model_sha256": "ce4ed13f621119b17110312a6c5d98903f778b288c920133b3f93f2591ee6025",
     "selected_choice_readout_token_count": 4,
     "source_selected_device": "mps"
   },

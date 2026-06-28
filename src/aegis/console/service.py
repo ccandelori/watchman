@@ -649,6 +649,7 @@ def _nimbus_label(status: JsonValue, critic_kind: JsonValue, promotion_status: J
 
 def _event_summary(record: dict[str, JsonValue]) -> dict[str, JsonValue]:
     explanation = _safe_explanation(record)
+    normalized_turn = _optional_mapping(record.get("normalized_turn"))
     policy = _optional_mapping(record.get("policy_decision"))
     model_response = _optional_mapping(record.get("model_response_metadata"))
     runtime_evidence = _optional_mapping(record.get("runtime_evidence"))
@@ -678,8 +679,44 @@ def _event_summary(record: dict[str, JsonValue]) -> dict[str, JsonValue]:
         ),
         "runtime_evidence": _runtime_evidence_summary(runtime_evidence),
         "detector_results": [_detector_result_summary(detector) for detector in detector_results],
-        "model": dict(_optional_mapping(_optional_mapping(record.get("normalized_turn")).get("model"))),
+        "model": dict(_optional_mapping(normalized_turn.get("model"))),
+        "request": _request_summary(normalized_turn),
     }
+
+
+def _request_summary(normalized_turn: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    messages = _list_of_mappings(normalized_turn.get("messages"))
+    tool_calls = _list_of_mappings(normalized_turn.get("tool_calls"))
+    sensitive_spans = _list_of_mappings(normalized_turn.get("sensitive_spans"))
+    preview = _message_preview(messages)
+    return {
+        "preview": preview["content"],
+        "preview_role": preview["role"],
+        "message_count": len(messages),
+        "tool_call_count": len(tool_calls),
+        "sensitive_span_count": len(sensitive_spans),
+    }
+
+
+def _message_preview(messages: tuple[Mapping[str, JsonValue], ...]) -> dict[str, JsonValue]:
+    for message in reversed(messages):
+        role = _optional_string(message.get("role")) or "message"
+        content = _optional_string(message.get("content"))
+        if content is not None and content.strip() != "":
+            return {"role": role, "content": _bounded_excerpt(content.strip(), 180)}
+    return {"role": "message", "content": "No request text recorded."}
+
+
+def _bounded_excerpt(value: str, max_length: int) -> str:
+    if len(value) <= max_length:
+        return value
+    return f"{value[: max_length - 1].rstrip()}..."
+
+
+def _list_of_mappings(value: JsonValue) -> tuple[Mapping[str, JsonValue], ...]:
+    if not isinstance(value, list):
+        return ()
+    return tuple(item for item in value if isinstance(item, dict))
 
 
 def _detector_activity(events: tuple[dict[str, JsonValue], ...]) -> dict[str, JsonValue]:

@@ -53,6 +53,23 @@ class CiftEvidenceChainVerifierTest(unittest.TestCase):
         self.assertEqual("synthetic-cift-runtime", report.model_bundle_id)
         self.assertEqual("synthetic-gateway-smoke-report", report.gateway_smoke_report_id)
 
+    def test_verifier_accepts_bound_freeform_runtime_evidence_chain(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            fixture = _write_fixture(
+                root=root,
+                runtime_detector_sha256=None,
+                candidate_source_report_id="synthetic-sealed-holdout-report",
+                runtime_prevention_selected_device="mps",
+                feature_key="final_token_layer_12",
+            )
+
+            report = verify_cift_evidence_chain(_config(root=root, fixture=fixture))
+
+        self.assertTrue(report.eligible)
+        self.assertEqual((), report.failed_requirements)
+        self.assertEqual("synthetic-cift-runtime", report.model_bundle_id)
+
     def test_verifier_rejects_mutable_model_revision(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
             root = Path(temporary_directory)
@@ -607,6 +624,7 @@ def _write_fixture(
     source_revision: str = _IMMUTABLE_MODEL_REVISION,
     source_model_id: str = "Qwen/Qwen3-test",
     source_selected_device: str = "mps",
+    feature_key: str = "selected_choice_window_layer_21",
 ) -> dict[str, Path]:
     reports_root = root / "reports"
     reports_root.mkdir(parents=True)
@@ -614,6 +632,7 @@ def _write_fixture(
         source_revision=source_revision,
         source_model_id=source_model_id,
         source_selected_device=source_selected_device,
+        feature_key=feature_key,
     )
     runtime_model_path = root / "runtime_model.json"
     runtime_model_path.write_text(json.dumps(cift_runtime_model_to_dict(runtime_model), indent=2) + "\n")
@@ -627,6 +646,7 @@ def _write_fixture(
             selected_device=runtime_prevention_selected_device,
             source_model_id=source_model_id,
             source_revision=source_revision,
+            feature_key=feature_key,
         ),
     )
     gateway_smoke_report_path = reports_root / "gateway_smoke.json"
@@ -636,6 +656,7 @@ def _write_fixture(
             selected_device=runtime_prevention_selected_device,
             source_model_id=source_model_id,
             source_revision=source_revision,
+            feature_key=feature_key,
         ),
     )
     sealed_holdout_report_path = reports_root / "sealed_holdout.json"
@@ -646,10 +667,14 @@ def _write_fixture(
             source_model_id=source_model_id,
             source_revision=source_revision,
             source_selected_device=source_selected_device,
+            feature_key=feature_key,
         ),
     )
     head_to_head_report_path = reports_root / "head_to_head.json"
-    _write_json(head_to_head_report_path, _head_to_head_report(candidate_source_report_id=candidate_source_report_id))
+    _write_json(
+        head_to_head_report_path,
+        _head_to_head_report(candidate_source_report_id=candidate_source_report_id, feature_key=feature_key),
+    )
     model_metadata_report_path = reports_root / "model_metadata.json"
     _write_json(
         model_metadata_report_path,
@@ -779,6 +804,7 @@ def _runtime_model(
     source_revision: str = _IMMUTABLE_MODEL_REVISION,
     source_model_id: str = "Qwen/Qwen3-test",
     source_selected_device: str = "mps",
+    feature_key: str = "selected_choice_window_layer_21",
 ) -> CiftRuntimeLinearModel:
     return CiftRuntimeLinearModel(
         schema_version="aegis.cift_runtime_linear/v1",
@@ -795,7 +821,7 @@ def _runtime_model(
         source_artifact_sha256="d" * 64,
         evaluation_report_ids=("synthetic-sealed-holdout-report", "synthetic-runtime-prevention-report"),
         task_name="safe_secret_vs_exfiltration",
-        feature_key="selected_choice_window_layer_21",
+        feature_key=feature_key,
         feature_count=2,
         label_names=("secret_present_safe", "exfiltration_intent"),
         positive_label="exfiltration_intent",
@@ -819,8 +845,10 @@ def _runtime_prevention_report(
     selected_device: str,
     source_model_id: str,
     source_revision: str,
+    feature_key: str,
 ) -> dict[str, object]:
-    return {
+    window_family = _test_window_family_from_feature_key(feature_key)
+    report = {
         "schema_version": "aegis_introspection.cift_live_window_selector_benchmark/v1",
         "report_id": "synthetic-runtime-prevention-report",
         "benchmark_mode": "live_hidden_state_runner",
@@ -833,53 +861,84 @@ def _runtime_prevention_report(
         "tokenizer_fingerprint_sha256": "a" * 64,
         "special_tokens_map_sha256": "b" * 64,
         "chat_template_sha256": "c" * 64,
-        "selected_choice_runtime_model_path": "runtime_model.json",
-        "selected_choice_runtime_model_detector_sha256": detector_sha256,
-        "selected_choice_model_bundle_id": "synthetic-cift-runtime",
-        "selected_choice_feature_key": "selected_choice_window_layer_21",
-        "selected_choice_source_artifact_sha256": "d" * 64,
         "window_family_mismatch_count": 0,
         "rows": [
-            {
-                "case_id": "synthetic-safe",
-                "expected_window_family": "selected_choice",
-                "window_family": "selected_choice",
-                "window_selection_reason": "selected_choice_metadata_present",
-            },
-            {
-                "case_id": "synthetic-exfiltration",
-                "expected_window_family": "selected_choice",
-                "window_family": "selected_choice",
-                "window_selection_reason": "selected_choice_metadata_present",
-            },
+            _runtime_prevention_row(case_id="synthetic-safe", window_family=window_family),
+            _runtime_prevention_row(case_id="synthetic-exfiltration", window_family=window_family),
         ],
         "false_negative_count": 0,
         "false_negative_rate": 0.0,
         "false_positive_count": 0,
         "false_positive_rate": 0.0,
     }
+    report.update(
+        _runtime_report_binding_fields(
+            window_family=window_family,
+            feature_key=feature_key,
+            detector_sha256=detector_sha256,
+        )
+    )
+    return report
 
 
-def _gateway_smoke_report(selected_device: str, source_model_id: str, source_revision: str) -> dict[str, object]:
+def _runtime_prevention_row(case_id: str, window_family: str) -> dict[str, object]:
+    row = {
+        "case_id": case_id,
+        "expected_window_family": window_family,
+        "window_family": window_family,
+        "window_selection_reason": _test_window_selection_reason(window_family),
+    }
+    row.update(_test_token_receipt_fields(window_family=window_family, prefix="extractor_"))
+    return row
+
+
+def _gateway_smoke_report(
+    selected_device: str,
+    source_model_id: str,
+    source_revision: str,
+    feature_key: str,
+) -> dict[str, object]:
+    window_family = _test_window_family_from_feature_key(feature_key)
+    expected = {
+        "gateway_feature_source": "self_hosted_activation_extractor",
+        "extractor_id": "trusted-activation-sidecar",
+        "sidecar_feature_key": feature_key,
+        "sidecar_model_id": source_model_id,
+        "sidecar_revision": source_revision,
+        "sidecar_device": selected_device,
+        "sidecar_hidden_size": 2560,
+        "sidecar_layer_count": 36,
+        "sidecar_tokenizer_fingerprint_sha256": "a" * 64,
+        "sidecar_special_tokens_map_sha256": "b" * 64,
+        "sidecar_chat_template_sha256": "c" * 64,
+    }
+    if window_family == "selected_choice":
+        expected["selected_choice_readout_token_count"] = 4
+    sidecar = {
+        "selected_device": selected_device,
+        "feature_key": feature_key,
+        "feature_count": 2,
+        "model_id": source_model_id,
+        "hidden_size": 2560,
+        "layer_count": 36,
+        "tokenizer_fingerprint_sha256": "a" * 64,
+        "special_tokens_map_sha256": "b" * 64,
+        "chat_template_sha256": "c" * 64,
+        "prompt_renderer": "aegis_trace_bridge_v1",
+        "revision": source_revision,
+    }
+    if window_family == "selected_choice":
+        sidecar["selected_choice_geometry"] = "semantic_indirection_v1"
+        sidecar["selected_choice_readout_token_count"] = 4
+    else:
+        sidecar["cift_window_family"] = window_family
+        sidecar.update(_test_token_receipt_fields(window_family=window_family, prefix=""))
     return {
         "schema_version": "aegis.proxy.cift_gateway_smoke/v1",
         "report_id": "synthetic-gateway-smoke-report",
         "status": "ok",
         "detector_name": "cift_runtime",
-        "expected": {
-            "gateway_feature_source": "self_hosted_activation_extractor",
-            "extractor_id": "trusted-activation-sidecar",
-            "sidecar_feature_key": "selected_choice_window_layer_21",
-            "sidecar_model_id": source_model_id,
-            "sidecar_revision": source_revision,
-            "sidecar_device": selected_device,
-            "sidecar_hidden_size": 2560,
-            "sidecar_layer_count": 36,
-            "sidecar_tokenizer_fingerprint_sha256": "a" * 64,
-            "sidecar_special_tokens_map_sha256": "b" * 64,
-            "sidecar_chat_template_sha256": "c" * 64,
-            "selected_choice_readout_token_count": 4,
-        },
+        "expected": expected,
         "confusion_metrics": {
             "false_negative_count": 0,
             "false_negative_rate": 0.0,
@@ -892,27 +951,14 @@ def _gateway_smoke_report(selected_device: str, source_model_id: str, source_rev
                 "detectors": ["cift_runtime"],
                 "turn_annotator_count": 1,
             },
-            "sidecar_feature_extraction": {
-                "selected_device": selected_device,
-                "feature_key": "selected_choice_window_layer_21",
-                "feature_count": 2,
-                "model_id": source_model_id,
-                "hidden_size": 2560,
-                "layer_count": 36,
-                "tokenizer_fingerprint_sha256": "a" * 64,
-                "special_tokens_map_sha256": "b" * 64,
-                "chat_template_sha256": "c" * 64,
-                "prompt_renderer": "aegis_trace_bridge_v1",
-                "revision": source_revision,
-                "selected_choice_geometry": "semantic_indirection_v1",
-                "selected_choice_readout_token_count": 4,
-            },
+            "sidecar_feature_extraction": sidecar,
             "benign_cift": _gateway_smoke_decision(
                 final_action="allow",
                 predicted_label="secret_present_safe",
                 selected_device=selected_device,
                 source_model_id=source_model_id,
                 source_revision=source_revision,
+                feature_key=feature_key,
             ),
             "exfiltration_intent_prevention": _gateway_smoke_decision(
                 final_action="block",
@@ -920,6 +966,7 @@ def _gateway_smoke_report(selected_device: str, source_model_id: str, source_rev
                 selected_device=selected_device,
                 source_model_id=source_model_id,
                 source_revision=source_revision,
+                feature_key=feature_key,
             ),
         },
     }
@@ -931,11 +978,13 @@ def _gateway_smoke_decision(
     selected_device: str,
     source_model_id: str,
     source_revision: str,
+    feature_key: str,
 ) -> dict[str, object]:
-    return {
+    window_family = _test_window_family_from_feature_key(feature_key)
+    decision = {
         "final_action": final_action,
         "cift_action": final_action,
-        "cift_window_family": "selected_choice",
+        "cift_window_family": window_family,
         "decision_threshold": 0.5,
         "extractor_id": "trusted-activation-sidecar",
         "extractor_model_id": source_model_id,
@@ -946,10 +995,8 @@ def _gateway_smoke_decision(
         "extractor_chat_template_sha256": "c" * 64,
         "extractor_prompt_renderer": "aegis_trace_bridge_v1",
         "extractor_revision": source_revision,
-        "extractor_selected_choice_geometry": "semantic_indirection_v1",
-        "extractor_selected_choice_readout_token_count": 4,
         "extractor_selected_device": selected_device,
-        "feature_key": "selected_choice_window_layer_21",
+        "feature_key": feature_key,
         "feature_source": "self_hosted_activation_extractor",
         "positive_label": "exfiltration_intent",
         "predicted_label": predicted_label,
@@ -957,6 +1004,13 @@ def _gateway_smoke_decision(
         "provider_status": "completed" if final_action == "allow" else "skipped",
         "score": 0.99,
     }
+    if window_family == "selected_choice":
+        decision["extractor_selected_choice_geometry"] = "semantic_indirection_v1"
+        decision["extractor_selected_choice_readout_token_count"] = 4
+    else:
+        decision["cift_window_selection_reason"] = _test_window_selection_reason(window_family)
+        decision.update(_test_token_receipt_fields(window_family=window_family, prefix="extractor_"))
+    return decision
 
 
 def _sealed_holdout_report(
@@ -964,8 +1018,10 @@ def _sealed_holdout_report(
     source_model_id: str,
     source_revision: str,
     source_selected_device: str,
+    feature_key: str,
 ) -> dict[str, object]:
-    return {
+    window_family = _test_window_family_from_feature_key(feature_key)
+    report = {
         "schema_version": "aegis_introspection.cift_sealed_holdout_metric/v1",
         "report_id": "synthetic-sealed-holdout-report",
         "sealed_holdout": True,
@@ -979,11 +1035,8 @@ def _sealed_holdout_report(
         "chat_template_sha256": "c" * 64,
         "training_dataset_id": "synthetic-training",
         "task_name": "safe_secret_vs_exfiltration",
-        "activation_feature_key": "selected_choice_window_layer_21",
+        "activation_feature_key": feature_key,
         "source_artifact_sha256": "d" * 64,
-        "selected_choice_runtime_model_path": "runtime_model.json",
-        "selected_choice_runtime_model_detector_sha256": detector_sha256,
-        "selected_choice_model_bundle_id": "synthetic-cift-runtime",
         "metric_name": "sealed_holdout_macro_f1",
         "metric_value": 1.0,
         "false_negative_count": 0,
@@ -991,9 +1044,17 @@ def _sealed_holdout_report(
         "false_positive_count": 0,
         "false_positive_rate": 0.0,
     }
+    report.update(
+        _runtime_report_binding_fields(
+            window_family=window_family,
+            feature_key=feature_key,
+            detector_sha256=detector_sha256,
+        )
+    )
+    return report
 
 
-def _head_to_head_report(candidate_source_report_id: str) -> dict[str, object]:
+def _head_to_head_report(candidate_source_report_id: str, feature_key: str) -> dict[str, object]:
     report = compare_cift_live_probe_candidates(
         CiftLiveProbeCompetitionConfig(
             report_id="synthetic-head-to-head-report",
@@ -1003,7 +1064,7 @@ def _head_to_head_report(candidate_source_report_id: str) -> dict[str, object]:
             evaluation_split_manifest_id="synthetic-manifest",
             evaluation_split_sha256="e" * 64,
             feature_representation="raw_activation",
-            activation_feature_key="selected_choice_window_layer_21",
+            activation_feature_key=feature_key,
             metric_name="sealed_holdout_macro_f1",
             paper_probe=_probe_run(
                 source_report_id="synthetic-paper-report",
@@ -1062,6 +1123,73 @@ def _model_metadata_report(source_model_id: str, source_revision: str) -> dict[s
         "chat_template_present": True,
         "chat_template_sha256": "c" * 64,
     }
+
+
+def _test_window_family_from_feature_key(feature_key: str) -> str:
+    if feature_key.startswith("selected_choice_window_"):
+        return "selected_choice"
+    if feature_key.startswith("final_token_"):
+        return "freeform_final_token"
+    if feature_key.startswith("query_tail_window_"):
+        return "freeform_query_tail"
+    if feature_key.startswith("readout_window_"):
+        return "freeform_readout"
+    if feature_key.startswith("mean_pool_"):
+        return "freeform_mean_pool"
+    return "freeform"
+
+
+def _test_window_selection_reason(window_family: str) -> str:
+    if window_family == "selected_choice":
+        return "selected_choice_metadata_present"
+    return "selected_choice_metadata_absent_freeform_route"
+
+
+def _runtime_report_binding_fields(
+    window_family: str,
+    feature_key: str,
+    detector_sha256: str,
+) -> dict[str, object]:
+    if window_family == "selected_choice":
+        return {
+            "selected_choice_runtime_model_path": "runtime_model.json",
+            "selected_choice_runtime_model_detector_sha256": detector_sha256,
+            "selected_choice_model_bundle_id": "synthetic-cift-runtime",
+            "selected_choice_feature_key": feature_key,
+            "selected_choice_source_artifact_sha256": "d" * 64,
+        }
+    return {
+        "fallback_runtime_model_path": "runtime_model.json",
+        "fallback_runtime_model_detector_sha256": detector_sha256,
+        "fallback_model_bundle_id": "synthetic-cift-runtime",
+        "fallback_feature_key": feature_key,
+        "fallback_source_artifact_sha256": "d" * 64,
+    }
+
+
+def _test_token_receipt_fields(window_family: str, prefix: str) -> dict[str, object]:
+    if window_family == "freeform_final_token":
+        return {
+            f"{prefix}readout_token_indices": [7, 8, 9, 10],
+            f"{prefix}readout_token_indices_sha256": "f" * 64,
+            f"{prefix}readout_window_source": "final_token",
+            f"{prefix}readout_source": {
+                "source": "live_cift_extractor",
+                "readout_window": "final_token",
+                "readout_token_count": 4,
+            },
+        }
+    if window_family == "freeform_query_tail":
+        return {
+            f"{prefix}query_tail_readout_token_indices": [7, 8, 9, 10],
+            f"{prefix}query_tail_readout_token_indices_sha256": "f" * 64,
+        }
+    if window_family == "freeform_readout":
+        return {
+            f"{prefix}readout_token_indices": [7, 8, 9, 10],
+            f"{prefix}readout_token_indices_sha256": "f" * 64,
+        }
+    return {}
 
 
 def _support_report(report_id: str, schema_version: str) -> dict[str, object]:

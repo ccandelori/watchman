@@ -5,7 +5,7 @@ import json
 
 from aegis.detectors.cift_runtime import CiftRuntimeModel, cift_runtime_model_to_dict
 
-_NON_DETECTOR_FIELDS = frozenset(("candidate_status", "evaluation_report_ids"))
+_NON_DETECTOR_FIELDS = frozenset(("candidate_status", "confidence", "evaluation_report_ids", "promotion_gates"))
 
 
 def cift_runtime_detector_sha256(model: CiftRuntimeModel) -> str:

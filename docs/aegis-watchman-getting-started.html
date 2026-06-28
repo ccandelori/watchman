@@ -1,0 +1,1390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aegis Watchman Getting Started</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: oklch(0.96 0.022 96);
+      --surface: oklch(0.986 0.012 96);
+      --surface-2: oklch(0.915 0.032 96);
+      --ink: oklch(0.18 0.03 245);
+      --muted: oklch(0.36 0.026 245);
+      --faint: oklch(0.54 0.024 245);
+      --blue: oklch(0.49 0.18 246);
+      --blue-2: oklch(0.83 0.095 246);
+      --green: oklch(0.54 0.17 154);
+      --green-2: oklch(0.84 0.12 154);
+      --amber: oklch(0.76 0.15 92);
+      --amber-2: oklch(0.91 0.14 92);
+      --red: oklch(0.58 0.2 28);
+      --red-2: oklch(0.86 0.095 28);
+      --violet: oklch(0.5 0.17 300);
+      --violet-2: oklch(0.83 0.085 300);
+      --graphite: oklch(0.19 0.03 245);
+      --panel-ink: oklch(0.965 0.014 96);
+      --code-bg: oklch(0.19 0.03 245);
+      --code-ink: oklch(0.955 0.014 96);
+      --border: 3px solid var(--ink);
+      --shadow: 8px 8px 0 var(--ink);
+      --shadow-small: 5px 5px 0 var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--page);
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    p,
+    h1,
+    h2,
+    h3 {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 920px;
+      margin-bottom: 16px;
+      font-size: 56px;
+      line-height: 0.98;
+      letter-spacing: 0;
+      font-weight: 920;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+      font-size: 32px;
+      line-height: 1.08;
+      letter-spacing: 0;
+      font-weight: 900;
+    }
+
+    h3 {
+      margin-bottom: 8px;
+      font-size: 18px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    code,
+    pre,
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    code {
+      font-size: 0.94em;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    .shell {
+      width: min(1500px, calc(100% - 24px));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: var(--border);
+      background: var(--amber-2);
+    }
+
+    .topbar-inner {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 18px;
+      min-height: 66px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-weight: 900;
+      white-space: nowrap;
+      text-decoration: none;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 32px;
+      border: var(--border);
+      background: var(--green-2);
+      color: var(--ink);
+      font-size: 12px;
+      letter-spacing: 0;
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .nav {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      overflow-x: auto;
+    }
+
+    .nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      border: 2px solid transparent;
+      padding: 0 10px;
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 760;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .nav a:hover,
+    .nav a:focus-visible {
+      border-color: var(--ink);
+      background: var(--surface);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      min-height: 24px;
+      border: 2px solid var(--ink);
+      padding: 2px 9px;
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .badge.green {
+      background: var(--green-2);
+      color: var(--green);
+    }
+
+    .badge.blue {
+      background: var(--blue-2);
+      color: var(--blue);
+    }
+
+    .badge.amber {
+      background: var(--amber-2);
+      color: var(--amber);
+    }
+
+    .badge.red {
+      background: var(--red-2);
+      color: var(--red);
+    }
+
+    .badge.violet {
+      background: var(--violet-2);
+      color: var(--violet);
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 410px;
+      gap: 34px;
+      align-items: start;
+      padding: 48px 0 32px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      width: fit-content;
+      margin-bottom: 14px;
+      border: var(--border);
+      padding: 4px 8px;
+      background: var(--green-2);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 850;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .lead {
+      max-width: 74ch;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      border: var(--border);
+      padding: 0 16px;
+      background: var(--surface);
+      color: var(--ink);
+      font-weight: 860;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: 5px 5px 0 var(--ink);
+    }
+
+    .button.primary {
+      border-color: var(--graphite);
+      background: var(--graphite);
+      color: var(--panel-ink);
+    }
+
+    .button:hover,
+    .button:focus-visible,
+    .copy:hover,
+    .copy:focus-visible {
+      transform: translate(2px, 2px);
+      box-shadow: 3px 3px 0 var(--ink);
+      outline: none;
+    }
+
+    .summary-panel {
+      border: var(--border);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .summary-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: var(--border);
+      padding: 13px 14px;
+      background: var(--blue-2);
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: 128px 1fr;
+      gap: 12px;
+      border-bottom: 2px solid var(--ink);
+      padding: 10px 14px;
+      font-size: 14px;
+    }
+
+    .summary-row:last-child {
+      border-bottom: 0;
+    }
+
+    .summary-row span:first-child {
+      color: var(--muted);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 235px minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+      padding-bottom: 42px;
+    }
+
+    .rail {
+      position: sticky;
+      top: 84px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .rail-panel {
+      border: var(--border);
+      background: var(--surface);
+      padding: 14px;
+      box-shadow: var(--shadow-small);
+    }
+
+    .rail-panel h2 {
+      margin-bottom: 12px;
+      font-size: 15px;
+    }
+
+    .rail-links {
+      display: grid;
+      gap: 4px;
+    }
+
+    .rail-links a {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 34px;
+      border: 2px solid transparent;
+      padding: 0 8px;
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 740;
+      text-decoration: none;
+    }
+
+    .rail-links a:hover,
+    .rail-links a:focus-visible {
+      border-color: var(--ink);
+      background: var(--amber-2);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .rail-note {
+      margin: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .content {
+      display: grid;
+      gap: 24px;
+      min-width: 0;
+    }
+
+    .section {
+      padding: 30px 0;
+      min-width: 0;
+    }
+
+    .section + .section {
+      border-top: 3px solid color-mix(in oklch, var(--ink) 24%, transparent);
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(250px, 440px);
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    .section-head > * {
+      min-width: 0;
+    }
+
+    .section-head p {
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .route-map {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 18px;
+      align-items: stretch;
+      margin-bottom: 18px;
+      min-width: 0;
+    }
+
+    .route-box {
+      border: var(--border);
+      background: var(--surface);
+      padding: 18px;
+      box-shadow: var(--shadow);
+      min-width: 0;
+    }
+
+    .route-box.agent {
+      background: var(--blue-2);
+    }
+
+    .route-box.gateway {
+      background: var(--green-2);
+    }
+
+    .route-box.provider {
+      background: var(--amber-2);
+    }
+
+    .route-box h3 {
+      margin-bottom: 8px;
+      font-size: 22px;
+      font-weight: 900;
+    }
+
+    .route-box p {
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .gate-list {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 18px;
+      min-width: 0;
+    }
+
+    .gate-list div {
+      border: 2px solid var(--ink);
+      background: var(--surface);
+      padding: 10px;
+      min-height: 98px;
+      min-width: 0;
+    }
+
+    .gate-list strong {
+      display: grid;
+      place-items: center;
+      width: 28px;
+      height: 28px;
+      margin-bottom: 8px;
+      border: 2px solid var(--ink);
+      background: var(--amber-2);
+      font-weight: 900;
+    }
+
+    .note-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .note,
+    .callout,
+    .trouble-item,
+    .next-item {
+      border: var(--border);
+      background: var(--surface);
+      padding: 16px;
+      box-shadow: var(--shadow-small);
+      min-width: 0;
+    }
+
+    .note p,
+    .callout p,
+    .trouble-item p,
+    .next-item p {
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .callout {
+      margin-top: 18px;
+      background: var(--red-2);
+    }
+
+    .step-list {
+      display: grid;
+      gap: 16px;
+    }
+
+    .step {
+      display: grid;
+      grid-template-columns: 54px minmax(0, 1fr);
+      gap: 14px;
+      align-items: start;
+    }
+
+    .step-num {
+      display: grid;
+      place-items: center;
+      width: 46px;
+      height: 46px;
+      border: var(--border);
+      background: var(--amber-2);
+      color: var(--ink);
+      font-weight: 900;
+      box-shadow: var(--shadow-small);
+    }
+
+    .step-body {
+      min-width: 0;
+    }
+
+    .step-body p {
+      color: var(--muted);
+    }
+
+    .command {
+      border: var(--border);
+      background: var(--code-bg);
+      color: var(--code-ink);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    .command + .command {
+      margin-top: 12px;
+    }
+
+    .command-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: 2px solid oklch(0.42 0.025 245);
+      padding: 10px 12px;
+      background: oklch(0.25 0.033 245);
+    }
+
+    .command-head strong {
+      color: var(--panel-ink);
+      font-size: 14px;
+    }
+
+    .copy {
+      min-height: 30px;
+      border: 2px solid var(--panel-ink);
+      background: var(--amber-2);
+      color: var(--ink);
+      padding: 0 10px;
+      font-size: 13px;
+      font-weight: 850;
+      cursor: pointer;
+      box-shadow: 3px 3px 0 var(--panel-ink);
+    }
+
+    pre {
+      margin: 0;
+      overflow-x: auto;
+      padding: 14px;
+      color: var(--code-ink);
+      font-size: 13px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+
+    .settings-panel {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .settings-panel > * {
+      min-width: 0;
+    }
+
+    .settings-list {
+      border: var(--border);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .setting {
+      display: grid;
+      grid-template-columns: 135px 1fr;
+      gap: 14px;
+      border-bottom: 2px solid var(--ink);
+      padding: 12px 14px;
+      align-items: center;
+    }
+
+    .setting:last-child {
+      border-bottom: 0;
+    }
+
+    .setting span {
+      color: var(--muted);
+      font-weight: 720;
+    }
+
+    .check-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: var(--border);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .check-table th,
+    .check-table td {
+      border-bottom: 2px solid var(--ink);
+      padding: 12px;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    .check-table th {
+      background: var(--blue-2);
+      font-size: 13px;
+      text-transform: uppercase;
+    }
+
+    .check-table td {
+      color: var(--muted);
+    }
+
+    .check-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .trouble-grid,
+    .next-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      min-width: 0;
+    }
+
+    .footer {
+      border-top: var(--border);
+      padding: 22px 0 34px;
+      color: var(--muted);
+    }
+
+    .footer p {
+      max-width: 82ch;
+      margin-bottom: 0;
+    }
+
+    @media (max-width: 1120px) {
+      .hero,
+      .layout,
+      .section-head,
+      .route-map,
+      .settings-panel {
+        grid-template-columns: 1fr;
+      }
+
+      .rail {
+        position: static;
+      }
+
+      .rail-links {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+
+    @media (max-width: 760px) {
+      .shell {
+        width: min(100% - 16px, 1500px);
+      }
+
+      .topbar {
+        position: static;
+      }
+
+      .topbar-inner {
+        grid-template-columns: 1fr;
+        justify-items: start;
+        padding: 10px 0;
+      }
+
+      h1 {
+        font-size: 38px;
+      }
+
+      h2 {
+        font-size: 27px;
+      }
+
+      .route-map,
+      .gate-list,
+      .note-grid,
+      .trouble-grid,
+      .next-grid,
+      .rail-links {
+        grid-template-columns: 1fr;
+      }
+
+      .summary-row,
+      .setting,
+      .step {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <a class="brand" href="aegis-local-agent-visual-guide.html">
+        <span class="brand-mark" aria-hidden="true">AW</span>
+        <span>Aegis Watchman</span>
+      </a>
+      <nav class="nav" aria-label="Guide sections">
+        <a href="aegis-local-agent-visual-guide.html">Project</a>
+        <a href="#quick-start">Quick start</a>
+        <a href="#user-guide">User guide</a>
+        <a href="#hermes">Hermes</a>
+        <a href="#evidence">Evidence</a>
+        <a href="#troubleshooting">Troubleshooting</a>
+      </nav>
+      <span class="badge green">Local reference path</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="shell hero">
+      <div>
+        <p class="eyebrow">Quick start and user guide</p>
+        <h1>Put Aegis between your local agent and your local model.</h1>
+        <p class="lead">
+          This page starts with the launcher path for Ollama, Hermes Agent, Qwen3 4B, and
+          the certified Qwen3-4B CIFT runtime. After that, it explains the controls,
+          evidence, and manual fallback commands.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="#quick-start">Start protection</a>
+          <a class="button" href="#user-guide">Understand the launcher</a>
+          <a class="button" href="#hermes">Copy agent settings</a>
+          <a class="button" href="#manual">Manual fallback</a>
+        </div>
+      </div>
+
+      <aside class="summary-panel" aria-label="Reference setup summary">
+        <div class="summary-head">
+          <strong>Default local profile</strong>
+          <span class="badge blue">default</span>
+        </div>
+        <div class="summary-row">
+          <span>Agent base URL</span>
+          <strong class="mono">http://127.0.0.1:8000/v1</strong>
+        </div>
+        <div class="summary-row">
+          <span>Agent model</span>
+          <strong class="mono">qwen3:4b</strong>
+        </div>
+        <div class="summary-row">
+          <span>Provider</span>
+          <strong class="mono">Ollama on 11434</strong>
+        </div>
+        <div class="summary-row">
+          <span>Launcher</span>
+          <strong class="mono">http://127.0.0.1:8790</strong>
+        </div>
+        <div class="summary-row">
+          <span>Console</span>
+          <strong class="mono">http://127.0.0.1:8780</strong>
+        </div>
+      </aside>
+    </section>
+
+    <div class="shell layout">
+      <aside class="rail" aria-label="Setup navigation">
+        <section class="rail-panel">
+          <h2>Guide path</h2>
+          <nav class="rail-links" aria-label="In-page sections">
+            <a href="#which-guide">Choose path <span>00</span></a>
+            <a href="#before">Before start <span>01</span></a>
+            <a href="#quick-start">Quick start <span>02</span></a>
+            <a href="#user-guide">Launcher guide <span>03</span></a>
+            <a href="#hermes">Hermes <span>04</span></a>
+            <a href="#evidence">Evidence <span>05</span></a>
+            <a href="#manual">Manual fallback <span>06</span></a>
+            <a href="#troubleshooting">Troubleshoot <span>07</span></a>
+          </nav>
+        </section>
+
+        <section class="rail-panel">
+          <h2>Release boundary</h2>
+          <p class="rail-note">
+            Aegis CIFT is model-specific. Qwen3-4B is the certified reference path here.
+            Other models are unsupported until they pass their own certification.
+          </p>
+        </section>
+      </aside>
+
+      <div class="content">
+        <section id="which-guide" class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">00. Which guide do you need?</p>
+              <h2>Use one page, but keep two reading modes.</h2>
+            </div>
+            <p>
+              A first-time user needs a short path to protection. An operator needs to know
+              what each control, warning, smoke result, and audit record means.
+            </p>
+          </div>
+
+          <div class="note-grid">
+            <article class="note">
+              <span class="badge green">Quick start</span>
+              <h3>Get protected</h3>
+              <p>Install or start Ollama, make sure Qwen is available, open the launcher, click Start Protection, then point Hermes at Aegis.</p>
+            </article>
+
+            <article class="note">
+              <span class="badge blue">User guide</span>
+              <h3>Operate the stack</h3>
+              <p>Learn Normal mode, Advanced mode, warnings, model selection, logs, smoke checks, and what evidence proves.</p>
+            </article>
+
+            <article class="note">
+              <span class="badge red">Boundary</span>
+              <h3>Do not overclaim</h3>
+              <p>Aegis may run without CIFT for unsupported models, but this page only claims CIFT enforcement for the certified Qwen3-4B path.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="before" class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">01. Before you start</p>
+              <h2>The launcher expects a local model provider and the Aegis repo.</h2>
+            </div>
+            <p>
+              The reference setup is a local development and demo profile. Keep Ollama,
+              Aegis, and Hermes on the same machine unless you are deliberately testing a
+              different network boundary.
+            </p>
+          </div>
+
+          <table class="check-table" aria-label="Prerequisites">
+            <thead>
+              <tr>
+                <th>Need</th>
+                <th>Why it matters</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>macOS 14 Sonoma or later</td>
+                <td>The current Ollama macOS download page lists macOS 14 Sonoma or later.</td>
+              </tr>
+              <tr>
+                <td>GPU runtime</td>
+                <td>The certified Qwen3-4B reference path uses MPS. Other devices require their own certification evidence.</td>
+              </tr>
+              <tr>
+                <td>Ollama installed</td>
+                <td>Provides the local OpenAI-compatible provider endpoint that Aegis forwards allowed requests to.</td>
+              </tr>
+              <tr>
+                <td>Hermes Agent installed</td>
+                <td>Acts as the user-facing agent app for this guide. Other OpenAI-compatible agents can be configured later.</td>
+              </tr>
+              <tr>
+                <td>Aegis repo checked out</td>
+                <td>Runs the launcher, gateway, console, CIFT sidecar scripts, and smoke checks.</td>
+              </tr>
+              <tr>
+                <td>Qwen3-4B CIFT artifacts</td>
+                <td>The launcher uses the promoted runtime binding for Qwen/Qwen3-4B. Do not reuse those artifacts for a different model.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="quick-start" class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">02. Quick start</p>
+              <h2>Use the launcher for the normal path.</h2>
+            </div>
+            <p>
+              The launcher turns the old command sequence into one guided flow. Use the
+              manual commands only when you are debugging the launcher or explaining the
+              underlying services.
+            </p>
+          </div>
+
+          <div class="step-list">
+            <article class="step">
+              <div class="step-num">1</div>
+              <div class="step-body">
+                <h3>Install or open Ollama</h3>
+                <p>Use the official macOS app, or use the install script if you prefer a terminal setup. Opening the app normally starts the local server.</p>
+                <div class="command">
+                  <div class="command-head">
+                    <strong>Ollama install and server check</strong>
+                    <button class="copy" type="button" data-copy-target="cmd-install-ollama">Copy</button>
+                  </div>
+                  <pre id="cmd-install-ollama">curl -fsSL https://ollama.com/install.sh | sh
+open -a Ollama
+curl -s http://127.0.0.1:11434/api/tags</pre>
+                </div>
+              </div>
+            </article>
+
+            <article class="step">
+              <div class="step-num">2</div>
+              <div class="step-body">
+                <h3>Make sure Qwen is available</h3>
+                <p>If <code>qwen3:4b</code> is already installed, use it. If multiple models are installed, choose the right served model in the launcher.</p>
+                <div class="command">
+                  <div class="command-head">
+                    <strong>Pull only when needed</strong>
+                    <button class="copy" type="button" data-copy-target="cmd-pull-qwen">Copy</button>
+                  </div>
+                  <pre id="cmd-pull-qwen">ollama list
+ollama pull qwen3:4b</pre>
+                </div>
+              </div>
+            </article>
+
+            <article class="step">
+              <div class="step-num">3</div>
+              <div class="step-body">
+                <h3>Start the Aegis launcher</h3>
+                <p>Run this from the Aegis repository root. The desktop app checks or starts Ollama, pulls the selected model when needed, starts the shared launcher backend, and keeps the default Qwen3-4B profile visible.</p>
+                <div class="command">
+                  <div class="command-head">
+                    <strong>Open desktop launcher</strong>
+                    <button class="copy" type="button" data-copy-target="cmd-launcher">Copy</button>
+                  </div>
+                  <pre id="cmd-launcher">scripts/run-aegis-desktop-launcher.sh</pre>
+                </div>
+                <div class="command">
+                  <div class="command-head">
+                    <strong>Build local app</strong>
+                    <button class="copy" type="button" data-copy-target="cmd-package-launcher">Copy</button>
+                  </div>
+                  <pre id="cmd-package-launcher">cd desktop/aegis-launcher
+npm run pack:mac
+open "dist/mac-arm64/Aegis Watchman.app"</pre>
+                </div>
+                <div class="command">
+                  <div class="command-head">
+                    <strong>Browser fallback</strong>
+                    <button class="copy" type="button" data-copy-target="cmd-browser-launcher">Copy</button>
+                  </div>
+                  <pre id="cmd-browser-launcher">uv run aegis-launcher \
+  --host 127.0.0.1 \
+  --port 8790</pre>
+                </div>
+              </div>
+            </article>
+
+            <article class="step">
+              <div class="step-num">4</div>
+              <div class="step-body">
+                <h3>Click Start Protection</h3>
+                <p>The desktop timeline checks the provider, model, machine, GPU, CIFT sidecar, gateway, and console. Already-running or already-installed items are skipped.</p>
+              </div>
+            </article>
+
+            <article class="step">
+              <div class="step-num">5</div>
+              <div class="step-body">
+                <h3>Click Run Verification</h3>
+                <p>Run verification after CIFT and the gateway are running. You want one benign allow, one exfiltration block before provider completion, and audit evidence that names the detector.</p>
+              </div>
+            </article>
+          </div>
+        </section>
+
+        <section id="user-guide" class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">03. Launcher user guide</p>
+              <h2>The desktop app is the normal path. The browser launcher is the fallback.</h2>
+            </div>
+            <p>
+              The launcher is the user-facing setup app. It should answer three questions:
+              what is configured, what is running, and what evidence exists.
+            </p>
+          </div>
+
+          <div class="note-grid">
+            <article class="note">
+              <span class="badge green">Desktop</span>
+              <h3>Preferred launcher</h3>
+              <p>The macOS app owns the window, starts Ollama, pulls models, and calls the shared Python backend for Aegis services.</p>
+            </article>
+
+            <article class="note">
+              <span class="badge green">Normal</span>
+              <h3>Start Protection</h3>
+              <p>Runs the default path in order. The timeline reports skipped, running, passed, failed, and elapsed time for each step.</p>
+            </article>
+
+            <article class="note">
+              <span class="badge blue">Normal</span>
+              <h3>Run Verification</h3>
+              <p>Runs smoke evidence after protection is running. This is the demo proof path, not a replacement for certification.</p>
+            </article>
+
+            <article class="note">
+              <span class="badge amber">Fallback</span>
+              <h3>Browser launcher</h3>
+              <p>Use the browser launcher when you need the older manual controls or want to debug the shared backend directly.</p>
+            </article>
+          </div>
+
+          <table class="check-table" aria-label="Launcher controls">
+            <thead>
+              <tr>
+                <th>Control</th>
+                <th>What it means</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Provider prerequisites</td>
+                <td>Shows Ollama reachability, model selection, and machine warnings. The desktop app can start Ollama and pull the selected model.</td>
+              </tr>
+              <tr>
+                <td>Model picker</td>
+                <td>Appears when more than one Ollama model is installed. Pick the served model Aegis should forward allowed requests to.</td>
+              </tr>
+              <tr>
+                <td>Start Protection</td>
+                <td>Runs the stack. If protection is already running, the button becomes Stop Protection.</td>
+              </tr>
+              <tr>
+                <td>Run Verification</td>
+                <td>Runs live smoke checks after the stack is running. Do not treat offline replay as production evidence.</td>
+              </tr>
+              <tr>
+                <td>Clear Statuses</td>
+                <td>Clears old launcher statuses after services are stopped. Use it before starting a clean run.</td>
+              </tr>
+              <tr>
+                <td>CIFT Certificate</td>
+                <td>Displays locked model-specific binding information: model id, revision, tokenizer/template hashes, layer/window, device, and dtype.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="hermes" class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">04. Point Hermes Agent at Aegis</p>
+              <h2>Test Hermes with Ollama if you need a baseline, then switch it to Aegis.</h2>
+            </div>
+            <p>
+              Hermes uses ordinary OpenAI-compatible provider settings. Direct Ollama is useful
+              for confirming the model works; protected operation means Hermes calls Aegis.
+            </p>
+          </div>
+
+          <h3>Optional baseline: Hermes directly to Ollama</h3>
+          <p>
+            Use this only to confirm that Hermes can talk to the model you pulled with Ollama.
+            There is no Aegis protection on this path.
+          </p>
+          <div class="settings-panel">
+            <div class="settings-list" aria-label="Hermes direct Ollama settings">
+              <div class="setting">
+                <span>Provider type</span>
+                <strong>Custom OpenAI-compatible</strong>
+              </div>
+              <div class="setting">
+                <span>Base URL</span>
+                <strong class="mono">http://127.0.0.1:11434/v1</strong>
+              </div>
+              <div class="setting">
+                <span>API key</span>
+                <strong class="mono">ollama</strong>
+              </div>
+              <div class="setting">
+                <span>Model</span>
+                <strong class="mono">qwen3:4b</strong>
+              </div>
+            </div>
+
+            <div class="command">
+              <div class="command-head">
+                <strong>Copy direct Ollama settings</strong>
+                <button class="copy" type="button" data-copy-target="cmd-hermes-ollama-settings">Copy</button>
+              </div>
+              <pre id="cmd-hermes-ollama-settings">Provider: Custom OpenAI-compatible
+Base URL: http://127.0.0.1:11434/v1
+API key: ollama
+Model: qwen3:4b</pre>
+            </div>
+          </div>
+
+          <div class="callout">
+            <h3>Direct Ollama is not protected.</h3>
+            <p>Use the direct settings only as a model baseline. Switch Hermes to the Aegis base URL before testing secrets, canaries, CIFT, policy, or audit.</p>
+          </div>
+
+          <h3>Protected path: Hermes to Aegis</h3>
+          <p>
+            After the launcher reports protection running, replace the direct Ollama base URL
+            with the Aegis gateway URL.
+          </p>
+          <div class="settings-panel">
+            <div class="settings-list" aria-label="Hermes Agent settings">
+              <div class="setting">
+                <span>Provider type</span>
+                <strong>Custom OpenAI-compatible</strong>
+              </div>
+              <div class="setting">
+                <span>Base URL</span>
+                <strong class="mono">http://127.0.0.1:8000/v1</strong>
+              </div>
+              <div class="setting">
+                <span>API key</span>
+                <strong class="mono">aegis-local-dev-key</strong>
+              </div>
+              <div class="setting">
+                <span>Model</span>
+                <strong class="mono">qwen3:4b</strong>
+              </div>
+            </div>
+
+            <div class="command">
+              <div class="command-head">
+                <strong>Copy into Hermes settings</strong>
+                <button class="copy" type="button" data-copy-target="cmd-hermes-settings">Copy</button>
+              </div>
+              <pre id="cmd-hermes-settings">Provider: Custom OpenAI-compatible
+Base URL: http://127.0.0.1:8000/v1
+API key: aegis-local-dev-key
+Model: qwen3:4b</pre>
+            </div>
+          </div>
+
+          <div class="callout">
+            <h3>Do not point Hermes directly at Ollama while testing Aegis.</h3>
+            <p>If Hermes uses <code>http://127.0.0.1:11434/v1</code>, it bypasses DP-HONEY, CIFT, egress guard, canary detection, NIMBUS, policy, and audit.</p>
+          </div>
+        </section>
+
+        <section id="evidence" class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">05. Evidence</p>
+              <h2>A good run proves both allow and block.</h2>
+            </div>
+            <p>
+              The goal is not a green UI. The goal is a security layer that allows benign
+              traffic, blocks exfiltration intent before provider completion, and records why.
+            </p>
+          </div>
+
+          <table class="check-table" aria-label="Evidence expectations">
+            <thead>
+              <tr>
+                <th>Check</th>
+                <th>Evidence you want</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Benign request</td>
+                <td><code>provider_status="completed"</code>. This proves Aegis is a live proxy, not a blanket blocker.</td>
+              </tr>
+              <tr>
+                <td>Exfiltration-intent request</td>
+                <td><code>final_action="block"</code> and <code>provider_status="skipped"</code>. This proves pre-generation prevention.</td>
+              </tr>
+              <tr>
+                <td>CIFT support</td>
+                <td>Runtime-enforceable sidecar evidence with matching model id, revision, hashes, layer/window, device, and dtype.</td>
+              </tr>
+              <tr>
+                <td>Audit trail</td>
+                <td>A redacted JSONL record that names detector results, policy action, trace id, and why the provider did or did not run.</td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="manual" class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">06. Manual fallback</p>
+              <h2>Use commands when you need to isolate one layer.</h2>
+            </div>
+            <p>
+              These commands are not the preferred user path. They are here so an operator can
+              prove whether a problem is in Ollama, CIFT, the gateway, or the agent settings.
+            </p>
+          </div>
+
+          <div class="command">
+            <div class="command-head">
+              <strong>Install Aegis dependencies</strong>
+              <button class="copy" type="button" data-copy-target="cmd-install-aegis">Copy</button>
+            </div>
+            <pre id="cmd-install-aegis">cd &lt;path-to-aegis-repo&gt;
+uv sync --extra dev
+uv run aegis-launcher --help
+uv run aegis-proxy --help
+uv run aegis-console --help</pre>
+          </div>
+
+          <div class="command">
+            <div class="command-head">
+              <strong>Direct request through Aegis</strong>
+              <button class="copy" type="button" data-copy-target="cmd-manual-request">Copy</button>
+            </div>
+            <pre id="cmd-manual-request">curl -s http://127.0.0.1:8000/v1/chat/completions \
+  -H "Authorization: Bearer aegis-local-dev-key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "qwen3:4b",
+    "messages": [{"role": "user", "content": "In one sentence, explain what Aegis does."}],
+    "stream": false
+  }'</pre>
+          </div>
+
+          <div class="callout">
+            <h3>Do not silently downgrade CIFT.</h3>
+            <p>If hidden-state extraction, selected-choice metadata, attestation, or certificate binding fails, do not claim Qwen3-4B CIFT enforcement. Fix the binding or present CIFT as unavailable.</p>
+          </div>
+        </section>
+
+        <section id="troubleshooting" class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">07. Troubleshooting</p>
+              <h2>Most setup failures are one wrong endpoint or one degraded binding.</h2>
+            </div>
+            <p>
+              Fix the first failing layer before moving on. The intended route is provider
+              first, CIFT sidecar second, gateway third, agent last.
+            </p>
+          </div>
+
+          <div class="trouble-grid">
+            <article class="trouble-item">
+              <h3>Ollama does not answer on 11434</h3>
+              <p>Open the Ollama app, then rerun the launcher check or <code>curl -s http://127.0.0.1:11434/api/tags</code>.</p>
+            </article>
+
+            <article class="trouble-item">
+              <h3><code>qwen3:4b</code> is missing</h3>
+              <p>If another installed model is intentional, choose it in the launcher provider card. Otherwise run <code>ollama pull qwen3:4b</code>.</p>
+            </article>
+
+            <article class="trouble-item">
+              <h3>Machine checks show warnings</h3>
+              <p>Click Show in the Machine ready card. Warnings do not always block startup, but they should be understood before claiming a clean demo.</p>
+            </article>
+
+            <article class="trouble-item">
+              <h3>CIFT is unsupported or degraded</h3>
+              <p>Confirm the sidecar is running, the GPU check passed, and the strict deployment env matches the certified artifact.</p>
+            </article>
+
+            <article class="trouble-item">
+              <h3>Hermes works but Aegis sees no traffic</h3>
+              <p>Hermes is probably pointed directly at Ollama. Change the base URL to <code>http://127.0.0.1:8000/v1</code>.</p>
+            </article>
+
+            <article class="trouble-item">
+              <h3>Hermes says Aegis advertised no models</h3>
+              <p>Restart the Aegis gateway, then check <code>http://127.0.0.1:8000/v1/models</code>. It should list the configured model, usually <code>qwen3:4b</code>.</p>
+            </article>
+
+            <article class="trouble-item">
+              <h3>Benign traffic is blocked</h3>
+              <p>Check the audit record first. If the block is from CIFT binding failure, fix the sidecar rather than loosening policy.</p>
+            </article>
+          </div>
+        </section>
+
+        <section id="next" class="section">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">08. Later setup pages</p>
+              <h2>Once the reference path works, other stacks are substitutions.</h2>
+            </div>
+            <p>
+              The next pages should keep the same contract: agent base URL points at Aegis,
+              provider credentials live in Aegis, CIFT support is claimed only after certification.
+            </p>
+          </div>
+
+          <div class="next-grid">
+            <article class="next-item">
+              <span class="badge blue">Provider swap</span>
+              <h3>LM Studio, llama.cpp, or vLLM</h3>
+              <p>Replace <code>AEGIS_OPENAI_BASE_URL</code> and <code>AEGIS_OPENAI_MODEL</code>, then rerun readiness and smoke checks.</p>
+            </article>
+
+            <article class="next-item">
+              <span class="badge blue">Agent swap</span>
+              <h3>Open WebUI or another local app</h3>
+              <p>Use the same OpenAI-compatible fields: base URL, API key, and model. The agent should never own the detector configuration.</p>
+            </article>
+
+            <article class="next-item">
+              <span class="badge green">Model certification</span>
+              <h3>Another hidden-state-capable model</h3>
+              <p>Run the CIFT calibration and certification workflow. Do not reuse Qwen3-4B activation artifacts for a different model.</p>
+            </article>
+
+            <article class="next-item">
+              <span class="badge amber">Black-box mode</span>
+              <h3>No hidden states available</h3>
+              <p>Keep DP-HONEY, provider egress guard, canary detectors, deterministic NIMBUS, policy, and audit. Mark CIFT unsupported.</p>
+            </article>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="shell footer">
+    <p>
+      Official references used by this guide:
+      <a href="https://ollama.com/download">Ollama download</a>,
+      <a href="https://ollama.com/library/qwen3:4b">Ollama qwen3:4b</a>, and
+      <a href="https://docs.ollama.com/api/openai-compatibility">Ollama OpenAI compatibility</a>.
+      Aegis CIFT support remains model-specific: Qwen3-4B is the certified reference path here, while other models need their own calibration, sealed holdout, live runtime, and gateway smoke evidence.
+    </p>
+  </footer>
+
+  <script>
+    const copyButtons = document.querySelectorAll("[data-copy-target]");
+
+    copyButtons.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const targetId = button.getAttribute("data-copy-target");
+        const target = targetId ? document.getElementById(targetId) : null;
+        if (!target) return;
+
+        const text = target.textContent || "";
+        try {
+          await navigator.clipboard.writeText(text);
+          button.textContent = "Copied";
+        } catch {
+          const range = document.createRange();
+          range.selectNodeContents(target);
+          const selection = window.getSelection();
+          if (selection) {
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+          button.textContent = "Selected";
+        }
+
+        window.setTimeout(() => {
+          button.textContent = "Copy";
+        }, 1300);
+      });
+    });
+  </script>
+</body>
+</html>

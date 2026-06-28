@@ -1,0 +1,27 @@
+{
+  "candidate_status": "runtime_candidate",
+  "certification_binding": {
+    "certification_artifact_root": ".",
+    "certification_manifest_path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_certification_workflow_v1.json",
+    "certification_manifest_sha256": "9bd48584b8a120e08847c87349d0540c47282187e7cad5cc9e0568437467f1fb",
+    "certification_report_path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_certification_workflow_run_v1.json",
+    "certification_report_sha256": "5af0c3a611617464b2b38d216a98079e20d2d967edd53492358b1bb708c699c1",
+    "requested": true
+  },
+  "diagnostic_eligible": false,
+  "eligible": true,
+  "evidence_mode": "certification_bound",
+  "expected_runtime_contract": {
+    "detector_name": "cift_runtime",
+    "extractor_id": "trusted-activation-sidecar",
+    "feature_source": "self_hosted_activation_extractor",
+    "selected_choice_readout_token_count": 4
+  },
+  "failed_requirements": [],
+  "model_bundle_id": "cift_qwen3_4b_watchman_v14_freeform_final_token_l12_linear_v1",
+  "production_release_eligible": true,
+  "required_runtime_prevention_device": "mps",
+  "runtime_model_path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/models/cift_qwen3_4b_watchman_v14_freeform_final_token_l12_promoted_runtime_v1.json",
+  "runtime_model_sha256": "9a9bff28f4dc43a58b9ed21b7de053e3a70fd412e753916fe1cda64d439ea9ed",
+  "schema_version": "aegis_introspection.cift_release_gate/v1"
+}

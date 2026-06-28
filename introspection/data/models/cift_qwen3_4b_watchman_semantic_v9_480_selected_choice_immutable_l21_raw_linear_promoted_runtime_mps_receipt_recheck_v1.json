@@ -2621,7 +2621,7 @@
         "head_to_head_report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_vs_paper_mlp_live_sealed_v1",
         "layer_weighting": "not_applicable",
         "monitored_layer_policy": "last_quarter_transformer_layers",
-        "paper_faithfulness_exception": "raw_activation live sealed head-to-head evidence shows the candidate probe strictly outperforms the paper MLP",
+        "paper_faithfulness_exception": "raw_activation live sealed head-to-head evidence for readout 'raw_activation' shows the candidate probe strictly outperforms the paper MLP",
         "paper_probe_metric_value": 0.9014326347109172,
         "pre_output": true,
         "probe_architecture": "linear_logistic_regression",
@@ -2636,7 +2636,7 @@
           "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_sealed_holdout_metric_v1.json",
           "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_sealed_holdout_metric_v1",
           "schema_version": "aegis_introspection.cift_sealed_holdout_metric/v1",
-          "sha256": "498df2d83bd11ea870058ebdc4b42453063bd257e34501d1ed0c708aa0320bcc"
+          "sha256": "a98bfdb4062b9aa17f07ebea2206d7740314c774877819f8e9ecea4e1d37e6de"
         },
         {
           "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_calibration_v1.json",
@@ -2666,7 +2666,7 @@
           "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_v1.json",
           "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_v1",
           "schema_version": "aegis_introspection.cift_live_window_selector_benchmark/v1",
-          "sha256": "2bb13e21e8f0a813cb7481904d91c428cf8931994437d5b7ec260eb0389cd715"
+          "sha256": "aaaaf6b27958a377b9afd616c75037b97d3956838dbb6fdf4f9b917286812170"
         },
         {
           "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_mps_receipt_recheck_v1.json",
@@ -2684,7 +2684,7 @@
           "path": "introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_vs_paper_mlp_live_sealed_v1.json",
           "report_id": "qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_vs_paper_mlp_live_sealed_v1",
           "schema_version": "aegis_introspection.cift_live_probe_competition/v1",
-          "sha256": "9c9345272c376dc55b2d196d5c2c1b64f5873b02cf80aff7c0c6b2f979aab5b4"
+          "sha256": "1d32a26f93f5e538d34c0986e07ffefbaf1d242e363aa6d90286dac68decb235"
         }
       ],
       "reports": {

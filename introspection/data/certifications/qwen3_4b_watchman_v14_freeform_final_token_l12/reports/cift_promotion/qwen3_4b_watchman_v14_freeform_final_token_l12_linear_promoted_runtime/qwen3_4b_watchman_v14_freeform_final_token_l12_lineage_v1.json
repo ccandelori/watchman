@@ -1,0 +1,136 @@
+{
+  "artifacts": [
+    {
+      "path": "introspection/data/trace_records_watchman_v14_freeform_5550_normalized.jsonl",
+      "role": "artifact_1",
+      "sha256": "0ced732cfebc527bca33af04d61f6f41b0c54eb05c74707d174b1b198107ca1c"
+    },
+    {
+      "path": "introspection/data/trace_records_watchman_v14_freeform_4428_calibration.jsonl",
+      "role": "artifact_2",
+      "sha256": "fcf425a9d5d79bd2bbe22e0f6a529827f3a9d7f7c55f6aacc7e11527aa0e0527"
+    },
+    {
+      "path": "introspection/data/trace_records_watchman_v14_freeform_1122_sealed_holdout.jsonl",
+      "role": "artifact_3",
+      "sha256": "ace5e31e87a409afaafa12a38f842e423cd740475500fa50df7123272f37ee94"
+    },
+    {
+      "path": "introspection/data/structured_prompts_watchman_v14_freeform_4428_calibration_qwen3_4b.jsonl",
+      "role": "artifact_4",
+      "sha256": "1fc6c482c7bfa725164f5e40bddf57eb6d647ad718b955f419ffc25e29ee1444"
+    },
+    {
+      "path": "introspection/data/structured_prompts_watchman_v14_freeform_1122_sealed_holdout_qwen3_4b.jsonl",
+      "role": "artifact_5",
+      "sha256": "91f43c3a4c752213dea3469c2a8ad6a0057cafa6451138e3b881f2bb60232a5c"
+    },
+    {
+      "path": "introspection/data/runtime_turns_watchman_v14_freeform_1122_sealed_holdout_qwen3_4b.jsonl",
+      "role": "artifact_6",
+      "sha256": "f09af980920f4a22ddd75fe4fa3ff9d08b7f8bbae7af2319e507a0abcc419cec"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/activations/qwen3_4b_watchman_v14_freeform_final_token_l12_windows_l12.pt",
+      "role": "artifact_7",
+      "sha256": "b3d48ffd67fac60e0b0e9bcb07bcc4226f9a7ada454e8119e833416661516cce"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/models/cift_qwen3_4b_watchman_v14_freeform_final_token_l12_promoted_runtime_v1.json",
+      "role": "artifact_8",
+      "sha256": "a3154b218ebdd17573584454b5b6aeeeef303a2ad15f0eb5b625d5e762bbfe19"
+    }
+  ],
+  "candidate": {
+    "candidate_status": "runtime_candidate",
+    "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+    "feature_key": "final_token_layer_12",
+    "positive_label": "exfiltration_intent",
+    "source_artifact_path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/activations/qwen3_4b_watchman_v14_freeform_final_token_l12_windows_l12.pt",
+    "source_artifact_sha256": "b3d48ffd67fac60e0b0e9bcb07bcc4226f9a7ada454e8119e833416661516cce",
+    "source_hidden_size": 2560,
+    "source_layer_count": 36,
+    "source_model_id": "Qwen/Qwen3-4B",
+    "source_revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+    "source_selected_device": "mps",
+    "special_tokens_map_sha256": "edcb2fc2acbbe77f858a9c4fe51295ffdb84711efba5703ec5906b3d67282569",
+    "task_name": "non_exfiltration_vs_exfiltration",
+    "tokenizer_fingerprint_sha256": "41e00eccf531cffc2e562d38bdd879d41e5044ea279af5b73c6a32aabcc8fe04",
+    "training_dataset_id": "watchman-v14-freeform-qwen3-4b"
+  },
+  "created_at": "2026-06-27T00:00:00Z",
+  "model_bundle": {
+    "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/models/cift_qwen3_4b_watchman_v14_freeform_final_token_l12_linear_candidate_v1.pkl",
+    "role": "model_bundle",
+    "sha256": "4d4d05a5586b3903422e23a9d1249e783fb0503595c50ced2acac0f6a31cf075"
+  },
+  "report_id": "qwen3_4b_watchman_v14_freeform_final_token_l12_lineage_v1",
+  "reports": [
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_model_metadata_v1.json",
+      "role": "report_1",
+      "sha256": "77a5b0dbb3854fc47a393bd03f8777d08527b5bdce16874870709cc52ea4f920"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_linear_vs_paper_mlp_v1.json",
+      "role": "report_2",
+      "sha256": "648a2c83931467261c1b14e8977df44c4d41af441b72541b0fa7041077da13ae"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_calibration_v1.json",
+      "role": "report_3",
+      "sha256": "3c713174190b2985d4fef402f9baaa5dfda54cf75a43fe2d64ae3dd4b4213f66"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_feature_ablation_v1.json",
+      "role": "report_4",
+      "sha256": "c7099a74fa83a28de623466f3470d3d7c24b766851eec2c131ccf70a3bb94428"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_causal_patching_v1.json",
+      "role": "report_5",
+      "sha256": "779ef2c95fee317e3fa5dbefb76e67f1bb635757493e3476f49537f686148fdd"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_failure_cases_v1.json",
+      "role": "report_6",
+      "sha256": "438756d39e8bd6a9cb1174f020f60ed4ee716fc054b0163c550abce6c61eed1f"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_linear_runtime_prevention_v1.json",
+      "role": "report_7",
+      "sha256": "ad19e968ef78efcf670bf1583a22be3568d32e6f82c82f46afb2de7232f1e3fd"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_linear_sealed_holdout_metric_v1.json",
+      "role": "report_8",
+      "sha256": "055a44f2349cdc33d0955cf70d2a47092a4e7faa56f3ed572708de582f9b5651"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_paper_mlp_runtime_prevention_v1.json",
+      "role": "report_9",
+      "sha256": "d74ec5468d8208e9bf1a0dbf71fb57532f50bc560568447873419cf51eb32e57"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_paper_mlp_sealed_holdout_metric_v1.json",
+      "role": "report_10",
+      "sha256": "86831ae0637c12c1b34e24241e00957e0b3461ae0a9873a1f034973131df3f4e"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_linear_vs_paper_mlp_live_sealed_v1.json",
+      "role": "report_11",
+      "sha256": "9b7ca1913f7eef2edabbeb9281b0e8e3a5b49d4f2932fae3003cd706558dcfb0"
+    }
+  ],
+  "reproduction_commands": [
+    "uv run python introspection/scripts/generate_freeform_runtime_supplement.py --records-per-family-label 25 --sealed-every 5",
+    "uv run python introspection/scripts/extract_activations.py --model-id Qwen/Qwen3-4B --revision 1cfa9a7208912126459214e8b04321603b3df60c --device mps --layers 12 --pooling final_token",
+    "uv run python introspection/scripts/benchmark_live_cift_window_selector.py --device mps --allow-sealed-holdout"
+  ],
+  "schema_version": "aegis_introspection.cift_lineage/v1",
+  "source_artifact": {
+    "path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/activations/qwen3_4b_watchman_v14_freeform_final_token_l12_windows_l12.pt",
+    "role": "source_activation_artifact",
+    "sha256": "b3d48ffd67fac60e0b0e9bcb07bcc4226f9a7ada454e8119e833416661516cce"
+  }
+}

@@ -1,0 +1,44 @@
+{
+  "certification_binding": {
+    "certification_artifact_root": ".",
+    "certification_manifest_path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_certification_workflow_v1.json",
+    "certification_manifest_sha256": "9bd48584b8a120e08847c87349d0540c47282187e7cad5cc9e0568437467f1fb",
+    "certification_report_path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_certification_workflow_run_v1.json",
+    "certification_report_sha256": "5af0c3a611617464b2b38d216a98079e20d2d967edd53492358b1bb708c699c1",
+    "release_gate_report_path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_release_gate_v1.json",
+    "release_gate_report_sha256": "9bca27cd68010c39aa5711b1e63d3e411d5a46ac91e678f359017da30bf22412"
+  },
+  "certification_id": "qwen3_4b_watchman_v14_freeform_final_token_l12",
+  "model_identity": {
+    "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+    "hidden_size": 2560,
+    "layer_count": 36,
+    "model_id": "Qwen/Qwen3-4B",
+    "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+    "special_tokens_map_sha256": "edcb2fc2acbbe77f858a9c4fe51295ffdb84711efba5703ec5906b3d67282569",
+    "tokenizer_fingerprint_sha256": "41e00eccf531cffc2e562d38bdd879d41e5044ea279af5b73c6a32aabcc8fe04"
+  },
+  "release_gate": {
+    "eligible": true,
+    "evidence_mode": "certification_bound",
+    "failed_requirements": [],
+    "production_release_eligible": true
+  },
+  "runtime_binding": {
+    "candidate_status": "runtime_candidate",
+    "dtype_name": "device",
+    "expected_runtime_model_sha256": "9a9bff28f4dc43a58b9ed21b7de053e3a70fd412e753916fe1cda64d439ea9ed",
+    "feature_key": "final_token_layer_12",
+    "model_bundle_id": "cift_qwen3_4b_watchman_v14_freeform_final_token_l12_linear_v1",
+    "pooling_method": "final_token",
+    "runtime_model_path": "introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/models/cift_qwen3_4b_watchman_v14_freeform_final_token_l12_promoted_runtime_v1.json",
+    "runtime_model_sha256": "9a9bff28f4dc43a58b9ed21b7de053e3a70fd412e753916fe1cda64d439ea9ed",
+    "selected_choice_readout_token_count": 4,
+    "source_selected_device": "mps"
+  },
+  "schema_version": "aegis_introspection.cift_local_model_certification_verification/v1",
+  "status": "certified",
+  "support_claim_status": "model_specific_certified_reference_only",
+  "support_state": "runtime-enforceable",
+  "unsupported_model_policy": "Other local models are unsupported until they pass their own calibration, sealed holdout, live runtime, gateway smoke, and hardened release-gate certification."
+}

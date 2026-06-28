@@ -260,7 +260,7 @@ class CertifyCiftLocalModelCliTest(unittest.TestCase):
                         revision=_IMMUTABLE_MODEL_REVISION,
                         corpus_path=corpus_path,
                         runtime_turns_path=runtime_turns_path,
-                        fallback_runtime_model_path=fallback_runtime_path,
+                        selected_choice_runtime_model_path=fallback_runtime_path,
                         output_dir=output_dir,
                         workflow_manifest_path=workflow_manifest_path,
                         run_report_path=run_report_path,

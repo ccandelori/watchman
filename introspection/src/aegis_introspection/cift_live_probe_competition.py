@@ -12,6 +12,14 @@ from aegis_introspection.cift_promotion_gate import CiftPaperMethodContract
 _SCHEMA_VERSION = "aegis_introspection.cift_live_probe_competition/v1"
 _PAPER_PROBE_ARCHITECTURE = "mlp_128_64_1"
 _PAPER_TRAINING_LOSS = "bce_with_l1_softplus_weight_sparsity"
+_RAW_ACTIVATION_FEATURE_KEY_PREFIXES = (
+    "final_token_layer_",
+    "mean_pool_layer_",
+    "readout_window_layer_",
+    "query_tail_window_layer_",
+    "selected_choice_window_layer_",
+    "combined_readout_window_layer_",
+)
 
 JsonValue: TypeAlias = str | int | float | bool | None | list["JsonValue"] | dict[str, "JsonValue"]
 
@@ -206,9 +214,10 @@ def live_promotion_paper_method_from_probe_competition(
     report: CiftLiveProbeCompetitionReport,
 ) -> CiftPaperMethodContract:
     _validate_report(report)
+    feature_representation = promotion_feature_representation_family(report.feature_representation)
     if not report.candidate_strictly_outperforms_paper:
         return _paper_mlp_promotion_method_from_probe_competition(report)
-    if report.feature_representation == "raw_activation":
+    if feature_representation == "raw_activation":
         return CiftPaperMethodContract(
             readout_position_contract="post_secret_post_query_causal_readout",
             monitored_layer_policy="last_quarter_transformer_layers",
@@ -224,11 +233,11 @@ def live_promotion_paper_method_from_probe_competition(
             paper_probe_metric_value=report.paper_probe_metric_value,
             candidate_probe_metric_value=report.candidate_probe_metric_value,
             paper_faithfulness_exception=(
-                "raw_activation live sealed head-to-head evidence shows the candidate probe strictly "
-                "outperforms the paper MLP"
+                f"raw_activation live sealed head-to-head evidence for readout '{report.feature_representation}' "
+                "shows the candidate probe strictly outperforms the paper MLP"
             ),
         )
-    if report.feature_representation == "diagonal_mahalanobis_cci":
+    if feature_representation == "diagonal_mahalanobis_cci":
         return CiftPaperMethodContract(
             readout_position_contract="post_secret_post_query_causal_readout",
             monitored_layer_policy="last_quarter_transformer_layers",
@@ -251,7 +260,8 @@ def live_promotion_paper_method_from_probe_competition(
 def _paper_mlp_promotion_method_from_probe_competition(
     report: CiftLiveProbeCompetitionReport,
 ) -> CiftPaperMethodContract:
-    if report.feature_representation == "raw_activation":
+    feature_representation = promotion_feature_representation_family(report.feature_representation)
+    if feature_representation == "raw_activation":
         return CiftPaperMethodContract(
             readout_position_contract="post_secret_post_query_causal_readout",
             monitored_layer_policy="last_quarter_transformer_layers",
@@ -268,7 +278,7 @@ def _paper_mlp_promotion_method_from_probe_competition(
             candidate_probe_metric_value=report.candidate_probe_metric_value,
             paper_faithfulness_exception=None,
         )
-    if report.feature_representation == "diagonal_mahalanobis_cci":
+    if feature_representation == "diagonal_mahalanobis_cci":
         return CiftPaperMethodContract(
             readout_position_contract="post_secret_post_query_causal_readout",
             monitored_layer_policy="last_quarter_transformer_layers",
@@ -286,6 +296,34 @@ def _paper_mlp_promotion_method_from_probe_competition(
             paper_faithfulness_exception=None,
         )
     raise CiftLiveProbeCompetitionError(f"Unsupported feature_representation '{report.feature_representation}'.")
+
+
+def promotion_feature_representation_family(feature_representation: str) -> str:
+    if feature_representation in ("raw_activation", "diagonal_mahalanobis_cci"):
+        return feature_representation
+    if _is_raw_activation_feature_key(feature_representation):
+        return "raw_activation"
+    raise CiftLiveProbeCompetitionError(f"Unsupported feature_representation '{feature_representation}'.")
+
+
+def _is_raw_activation_feature_key(feature_representation: str) -> bool:
+    if feature_representation.startswith("concat("):
+        if not feature_representation.endswith(")"):
+            return False
+        source_feature_keys = tuple(
+            source_feature_key.strip() for source_feature_key in feature_representation[len("concat(") : -1].split(",")
+        )
+        return len(source_feature_keys) >= 2 and all(
+            _is_single_raw_activation_feature_key(source_feature_key) for source_feature_key in source_feature_keys
+        )
+    return _is_single_raw_activation_feature_key(feature_representation)
+
+
+def _is_single_raw_activation_feature_key(feature_key: str) -> bool:
+    if not feature_key.startswith(_RAW_ACTIVATION_FEATURE_KEY_PREFIXES):
+        return False
+    layer_text = feature_key.rsplit("_layer_", maxsplit=1)[1]
+    return layer_text.isdecimal()
 
 
 def materialize_cift_live_probe_competition(

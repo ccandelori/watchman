@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import urllib.error
 import urllib.request
-from collections.abc import Callable
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 from typing import cast
 
@@ -42,6 +42,7 @@ class OpenAICompatibleProvider:
             "model": model_id,
             "messages": [message.to_dict() for message in turn.messages],
         }
+        payload.update(_provider_request_options(turn.metadata))
         response = self._sender(
             _chat_completions_url(self._config.base_url),
             payload,
@@ -57,6 +58,16 @@ class OpenAICompatibleProvider:
                 "model_id": model_id,
             },
         )
+
+
+def _provider_request_options(metadata: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    value = metadata.get("provider_request")
+    if not isinstance(value, dict):
+        return {}
+    max_tokens = value.get("max_tokens")
+    if isinstance(max_tokens, bool) or not isinstance(max_tokens, int):
+        return {}
+    return {"max_tokens": max_tokens}
 
 
 def urllib_openai_sender(
@@ -82,6 +93,10 @@ def urllib_openai_sender(
         ) from exc
     except urllib.error.URLError as exc:
         raise OpenAICompatibleProviderError(f"OpenAI-compatible provider request failed: {exc.reason}") from exc
+    except TimeoutError as exc:
+        raise OpenAICompatibleProviderError(
+            f"OpenAI-compatible provider request timed out after {timeout_seconds:g} seconds."
+        ) from exc
     if status_code < 200 or status_code >= 300:
         raise OpenAICompatibleProviderError(
             f"OpenAI-compatible provider returned HTTP {status_code}: {_safe_body_excerpt(body)}"

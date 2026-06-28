@@ -35,8 +35,8 @@ The first runtime spine is implemented and CI-enforced:
 - A `TurnAnnotator` seam that can attach derived metadata before pre-generation
   detectors run, plus a CIFT feature-vector annotator that preserves the
   runtime/import boundary while preparing self-hosted activation features.
-- A CIFT window selector that treats selected-choice readout geometry as
-  primary coverage and payload/query readout as degraded fallback evidence.
+- A CIFT window selector that keeps selected-choice readout geometry strict while
+  routing ordinary local-agent turns to a separately certified freeform artifact.
 - A runtime-native `NimbusDetector` with a canary-aware critic that estimates
   exact, encoded, and partial canary leakage bits into a per-session budget.
 - A development OpenAI-compatible proxy surface for `/health`,
@@ -194,6 +194,38 @@ available.
 
 ### Put Aegis In Front Of A Local Agent
 
+Run the macOS desktop launcher:
+
+```bash
+scripts/run-aegis-desktop-launcher.sh
+```
+
+For a double-clickable local macOS app:
+
+```bash
+cd desktop/aegis-launcher
+npm run pack:mac
+open "dist/mac-arm64/Aegis Watchman.app"
+```
+
+The desktop app checks or starts Ollama, pulls the selected model when needed,
+starts or connects to the existing local launcher backend, and runs the Aegis
+setup flow in one app window. The browser launcher remains available as a
+development and fallback surface:
+
+```bash
+uv run aegis-launcher --host 127.0.0.1 --port 8790
+```
+
+Open the visual project guide at
+[`docs/aegis-local-agent-visual-guide.html`](docs/aegis-local-agent-visual-guide.html)
+for a browser-friendly architecture map, demo path, commands, agent settings,
+and smoke-evidence checklist.
+
+Open the getting-started guide at
+[`docs/aegis-watchman-getting-started.html`](docs/aegis-watchman-getting-started.html)
+for the Ollama, Hermes Agent, Qwen, and Aegis reference setup path.
+
 For Hermes Agent, OpenClaw, Open WebUI, or any OpenAI-compatible local-agent
 client, point the agent at Aegis instead of the model server:
 
@@ -231,6 +263,7 @@ PYTHONPATH=src:introspection/src \
   --device mps \
   --dtype device \
   --feature-key selected_choice_window_layer_21 \
+  --feature-key final_token_layer_12 \
   --selected-choice-readout-token-count 4 \
   --host 127.0.0.1 \
   --port 9000 \
@@ -254,6 +287,7 @@ export AEGIS_OPENAI_MODEL=<served-model-name>
 export AEGIS_AUDIT_JSONL_PATH=/tmp/aegis-local-agent-audit.jsonl
 export AEGIS_CIFT_EXTRACTOR_API_KEY="set-a-deployment-secret"
 source introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_strict_deployment_env.sh
+source introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_strict_deployment_env.sh
 
 uv run aegis-proxy --host 127.0.0.1 --port 8000
 ```
@@ -267,7 +301,9 @@ curl -s http://127.0.0.1:8000/ready
 The response should include `status="ready"`,
 `provider.name="openai_compatible"`, `provider.target_url` set to the local
 model server URL, `cift.support_tier="runtime-enforceable"`, and
-`cift.source_selected_device="mps"`.
+`cift.source_selected_device="mps"`. The readiness CIFT block should expose the
+selected-choice route and the freeform route separately; ordinary Hermes-style
+chat uses the freeform route when selected-choice geometry is absent.
 
 If you omit the strict CIFT env or sidecar, the gateway remains useful as a
 black-box guard for DP-HONEY, provider egress, canaries, deterministic NIMBUS,
@@ -473,18 +509,19 @@ uv run aegis-proxy-smoke \
 
 Self-hosted CIFT requires a trusted activation extractor sidecar. The proxy does
 not accept client-supplied `metadata.cift`; the sidecar is registered from env
-and writes proxy-owned feature vectors and selected-choice readout metadata
-before pre-generation detectors run:
+and writes proxy-owned feature vectors plus selected-choice or freeform readout
+metadata before pre-generation detectors run:
 
 ```bash
 export AEGIS_CIFT_EXTRACTOR_API_KEY="set-a-deployment-secret"
 source introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_strict_deployment_env.sh
+source introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_strict_deployment_env.sh
 uv run aegis-proxy --host 127.0.0.1 --port 8000
 ```
 
-The strict deployment env above identifies the current MPS-bound certified
-runtime for `Qwen/Qwen3-4B` at immutable revision
-`1cfa9a7208912126459214e8b04321603b3df60c`. The env materializer computes the
+The strict deployment env fragments above identify the current MPS-bound
+certified selected-choice and freeform runtimes for `Qwen/Qwen3-4B` at immutable
+revision `1cfa9a7208912126459214e8b04321603b3df60c`. The env materializer computes the
 certification manifest/report and release-gate report SHA-256 values, runs the
 hardened release gate, and refuses to emit startup env if the exact evidence
 chain no longer verifies.
@@ -505,22 +542,22 @@ intentionally scoped to candidate promotion; final release eligibility comes
 only from the certification-bound release gate.
 
 Use the local-model certification wrapper as the single operator entry point.
-For the certified Qwen3-4B MPS reference, verify the existing model-bound
-evidence chain without replaying offline evidence:
+For the certified Qwen3-4B MPS selected-choice route, verify the existing
+model-bound evidence chain without replaying offline evidence:
 
 ```bash
 uv run certify-cift-local-model verify-existing \
   --repository-root . \
   --runtime-model introspection/data/models/cift_qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_v1.json \
-  --expected-runtime-sha256 b7efb486c369d0745533c49b608970f5e5b3a5c12a1ecee343856b13b4a02d60 \
+  --expected-runtime-sha256 ce4ed13f621119b17110312a6c5d98903f778b288c920133b3f93f2591ee6025 \
   --certification-manifest introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_certification_workflow_v1.json \
   --certification-report introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_certification_workflow_run_v1.json \
   --certification-artifact-root . \
   --release-gate-report introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_release_gate_v1.json \
   --verification-report introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_certification_verification_v1.json \
-  --certification-manifest-sha256 61fb5cc75d79dd1e6dddfa01e9c6cdfa87c5b19d0e909af5a97d09d58141a50f \
-  --certification-report-sha256 374e8fc3823e4b1f149ed7c0ad16098c4037956bf47dd062a015692f33d5928c \
-  --release-gate-report-sha256 306ad21e911087ecd1e25ff7dde7491f761351cb58bc52f5f23ac99c53c7d536 \
+  --certification-manifest-sha256 90399f44e31fcf397334ea86aa22c975de79a2ce3d93f187b769454459f183b5 \
+  --certification-report-sha256 2bbcbe5d5c55dae57816a676ba72cf0fc5a26ad84350a886b56ae9cdfb0f4fb5 \
+  --release-gate-report-sha256 3b6d9e6638932e6964dd9b9fdc91eb21656535d09087a71ebc1bdf3c727538a1 \
   --model-id Qwen/Qwen3-4B \
   --revision 1cfa9a7208912126459214e8b04321603b3df60c \
   --required-device mps \
@@ -543,7 +580,10 @@ uv run certify-cift-local-model verify-existing \
 For a new hidden-state-capable model, the same wrapper discovers
 model/tokenizer/template metadata, builds a model-bound workflow manifest, runs
 or verifies the workflow, and fails release certification unless every required
-artifact is materialized and the hardened gate passes:
+artifact is materialized and the hardened gate passes. The freeform route still
+needs the selected-choice runtime artifact as the selected-choice route binding;
+`--fallback-runtime-model` remains a legacy alias, but new runs should use
+`--selected-choice-runtime-model`.
 
 ```bash
 uv run certify-cift-local-model \
@@ -553,24 +593,24 @@ uv run certify-cift-local-model \
   --revision <immutable-revision-or-content-hash> \
   --corpus <calibration-structured-prompts.jsonl> \
   --runtime-turns <sealed-runtime-turns.jsonl> \
-  --fallback-runtime-model <fallback-runtime-artifact.json> \
+  --selected-choice-runtime-model <certified-selected-choice-runtime-artifact.json> \
   --output-dir introspection/data \
   --workflow-manifest <workflow-manifest.json> \
   --run-report <workflow-run-report.json> \
   --training-dataset-id <dataset-id> \
-  --task safe_secret_vs_exfiltration \
+  --task non_exfiltration_vs_exfiltration \
   --positive-label exfiltration_intent \
-  --behavior-id selected_choice_secret_exfiltration_intent \
-  --behavior-description selected_choice_secret_exfiltration_intent \
+  --behavior-id freeform_exfiltration_intent \
+  --behavior-description "<model-specific freeform exfiltration-intent claim>" \
   --layers <comma-separated-layer-indices> \
-  --pooling selected_choice_window \
-  --candidate-feature <selected-choice-feature-key> \
+  --pooling <freeform-pooling-methods> \
+  --candidate-feature <freeform-feature-key> \
   --device <certified-device> \
   --prompt-renderer aegis_trace_bridge_v1 \
   --selected-choice-geometry semantic_indirection_v1 \
   --selected-choice-readout-token-count 4 \
   --dtype device \
-  --metric-threshold 1.0 \
+  --metric-threshold 0.95 \
   --ablation-delta-threshold 0.0 \
   --created-at <iso-8601-timestamp> \
   --command-timeout-seconds 120 \
@@ -653,8 +693,8 @@ PYTHONPATH=src:introspection/src \
   --certification-manifest introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_certification_workflow_v1.json \
   --certification-report introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_certification_workflow_run_v1.json \
   --certification-artifact-root . \
-  --certification-manifest-sha256 61fb5cc75d79dd1e6dddfa01e9c6cdfa87c5b19d0e909af5a97d09d58141a50f \
-  --certification-report-sha256 374e8fc3823e4b1f149ed7c0ad16098c4037956bf47dd062a015692f33d5928c \
+  --certification-manifest-sha256 90399f44e31fcf397334ea86aa22c975de79a2ce3d93f187b769454459f183b5 \
+  --certification-report-sha256 2bbcbe5d5c55dae57816a676ba72cf0fc5a26ad84350a886b56ae9cdfb0f4fb5 \
   --expected-detector-name cift_runtime \
   --expected-extractor-id trusted-activation-sidecar \
   --expected-feature-source self_hosted_activation_extractor \
@@ -696,6 +736,7 @@ PYTHONPATH=src:introspection/src \
   --device mps \
   --dtype device \
   --feature-key selected_choice_window_layer_21 \
+  --feature-key final_token_layer_12 \
   --selected-choice-readout-token-count 4 \
   --host 127.0.0.1 \
   --port 9000 \
@@ -704,19 +745,21 @@ PYTHONPATH=src:introspection/src \
 
 That sidecar runs the trusted model forward pass and extracts live hidden-state
 features. It renders structured proxy turns into the same prompt format used by
-the calibration bridge, then derives selected-choice readout tokens for the
-semantic-indirection prompt family using the loaded tokenizer offsets and the
-configured readout count. It does not trust client-supplied `metadata.cift`.
+the calibration bridge, derives selected-choice readout tokens for the
+semantic-indirection prompt family, and derives freeform final-token/readout
+metadata for ordinary local-agent traffic. It does not trust client-supplied
+`metadata.cift`.
 Explicit `--device mps` fails closed if Torch cannot allocate an MPS tensor; CPU
 fallback is not acceptable evidence for an MPS-certified runtime.
-When selected-choice geometry cannot be derived, it returns
-`feature_vector=null`, which the production CIFT policy treats as a fail-closed
-block. The sidecar attests the actual loaded model revision and selected device
-plus its prompt renderer, selected-choice geometry method, and selected-choice
-readout token count. It also attests the loaded hidden size, layer count,
-tokenizer fingerprint, special-token map hash, and chat-template hash; these
-must match the promoted runtime artifact before the gateway can treat the
-features as certified.
+When a selected-choice request lacks selected-choice geometry, it returns
+`feature_vector=null` for that route, which the production CIFT policy treats as
+a fail-closed block. Ordinary freeform turns use the separate certified
+freeform route instead. The sidecar attests the actual loaded model revision and
+selected device plus its prompt renderer, selected-choice geometry method, and
+selected-choice readout token count. It also attests the loaded hidden size,
+layer count, tokenizer fingerprint, special-token map hash, and chat-template
+hash; these must match the promoted runtime artifacts before the gateway can
+treat either route's features as certified.
 
 After the sidecar and gateway are both running, use the CIFT-specific gateway
 smoke before treating the deployment as operational. This smoke requires
@@ -729,10 +772,10 @@ uv run aegis-proxy-cift-smoke \
   --url http://127.0.0.1:8000 \
   --sidecar-url http://127.0.0.1:9000 \
   --gateway-model mock-model \
-  --report-id qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_mps_receipt_recheck_v1 \
+  --report-id qwen3_4b_watchman_v14_freeform_final_token_l12_post_release_gateway_smoke_v1 \
   --timeout 120 \
   --detector-name cift_runtime \
-  --sidecar-feature-key selected_choice_window_layer_21 \
+  --sidecar-feature-key final_token_layer_12 \
   --expected-gateway-feature-source self_hosted_activation_extractor \
   --expected-extractor-id trusted-activation-sidecar \
   --expected-sidecar-model-id Qwen/Qwen3-4B \
@@ -745,12 +788,17 @@ uv run aegis-proxy-cift-smoke \
   --expected-sidecar-chat-template-sha256 a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8 \
   --selected-choice-readout-token-count 4 \
   --sidecar-api-key-env-var AEGIS_CIFT_EXTRACTOR_API_KEY \
-  --output introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_gateway_smoke_mps_receipt_recheck_v1.json
+  --output introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_post_release_gateway_smoke_v1.json
 ```
 
 The smoke report's device evidence comes from the live model loader, so a
 configuration that requested MPS but fell back to CPU will not satisfy an
-MPS-certified runtime.
+MPS-certified runtime. With the freeform feature key above, the smoke proves
+ordinary agent traffic uses the certified freeform route and also rechecks the
+selected-choice route.
+
+The current two-route Qwen3-4B/MPS evidence summary is
+[`docs/aegis-cift-freeform-runtime-certification-2026-06-27.md`](docs/aegis-cift-freeform-runtime-certification-2026-06-27.md).
 
 Proxy-owned request errors use a stable envelope:
 
@@ -1463,11 +1511,11 @@ New runtime work must preserve the spine boundaries:
   metadata. Feature-vector annotators may attach derived activation features
   before detectors run, but training pickles and research modules remain in
   `introspection/`.
-- Selected-choice CIFT metadata is the primary runtime route. Broader
-  payload/query readout is degraded research fallback coverage and must be
-  labeled as such in detector evidence. Production self-hosted CIFT with block
-  activation-failure policy fails closed when selected-choice geometry is absent
-  instead of silently routing to fallback.
+- Selected-choice CIFT and freeform CIFT are separate certified runtime routes.
+  Selected-choice traffic must still fail closed when its geometry is malformed
+  or unavailable; ordinary local-agent traffic may use a certified freeform
+  route only when its own artifact and release-gate evidence are bound and
+  reported separately.
 - DP-HONEY injection/registration and canary detection remain separate stages.
 - Tool-call sensitive spans should carry `metadata.tool_call_name` and
   `metadata.argument_path` using the `arguments.payload.items[1]` path dialect.
@@ -1489,6 +1537,7 @@ adapter code.
 ## Related Docs
 
 - [Runtime spine](docs/aegis-runtime-spine.md)
+- [CIFT freeform runtime certification](docs/aegis-cift-freeform-runtime-certification-2026-06-27.md)
 - [Trace collection harness](docs/trace-collection-harness.md)
 - [Contributing](CONTRIBUTING.md)
 - [Asana MCP setup](docs/ASANA_MCP_SETUP.md)

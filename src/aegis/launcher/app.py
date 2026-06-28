@@ -36,6 +36,10 @@ def create_app(service: LauncherService) -> FastAPI:
     def api_state() -> dict[str, JsonValue]:
         return service.state()
 
+    @app.get("/api/launcher/capabilities", response_model=None)
+    def api_launcher_capabilities() -> dict[str, JsonValue]:
+        return service.capabilities()
+
     @app.put("/api/profile", response_model=None)
     def api_update_profile(body: dict[str, Any]) -> dict[str, JsonValue]:
         return service.update_profile(body)

@@ -82,6 +82,7 @@ from aegis.proxy.config import (
 from aegis.proxy.nimbus_profile import NimbusCriticKind, nimbus_capabilities
 from aegis.proxy.runtime_factory import (
     ProxyCiftCapability,
+    ProxyCiftRouteRuntimeBinding,
     ProxyCiftRuntimeBinding,
     ProxyRuntimeFactory,
     cift_capability_from_config,
@@ -288,6 +289,7 @@ class MockProxyApp:
         runtime_factory: ProxyRuntimeFactory,
         provider_name: str,
         provider_target_url: str | None,
+        advertised_model_ids: tuple[str, ...],
         mock_controls_enabled: bool,
         nimbus_config: ProxyNimbusConfig,
         cift_readiness_probe: CiftReadinessProbe | None = None,
@@ -298,6 +300,7 @@ class MockProxyApp:
         self._runtime_factory = runtime_factory
         self._provider_name = provider_name
         self._provider_target_url = provider_target_url
+        self._advertised_model_ids = advertised_model_ids
         self._mock_controls_enabled = mock_controls_enabled
         self._nimbus_config = nimbus_config
         self._cift_readiness_probe = (
@@ -316,6 +319,8 @@ class MockProxyApp:
             return status_code, payload
         if method == "GET" and path == "/aegis/capabilities":
             return 200, self._capabilities()
+        if method == "GET" and path == "/v1/models":
+            return 200, self._handle_models()
         if method == "GET" and path == "/audit/recent":
             try:
                 return 200, self._handle_audit_recent(body)
@@ -391,6 +396,7 @@ class MockProxyApp:
             {"method": "GET", "path": "/health"},
             {"method": "GET", "path": "/ready"},
             {"method": "GET", "path": "/aegis/capabilities"},
+            {"method": "GET", "path": "/v1/models"},
             {"method": "POST", "path": "/v1/chat/completions"},
             {"method": "GET", "path": "/audit/recent"},
             {"method": "GET", "path": "/audit/explain"},
@@ -444,6 +450,20 @@ class MockProxyApp:
                 "explain_route": "/audit/explain",
             },
             "test_controls": test_controls,
+        }
+
+    def _handle_models(self) -> dict[str, JsonValue]:
+        return {
+            "object": "list",
+            "data": [
+                {
+                    "id": model_id,
+                    "object": "model",
+                    "created": 0,
+                    "owned_by": "aegis",
+                }
+                for model_id in self._advertised_model_ids
+            ],
         }
 
     def _readiness(self) -> dict[str, JsonValue]:
@@ -653,6 +673,7 @@ def _runtime_request_from_chat_body(
     messages = tuple(_message_from_raw(item) for item in raw_messages)
     tool_calls = _tool_calls_from_raw(body.get("tool_calls"))
     metadata = _metadata_from_raw(body.get("metadata"))
+    metadata = _metadata_with_provider_request_options(metadata=metadata, body=body)
     _validate_provider_metadata(metadata=metadata, mock_controls_enabled=mock_controls_enabled)
     trace_id = _metadata_string(metadata, "trace_id", f"trace-{uuid4().hex}")
     session_id = _metadata_string(metadata, "session_id", f"session-{uuid4().hex}")
@@ -769,6 +790,29 @@ def _metadata_from_raw(value: object) -> dict[str, JsonValue]:
     _validate_no_raw_credentials_in_metadata(metadata)
     _validate_no_reserved_metadata_keys(metadata)
     return metadata
+
+
+def _metadata_with_provider_request_options(
+    metadata: dict[str, JsonValue],
+    body: Mapping[str, JsonValue],
+) -> dict[str, JsonValue]:
+    max_tokens = _optional_body_positive_int(body=body, field_name="max_tokens")
+    if max_tokens is None:
+        return metadata
+    copied = dict(metadata)
+    copied["provider_request"] = {"max_tokens": max_tokens}
+    return copied
+
+
+def _optional_body_positive_int(body: Mapping[str, JsonValue], field_name: str) -> int | None:
+    value = body.get(field_name)
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ProxyRequestError(f"field '{field_name}' must be a positive integer when provided.")
+    if value < 1:
+        raise ProxyRequestError(f"field '{field_name}' must be a positive integer when provided.")
+    return value
 
 
 def _credential_slot_declarations(
@@ -1682,6 +1726,9 @@ def _dp_honey_stage(request: RuntimeRequest) -> dict[str, JsonValue]:
         credential_needed_count = credential_detection.get("credential_needed_count")
         if isinstance(credential_needed_count, int):
             stage["credential_needed_count"] = credential_needed_count
+        honeytoken_substituted_count = credential_detection.get("honeytoken_substituted_count")
+        if isinstance(honeytoken_substituted_count, int):
+            stage["honeytoken_substituted_count"] = honeytoken_substituted_count
         real_secret_present_count = credential_detection.get("real_secret_present_count")
         if isinstance(real_secret_present_count, int):
             stage["real_secret_present_count"] = real_secret_present_count
@@ -1826,7 +1873,7 @@ def _cift_calibration_support_scope(binding: ProxyCiftRuntimeBinding) -> str:
 
 
 def _cift_runtime_binding(binding: ProxyCiftRuntimeBinding) -> dict[str, JsonValue]:
-    return {
+    record: dict[str, JsonValue] = {
         "certification_mode": binding.certification_mode.value,
         "certification_id": binding.certification_id,
         "runtime_model_sha256": binding.runtime_model_sha256,
@@ -1844,10 +1891,13 @@ def _cift_runtime_binding(binding: ProxyCiftRuntimeBinding) -> dict[str, JsonVal
         "feature_count": binding.feature_count,
         "selected_choice_readout_token_count": binding.selected_choice_readout_token_count,
     }
+    if binding.freeform_route is not None:
+        record["freeform_route"] = _cift_route_runtime_binding(binding.freeform_route)
+    return record
 
 
 def _cift_readiness_binding_summary(binding: ProxyCiftRuntimeBinding) -> dict[str, JsonValue]:
-    return {
+    record: dict[str, JsonValue] = {
         "capability_mode": CapabilityMode.SELF_HOSTED_INTROSPECTION.value,
         "certification_mode": binding.certification_mode.value,
         "certification_id": binding.certification_id,
@@ -1860,6 +1910,28 @@ def _cift_readiness_binding_summary(binding: ProxyCiftRuntimeBinding) -> dict[st
         "feature_key": binding.feature_key,
         "feature_count": binding.feature_count,
         "selected_choice_readout_token_count": binding.selected_choice_readout_token_count,
+    }
+    if binding.freeform_route is not None:
+        record["freeform_route"] = _cift_route_runtime_binding(binding.freeform_route)
+    return record
+
+
+def _cift_route_runtime_binding(binding: ProxyCiftRouteRuntimeBinding) -> dict[str, JsonValue]:
+    return {
+        "certification_id": binding.certification_id,
+        "runtime_model_sha256": binding.runtime_model_sha256,
+        "release_gate_report_sha256": binding.release_gate_report_sha256,
+        "model_bundle_id": binding.model_bundle_id,
+        "source_model_id": binding.source_model_id,
+        "source_revision": binding.source_revision,
+        "source_selected_device": binding.source_selected_device,
+        "source_hidden_size": binding.source_hidden_size,
+        "source_layer_count": binding.source_layer_count,
+        "tokenizer_fingerprint_sha256": binding.tokenizer_fingerprint_sha256,
+        "special_tokens_map_sha256": binding.special_tokens_map_sha256,
+        "chat_template_sha256": binding.chat_template_sha256,
+        "feature_key": binding.feature_key,
+        "feature_count": binding.feature_count,
     }
 
 
@@ -1967,6 +2039,7 @@ def create_proxy(
         runtime_factory=runtime_factory,
         provider_name=provider_config.provider_name,
         provider_target_url=provider_config.provider_target_url,
+        advertised_model_ids=provider_config.advertised_model_ids,
         mock_controls_enabled=provider_config.mock_controls_enabled,
         nimbus_config=nimbus_config,
         cift_readiness_probe=(
@@ -2030,7 +2103,10 @@ def create_default_proxy_with_cift_config_and_extractors(
 ) -> MockProxyApp:
     provider_config = provider_config_from_env()
     if cift_config.certification_mode == CiftCertificationMode.GATEWAY_SMOKE_BOOTSTRAP:
-        _validate_gateway_smoke_bootstrap_provider(provider_config)
+        _validate_gateway_smoke_bootstrap_provider(
+            cift_config=cift_config,
+            provider_config=provider_config,
+        )
     cift_capability = cift_capability_from_config(config=cift_config, extractors=cift_extractors)
     return create_proxy(
         provider_config=provider_config,
@@ -2184,9 +2260,15 @@ def _gateway_smoke_bootstrap_cift_expected_model_attestation(
     )
 
 
-def _validate_gateway_smoke_bootstrap_provider(provider_config: ProxyProviderConfig) -> None:
-    if provider_config.kind != ProviderKind.MOCK:
-        raise ProxyConfigError("gateway_smoke_bootstrap requires AEGIS_PROVIDER=mock.")
+def _validate_gateway_smoke_bootstrap_provider(
+    cift_config: ProxyCiftConfig,
+    provider_config: ProxyProviderConfig,
+) -> None:
+    if provider_config.kind != ProviderKind.MOCK and not cift_config.gateway_smoke_bootstrap_allow_real_provider:
+        raise ProxyConfigError(
+            "gateway_smoke_bootstrap requires AEGIS_PROVIDER=mock unless "
+            "AEGIS_CIFT_GATEWAY_SMOKE_BOOTSTRAP_ALLOW_REAL_PROVIDER=true."
+        )
 
 
 def _required_cift_extractor_id(cift_config: ProxyCiftConfig) -> str:

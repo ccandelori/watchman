@@ -30,7 +30,7 @@ class PlanCiftCertificationWorkflowCliConfig:
     revision: str
     corpus_path: Path
     runtime_turns_path: Path
-    fallback_runtime_model_path: Path
+    selected_choice_runtime_model_path: Path
     output_dir: Path
     output_json_path: Path
     training_dataset_id: str
@@ -60,7 +60,9 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--revision", required=True)
     parser.add_argument("--corpus", required=True)
     parser.add_argument("--runtime-turns", required=True)
-    parser.add_argument("--fallback-runtime-model", required=True)
+    runtime_group = parser.add_mutually_exclusive_group(required=True)
+    runtime_group.add_argument("--selected-choice-runtime-model", dest="selected_choice_runtime_model")
+    runtime_group.add_argument("--fallback-runtime-model", dest="selected_choice_runtime_model")
     parser.add_argument("--output-dir", required=False, default=str(INTROSPECTION_ROOT / "data"))
     parser.add_argument("--output-json", required=True)
     parser.add_argument("--training-dataset-id", required=True)
@@ -92,7 +94,7 @@ def _parse_args(argv: Sequence[str]) -> PlanCiftCertificationWorkflowCliConfig:
         revision=str(namespace.revision),
         corpus_path=Path(str(namespace.corpus)),
         runtime_turns_path=Path(str(namespace.runtime_turns)),
-        fallback_runtime_model_path=Path(str(namespace.fallback_runtime_model)),
+        selected_choice_runtime_model_path=Path(str(namespace.selected_choice_runtime_model)),
         output_dir=Path(str(namespace.output_dir)),
         output_json_path=Path(str(namespace.output_json)),
         training_dataset_id=str(namespace.training_dataset_id),
@@ -149,7 +151,7 @@ def _workflow_config(config: PlanCiftCertificationWorkflowCliConfig) -> CiftCert
         revision=config.revision,
         corpus_path=config.corpus_path,
         runtime_turns_path=config.runtime_turns_path,
-        fallback_runtime_model_path=config.fallback_runtime_model_path,
+        selected_choice_runtime_model_path=config.selected_choice_runtime_model_path,
         output_dir=config.output_dir,
         training_dataset_id=config.training_dataset_id,
         task_name=config.task_name,

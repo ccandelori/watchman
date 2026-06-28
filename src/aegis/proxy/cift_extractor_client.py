@@ -376,6 +376,16 @@ def _response_provenance(
                 "input_device_observed": extraction_receipt["input_device_observed"],
             }
         )
+        for field_name in (
+            "readout_token_indices",
+            "readout_token_indices_sha256",
+            "query_tail_readout_token_indices",
+            "query_tail_readout_token_indices_sha256",
+            "readout_window_source",
+            "readout_source",
+        ):
+            if field_name in extraction_receipt:
+                provenance[field_name] = extraction_receipt[field_name]
     return provenance
 
 

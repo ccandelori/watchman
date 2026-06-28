@@ -7,6 +7,7 @@ from aegis.providers.openai_compatible import (
     OpenAICompatibleProvider,
     OpenAICompatibleProviderConfig,
     OpenAICompatibleProviderError,
+    urllib_openai_sender,
 )
 
 
@@ -93,6 +94,38 @@ def test_openai_compatible_provider_uses_configured_model_override() -> None:
     assert response.metadata["model_id"] == "configured-model"
 
 
+def test_openai_compatible_provider_forwards_max_tokens_from_turn_metadata() -> None:
+    calls: list[CapturedProviderCall] = []
+
+    def sender(
+        url: str,
+        payload: dict[str, JsonValue],
+        headers: dict[str, str],
+        timeout_seconds: float,
+    ) -> dict[str, JsonValue]:
+        calls.append(CapturedProviderCall(url=url, payload=payload, headers=headers, timeout_seconds=timeout_seconds))
+        return {"choices": [{"message": {"content": "ok"}}]}
+
+    provider = OpenAICompatibleProvider(
+        config=OpenAICompatibleProviderConfig(
+            base_url="https://provider.example",
+            api_key="test-key",
+            default_model=None,
+            timeout_seconds=5.0,
+        ),
+        sender=sender,
+    )
+
+    provider.generate(
+        _turn_with_metadata(
+            model_id="runtime-model",
+            metadata={"provider_request": {"max_tokens": 32}},
+        )
+    )
+
+    assert calls[0].payload["max_tokens"] == 32
+
+
 def test_openai_compatible_provider_extracts_text_content_parts() -> None:
     def sender(
         url: str,
@@ -153,7 +186,26 @@ def test_openai_compatible_provider_rejects_invalid_response_shape() -> None:
         provider.generate(_turn(model_id="runtime-model"))
 
 
+def test_urllib_openai_sender_wraps_provider_timeout(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_urlopen(request: object, timeout: float) -> object:
+        raise TimeoutError("timed out")
+
+    monkeypatch.setattr("aegis.providers.openai_compatible.urllib.request.urlopen", fake_urlopen)
+
+    with pytest.raises(OpenAICompatibleProviderError, match=r"timed out after 12\.5 seconds"):
+        urllib_openai_sender(
+            "https://provider.example/v1/chat/completions",
+            {"model": "runtime-model", "messages": []},
+            {"Authorization": "Bearer test-key", "Content-Type": "application/json"},
+            12.5,
+        )
+
+
 def _turn(model_id: str) -> NormalizedTurn:
+    return _turn_with_metadata(model_id=model_id, metadata={})
+
+
+def _turn_with_metadata(model_id: str, metadata: dict[str, JsonValue]) -> NormalizedTurn:
     return NormalizedTurn(
         trace_id="trace-provider-test",
         session_id="session-provider-test",
@@ -163,7 +215,7 @@ def _turn(model_id: str) -> NormalizedTurn:
         messages=(Message(role="user", content="hello"),),
         tool_calls=(),
         sensitive_spans=(),
-        metadata={},
+        metadata=metadata,
     )
 
 

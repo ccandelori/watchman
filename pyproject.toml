@@ -12,6 +12,12 @@ proxy = [
   "fastapi>=0.111",
   "uvicorn>=0.30",
 ]
+cift = [
+  "safetensors>=0.4",
+  "scikit-learn>=1.5",
+  "torch>=2.5",
+  "transformers>=4.51",
+]
 dp-honey-ui = [
   "fastapi>=0.111",
   "httpx>=0.27",
@@ -30,6 +36,7 @@ dev = [
 [project.scripts]
 aegis-audit-explain = "aegis.audit.explain_cli:main"
 aegis-console = "aegis.console.__main__:main"
+aegis-launcher = "aegis.launcher.__main__:main"
 aegis-proxy = "aegis.proxy.server:main"
 aegis-proxy-cift-smoke = "aegis.proxy.cift_smoke:main"
 aegis-loopback-openai-provider = "aegis.providers.loopback_openai:main"
@@ -51,6 +58,7 @@ aegis-trace-seed-inputs = "aegis.trace_collection.main:seed_input_main"
 aegis-trace-validate-pairs = "aegis.trace_collection.main:pair_validation_main"
 aegis-trace-pair-work-items = "aegis.trace_collection.main:pair_work_item_main"
 aegis-trace-build-pair-inputs = "aegis.trace_collection.main:pair_input_builder_main"
+aegis-watchman-demo = "aegis.demo.watchman_demo:main"
 certify-cift-local-model = "aegis_introspection.cli.certify_cift_local_model:main"
 discover-cift-model-metadata = "aegis_introspection.cli.discover_cift_model_metadata:main"
 dp-honey = "detect.dp_honey.__main__:main"
@@ -65,6 +73,7 @@ where = ["src", "introspection/src"]
 
 [tool.setuptools.package-data]
 "aegis.console" = ["static/*"]
+"aegis.launcher" = ["static/*"]
 "detect.dp_honey.webui" = ["static/*"]
 
 [tool.pytest.ini_options]

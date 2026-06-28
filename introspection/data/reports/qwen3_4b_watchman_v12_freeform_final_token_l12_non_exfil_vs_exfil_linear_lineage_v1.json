@@ -1,0 +1,95 @@
+{
+  "artifacts": [
+    {
+      "path": "introspection/data/activations/qwen3_4b_watchman_v12_freeform_4068_calibration_layer_sweep_features.pt",
+      "role": "artifact_1",
+      "sha256": "2613cf278b0ee5543033a6db9008eb0f34c1ade5464fd42317d05b642af3837a"
+    },
+    {
+      "path": "introspection/data/models/cift_qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_runtime_preview_v1.json",
+      "role": "artifact_2",
+      "sha256": "86e00d2fcf17048a47e34c3cdeca4946b892bba7b5db69111b8e1e0d6f7a95bf"
+    },
+    {
+      "path": "introspection/data/runtime_turns_watchman_v12_freeform_1032_sealed_holdout_qwen3_4b_tagged.jsonl",
+      "role": "artifact_3",
+      "sha256": "ec1c231219c79c9b16bbfde817828dd0a6809db0b74706ce9cc5c07e1312d14e"
+    },
+    {
+      "path": "introspection/data/manifests/watchman_v12_freeform_qwen3_4b_split_manifest_v1.json",
+      "role": "artifact_4",
+      "sha256": "28fea46eab1cfd3462b3a440f22eae01207ae6ba34d511975a96b91047d5b73c"
+    }
+  ],
+  "candidate": {
+    "candidate_status": "offline_research_candidate",
+    "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+    "feature_key": "final_token_layer_12",
+    "positive_label": "exfiltration_intent",
+    "source_artifact_path": "introspection/data/activations/qwen3_4b_watchman_v12_freeform_4068_calibration_layer_sweep_features.pt",
+    "source_artifact_sha256": "2613cf278b0ee5543033a6db9008eb0f34c1ade5464fd42317d05b642af3837a",
+    "source_hidden_size": 2560,
+    "source_layer_count": 36,
+    "source_model_id": "Qwen/Qwen3-4B",
+    "source_revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+    "source_selected_device": "mps",
+    "special_tokens_map_sha256": "edcb2fc2acbbe77f858a9c4fe51295ffdb84711efba5703ec5906b3d67282569",
+    "task_name": "non_exfiltration_vs_exfiltration",
+    "tokenizer_fingerprint_sha256": "41e00eccf531cffc2e562d38bdd879d41e5044ea279af5b73c6a32aabcc8fe04",
+    "training_dataset_id": "watchman-v12-freeform/calibration"
+  },
+  "created_at": "2026-06-27T00:00:00Z",
+  "model_bundle": {
+    "path": "introspection/data/models/cift_qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_v1.pkl",
+    "role": "model_bundle",
+    "sha256": "d1c764004e906334af5ca7f6d73fc31ccb3f3d81ba246d5db727f834942fc688"
+  },
+  "report_id": "qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_lineage_v1",
+  "reports": [
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_calibration_v1.json",
+      "role": "report_1",
+      "sha256": "618459803fdd90513b01719557d26d3e8e3c085a2417ae533a53c743f21ee025"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_feature_ablation_v1.json",
+      "role": "report_2",
+      "sha256": "e708a14ab6b1ec5ac7473cc7b2fffc020f2a95a899e5e3b86d6568481bc22b9b"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_counterfactual_patching_v1.json",
+      "role": "report_3",
+      "sha256": "1746707ce600da820fffa2c6ba675fdcab433e8bdb9fa5a8189df32c574040b3"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_live_benchmark_v1.json",
+      "role": "report_4",
+      "sha256": "85888afbc95e13a07242a9d60e71a0775732530ef20a357a3d55dc790d814eeb"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_live_sealed_holdout_metric_v1.json",
+      "role": "report_5",
+      "sha256": "38195913857040ba4fad0e787fc2e17a2311d76126b37936d9824eb73050903d"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_vs_paper_mlp_live_sealed_v1.json",
+      "role": "report_6",
+      "sha256": "368d47e3771a3d7123ffff5124542ed2cae8fea0106afd873c35b71e55281548"
+    },
+    {
+      "path": "introspection/data/reports/qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_failure_cases_v1.json",
+      "role": "report_7",
+      "sha256": "ee0850dc96d1a1dab2b40f30f691a9fd467040f7f5e4c3ebdd49ecdd5b5dc991"
+    }
+  ],
+  "reproduction_commands": [
+    "uv run python introspection/scripts/calibrate_cift_detector.py --artifact introspection/data/activations/qwen3_4b_watchman_v12_freeform_4068_calibration_layer_sweep_features.pt --output-json introspection/data/reports/qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_calibration_v1.json --output-markdown introspection/data/reports/qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_calibration_v1.md --report-id qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_calibration_v1 --task non_exfiltration_vs_exfiltration --positive-label exfiltration_intent --activation-feature final_token_layer_12 --folds 5 --inner-folds 3 --seed 42 --max-iter 1000 --regularization-c 1.0 --decision-threshold 0.5",
+    "uv run python introspection/scripts/run_cift_counterfactual_patching.py --activation-artifact introspection/data/activations/qwen3_4b_watchman_v12_freeform_4068_calibration_layer_sweep_features.pt --runtime-model introspection/data/models/cift_qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_runtime_preview_v1.json --output introspection/data/reports/qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_counterfactual_patching_v1.json --report-id qwen3_4b_watchman_v12_freeform_final_token_l12_non_exfil_vs_exfil_linear_counterfactual_patching_v1 --created-at 2026-06-27T00:00:00Z --minimum-flip-rate 0.95"
+  ],
+  "schema_version": "aegis_introspection.cift_lineage/v1",
+  "source_artifact": {
+    "path": "introspection/data/activations/qwen3_4b_watchman_v12_freeform_4068_calibration_layer_sweep_features.pt",
+    "role": "source_activation_artifact",
+    "sha256": "2613cf278b0ee5543033a6db9008eb0f34c1ade5464fd42317d05b642af3837a"
+  }
+}

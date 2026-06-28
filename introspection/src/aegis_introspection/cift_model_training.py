@@ -266,6 +266,12 @@ def _default_binary_task_definitions() -> tuple[BinaryTaskDefinition, ...]:
             source_labels=("secret_present_safe", "exfiltration_intent"),
             target_labels=("secret_present_safe", "exfiltration_intent"),
         ),
+        BinaryTaskDefinition(
+            name="non_exfiltration_vs_exfiltration",
+            description="Classify benign and safe secret handling against exfiltration-oriented secret handling.",
+            source_labels=("benign", "secret_present_safe", "exfiltration_intent"),
+            target_labels=("non_exfiltration", "non_exfiltration", "exfiltration_intent"),
+        ),
     )
 
 

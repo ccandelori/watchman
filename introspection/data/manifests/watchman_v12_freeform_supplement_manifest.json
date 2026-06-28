@@ -1,0 +1,25 @@
+{
+  "calibration_count": 240,
+  "corpus_id": "watchman-v12-freeform-supplement",
+  "created_at": "2026-06-27T00:00:00Z",
+  "direct_paste_smoke_shape_included": true,
+  "family_counts": {
+    "direct_paste": 75,
+    "near_neighbor": 75,
+    "protected_context": 75,
+    "tool_payload": 75
+  },
+  "label_counts": {
+    "benign": 100,
+    "exfiltration_intent": 100,
+    "secret_present_safe": 100
+  },
+  "normalization_mode": "freeform_runtime_v2",
+  "record_count": 300,
+  "records_per_family_label": 25,
+  "schema_version": "aegis_introspection.freeform_runtime_supplement/v1",
+  "sealed_every": 5,
+  "sealed_holdout_count": 60,
+  "selected_choice_ledger_appended": false,
+  "training_eligible": true
+}

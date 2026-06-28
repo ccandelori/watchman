@@ -32,6 +32,8 @@ def test_console_overview_summarizes_protected_cift_state() -> None:
     )
     assert overview["nimbus"]["label"] == "deterministic beta"
     assert overview["last_request"]["final_action"] == "block"
+    assert overview["last_request"]["request"]["preview"] == "[REDACTED_SENSITIVE]"
+    assert overview["last_request"]["request"]["message_count"] == 1
 
 
 def test_console_overview_summarizes_learned_nimbus_runtime_beta() -> None:
@@ -174,6 +176,13 @@ def test_console_events_use_sample_audit_when_live_audit_is_empty(tmp_path: Path
     assert {stage["status"] for stage in timeline} <= {"passed", "blocked", "warned", "skipped", "unavailable"}
     assert timeline[3]["status"] == "blocked"
     assert events["events"][0]["latency_ms"] == 1.0
+    assert events["events"][0]["request"] == {
+        "preview": "[REDACTED_SENSITIVE]",
+        "preview_role": "user",
+        "message_count": 1,
+        "tool_call_count": 0,
+        "sensitive_span_count": 0,
+    }
     assert events["events"][0]["runtime_evidence"]["detector_latency_ms"] is None
     assert events["events"][0]["detector_results"][0]["latency_ms"] == 4.0
     latency = console_latency_summary(events)

@@ -1,0 +1,1754 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Aegis Watchman Project Guide</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --page: oklch(0.96 0.022 96);
+      --surface: oklch(0.985 0.012 96);
+      --surface-2: oklch(0.91 0.035 96);
+      --surface-3: oklch(0.84 0.045 96);
+      --ink: oklch(0.18 0.03 245);
+      --muted: oklch(0.35 0.026 245);
+      --faint: oklch(0.54 0.024 245);
+      --line: var(--ink);
+      --blue: oklch(0.49 0.18 246);
+      --blue-2: oklch(0.83 0.095 246);
+      --green: oklch(0.54 0.17 154);
+      --green-2: oklch(0.84 0.12 154);
+      --amber: oklch(0.76 0.15 92);
+      --amber-2: oklch(0.91 0.14 92);
+      --red: oklch(0.58 0.2 28);
+      --red-2: oklch(0.86 0.095 28);
+      --violet: oklch(0.5 0.17 300);
+      --violet-2: oklch(0.83 0.085 300);
+      --copper: oklch(0.55 0.13 48);
+      --copper-2: oklch(0.88 0.09 52);
+      --graphite: oklch(0.19 0.03 245);
+      --graphite-2: oklch(0.27 0.035 245);
+      --panel-ink: oklch(0.965 0.014 96);
+      --code-bg: oklch(0.19 0.03 245);
+      --code-ink: oklch(0.955 0.014 96);
+      --shadow: 8px 8px 0 var(--ink);
+      --shadow-small: 5px 5px 0 var(--ink);
+      --border: 3px solid var(--ink);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html {
+      scroll-behavior: smooth;
+    }
+
+    body {
+      margin: 0;
+      min-width: 320px;
+      background: var(--page);
+      color: var(--ink);
+      font-size: 16px;
+      line-height: 1.5;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration-thickness: 1px;
+      text-underline-offset: 3px;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    p,
+    h1,
+    h2,
+    h3 {
+      margin-top: 0;
+    }
+
+    h1 {
+      max-width: 850px;
+      margin-bottom: 16px;
+      font-size: 54px;
+      line-height: 0.98;
+      letter-spacing: 0;
+      font-weight: 920;
+    }
+
+    h2 {
+      margin-bottom: 10px;
+      font-size: 30px;
+      line-height: 1.05;
+      letter-spacing: 0;
+      font-weight: 900;
+    }
+
+    h3 {
+      margin-bottom: 8px;
+      font-size: 17px;
+      line-height: 1.25;
+      letter-spacing: 0;
+    }
+
+    code,
+    pre,
+    .mono {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+    }
+
+    code {
+      font-size: 0.94em;
+    }
+
+    .shell {
+      width: min(1480px, calc(100% - 24px));
+      margin: 0 auto;
+    }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      border-bottom: var(--border);
+      background: var(--amber-2);
+    }
+
+    .topbar-inner {
+      display: grid;
+      grid-template-columns: auto 1fr auto;
+      align-items: center;
+      gap: 20px;
+      min-height: 66px;
+    }
+
+    .brand {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      color: var(--ink);
+      font-weight: 900;
+      white-space: nowrap;
+    }
+
+    .brand-mark {
+      display: grid;
+      place-items: center;
+      width: 34px;
+      height: 32px;
+      border: var(--border);
+      border-radius: 0;
+      background: var(--green-2);
+      color: var(--ink);
+      font-size: 12px;
+      letter-spacing: 0;
+      box-shadow: 3px 3px 0 var(--ink);
+    }
+
+    .nav {
+      display: flex;
+      justify-content: center;
+      gap: 4px;
+      overflow-x: auto;
+    }
+
+    .nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 34px;
+      border: 2px solid transparent;
+      border-radius: 0;
+      padding: 0 10px;
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 760;
+      text-decoration: none;
+      white-space: nowrap;
+    }
+
+    .nav a:hover,
+    .nav a:focus-visible {
+      border-color: var(--ink);
+      background: var(--surface);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .topbar .badge {
+      white-space: nowrap;
+    }
+
+    .hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 390px;
+      gap: 34px;
+      align-items: start;
+      padding: 48px 0 30px;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      width: fit-content;
+      margin-bottom: 14px;
+      border: var(--border);
+      padding: 4px 8px;
+      background: var(--green-2);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .lead {
+      max-width: 74ch;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 22px;
+    }
+
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      border: var(--border);
+      border-radius: 0;
+      padding: 0 16px;
+      background: var(--surface);
+      color: var(--ink);
+      font-weight: 860;
+      text-decoration: none;
+      cursor: pointer;
+      box-shadow: 5px 5px 0 var(--ink);
+    }
+
+    .button.primary {
+      border-color: var(--graphite);
+      background: var(--graphite);
+      color: var(--panel-ink);
+    }
+
+    .button:hover,
+    .button:focus-visible {
+      transform: translate(2px, 2px);
+      box-shadow: 3px 3px 0 var(--ink);
+      outline: none;
+    }
+
+    .summary-panel {
+      border: var(--border);
+      border-radius: 0;
+      background: var(--surface);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .summary-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: var(--border);
+      padding: 13px 14px;
+      background: var(--blue-2);
+    }
+
+    .summary-head strong {
+      font-size: 14px;
+    }
+
+    .summary-row {
+      display: grid;
+      grid-template-columns: 118px 1fr;
+      gap: 12px;
+      border-bottom: 2px solid var(--ink);
+      padding: 10px 14px;
+      font-size: 14px;
+    }
+
+    .summary-row:last-child {
+      border-bottom: 0;
+    }
+
+    .summary-row span:first-child {
+      color: var(--muted);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      width: fit-content;
+      min-height: 24px;
+      border: 2px solid var(--ink);
+      border-radius: 0;
+      padding: 2px 9px;
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .badge.green {
+      background: var(--green-2);
+      color: var(--green);
+    }
+
+    .badge.blue {
+      background: var(--blue-2);
+      color: var(--blue);
+    }
+
+    .badge.amber {
+      background: var(--amber-2);
+      color: var(--amber);
+    }
+
+    .badge.red {
+      background: var(--red-2);
+      color: var(--red);
+    }
+
+    .badge.violet {
+      background: var(--violet-2);
+      color: var(--violet);
+    }
+
+    .layout {
+      display: grid;
+      grid-template-columns: 220px minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+      padding-bottom: 40px;
+    }
+
+    .rail {
+      position: sticky;
+      top: 84px;
+      display: grid;
+      gap: 12px;
+    }
+
+    .rail-panel {
+      border: var(--border);
+      border-radius: 0;
+      background: var(--surface);
+      padding: 14px;
+      box-shadow: var(--shadow-small);
+    }
+
+    .rail-panel h2 {
+      margin-bottom: 12px;
+      font-size: 15px;
+    }
+
+    .rail-links {
+      display: grid;
+      gap: 4px;
+    }
+
+    .rail-links a {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      min-height: 34px;
+      border: 2px solid transparent;
+      border-radius: 0;
+      padding: 0 8px;
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 740;
+      text-decoration: none;
+    }
+
+    .rail-links a:hover,
+    .rail-links a:focus-visible {
+      border-color: var(--ink);
+      background: var(--amber-2);
+      color: var(--ink);
+      outline: none;
+    }
+
+    .mini-stack {
+      display: grid;
+      gap: 10px;
+    }
+
+    .mini-item {
+      display: grid;
+      gap: 2px;
+      border-bottom: 2px solid var(--ink);
+      padding-bottom: 9px;
+      font-size: 13px;
+    }
+
+    .mini-item:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .mini-item span {
+      color: var(--muted);
+    }
+
+    .content {
+      display: grid;
+      gap: 24px;
+    }
+
+    .band {
+      padding: 30px 0;
+    }
+
+    .band + .band {
+      border-top: 3px solid color-mix(in oklch, var(--ink) 24%, transparent);
+    }
+
+    .band.tint {
+      padding-top: 0;
+    }
+
+    .section-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(250px, 420px);
+      gap: 18px;
+      align-items: end;
+      margin-bottom: 18px;
+    }
+
+    .section-head p {
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .project-ledger {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 330px;
+      gap: 18px;
+      align-items: start;
+    }
+
+    .capability-list {
+      display: grid;
+      gap: 0;
+      border: var(--border);
+      border-radius: 0;
+      background: var(--surface);
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+
+    .capability-row {
+      display: grid;
+      grid-template-columns: 155px minmax(0, 1fr) auto;
+      gap: 14px;
+      align-items: start;
+      border-bottom: 2px solid var(--ink);
+      padding: 14px;
+    }
+
+    .capability-row:last-child {
+      border-bottom: 0;
+    }
+
+    .capability-row p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .demo-card {
+      border: var(--border);
+      border-radius: 0;
+      background: var(--copper-2);
+      padding: 16px;
+      box-shadow: var(--shadow);
+    }
+
+    .demo-card h3 {
+      margin-bottom: 12px;
+    }
+
+    .demo-sequence {
+      display: grid;
+      gap: 10px;
+      counter-reset: demo;
+    }
+
+    .demo-sequence div {
+      position: relative;
+      display: grid;
+      gap: 2px;
+      min-height: 36px;
+      padding-left: 34px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .demo-sequence div::before {
+      counter-increment: demo;
+      content: counter(demo);
+      position: absolute;
+      left: 0;
+      top: 0;
+      display: grid;
+      place-items: center;
+      width: 24px;
+      height: 24px;
+      border: 2px solid var(--ink);
+      border-radius: 0;
+      background: var(--amber-2);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 800;
+    }
+
+    .architecture-map {
+      display: grid;
+      gap: 0;
+      border: var(--border);
+      border-radius: 0;
+      background: var(--surface);
+      color: var(--ink);
+      box-shadow: var(--shadow);
+    }
+
+    .map-titlebar {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 18px;
+      align-items: end;
+      border-bottom: var(--border);
+      padding: 18px 20px;
+      background: var(--amber-2);
+    }
+
+    .map-titlebar h3 {
+      margin-bottom: 4px;
+      color: var(--ink);
+    }
+
+    .map-titlebar p {
+      max-width: 74ch;
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .map-titlebar .mono {
+      border: 2px solid var(--ink);
+      padding: 5px 8px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 13px;
+      font-weight: 900;
+    }
+
+    .arch-poster {
+      position: relative;
+      display: grid;
+      grid-template-columns: minmax(150px, 0.68fr) minmax(430px, 1.9fr) minmax(170px, 0.84fr);
+      gap: 18px;
+      align-items: start;
+      padding: 22px 20px;
+    }
+
+    .arch-poster::before {
+      content: "";
+      position: absolute;
+      left: 140px;
+      right: 150px;
+      top: 102px;
+      height: 6px;
+      background: var(--ink);
+    }
+
+    .arch-poster > * {
+      position: relative;
+      z-index: 1;
+    }
+
+    .arch-actor,
+    .arch-gateway,
+    .arch-outcome {
+      border: var(--border);
+      border-radius: 0;
+      background: var(--surface);
+      box-shadow: var(--shadow-small);
+    }
+
+    .arch-actor {
+      display: grid;
+      gap: 10px;
+      min-height: 156px;
+      align-content: start;
+      padding: 14px;
+    }
+
+    .arch-actor.agent {
+      background: var(--blue-2);
+    }
+
+    .arch-outcomes {
+      display: grid;
+      gap: 12px;
+    }
+
+    .arch-outcome {
+      min-height: 116px;
+      padding: 14px;
+    }
+
+    .arch-outcome.allow {
+      background: var(--green-2);
+    }
+
+    .arch-outcome.block {
+      background: var(--red-2);
+    }
+
+    .arch-label {
+      display: inline-flex;
+      width: fit-content;
+      border: 2px solid var(--ink);
+      padding: 4px 8px;
+      background: var(--surface);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .arch-actor h3,
+    .arch-gateway h3,
+    .arch-outcome h3,
+    .legend-item h3 {
+      color: var(--ink);
+    }
+
+    .arch-actor p,
+    .arch-outcome p,
+    .legend-item p,
+    .map-proof p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .arch-gateway {
+      padding: 16px;
+      background: var(--surface);
+    }
+
+    .gateway-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: var(--border);
+      margin: -16px -16px 14px;
+      padding: 12px 14px;
+      background: var(--green-2);
+    }
+
+    .gateway-head .mono {
+      color: var(--ink);
+      font-size: 15px;
+      font-weight: 900;
+    }
+
+    .gateway-title {
+      margin-bottom: 0;
+      font-size: 24px;
+      line-height: 1.02;
+    }
+
+    .gate-strip {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .gate-tile {
+      display: grid;
+      gap: 7px;
+      min-height: 104px;
+      border: 2px solid var(--ink);
+      padding: 9px;
+      background: var(--surface-2);
+    }
+
+    .gate-tile strong {
+      display: grid;
+      place-items: center;
+      width: 32px;
+      height: 28px;
+      border: 2px solid var(--ink);
+      background: var(--amber-2);
+      font-size: 14px;
+      font-weight: 950;
+    }
+
+    .gate-tile span {
+      color: var(--ink);
+      font-size: 14px;
+      font-weight: 920;
+      line-height: 1.12;
+    }
+
+    .gate-tile em {
+      color: var(--muted);
+      font-size: 11px;
+      font-style: normal;
+      font-weight: 780;
+      text-transform: uppercase;
+    }
+
+    .arch-legend {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 0;
+      border-top: var(--border);
+    }
+
+    .legend-item {
+      min-height: 106px;
+      border-right: 1px solid var(--ink);
+      padding: 12px 14px;
+      background: var(--surface);
+    }
+
+    .legend-item:last-child {
+      border-right: 0;
+    }
+
+    .legend-item h3 {
+      margin-bottom: 4px;
+      font-size: 16px;
+    }
+
+    .legend-item .support-target {
+      margin-bottom: 8px;
+    }
+
+    .support-target {
+      display: inline-flex;
+      width: fit-content;
+      border: 2px solid var(--ink);
+      padding: 3px 7px;
+      background: var(--amber-2);
+      color: var(--ink);
+      font-size: 12px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .map-proof {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 0;
+      border-top: 3px solid var(--ink);
+      background: var(--surface);
+    }
+
+    .proof-cell {
+      min-height: 96px;
+      border-right: 1px solid var(--ink);
+      padding: 14px 18px;
+    }
+
+    .proof-cell:nth-child(1) {
+      background: var(--blue-2);
+    }
+
+    .proof-cell:nth-child(2) {
+      background: var(--red-2);
+    }
+
+    .proof-cell:nth-child(3) {
+      background: var(--violet-2);
+    }
+
+    .proof-cell:last-child {
+      border-right: 0;
+    }
+
+    .setup-grid {
+      display: grid;
+      gap: 16px;
+    }
+
+    .run-row {
+      display: grid;
+      grid-template-columns: 58px minmax(0, 1fr);
+      gap: 16px;
+      border-bottom: 3px solid color-mix(in oklch, var(--ink) 24%, transparent);
+      padding: 18px 0;
+    }
+
+    .run-row:first-child {
+      padding-top: 0;
+    }
+
+    .run-row:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .step-number {
+      display: grid;
+      place-items: center;
+      width: 42px;
+      height: 42px;
+      border: var(--border);
+      border-radius: 0;
+      background: var(--green-2);
+      color: var(--ink);
+      font-weight: 920;
+      box-shadow: 4px 4px 0 var(--ink);
+    }
+
+    .run-content {
+      display: grid;
+      gap: 10px;
+    }
+
+    .run-content p {
+      max-width: 75ch;
+      margin-bottom: 0;
+      color: var(--muted);
+    }
+
+    .provider-table,
+    .expectation-table {
+      width: 100%;
+      border-collapse: collapse;
+      border: var(--border);
+      border-radius: 0;
+      overflow: hidden;
+      background: var(--surface);
+      box-shadow: var(--shadow-small);
+    }
+
+    .provider-table th,
+    .provider-table td,
+    .expectation-table th,
+    .expectation-table td {
+      border-bottom: 1px solid var(--line);
+      padding: 10px 12px;
+      text-align: left;
+      vertical-align: top;
+      font-size: 14px;
+    }
+
+    .provider-table th,
+    .expectation-table th {
+      border-bottom: var(--border);
+      background: var(--amber-2);
+      color: var(--ink);
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .provider-table tr:last-child td,
+    .expectation-table tr:last-child td {
+      border-bottom: 0;
+    }
+
+    .command {
+      border: var(--border);
+      border-radius: 0;
+      background: var(--surface);
+      overflow: hidden;
+      box-shadow: var(--shadow-small);
+    }
+
+    .command-head {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      border-bottom: var(--border);
+      padding: 10px 12px;
+      background: var(--blue-2);
+    }
+
+    .command-head strong {
+      font-size: 14px;
+      font-weight: 900;
+      text-transform: uppercase;
+    }
+
+    .copy {
+      min-height: 30px;
+      border: 2px solid var(--ink);
+      border-radius: 0;
+      padding: 0 10px;
+      background: var(--amber-2);
+      color: var(--ink);
+      font-weight: 840;
+      cursor: pointer;
+    }
+
+    .copy:hover,
+    .copy:focus-visible {
+      background: var(--green-2);
+      outline: none;
+    }
+
+    pre {
+      margin: 0;
+      overflow-x: auto;
+      padding: 13px 14px;
+      background: var(--code-bg);
+      color: var(--code-ink);
+      font-size: 12px;
+      line-height: 1.55;
+      white-space: pre;
+    }
+
+    .agent-panel {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) minmax(290px, 410px);
+      gap: 16px;
+      align-items: start;
+    }
+
+    .settings-list {
+      display: grid;
+      gap: 0;
+      border: var(--border);
+      background: var(--surface);
+      box-shadow: var(--shadow-small);
+    }
+
+    .setting {
+      display: grid;
+      grid-template-columns: 120px minmax(0, 1fr);
+      gap: 12px;
+      border-bottom: 2px solid var(--ink);
+      padding: 12px;
+    }
+
+    .setting:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .setting span {
+      color: var(--muted);
+    }
+
+    .evidence-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 16px;
+    }
+
+    .evidence {
+      border: var(--border);
+      border-radius: 0;
+      background: var(--surface);
+      padding: 15px;
+      box-shadow: var(--shadow-small);
+    }
+
+    .evidence p {
+      margin-bottom: 0;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    .smoke-columns {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 16px;
+    }
+
+    .mode-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 14px;
+    }
+
+    .mode {
+      border: var(--border);
+      border-radius: 0;
+      background: var(--surface);
+      padding: 16px;
+      box-shadow: var(--shadow-small);
+    }
+
+    .mode.certified {
+      background: var(--green-2);
+    }
+
+    .mode.blackbox {
+      background: var(--amber-2);
+    }
+
+    .mode ul,
+    .rail-panel ul {
+      margin: 10px 0 0;
+      padding-left: 20px;
+    }
+
+    .mode li,
+    .rail-panel li {
+      margin-bottom: 7px;
+    }
+
+    .footer {
+      border-top: var(--border);
+      padding: 22px 0 34px;
+      color: var(--muted);
+      font-size: 14px;
+    }
+
+    @media (max-width: 1060px) {
+      .topbar-inner {
+        grid-template-columns: 1fr;
+        padding: 10px 0;
+      }
+
+      .nav {
+        justify-content: flex-start;
+      }
+
+      .hero,
+      .layout,
+      .section-head,
+      .project-ledger,
+      .agent-panel,
+      .smoke-columns,
+      .map-titlebar,
+      .arch-poster,
+      .gate-strip,
+      .arch-legend,
+      .map-proof,
+      .mode-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .proof-cell {
+        border-right: 0;
+        border-bottom: 1px solid color-mix(in oklch, var(--panel-ink) 11%, transparent);
+      }
+
+      .arch-poster::before {
+        display: none;
+      }
+
+      .legend-item {
+        border-right: 0;
+        border-bottom: 2px solid var(--ink);
+      }
+
+      .legend-item:last-child {
+        border-bottom: 0;
+      }
+
+      .proof-cell:last-child {
+        border-bottom: 0;
+      }
+
+      .rail {
+        position: static;
+      }
+
+      .rail-panel:first-child {
+        display: none;
+      }
+    }
+
+    @media (max-width: 760px) {
+      h1 {
+        font-size: 34px;
+      }
+
+      .capability-row,
+      .arch-poster,
+      .gate-strip,
+      .arch-legend,
+      .evidence-grid {
+        grid-template-columns: 1fr;
+      }
+
+      .run-row,
+      .setting,
+      .summary-row {
+        grid-template-columns: 1fr;
+      }
+
+      .band {
+        padding: 24px 0;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <div class="shell topbar-inner">
+      <div class="brand">
+        <span class="brand-mark" aria-hidden="true">AW</span>
+        <span>Aegis Watchman</span>
+      </div>
+      <nav class="nav" aria-label="Project sections">
+        <a href="#overview">Overview</a>
+        <a href="aegis-watchman-getting-started.html">Setup</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#runbook">Runbook</a>
+        <a href="#agent-settings">Agent settings</a>
+        <a href="#evidence">Evidence</a>
+        <a href="#safe-modes">Modes</a>
+      </nav>
+      <span class="badge green">Certified reference: Qwen3-4B on MPS</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="shell hero">
+      <div>
+        <p class="eyebrow">Local sentinel field page</p>
+        <h1>Aegis Watchman stops the leak before the model speaks.</h1>
+        <p class="lead">
+          Keep Hermes Agent, OpenClaw, Open WebUI, or any OpenAI-compatible client. Put
+          Aegis in front of the model, substitute canary credentials with DP-HONEY, check
+          hidden-state exfiltration intent with certified CIFT, block risky provider egress,
+          catch response and session leakage with canaries and NIMBUS, then leave an audit
+          trail an operator can defend.
+        </p>
+        <div class="hero-actions">
+          <a class="button primary" href="aegis-watchman-getting-started.html">Start setup</a>
+          <a class="button" href="#architecture">Show the wiring</a>
+          <a class="button" href="#runbook">Run the demo path</a>
+        </div>
+      </div>
+
+      <aside class="summary-panel" aria-label="Reference setup summary">
+        <div class="summary-head">
+          <strong>Demo endpoints</strong>
+          <span class="badge blue">local</span>
+        </div>
+        <div class="summary-row">
+          <span>Agent base</span>
+          <strong class="mono">http://127.0.0.1:8000/v1</strong>
+        </div>
+        <div class="summary-row">
+          <span>Aegis gateway</span>
+          <strong class="mono">http://127.0.0.1:8000</strong>
+        </div>
+        <div class="summary-row">
+          <span>CIFT sidecar</span>
+          <strong class="mono">http://127.0.0.1:9000</strong>
+        </div>
+        <div class="summary-row">
+          <span>Provider</span>
+          <strong class="mono">http://127.0.0.1:11434/v1</strong>
+        </div>
+        <div class="summary-row">
+          <span>Console</span>
+          <strong class="mono">http://127.0.0.1:8780</strong>
+        </div>
+      </aside>
+    </section>
+
+    <div class="shell layout">
+      <aside class="rail" aria-label="Guide navigation and quick checks">
+        <section class="rail-panel">
+          <h2>Project path</h2>
+          <nav class="rail-links" aria-label="In-page sections">
+            <a href="#overview">Overview <span>01</span></a>
+            <a href="aegis-watchman-getting-started.html">Setup <span>02</span></a>
+            <a href="#architecture">Architecture <span>03</span></a>
+            <a href="#runbook">Runbook <span>04</span></a>
+            <a href="#agent-settings">Agent settings <span>05</span></a>
+            <a href="#evidence">Smoke evidence <span>06</span></a>
+            <a href="#safe-modes">Safe modes <span>07</span></a>
+          </nav>
+        </section>
+
+        <section class="rail-panel">
+          <h2>Readiness proof</h2>
+          <div class="mini-stack">
+            <div class="mini-item">
+              <span>Gateway</span>
+              <strong><code>status="ready"</code></strong>
+            </div>
+            <div class="mini-item">
+              <span>Provider mode</span>
+              <strong><code>openai_compatible</code></strong>
+            </div>
+            <div class="mini-item">
+              <span>CIFT support</span>
+              <strong><code>runtime-enforceable</code></strong>
+            </div>
+            <div class="mini-item">
+              <span>Device</span>
+              <strong><code>mps</code></strong>
+            </div>
+          </div>
+        </section>
+      </aside>
+
+      <div class="content">
+        <section id="overview" class="band tint">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">01. Field brief</p>
+              <h2>Aegis turns a local model stack into a credential-defense checkpoint.</h2>
+            </div>
+            <p>
+              This page is both a user guide and a demo aid. It explains what the project protects,
+              how the sentinel is wired, which claims are certified today, and which checks prove
+              that prevention happened before model completion.
+            </p>
+          </div>
+
+          <div class="project-ledger">
+            <div class="capability-list" aria-label="Aegis capability ledger">
+              <article class="capability-row">
+                <strong>CIFT</strong>
+                <p>Model-specific hidden-state detection for exfiltration intent. The current certified reference path is Qwen/Qwen3-4B on MPS with a promoted runtime artifact.</p>
+                <span class="badge green">certified</span>
+              </article>
+
+              <article class="capability-row">
+                <strong>DP-HONEY</strong>
+                <p>Substitutes synthetic canary credentials into declared credential slots and records them in the canary registry for later leakage detection.</p>
+                <span class="badge blue">active</span>
+              </article>
+
+              <article class="capability-row">
+                <strong>Gateway</strong>
+                <p>OpenAI-compatible proxy that normalizes turns, enforces CIFT and egress policy, forwards safe requests, and preserves audit context.</p>
+                <span class="badge green">wired</span>
+              </article>
+
+              <article class="capability-row">
+                <strong>NIMBUS</strong>
+                <p>Deterministic canary and session-leakage critic for demo evidence, with the learned paper-faithful critic still treated as a future hardening path.</p>
+                <span class="badge amber">bounded</span>
+              </article>
+
+              <article class="capability-row">
+                <strong>Observability</strong>
+                <p>Readiness probes, capabilities output, smoke reports, audit JSONL, and a local console for operator-facing debugging during a demo.</p>
+                <span class="badge violet">visible</span>
+              </article>
+            </div>
+
+            <aside class="demo-card" aria-label="Demo sequence">
+              <h3>Demo path</h3>
+              <div class="demo-sequence">
+                <div><strong>Point the agent at Aegis.</strong> Change the OpenAI base URL to <code>http://127.0.0.1:8000/v1</code>.</div>
+                <div><strong>Start the sentinel.</strong> Run the provider, CIFT sidecar, gateway, and console.</div>
+                <div><strong>Show a benign allow.</strong> Prove normal agent traffic reaches the local provider.</div>
+                <div><strong>Show a block.</strong> Trigger exfiltration intent and capture <code>provider_status="skipped"</code>.</div>
+                <div><strong>Inspect evidence.</strong> Use smoke output, console status, and audit records to explain the decision.</div>
+              </div>
+            </aside>
+          </div>
+        </section>
+
+        <section id="architecture" class="band">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">02. Architecture</p>
+              <h2>One request crosses four gates before the model sees it.</h2>
+            </div>
+            <p>
+              Read the big checkpoint first. Then use the legend to see which subsystem supplies
+              each gate with canaries, hidden states, leakage critique, and audit proof.
+            </p>
+          </div>
+
+          <div class="architecture-map" role="img" aria-label="Aegis Watchman architecture showing agent request, Aegis gateway checks, allow path, block path, and supporting subsystems">
+            <div class="map-titlebar">
+              <div>
+                <h3>Aegis is the checkpoint, not another model.</h3>
+                <p>
+                  The agent sends one ordinary OpenAI-compatible request. Aegis either sends a
+                  sanitized request to the local model or stops the turn and records why.
+                </p>
+              </div>
+              <span class="mono">request -> decision -> evidence</span>
+            </div>
+
+            <div class="arch-poster" aria-label="Primary request route">
+              <article class="arch-actor agent">
+                <span class="arch-label">Agent</span>
+                <h3>Hermes Agent or local app</h3>
+                <p>Base URL points at Aegis.</p>
+              </article>
+
+              <div class="arch-gateway">
+                <div class="gateway-head">
+                  <div>
+                    <span class="arch-label">Aegis Gateway</span>
+                    <h3 class="gateway-title">Four checks before generation</h3>
+                  </div>
+                  <span class="mono">:8000/v1</span>
+                </div>
+
+                <div class="gate-strip" aria-label="Aegis gateway checks">
+                  <div class="gate-tile">
+                    <strong>1</strong>
+                    <span>Normalize</span>
+                    <em>contract</em>
+                  </div>
+
+                  <div class="gate-tile">
+                    <strong>2</strong>
+                    <span>Canary</span>
+                    <em>DP-HONEY</em>
+                  </div>
+
+                  <div class="gate-tile">
+                    <strong>3</strong>
+                    <span>CIFT check</span>
+                    <em>pre-gen</em>
+                  </div>
+
+                  <div class="gate-tile">
+                    <strong>4</strong>
+                    <span>Egress</span>
+                    <em>audit</em>
+                  </div>
+                </div>
+              </div>
+
+              <div class="arch-outcomes">
+                <article class="arch-outcome allow">
+                  <span class="arch-label">Allow</span>
+                  <h3>Local model receives sanitized request</h3>
+                  <p>Only after the gates clear.</p>
+                </article>
+
+                <article class="arch-outcome block">
+                  <span class="arch-label">Block</span>
+                  <h3>Provider is skipped</h3>
+                  <p>Audit explains the detector and policy action.</p>
+                </article>
+              </div>
+            </div>
+
+            <div class="arch-legend" aria-label="Subsystem support legend">
+              <article class="legend-item">
+                <h3>DP-HONEY</h3>
+                <span class="support-target">gate 2</span>
+                <p>Synthetic credential plus canary id registry.</p>
+              </article>
+
+              <article class="legend-item">
+                <h3>CIFT</h3>
+                <span class="support-target">gate 3</span>
+                <p>Certified hidden-state sidecar and artifact binding.</p>
+              </article>
+
+              <article class="legend-item">
+                <h3>NIMBUS</h3>
+                <span class="support-target">gate 4</span>
+                <p>Session leak critic and canary-aware response evidence.</p>
+              </article>
+
+              <article class="legend-item">
+                <h3>Observability</h3>
+                <span class="support-target">all gates</span>
+                <p>Readiness, capabilities, smoke reports, console, trace ids, and audit JSONL.</p>
+              </article>
+            </div>
+
+            <div class="map-proof" aria-label="What the operator should prove during a demo">
+              <div class="proof-cell">
+                <span class="badge blue">Allow</span>
+                <h3>Benign reaches provider</h3>
+                <p>Shows Aegis is a working proxy, not a dead-end block layer.</p>
+              </div>
+              <div class="proof-cell">
+                <span class="badge red">Block</span>
+                <h3>Exfiltration skips provider</h3>
+                <p>Look for <code>final_action="block"</code> and <code>provider_status="skipped"</code>.</p>
+              </div>
+              <div class="proof-cell">
+                <span class="badge violet">Explain</span>
+                <h3>Audit names the detector</h3>
+                <p>The report should identify whether CIFT, egress guard, canary, or NIMBUS made the call.</p>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="runbook" class="band">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">03. Runbook</p>
+              <h2>Start the provider, sidecar, gateway, and console.</h2>
+            </div>
+            <p>
+              These commands show the Qwen3-4B MPS reference path. Replace the provider URL and model name with your local server.
+            </p>
+          </div>
+
+          <div class="setup-grid">
+            <div class="run-row">
+              <div class="step-number">1</div>
+              <div class="run-content">
+                <h3>Start a local OpenAI-compatible provider</h3>
+                <p>Launch your model server first, then copy its local <code>/v1</code> base URL.</p>
+                <table class="provider-table" aria-label="Provider base URL examples">
+                  <thead>
+                    <tr>
+                      <th>Provider</th>
+                      <th>Typical base URL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>Ollama OpenAI-compatible endpoint</td>
+                      <td class="mono">http://127.0.0.1:11434/v1</td>
+                    </tr>
+                    <tr>
+                      <td>LM Studio local server</td>
+                      <td class="mono">http://127.0.0.1:1234/v1</td>
+                    </tr>
+                    <tr>
+                      <td>llama.cpp server</td>
+                      <td class="mono">http://127.0.0.1:&lt;server-port&gt;/v1</td>
+                    </tr>
+                    <tr>
+                      <td>Generic local provider</td>
+                      <td class="mono">http://127.0.0.1:&lt;provider-port&gt;/v1</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="run-row">
+              <div class="step-number">2</div>
+              <div class="run-content">
+                <h3>Start the Qwen3-4B CIFT sidecar</h3>
+                <p>This is the certified hidden-state protection path. It must run the same model revision as the promoted artifact.</p>
+                <div class="command">
+                  <div class="command-head">
+                    <strong>Terminal 1</strong>
+                    <button class="copy" type="button" data-copy-target="cmd-sidecar">Copy</button>
+                  </div>
+                  <pre id="cmd-sidecar">export AEGIS_CIFT_EXTRACTOR_API_KEY="set-a-deployment-secret"
+
+PYTHONPATH=src:introspection/src \
+.venv-mps313/bin/python introspection/scripts/run_cift_extractor_sidecar.py \
+  --model-id Qwen/Qwen3-4B \
+  --revision 1cfa9a7208912126459214e8b04321603b3df60c \
+  --device mps \
+  --dtype device \
+  --feature-key selected_choice_window_layer_21 \
+  --feature-key final_token_layer_12 \
+  --selected-choice-readout-token-count 4 \
+  --host 127.0.0.1 \
+  --port 9000 \
+  --api-key-env-var AEGIS_CIFT_EXTRACTOR_API_KEY</pre>
+                </div>
+              </div>
+            </div>
+
+            <div class="run-row">
+              <div class="step-number">3</div>
+              <div class="run-content">
+                <h3>Start Aegis in front of the provider</h3>
+                <p>Provider credentials stay in Aegis env. Do not paste provider keys into the agent app.</p>
+                <div class="command">
+                  <div class="command-head">
+                    <strong>Terminal 2</strong>
+                    <button class="copy" type="button" data-copy-target="cmd-gateway">Copy</button>
+                  </div>
+                  <pre id="cmd-gateway">export AEGIS_PROVIDER=openai_compatible
+export AEGIS_OPENAI_BASE_URL=http://127.0.0.1:11434/v1
+export AEGIS_OPENAI_API_KEY=ollama
+export AEGIS_OPENAI_MODEL=&lt;served-model-name&gt;
+export AEGIS_AUDIT_JSONL_PATH=/tmp/aegis-local-agent-audit.jsonl
+export AEGIS_CIFT_EXTRACTOR_API_KEY="set-a-deployment-secret"
+source introspection/data/reports/qwen3_4b_watchman_semantic_v9_480_selected_choice_immutable_l21_raw_linear_promoted_runtime_mps_receipt_recheck_strict_deployment_env.sh
+source introspection/data/certifications/qwen3_4b_watchman_v14_freeform_final_token_l12/reports/qwen3_4b_watchman_v14_freeform_final_token_l12_strict_deployment_env.sh
+
+uv run aegis-proxy --host 127.0.0.1 --port 8000</pre>
+                </div>
+              </div>
+            </div>
+
+            <div class="run-row">
+              <div class="step-number">4</div>
+              <div class="run-content">
+                <h3>Open the Aegis console</h3>
+                <p>Use the Setup tab to confirm gateway readiness, provider target URL, CIFT status, and model certification.</p>
+                <div class="command">
+                  <div class="command-head">
+                    <strong>Terminal 3</strong>
+                    <button class="copy" type="button" data-copy-target="cmd-console">Copy</button>
+                  </div>
+                  <pre id="cmd-console">uv run aegis-console \
+  --gateway-url http://127.0.0.1:8000 \
+  --host 127.0.0.1 \
+  --port 8780</pre>
+                </div>
+              </div>
+            </div>
+
+            <div class="run-row">
+              <div class="step-number">5</div>
+              <div class="run-content">
+                <h3>Check gateway readiness</h3>
+                <p>The response should show the provider target URL, runtime-enforceable CIFT, and MPS device evidence.</p>
+                <div class="command">
+                  <div class="command-head">
+                    <strong>Readiness probe</strong>
+                    <button class="copy" type="button" data-copy-target="cmd-ready">Copy</button>
+                  </div>
+                  <pre id="cmd-ready">curl -s http://127.0.0.1:8000/ready</pre>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section id="agent-settings" class="band">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">04. Agent settings</p>
+              <h2>Point the agent at Aegis.</h2>
+            </div>
+            <p>
+              These are the fields to use in Hermes Agent, OpenClaw, Open WebUI, or any generic OpenAI-compatible client.
+            </p>
+          </div>
+
+          <div class="agent-panel">
+            <div class="settings-list" aria-label="Agent client configuration">
+              <div class="setting">
+                <span>Base URL</span>
+                <strong class="mono">http://127.0.0.1:8000/v1</strong>
+              </div>
+              <div class="setting">
+                <span>API key</span>
+                <strong class="mono">aegis-local-dev-key</strong>
+              </div>
+              <div class="setting">
+                <span>Model</span>
+                <strong class="mono">match AEGIS_OPENAI_MODEL</strong>
+              </div>
+            </div>
+
+            <div class="command">
+              <div class="command-head">
+                <strong>Copy into agent settings</strong>
+                <button class="copy" type="button" data-copy-target="cmd-agent-settings">Copy</button>
+              </div>
+              <pre id="cmd-agent-settings">Base URL: http://127.0.0.1:8000/v1
+API key: aegis-local-dev-key
+Model: match AEGIS_OPENAI_MODEL</pre>
+            </div>
+          </div>
+        </section>
+
+        <section id="evidence" class="band">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">05. Smoke evidence</p>
+              <h2>Run two checks before you demo protection.</h2>
+            </div>
+            <p>
+              Real-provider smoke proves forwarding and pre-generation prevention.
+              Mock-provider smoke forces leaks so canary and NIMBUS paths can be observed.
+            </p>
+          </div>
+
+          <div class="evidence-grid">
+            <article class="evidence">
+              <span class="badge blue">Provider evidence</span>
+              <h3>Benign reaches provider</h3>
+              <p>Proves an agent-style request reaches the configured local provider after Aegis allows it.</p>
+            </article>
+            <article class="evidence">
+              <span class="badge green">Pre-generation</span>
+              <h3>CIFT blocks exfil intent</h3>
+              <p>Strict sidecar mode should block before provider completion and report <code>provider_status="skipped"</code>.</p>
+            </article>
+            <article class="evidence">
+              <span class="badge amber">Leak detectors</span>
+              <h3>Canary and NIMBUS paths run</h3>
+              <p>Mock mode forces encoded canary, text canary, and partial-leak cases for deterministic evidence.</p>
+            </article>
+          </div>
+
+          <div class="smoke-columns">
+            <div class="command">
+              <div class="command-head">
+                <strong>Real-provider smoke</strong>
+                <button class="copy" type="button" data-copy-target="cmd-real-smoke">Copy</button>
+              </div>
+              <pre id="cmd-real-smoke">uv run aegis-proxy-smoke \
+  --url http://127.0.0.1:8000 \
+  --timeout 120 \
+  --provider-mode real-provider \
+  --require-cift-pre-generation-block \
+  --output introspection/data/reports/aegis_local_agent_qwen3_4b_smoke_v1.json</pre>
+            </div>
+
+            <div class="command">
+              <div class="command-head">
+                <strong>Detector-path smoke</strong>
+                <button class="copy" type="button" data-copy-target="cmd-detector-smoke">Copy</button>
+              </div>
+              <pre id="cmd-detector-smoke">uv run aegis-proxy-smoke \
+  --url http://127.0.0.1:8000 \
+  --timeout 120 \
+  --require-cift-pre-generation-block \
+  --output introspection/data/reports/aegis_local_agent_detector_paths_smoke_v1.json</pre>
+            </div>
+          </div>
+
+          <table class="expectation-table" aria-label="Smoke output expectations">
+            <thead>
+              <tr>
+                <th>Evidence item</th>
+                <th>Expected output</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Overall smoke</td>
+                <td><code>status="ok"</code></td>
+              </tr>
+              <tr>
+                <td>Benign protected request</td>
+                <td><code>checks.benign_chat.credential_slot_status="honeytoken_substituted"</code> and <code>provider_status="completed"</code></td>
+              </tr>
+              <tr>
+                <td>CIFT exfiltration block</td>
+                <td><code>checks.cift_pre_generation_block.final_action="block"</code> and <code>provider_status="skipped"</code></td>
+              </tr>
+              <tr>
+                <td>Provider egress guard</td>
+                <td><code>checks.provider_egress_guard_block.final_action="block"</code> before provider completion</td>
+              </tr>
+              <tr>
+                <td>Canary and NIMBUS</td>
+                <td>Mock smoke has non-skipped <code>encoded_canary_leak</code>, <code>metadata_slot_canary_leak</code>, and <code>nimbus_partial_leak</code></td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="safe-modes" class="band">
+          <div class="section-head">
+            <div>
+              <p class="eyebrow">06. Safe modes</p>
+              <h2>Keep the release claim sharp: certified where proven, bounded everywhere else.</h2>
+            </div>
+            <p>
+              CIFT support is model-specific. A new local model needs its own calibration,
+              sealed/live evidence, and promoted runtime artifact before CIFT enforcement
+              can be claimed for that model.
+            </p>
+          </div>
+
+          <div class="mode-grid">
+            <article class="mode certified">
+              <span class="badge green">Certified CIFT</span>
+              <h3>Reference path: Qwen3-4B on MPS</h3>
+              <ul>
+                <li>Sidecar attests the certified model id and immutable revision.</li>
+                <li>Tokenizer, chat template, layer/window, readout count, device, and dtype match the artifact.</li>
+                <li>CIFT can block exfiltration intent before provider generation.</li>
+              </ul>
+            </article>
+
+            <article class="mode blackbox">
+              <span class="badge amber">Black-box mode</span>
+              <h3>For models that have not passed certification</h3>
+              <ul>
+                <li>DP-HONEY, provider egress, canaries, deterministic NIMBUS, policy, and audit remain active.</li>
+                <li>CIFT support tier must be shown as <code>unsupported</code>.</li>
+                <li>Protected workflows still fail closed when required credential-slot metadata is missing.</li>
+              </ul>
+            </article>
+
+            <article class="mode">
+              <span class="badge blue">Capstone demo</span>
+              <h3>What this page can honestly show</h3>
+              <ul>
+                <li>Local OpenAI-compatible gateway in front of a self-hosted model.</li>
+                <li>Qwen3-4B CIFT pre-generation block evidence with MPS device attestation.</li>
+                <li>Honeytoken substitution, provider egress guard, canary detection, policy, and audit output.</li>
+              </ul>
+            </article>
+
+            <article class="mode">
+              <span class="badge red">Not claimed</span>
+              <h3>What remains outside the current release claim</h3>
+              <ul>
+                <li>Universal CIFT support across arbitrary models without their own certification run.</li>
+                <li>Commercial production readiness or external live deployment evidence.</li>
+                <li>Fully learned paper-faithful NIMBUS as the default runtime critic.</li>
+              </ul>
+            </article>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+
+  <footer class="shell footer">
+    <p>
+      This guide is for local-agent integration. It does not make a universal model-support claim:
+      each local model needs its own CIFT calibration, sealed/live evaluation, and promoted runtime artifact before CIFT enforcement can be claimed.
+    </p>
+  </footer>
+
+  <script>
+    const copyButtons = document.querySelectorAll("[data-copy-target]");
+
+    copyButtons.forEach((button) => {
+      button.addEventListener("click", async () => {
+        const targetId = button.getAttribute("data-copy-target");
+        const target = targetId ? document.getElementById(targetId) : null;
+        if (!target) return;
+
+        const text = target.textContent || "";
+        try {
+          await navigator.clipboard.writeText(text);
+          button.textContent = "Copied";
+        } catch {
+          const range = document.createRange();
+          range.selectNodeContents(target);
+          const selection = window.getSelection();
+          if (selection) {
+            selection.removeAllRanges();
+            selection.addRange(range);
+          }
+          button.textContent = "Selected";
+        }
+
+        window.setTimeout(() => {
+          button.textContent = "Copy";
+        }, 1300);
+      });
+    });
+  </script>
+</body>
+</html>

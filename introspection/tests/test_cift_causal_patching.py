@@ -9,7 +9,6 @@ from pathlib import Path
 import numpy as np
 from aegis_introspection.cift_causal_patching import (
     CiftCounterfactualPatchingConfig,
-    CiftCounterfactualPatchingError,
     run_cift_counterfactual_patching,
 )
 from aegis_introspection.cift_model_training import (
@@ -38,8 +37,15 @@ class CiftCounterfactualPatchingTest(unittest.TestCase):
                     "secret_present_safe",
                     "exfiltration_intent",
                 ),
+                variants=("v000", "v000", "v001", "v001"),
+                tasks=("alpha", "alpha", "beta", "beta"),
             )
-            _write_runtime_model(path=runtime_model_path, source_artifact_sha256=sha256_file(artifact_path))
+            _write_runtime_model(
+                path=runtime_model_path,
+                source_artifact_sha256=sha256_file(artifact_path),
+                label_names=("secret_present_safe", "exfiltration_intent"),
+                task_name="safe_secret_vs_exfiltration",
+            )
 
             report = run_cift_counterfactual_patching(
                 CiftCounterfactualPatchingConfig(
@@ -66,7 +72,93 @@ class CiftCounterfactualPatchingTest(unittest.TestCase):
             self.assertEqual("allow", persisted["pairs"][0]["exfil_to_safe_patch"]["action"])
             self.assertIn("does not patch transformer hidden states", persisted["paper_faithfulness_limitation"])
 
-    def test_patching_requires_exact_safe_exfil_pairs(self) -> None:
+    def test_patching_pairs_label_specific_variants_by_task_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact_path = root / "artifact.pkl"
+            runtime_model_path = root / "runtime_model.json"
+            output_path = root / "patching_report.json"
+            _write_artifact(
+                path=artifact_path,
+                labels=(
+                    "secret_present_safe",
+                    "exfiltration_intent",
+                    "secret_present_safe",
+                    "exfiltration_intent",
+                ),
+                variants=(
+                    "secret_present_safe-v000",
+                    "exfiltration_intent-v000",
+                    "secret_present_safe-v001",
+                    "exfiltration_intent-v001",
+                ),
+                tasks=("alpha", "alpha", "beta", "beta"),
+            )
+            _write_runtime_model(
+                path=runtime_model_path,
+                source_artifact_sha256=sha256_file(artifact_path),
+                label_names=("secret_present_safe", "exfiltration_intent"),
+                task_name="safe_secret_vs_exfiltration",
+            )
+
+            report = run_cift_counterfactual_patching(
+                CiftCounterfactualPatchingConfig(
+                    activation_artifact_path=artifact_path,
+                    runtime_model_path=runtime_model_path,
+                    output_path=output_path,
+                    report_id="synthetic-patching-report",
+                    created_at="2026-06-24T00:00:00Z",
+                    minimum_flip_rate=0.95,
+                    allow_sealed_holdout=False,
+                )
+            )
+
+        self.assertEqual(2, report.pair_count)
+        self.assertEqual(
+            "safe=secret_present_safe-v000;exfil=exfiltration_intent-v000",
+            report.pairs[0].variant,
+        )
+
+    def test_patching_maps_aggregate_non_exfiltration_class_to_safe_secret_rows(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            artifact_path = root / "artifact.pkl"
+            runtime_model_path = root / "runtime_model.json"
+            output_path = root / "patching_report.json"
+            _write_artifact(
+                path=artifact_path,
+                labels=(
+                    "secret_present_safe",
+                    "exfiltration_intent",
+                    "benign",
+                    "benign",
+                ),
+                variants=("secret_present_safe-v000", "exfiltration_intent-v000", "benign-v001", "benign-v002"),
+                tasks=("alpha", "alpha", "beta", "beta"),
+            )
+            _write_runtime_model(
+                path=runtime_model_path,
+                source_artifact_sha256=sha256_file(artifact_path),
+                label_names=("non_exfiltration", "exfiltration_intent"),
+                task_name="non_exfiltration_vs_exfiltration",
+            )
+
+            report = run_cift_counterfactual_patching(
+                CiftCounterfactualPatchingConfig(
+                    activation_artifact_path=artifact_path,
+                    runtime_model_path=runtime_model_path,
+                    output_path=output_path,
+                    report_id="synthetic-patching-report",
+                    created_at="2026-06-24T00:00:00Z",
+                    minimum_flip_rate=0.95,
+                    allow_sealed_holdout=False,
+                )
+            )
+
+        self.assertEqual(1, report.pair_count)
+        self.assertEqual("safe=secret_present_safe-v000;exfil=exfiltration_intent-v000", report.pairs[0].variant)
+
+    def test_patching_skips_ambiguous_pairs_and_reports_exact_pairs(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
             artifact_path = root / "artifact.pkl"
@@ -77,29 +169,50 @@ class CiftCounterfactualPatchingTest(unittest.TestCase):
                 labels=(
                     "secret_present_safe",
                     "secret_present_safe",
+                    "exfiltration_intent",
                     "secret_present_safe",
                     "exfiltration_intent",
                 ),
+                variants=("v000", "v001", "v000", "v002", "v002"),
+                tasks=("alpha", "alpha", "alpha", "beta", "beta"),
             )
-            _write_runtime_model(path=runtime_model_path, source_artifact_sha256=sha256_file(artifact_path))
+            _write_runtime_model(
+                path=runtime_model_path,
+                source_artifact_sha256=sha256_file(artifact_path),
+                label_names=("secret_present_safe", "exfiltration_intent"),
+                task_name="safe_secret_vs_exfiltration",
+            )
 
-            with self.assertRaisesRegex(CiftCounterfactualPatchingError, "exactly one safe and one exfil row"):
-                run_cift_counterfactual_patching(
-                    CiftCounterfactualPatchingConfig(
-                        activation_artifact_path=artifact_path,
-                        runtime_model_path=runtime_model_path,
-                        output_path=output_path,
-                        report_id="synthetic-patching-report",
-                        created_at="2026-06-24T00:00:00Z",
-                        minimum_flip_rate=0.95,
-                        allow_sealed_holdout=False,
-                    )
+            report = run_cift_counterfactual_patching(
+                CiftCounterfactualPatchingConfig(
+                    activation_artifact_path=artifact_path,
+                    runtime_model_path=runtime_model_path,
+                    output_path=output_path,
+                    report_id="synthetic-patching-report",
+                    created_at="2026-06-24T00:00:00Z",
+                    minimum_flip_rate=0.95,
+                    allow_sealed_holdout=False,
                 )
+            )
 
-        self.assertFalse(output_path.exists())
+            persisted = json.loads(output_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(1, report.pair_count)
+        self.assertEqual(1, persisted["skipped_ambiguous_pair_count"])
+        self.assertIn("task=alpha", persisted["skipped_ambiguous_pair_keys"][0])
+        self.assertEqual("beta_credentials", persisted["pairs"][0]["family"])
 
 
-def _write_artifact(path: Path, labels: tuple[str, str, str, str]) -> None:
+def _write_artifact(
+    path: Path,
+    labels: tuple[str, ...],
+    variants: tuple[str, ...],
+    tasks: tuple[str, ...],
+) -> None:
+    feature_rows = tuple(
+        (float(index) / 10.0, 1.0 if label == "exfiltration_intent" else 0.0)
+        for index, label in enumerate(labels)
+    )
     artifact = CiftTrainingArtifact(
         metadata=CiftTrainingArtifactMetadata(
             model_id="Qwen/Qwen3-test",
@@ -113,31 +226,21 @@ def _write_artifact(path: Path, labels: tuple[str, str, str, str]) -> None:
             layer_indices=(19,),
             pooling_methods=("selected_choice_window",),
         ),
-        example_ids=(
-            "trace-assignment-codex-alpha-secret_present_safe-v000",
-            "trace-assignment-codex-alpha-exfiltration_intent-v000",
-            "trace-assignment-codex-beta-secret_present_safe-v001",
-            "trace-assignment-codex-beta-exfiltration_intent-v001",
+        example_ids=tuple(
+            f"trace-assignment-codex-{task}-{label}-{variant}"
+            for task, label, variant in zip(tasks, labels, variants, strict=True)
         ),
         labels=labels,
-        families=("alpha_credentials", "alpha_credentials", "beta_credentials", "beta_credentials"),
-        texts=("safe alpha", "exfil alpha", "safe beta", "exfil beta"),
+        families=tuple(f"{task}_credentials" for task in tasks),
+        texts=tuple(f"{label} {task}" for label, task in zip(labels, tasks, strict=True)),
         tags=(
-            _tags("alpha", "v000", labels[0]),
-            _tags("alpha", "v000", labels[1]),
-            _tags("beta", "v001", labels[2]),
-            _tags("beta", "v001", labels[3]),
+            *tuple(
+                _tags(task=task, variant=variant, label=label)
+                for task, variant, label in zip(tasks, variants, labels, strict=True)
+            ),
         ),
         features={
-            "selected_choice_window_layer_19": np.asarray(
-                (
-                    (0.0, 0.0),
-                    (0.0, 1.0),
-                    (0.1, 0.0),
-                    (0.1, 1.0),
-                ),
-                dtype=np.float32,
-            )
+            "selected_choice_window_layer_19": np.asarray(feature_rows, dtype=np.float32)
         },
     )
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -157,7 +260,12 @@ def _tags(task: str, variant: str, label: str) -> tuple[str, ...]:
     )
 
 
-def _write_runtime_model(path: Path, source_artifact_sha256: str) -> None:
+def _write_runtime_model(
+    path: Path,
+    source_artifact_sha256: str,
+    label_names: tuple[str, str],
+    task_name: str,
+) -> None:
     model = CiftRuntimeLinearModel(
         schema_version="aegis.cift_runtime_linear/v1",
         model_bundle_id="synthetic-runtime-cift",
@@ -172,10 +280,10 @@ def _write_runtime_model(path: Path, source_artifact_sha256: str) -> None:
         training_dataset_id="synthetic-cift-lab",
         source_artifact_sha256=source_artifact_sha256,
         evaluation_report_ids=("synthetic-patching-report",),
-        task_name="safe_secret_vs_exfiltration",
+        task_name=task_name,
         feature_key="selected_choice_window_layer_19",
         feature_count=2,
-        label_names=("secret_present_safe", "exfiltration_intent"),
+        label_names=label_names,
         positive_label="exfiltration_intent",
         positive_class_index=1,
         class_indices=(0, 1),

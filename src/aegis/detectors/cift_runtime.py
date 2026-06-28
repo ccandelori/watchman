@@ -143,6 +143,7 @@ class CiftRuntimeWindowSelectorConfig:
     selected_choice_model_path: Path
     selected_choice_model_sha256: str
     fallback_model_path: Path | None
+    fallback_model_sha256: str | None
     feature_extractor: CiftFeatureExtractor
     feature_source: str
     activation_failure_action: Action
@@ -470,6 +471,21 @@ class CiftRuntimeWindowSelector:
                 selected_choice_model=self._selected_choice_model,
                 fallback_model=self._fallback_model,
             )
+        if (
+            self._fallback_detector is not None
+            and action_severity(self._selected_choice_detector.activation_failure_action) >= action_severity(
+                Action.BLOCK
+            )
+        ):
+            result = self._fallback_detector.evaluate(turn=turn, model_response=model_response)
+            return _result_with_window_selection_evidence(
+                result=result,
+                window_family=_freeform_window_family(self._fallback_model),
+                selection_reason="selected_choice_metadata_absent_freeform_route",
+                window_coverage=_freeform_window_coverage(self._fallback_model),
+                selected_choice_model=self._selected_choice_model,
+                fallback_model=self._fallback_model,
+            )
         feature_vector_activation_failure = _feature_vector_activation_failure_from_turn(
             turn=turn,
             feature_key=self._selected_choice_model.feature_key,
@@ -682,8 +698,9 @@ def _build_cift_window_selector_runtime_components(
         path=config.selected_choice_model_path,
         expected_sha256=config.selected_choice_model_sha256,
     )
-    fallback_model = (
-        load_cift_runtime_model(config.fallback_model_path) if config.fallback_model_path is not None else None
+    fallback_model = _load_optional_fallback_model(
+        fallback_model_path=config.fallback_model_path,
+        fallback_model_sha256=config.fallback_model_sha256,
     )
     runtime_model_validator(selected_choice_model, "selected_choice_model")
     if fallback_model is not None:
@@ -713,6 +730,22 @@ def _build_cift_window_selector_runtime_components(
                 activation_failure_action=config.activation_failure_action,
             ),
         ),
+    )
+
+
+def _load_optional_fallback_model(
+    fallback_model_path: Path | None,
+    fallback_model_sha256: str | None,
+) -> CiftRuntimeModel | None:
+    if fallback_model_path is None:
+        if fallback_model_sha256 is not None:
+            raise CiftRuntimeDetectorError("fallback_model_sha256 requires fallback_model_path.")
+        return None
+    if fallback_model_sha256 is None:
+        return load_cift_runtime_model(fallback_model_path)
+    return load_cift_runtime_model_with_sha256(
+        path=fallback_model_path,
+        expected_sha256=fallback_model_sha256,
     )
 
 
@@ -1427,6 +1460,7 @@ def _result_with_window_selection_evidence(
     evidence["selected_choice_model_bundle_id"] = selected_choice_model.model_bundle_id
     if fallback_model is not None:
         evidence["fallback_model_bundle_id"] = fallback_model.model_bundle_id
+        evidence["freeform_model_bundle_id"] = fallback_model.model_bundle_id
     return DetectorResult(
         detector_name=result.detector_name,
         component=result.component,
@@ -1438,6 +1472,26 @@ def _result_with_window_selection_evidence(
         evidence=evidence,
         latency_ms=result.latency_ms,
     )
+
+
+def _freeform_window_family(model: CiftRuntimeModel | None) -> str:
+    if model is None:
+        return "freeform"
+    if model.feature_key.startswith("query_tail_window_"):
+        return "freeform_query_tail"
+    if model.feature_key.startswith("readout_window_"):
+        return "freeform_readout"
+    if model.feature_key.startswith("final_token_"):
+        return "freeform_final_token"
+    if model.feature_key.startswith("mean_pool_"):
+        return "freeform_mean_pool"
+    return "freeform"
+
+
+def _freeform_window_coverage(model: CiftRuntimeModel | None) -> str:
+    if model is not None and model.candidate_status == _RUNTIME_CANDIDATE:
+        return "certified_freeform"
+    return "bootstrap_freeform"
 
 
 def _degraded_fallback_result(result: DetectorResult) -> DetectorResult:
@@ -1677,6 +1731,42 @@ def _feature_provenance_evidence(provenance: Mapping[str, JsonValue]) -> dict[st
     _copy_int_list_provenance(
         source=provenance,
         destination=evidence,
+        source_field="readout_token_indices",
+        destination_field="extractor_readout_token_indices",
+    )
+    _copy_string_provenance(
+        source=provenance,
+        destination=evidence,
+        source_field="readout_token_indices_sha256",
+        destination_field="extractor_readout_token_indices_sha256",
+    )
+    _copy_int_list_provenance(
+        source=provenance,
+        destination=evidence,
+        source_field="query_tail_readout_token_indices",
+        destination_field="extractor_query_tail_readout_token_indices",
+    )
+    _copy_string_provenance(
+        source=provenance,
+        destination=evidence,
+        source_field="query_tail_readout_token_indices_sha256",
+        destination_field="extractor_query_tail_readout_token_indices_sha256",
+    )
+    _copy_string_provenance(
+        source=provenance,
+        destination=evidence,
+        source_field="readout_window_source",
+        destination_field="extractor_readout_window_source",
+    )
+    _copy_mapping_provenance(
+        source=provenance,
+        destination=evidence,
+        source_field="readout_source",
+        destination_field="extractor_readout_source",
+    )
+    _copy_int_list_provenance(
+        source=provenance,
+        destination=evidence,
         source_field="selected_choice_readout_token_indices",
         destination_field="extractor_selected_choice_readout_token_indices",
     )
@@ -1744,6 +1834,23 @@ def _copy_int_list_provenance(
         if isinstance(item, bool) or not isinstance(item, int):
             return
         copied.append(item)
+    destination[destination_field] = copied
+
+
+def _copy_mapping_provenance(
+    source: Mapping[str, JsonValue],
+    destination: dict[str, JsonValue],
+    source_field: str,
+    destination_field: str,
+) -> None:
+    value = source.get(source_field)
+    if not isinstance(value, dict):
+        return
+    copied: dict[str, JsonValue] = {}
+    for key, item in value.items():
+        if not isinstance(key, str):
+            return
+        copied[key] = item
     destination[destination_field] = copied
 
 

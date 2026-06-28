@@ -92,6 +92,15 @@ class _PromotionEvidenceReportReference:
     manifest_role: str
 
 
+@dataclass(frozen=True)
+class _RuntimeBindingFields:
+    feature_key_field_name: str
+    source_artifact_sha256_field_name: str
+    model_bundle_id_field_name: str
+    runtime_model_path_field_name: str
+    runtime_model_detector_sha256_field_name: str
+
+
 DEFAULT_WORKFLOW_EVIDENCE_ROLES = CiftWorkflowEvidenceRoles(
     runtime_model_role="promoted_runtime",
     runtime_prevention_role="linear_live_runtime_prevention",
@@ -308,6 +317,7 @@ def _runtime_prevention_failures(
     runtime_model: CiftRuntimeModel,
     detector_sha256: str,
 ) -> tuple[str, ...]:
+    window_family = _window_family_from_feature_key(runtime_model.feature_key)
     failures = list(
         _report_identity_failures(
             record=record,
@@ -335,20 +345,37 @@ def _runtime_prevention_failures(
     if not isinstance(rows, list) or len(rows) == 0:
         failures.append("runtime_prevention_report rows must be present")
     elif any(
-        not _runtime_prevention_row_has_selected_choice_proof(cast(Mapping[str, object], row))
+        not _runtime_prevention_row_has_route_proof(cast(Mapping[str, object], row), window_family)
         for row in rows
         if isinstance(row, Mapping)
     ) or any(not isinstance(row, Mapping) for row in rows):
-        failures.append("runtime_prevention_report rows must have selected-choice metadata proof")
+        if window_family == "selected_choice":
+            failures.append("runtime_prevention_report rows must have selected-choice metadata proof")
+        else:
+            failures.append("runtime_prevention_report rows must have freeform route metadata proof")
     failures.extend(_zero_confusion_failures(record=record, report_label="runtime_prevention_report"))
     return tuple(failures)
 
 
-def _runtime_prevention_row_has_selected_choice_proof(row: Mapping[str, object]) -> bool:
+def _runtime_prevention_row_has_route_proof(row: Mapping[str, object], window_family: str) -> bool:
+    if _string_field(row, "expected_window_family") != window_family:
+        return False
+    if _string_field(row, "window_family") != window_family:
+        return False
+    if _string_field(row, "window_selection_reason") != _window_selection_reason(window_family):
+        return False
+    if window_family == "selected_choice":
+        return True
     return (
-        _string_field(row, "expected_window_family") == "selected_choice"
-        and _string_field(row, "window_family") == "selected_choice"
-        and _string_field(row, "window_selection_reason") == "selected_choice_metadata_present"
+        len(
+            _route_token_index_failures(
+                record=row,
+                window_family=window_family,
+                prefix="extractor_",
+                report_label="runtime_prevention_report row",
+            )
+        )
+        == 0
     )
 
 
@@ -421,6 +448,7 @@ def _gateway_smoke_expected_failures(
     config: CiftEvidenceChainVerifierConfig,
     runtime_model: CiftRuntimeModel,
 ) -> tuple[str, ...]:
+    window_family = _window_family_from_feature_key(runtime_model.feature_key)
     failures: list[str] = []
     expected_strings = (
         ("gateway_feature_source", "self_hosted_activation_extractor"),
@@ -454,16 +482,21 @@ def _gateway_smoke_expected_failures(
     extractor_id = _string_field(expected, "extractor_id")
     if extractor_id is None:
         failures.append("gateway_smoke_report expected.extractor_id must be present")
-    readout_count = _integer_field(expected, "selected_choice_readout_token_count")
-    if readout_count is None:
-        failures.append("gateway_smoke_report expected.selected_choice_readout_token_count must be a positive integer")
-    elif readout_count < 1:
-        failures.append("gateway_smoke_report expected.selected_choice_readout_token_count must be positive")
-    elif (
-        config.expected_selected_choice_readout_token_count is not None
-        and readout_count != config.expected_selected_choice_readout_token_count
-    ):
-        failures.append("gateway_smoke_report expected.selected_choice_readout_token_count must match CIFT contract")
+    if window_family == "selected_choice":
+        readout_count = _integer_field(expected, "selected_choice_readout_token_count")
+        if readout_count is None:
+            failures.append(
+                "gateway_smoke_report expected.selected_choice_readout_token_count must be a positive integer"
+            )
+        elif readout_count < 1:
+            failures.append("gateway_smoke_report expected.selected_choice_readout_token_count must be positive")
+        elif (
+            config.expected_selected_choice_readout_token_count is not None
+            and readout_count != config.expected_selected_choice_readout_token_count
+        ):
+            failures.append(
+                "gateway_smoke_report expected.selected_choice_readout_token_count must match CIFT contract"
+            )
     if config.required_runtime_prevention_device is not None:
         sidecar_device = _string_field(expected, "sidecar_device")
         if sidecar_device is None:
@@ -527,6 +560,7 @@ def _gateway_smoke_sidecar_failures(
     config: CiftEvidenceChainVerifierConfig,
     runtime_model: CiftRuntimeModel,
 ) -> tuple[str, ...]:
+    window_family = _window_family_from_feature_key(runtime_model.feature_key)
     failures: list[str] = []
     expected_strings = (
         ("feature_key", runtime_model.feature_key),
@@ -567,27 +601,42 @@ def _gateway_smoke_sidecar_failures(
         failures.append("gateway_smoke_report sidecar_feature_extraction.feature_count must match runtime model")
     if _string_field(sidecar, "prompt_renderer") != CIFT_PROMPT_RENDERER_TRACE_BRIDGE_V1:
         failures.append("gateway_smoke_report sidecar_feature_extraction.prompt_renderer must match CIFT contract")
-    if _string_field(sidecar, "selected_choice_geometry") != CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1:
+    sidecar_window_family = _string_field(sidecar, "cift_window_family")
+    if window_family.startswith("freeform_") and sidecar_window_family != window_family:
         failures.append(
-            "gateway_smoke_report sidecar_feature_extraction.selected_choice_geometry must match CIFT contract"
+            "gateway_smoke_report sidecar_feature_extraction.cift_window_family must match runtime model"
         )
-    readout_count = _integer_field(sidecar, "selected_choice_readout_token_count")
-    if readout_count is None:
-        failures.append(
-            "gateway_smoke_report sidecar_feature_extraction.selected_choice_readout_token_count must be a "
-            "positive integer"
-        )
-    elif readout_count < 1:
-        failures.append(
-            "gateway_smoke_report sidecar_feature_extraction.selected_choice_readout_token_count must be positive"
-        )
-    elif (
-        config.expected_selected_choice_readout_token_count is not None
-        and readout_count != config.expected_selected_choice_readout_token_count
-    ):
-        failures.append(
-            "gateway_smoke_report sidecar_feature_extraction.selected_choice_readout_token_count must match "
-            "CIFT contract"
+    if window_family == "selected_choice":
+        if _string_field(sidecar, "selected_choice_geometry") != CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1:
+            failures.append(
+                "gateway_smoke_report sidecar_feature_extraction.selected_choice_geometry must match CIFT contract"
+            )
+        readout_count = _integer_field(sidecar, "selected_choice_readout_token_count")
+        if readout_count is None:
+            failures.append(
+                "gateway_smoke_report sidecar_feature_extraction.selected_choice_readout_token_count must be a "
+                "positive integer"
+            )
+        elif readout_count < 1:
+            failures.append(
+                "gateway_smoke_report sidecar_feature_extraction.selected_choice_readout_token_count must be positive"
+            )
+        elif (
+            config.expected_selected_choice_readout_token_count is not None
+            and readout_count != config.expected_selected_choice_readout_token_count
+        ):
+            failures.append(
+                "gateway_smoke_report sidecar_feature_extraction.selected_choice_readout_token_count must match "
+                "CIFT contract"
+            )
+    else:
+        failures.extend(
+            _route_token_index_failures(
+                record=sidecar,
+                window_family=window_family,
+                prefix="",
+                report_label="gateway_smoke_report sidecar_feature_extraction",
+            )
         )
     if config.required_runtime_prevention_device is not None:
         selected_device = _string_field(sidecar, "selected_device")
@@ -607,6 +656,7 @@ def _gateway_smoke_decision_failures(
     config: CiftEvidenceChainVerifierConfig,
     runtime_model: CiftRuntimeModel,
 ) -> tuple[str, ...]:
+    window_family = _window_family_from_feature_key(runtime_model.feature_key)
     failures: list[str] = []
     failures.extend(_gateway_smoke_decision_semantic_failures(decision=decision, check_name=check_name))
     expected_strings = (
@@ -615,8 +665,7 @@ def _gateway_smoke_decision_failures(
         ("extractor_model_id", runtime_model.source_model_id),
         ("extractor_revision", runtime_model.source_revision),
         ("extractor_prompt_renderer", CIFT_PROMPT_RENDERER_TRACE_BRIDGE_V1),
-        ("extractor_selected_choice_geometry", CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1),
-        ("cift_window_family", "selected_choice"),
+        ("cift_window_family", window_family),
     )
     for field_name, expected_value in expected_strings:
         actual_value = _string_field(decision, field_name)
@@ -644,22 +693,46 @@ def _gateway_smoke_decision_failures(
     extractor_id = _string_field(decision, "extractor_id")
     if extractor_id is None:
         failures.append(f"gateway_smoke_report {check_name}.extractor_id must be present")
-    readout_count = _integer_field(decision, "extractor_selected_choice_readout_token_count")
-    if readout_count is None:
-        failures.append(
-            f"gateway_smoke_report {check_name}.extractor_selected_choice_readout_token_count must be a positive "
-            "integer"
-        )
-    elif readout_count < 1:
-        failures.append(
-            f"gateway_smoke_report {check_name}.extractor_selected_choice_readout_token_count must be positive"
-        )
-    elif (
-        config.expected_selected_choice_readout_token_count is not None
-        and readout_count != config.expected_selected_choice_readout_token_count
-    ):
-        failures.append(
-            f"gateway_smoke_report {check_name}.extractor_selected_choice_readout_token_count must match CIFT contract"
+    if window_family == "selected_choice":
+        if (
+            _string_field(decision, "extractor_selected_choice_geometry")
+            != CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1
+        ):
+            failures.append(
+                f"gateway_smoke_report {check_name}.extractor_selected_choice_geometry must match "
+                f"{CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1}"
+            )
+        readout_count = _integer_field(decision, "extractor_selected_choice_readout_token_count")
+        if readout_count is None:
+            failures.append(
+                f"gateway_smoke_report {check_name}.extractor_selected_choice_readout_token_count must be a positive "
+                "integer"
+            )
+        elif readout_count < 1:
+            failures.append(
+                f"gateway_smoke_report {check_name}.extractor_selected_choice_readout_token_count must be positive"
+            )
+        elif (
+            config.expected_selected_choice_readout_token_count is not None
+            and readout_count != config.expected_selected_choice_readout_token_count
+        ):
+            failures.append(
+                f"gateway_smoke_report {check_name}.extractor_selected_choice_readout_token_count must match "
+                "CIFT contract"
+            )
+    else:
+        selection_reason = _string_field(decision, "cift_window_selection_reason")
+        if selection_reason != _window_selection_reason(window_family):
+            failures.append(
+                f"gateway_smoke_report {check_name}.cift_window_selection_reason must match runtime route"
+            )
+        failures.extend(
+            _route_token_index_failures(
+                record=decision,
+                window_family=window_family,
+                prefix="extractor_",
+                report_label=f"gateway_smoke_report {check_name}",
+            )
         )
     if config.required_runtime_prevention_device is not None:
         selected_device = _string_field(decision, "extractor_selected_device")
@@ -770,6 +843,7 @@ def _report_identity_failures(
     runtime_model_path: Path,
 ) -> tuple[str, ...]:
     failures: list[str] = []
+    window_family = _window_family_from_feature_key(runtime_model.feature_key)
     if _string_field(record, "schema_version") != expected_schema_version:
         failures.append(f"{report_label} schema_version must be {expected_schema_version}")
     expected_strings = (
@@ -783,12 +857,19 @@ def _report_identity_failures(
         ("training_dataset_id", runtime_model.training_dataset_id),
         ("task_name", runtime_model.task_name),
         ("activation_feature_key", runtime_model.feature_key),
-        ("selected_choice_feature_key", runtime_model.feature_key),
         ("source_artifact_sha256", runtime_model.source_artifact_sha256),
-        ("selected_choice_source_artifact_sha256", runtime_model.source_artifact_sha256),
-        ("selected_choice_model_bundle_id", runtime_model.model_bundle_id),
     )
     for string_field_name, expected_string_value in expected_strings:
+        actual_value = _optional_string_field(record, string_field_name)
+        if actual_value is not None and actual_value != expected_string_value:
+            failures.append(f"{report_label} {string_field_name} must match runtime model")
+    route_fields = _runtime_binding_fields(window_family)
+    route_expected_strings = (
+        (route_fields.feature_key_field_name, runtime_model.feature_key),
+        (route_fields.source_artifact_sha256_field_name, runtime_model.source_artifact_sha256),
+        (route_fields.model_bundle_id_field_name, runtime_model.model_bundle_id),
+    )
+    for string_field_name, expected_string_value in route_expected_strings:
         actual_value = _optional_string_field(record, string_field_name)
         if actual_value is not None and actual_value != expected_string_value:
             failures.append(f"{report_label} {string_field_name} must match runtime model")
@@ -800,17 +881,146 @@ def _report_identity_failures(
         actual_number = _number_field(record, number_field_name)
         if actual_number is not None and not _same_float(actual_number, expected_number_value):
             failures.append(f"{report_label} {number_field_name} must match runtime model")
-    report_runtime_model_path = _string_field(record, "selected_choice_runtime_model_path")
+    report_runtime_model_path = _string_field(record, route_fields.runtime_model_path_field_name)
     if report_runtime_model_path is None:
-        failures.append(f"{report_label} selected_choice_runtime_model_path must be present")
-    elif _resolve_path(repository_root, Path(report_runtime_model_path)) != runtime_model_path.resolve():
-        failures.append(f"{report_label} selected_choice_runtime_model_path must match runtime model path")
-    report_detector_sha256 = _string_field(record, "selected_choice_runtime_model_detector_sha256")
+        failures.append(f"{report_label} {route_fields.runtime_model_path_field_name} must be present")
+    else:
+        referenced_runtime_model_path = _resolve_path(repository_root, Path(report_runtime_model_path))
+        if not referenced_runtime_model_path.exists():
+            failures.append(f"{report_label} {route_fields.runtime_model_path_field_name} must exist")
+        elif referenced_runtime_model_path != runtime_model_path.resolve():
+            failures.extend(
+                _referenced_runtime_model_failures(
+                    report_label=report_label,
+                    runtime_model_path_field_name=route_fields.runtime_model_path_field_name,
+                    referenced_runtime_model_path=referenced_runtime_model_path,
+                    detector_sha256=detector_sha256,
+                )
+            )
+    report_detector_sha256 = _string_field(record, route_fields.runtime_model_detector_sha256_field_name)
     if report_detector_sha256 is None:
-        failures.append(f"{report_label} selected_choice_runtime_model_detector_sha256 must be present")
+        failures.append(f"{report_label} {route_fields.runtime_model_detector_sha256_field_name} must be present")
     elif report_detector_sha256 != detector_sha256:
-        failures.append(f"{report_label} selected_choice_runtime_model_detector_sha256 must match runtime model")
+        failures.append(
+            f"{report_label} {route_fields.runtime_model_detector_sha256_field_name} must match runtime model"
+        )
     return tuple(failures)
+
+
+def _referenced_runtime_model_failures(
+    report_label: str,
+    runtime_model_path_field_name: str,
+    referenced_runtime_model_path: Path,
+    detector_sha256: str,
+) -> tuple[str, ...]:
+    try:
+        referenced_record = _load_json_object(referenced_runtime_model_path, f"{report_label} referenced runtime model")
+        referenced_model = _runtime_model_from_record(
+            runtime_record=referenced_record,
+            path=referenced_runtime_model_path,
+        )
+    except CiftEvidenceChainVerifierError as exc:
+        return (f"{report_label} {runtime_model_path_field_name} must reference a valid runtime model: {exc}",)
+    if cift_runtime_detector_sha256(referenced_model) != detector_sha256:
+        return (f"{report_label} {runtime_model_path_field_name} detector identity must match runtime model",)
+    return ()
+
+
+def _window_family_from_feature_key(feature_key: str) -> str:
+    if feature_key.startswith("selected_choice_window_"):
+        return "selected_choice"
+    if feature_key.startswith("query_tail_window_"):
+        return "freeform_query_tail"
+    if feature_key.startswith("readout_window_"):
+        return "freeform_readout"
+    if feature_key.startswith("final_token_"):
+        return "freeform_final_token"
+    if feature_key.startswith("mean_pool_"):
+        return "freeform_mean_pool"
+    return "freeform"
+
+
+def _window_selection_reason(window_family: str) -> str:
+    if window_family == "selected_choice":
+        return "selected_choice_metadata_present"
+    return "selected_choice_metadata_absent_freeform_route"
+
+
+def _runtime_binding_fields(window_family: str) -> _RuntimeBindingFields:
+    if window_family == "selected_choice":
+        return _RuntimeBindingFields(
+            feature_key_field_name="selected_choice_feature_key",
+            source_artifact_sha256_field_name="selected_choice_source_artifact_sha256",
+            model_bundle_id_field_name="selected_choice_model_bundle_id",
+            runtime_model_path_field_name="selected_choice_runtime_model_path",
+            runtime_model_detector_sha256_field_name="selected_choice_runtime_model_detector_sha256",
+        )
+    return _RuntimeBindingFields(
+        feature_key_field_name="fallback_feature_key",
+        source_artifact_sha256_field_name="fallback_source_artifact_sha256",
+        model_bundle_id_field_name="fallback_model_bundle_id",
+        runtime_model_path_field_name="fallback_runtime_model_path",
+        runtime_model_detector_sha256_field_name="fallback_runtime_model_detector_sha256",
+    )
+
+
+def _token_index_fields(window_family: str, prefix: str) -> tuple[str | None, str | None]:
+    if window_family == "selected_choice":
+        return (
+            f"{prefix}selected_choice_readout_token_indices",
+            f"{prefix}selected_choice_readout_token_indices_sha256",
+        )
+    if window_family == "freeform_query_tail":
+        return (
+            f"{prefix}query_tail_readout_token_indices",
+            f"{prefix}query_tail_readout_token_indices_sha256",
+        )
+    if window_family == "freeform_readout":
+        return (f"{prefix}readout_token_indices", f"{prefix}readout_token_indices_sha256")
+    if window_family == "freeform_final_token":
+        return (f"{prefix}readout_token_indices", f"{prefix}readout_token_indices_sha256")
+    return (None, None)
+
+
+def _route_token_index_failures(
+    record: Mapping[str, object],
+    window_family: str,
+    prefix: str,
+    report_label: str,
+) -> tuple[str, ...]:
+    token_indices_field_name, token_indices_sha256_field_name = _token_index_fields(
+        window_family=window_family,
+        prefix=prefix,
+    )
+    if token_indices_field_name is None or token_indices_sha256_field_name is None:
+        return ()
+    failures: list[str] = []
+    if _integer_list_field(record, token_indices_field_name) is None:
+        failures.append(f"{report_label}.{token_indices_field_name} must be a non-empty integer list")
+    if not _sha256_field(record, token_indices_sha256_field_name):
+        failures.append(f"{report_label}.{token_indices_sha256_field_name} must be a lowercase SHA-256 digest")
+    expected_readout_source = _readout_source_for_window_family(window_family)
+    if expected_readout_source is not None:
+        readout_window_source_field_name = f"{prefix}readout_window_source"
+        readout_source_field_name = f"{prefix}readout_source"
+        if _string_field(record, readout_window_source_field_name) != expected_readout_source:
+            failures.append(f"{report_label}.{readout_window_source_field_name} must be {expected_readout_source}")
+        readout_source = record.get(readout_source_field_name)
+        if not isinstance(readout_source, Mapping):
+            failures.append(f"{report_label}.{readout_source_field_name} must be an object")
+        elif _string_field(readout_source, "readout_window") != expected_readout_source:
+            failures.append(
+                f"{report_label}.{readout_source_field_name}.readout_window must be {expected_readout_source}"
+            )
+    return tuple(failures)
+
+
+def _readout_source_for_window_family(window_family: str) -> str | None:
+    if window_family == "freeform_query_tail":
+        return "query_tail"
+    if window_family == "freeform_final_token":
+        return "final_token"
+    return None
 
 
 def _head_to_head_failures(
@@ -1375,6 +1585,23 @@ def _integer_field(record: Mapping[str, object], field_name: str) -> int | None:
     if isinstance(value, bool) or not isinstance(value, int):
         return None
     return value
+
+
+def _integer_list_field(record: Mapping[str, object], field_name: str) -> tuple[int, ...] | None:
+    value = record.get(field_name)
+    if not isinstance(value, list) or len(value) == 0:
+        return None
+    items: list[int] = []
+    for item in value:
+        if isinstance(item, bool) or not isinstance(item, int):
+            return None
+        items.append(item)
+    return tuple(items)
+
+
+def _sha256_field(record: Mapping[str, object], field_name: str) -> bool:
+    value = record.get(field_name)
+    return isinstance(value, str) and len(value) == 64 and all(character in "0123456789abcdef" for character in value)
 
 
 def _bool_field(record: Mapping[str, object], field_name: str) -> bool | None:

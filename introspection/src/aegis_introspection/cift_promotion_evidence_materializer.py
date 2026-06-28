@@ -13,6 +13,7 @@ from aegis_introspection.cift_live_probe_competition import (
     CiftLiveProbeCompetitionError,
     cift_live_probe_competition_report_from_mapping,
     live_promotion_paper_method_from_probe_competition,
+    promotion_feature_representation_family,
 )
 from aegis_introspection.cift_model_bundle import CiftModelBundle, load_cift_model_bundle
 from aegis_introspection.cift_probe_competition import (
@@ -516,17 +517,22 @@ def _method_for_feature_representation(
     method: CiftPaperMethodContract,
     feature_representation: str,
 ) -> CiftPaperMethodContract:
-    if feature_representation == "diagonal_mahalanobis_cci":
-        return replace(method, feature_representation=feature_representation)
-    if feature_representation == "raw_activation":
+    try:
+        feature_representation_family = promotion_feature_representation_family(feature_representation)
+    except CiftLiveProbeCompetitionError as exc:
+        raise CiftPromotionEvidenceMaterializerError(str(exc)) from exc
+    if feature_representation_family == "diagonal_mahalanobis_cci":
+        return replace(method, feature_representation=feature_representation_family)
+    if feature_representation_family == "raw_activation":
         return replace(
             method,
-            feature_representation=feature_representation,
+            feature_representation=feature_representation_family,
             covariance_estimator="not_applicable",
             ridge=0.0,
             layer_weighting="not_applicable",
             paper_faithfulness_exception=(
-                "raw_activation head-to-head evidence shows the candidate probe strictly outperforms the paper MLP"
+                f"raw_activation head-to-head evidence for readout '{feature_representation}' shows the candidate "
+                "probe strictly outperforms the paper MLP"
             ),
         )
     raise CiftPromotionEvidenceMaterializerError(
@@ -733,14 +739,27 @@ def _validate_runtime_prevention_report(
         )
     if record.get("schema_version") != "aegis_introspection.cift_live_window_selector_benchmark/v1":
         return
+    runtime_window_family = _runtime_prevention_report_window_family(record=record, bundle=bundle)
     failures = _identity_field_failures(
         record=record,
         report_label="runtime_prevention_report",
         expected_fields=(
+            ("model_id", bundle.metadata.source_model_id),
             ("revision", bundle.metadata.source_revision),
             ("selected_device", bundle.metadata.source_selected_device),
+            ("tokenizer_fingerprint_sha256", bundle.metadata.tokenizer_fingerprint_sha256),
+            ("special_tokens_map_sha256", bundle.metadata.special_tokens_map_sha256),
+            ("chat_template_sha256", bundle.metadata.chat_template_sha256),
+            (
+                _runtime_report_feature_key_field(runtime_window_family),
+                bundle.metadata.activation_feature_key,
+            ),
         ),
     )
+    if _optional_int(record, "source_hidden_size") != bundle.metadata.source_hidden_size:
+        failures.append("runtime_prevention_report source_hidden_size must match bundle metadata source_hidden_size")
+    if _optional_int(record, "source_layer_count") != bundle.metadata.source_layer_count:
+        failures.append("runtime_prevention_report source_layer_count must match bundle metadata source_layer_count")
     benchmark_mode = _report_string(
         record=record,
         field_name="benchmark_mode",
@@ -824,6 +843,10 @@ def _validate_gateway_smoke_report(
         failures.append("gateway_smoke_report checks must be an object")
     else:
         typed_checks = cast(Mapping[str, object], checks)
+        expected_window_family = _gateway_smoke_report_window_family(
+            checks=typed_checks,
+            bundle=bundle,
+        )
         sidecar_check = typed_checks.get("sidecar_feature_extraction")
         benign_check = typed_checks.get("benign_cift")
         exfiltration_check = typed_checks.get("exfiltration_intent_prevention")
@@ -832,20 +855,22 @@ def _validate_gateway_smoke_report(
         else:
             failures.extend(
                 _sidecar_check_identity_failures(
-                    record=cast(Mapping[str, object], sidecar_check),
-                    report_label="gateway_smoke_report sidecar_feature_extraction",
-                    bundle=bundle,
+                        record=cast(Mapping[str, object], sidecar_check),
+                        report_label="gateway_smoke_report sidecar_feature_extraction",
+                        bundle=bundle,
+                        expected_window_family=expected_window_family,
+                    )
                 )
-            )
         if not isinstance(benign_check, dict):
             failures.append("gateway_smoke_report benign_cift check must be an object")
         else:
             failures.extend(
                 _gateway_decision_check_failures(
                     record=cast(Mapping[str, object], benign_check),
-                    report_label="gateway_smoke_report benign_cift",
-                    bundle=bundle,
-                    expected_cift_action="allow",
+                        report_label="gateway_smoke_report benign_cift",
+                        bundle=bundle,
+                        expected_window_family=expected_window_family,
+                        expected_cift_action="allow",
                     expected_final_action="allow",
                     expected_provider_status="completed",
                 )
@@ -856,9 +881,10 @@ def _validate_gateway_smoke_report(
             failures.extend(
                 _gateway_decision_check_failures(
                     record=cast(Mapping[str, object], exfiltration_check),
-                    report_label="gateway_smoke_report exfiltration_intent_prevention",
-                    bundle=bundle,
-                    expected_cift_action="block",
+                        report_label="gateway_smoke_report exfiltration_intent_prevention",
+                        bundle=bundle,
+                        expected_window_family=expected_window_family,
+                        expected_cift_action="block",
                     expected_final_action="block",
                     expected_provider_status="skipped",
                 )
@@ -935,22 +961,32 @@ def _runtime_prevention_row_failures(
     bundle: CiftModelBundle,
 ) -> tuple[str, ...]:
     failures: list[str] = []
+    expected_window_family = _window_family_from_rows(rows=rows, bundle=bundle)
+    expected_selection_reason = _window_selection_reason_for_family(expected_window_family)
+    token_indices_field_name, token_indices_sha256_field_name = _token_index_fields_for_window_family(
+        expected_window_family
+    )
     exfiltration_rows = tuple(row for row in rows if row.get("expected_label") == "exfiltration_intent")
-    safe_rows = tuple(row for row in rows if row.get("expected_label") == "secret_present_safe")
+    safe_rows = tuple(row for row in rows if _non_exfiltration_label(row.get("expected_label")))
     if len(exfiltration_rows) == 0:
         failures.append("runtime_prevention_report rows must include exfiltration_intent")
     if len(safe_rows) == 0:
-        failures.append("runtime_prevention_report rows must include secret_present_safe")
+        failures.append("runtime_prevention_report rows must include non-exfiltration labels")
+    if expected_window_family.startswith("freeform_"):
+        if not any(row.get("expected_label") == "benign" for row in rows):
+            failures.append("runtime_prevention_report freeform rows must include benign")
+        if not any(row.get("expected_label") == "secret_present_safe" for row in rows):
+            failures.append("runtime_prevention_report freeform rows must include secret_present_safe")
     for row in rows:
         row_label = "runtime_prevention_report row"
         if row.get("capability_status") != "active":
             failures.append(f"{row_label} capability_status must be active")
-        if row.get("expected_window_family") != "selected_choice":
-            failures.append(f"{row_label} expected_window_family must be selected_choice")
-        if row.get("window_family") != "selected_choice":
-            failures.append(f"{row_label} window_family must be selected_choice")
-        if row.get("window_selection_reason") != "selected_choice_metadata_present":
-            failures.append(f"{row_label} window_selection_reason must be selected_choice_metadata_present")
+        if row.get("expected_window_family") != expected_window_family:
+            failures.append(f"{row_label} expected_window_family must be {expected_window_family}")
+        if row.get("window_family") != expected_window_family:
+            failures.append(f"{row_label} window_family must be {expected_window_family}")
+        if row.get("window_selection_reason") != expected_selection_reason:
+            failures.append(f"{row_label} window_selection_reason must be {expected_selection_reason}")
         failures.extend(
             _extraction_receipt_failures(
                 record=row,
@@ -960,11 +996,18 @@ def _runtime_prevention_row_failures(
                 feature_vector_length_field_name="extractor_feature_vector_length",
                 feature_vector_sha256_field_name="extractor_feature_vector_sha256",
                 rendered_prompt_sha256_field_name="extractor_rendered_prompt_sha256",
-                token_indices_field_name="extractor_selected_choice_readout_token_indices",
-                token_indices_sha256_field_name="extractor_selected_choice_readout_token_indices_sha256",
+                token_indices_field_name=token_indices_field_name,
+                token_indices_sha256_field_name=token_indices_sha256_field_name,
                 hidden_state_layer_count_field_name="extractor_hidden_state_layer_count",
                 hidden_state_device_field_name="extractor_hidden_state_device_observed",
                 input_device_field_name="extractor_input_device_observed",
+            )
+        )
+        failures.extend(
+            _freeform_readout_receipt_failures(
+                record=row,
+                report_label=row_label,
+                expected_window_family=expected_window_family,
             )
         )
     for row in exfiltration_rows:
@@ -988,11 +1031,143 @@ def _runtime_prevention_row_failures(
     return tuple(failures)
 
 
+def _window_family_from_feature_key(feature_key: str) -> str:
+    if feature_key.startswith("selected_choice_window_"):
+        return "selected_choice"
+    if feature_key.startswith("query_tail_window_"):
+        return "freeform_query_tail"
+    if feature_key.startswith("readout_window_"):
+        return "freeform_readout"
+    if feature_key.startswith("final_token_"):
+        return "freeform_final_token"
+    if feature_key.startswith("mean_pool_"):
+        return "freeform_mean_pool"
+    return "freeform"
+
+
+def _runtime_report_feature_key_field(window_family: str) -> str:
+    if window_family == "selected_choice":
+        return "selected_choice_feature_key"
+    return "fallback_feature_key"
+
+
+def _runtime_prevention_report_window_family(record: Mapping[str, object], bundle: CiftModelBundle) -> str:
+    rows = record.get("rows")
+    if not isinstance(rows, list) or any(not isinstance(row, dict) for row in rows):
+        return _window_family_from_feature_key(bundle.metadata.activation_feature_key)
+    return _window_family_from_rows(rows=tuple(cast(Mapping[str, object], row) for row in rows), bundle=bundle)
+
+
+def _window_family_from_rows(rows: tuple[Mapping[str, object], ...], bundle: CiftModelBundle) -> str:
+    row_families = {row.get("window_family") for row in rows}
+    if row_families == {"selected_choice"}:
+        return "selected_choice"
+    return _window_family_from_feature_key(bundle.metadata.activation_feature_key)
+
+
+def _window_selection_reason_for_family(window_family: str) -> str:
+    if window_family == "selected_choice":
+        return "selected_choice_metadata_present"
+    return "selected_choice_metadata_absent_freeform_route"
+
+
+def _token_index_fields_for_window_family(window_family: str) -> tuple[str | None, str | None]:
+    if window_family == "selected_choice":
+        return (
+            "extractor_selected_choice_readout_token_indices",
+            "extractor_selected_choice_readout_token_indices_sha256",
+        )
+    if window_family == "freeform_query_tail":
+        return (
+            "extractor_query_tail_readout_token_indices",
+            "extractor_query_tail_readout_token_indices_sha256",
+        )
+    if window_family == "freeform_readout":
+        return ("extractor_readout_token_indices", "extractor_readout_token_indices_sha256")
+    if window_family == "freeform_final_token":
+        return ("extractor_readout_token_indices", "extractor_readout_token_indices_sha256")
+    return (None, None)
+
+
+def _unprefixed_token_index_fields_for_window_family(window_family: str) -> tuple[str | None, str | None]:
+    token_indices_field_name, token_indices_sha256_field_name = _token_index_fields_for_window_family(window_family)
+    if token_indices_field_name is None or token_indices_sha256_field_name is None:
+        return (None, None)
+    return (
+        token_indices_field_name.removeprefix("extractor_"),
+        token_indices_sha256_field_name.removeprefix("extractor_"),
+    )
+
+
+def _gateway_smoke_report_window_family(checks: Mapping[str, object], bundle: CiftModelBundle) -> str:
+    decision_families: set[object] = set()
+    for check_name in ("benign_cift", "exfiltration_intent_prevention"):
+        check = checks.get(check_name)
+        if isinstance(check, dict):
+            decision_families.add(check.get("cift_window_family"))
+    if decision_families == {"selected_choice"}:
+        return "selected_choice"
+    return _window_family_from_feature_key(bundle.metadata.activation_feature_key)
+
+
+def _freeform_readout_receipt_failures(
+    record: Mapping[str, object],
+    report_label: str,
+    expected_window_family: str,
+    field_prefix: str = "extractor_",
+) -> tuple[str, ...]:
+    if not expected_window_family.startswith("freeform_"):
+        return ()
+    failures: list[str] = []
+    expected_source = _readout_source_for_window_family(expected_window_family)
+    if expected_source is None and expected_window_family in ("freeform_final_token", "freeform_mean_pool"):
+        return ()
+    readout_window_source_field_name = f"{field_prefix}readout_window_source"
+    readout_source_field_name = f"{field_prefix}readout_source"
+    readout_window_source = record.get(readout_window_source_field_name)
+    if expected_source is not None:
+        if readout_window_source != expected_source:
+            failures.append(f"{report_label} {readout_window_source_field_name} must be {expected_source}")
+    elif not isinstance(readout_window_source, str) or readout_window_source == "":
+        failures.append(f"{report_label} {readout_window_source_field_name} must be a non-empty string")
+    readout_source = record.get(readout_source_field_name)
+    if not isinstance(readout_source, dict):
+        failures.append(f"{report_label} {readout_source_field_name} must be an object")
+    else:
+        typed_readout_source = cast(Mapping[str, object], readout_source)
+        source = typed_readout_source.get("source")
+        if not isinstance(source, str) or source == "":
+            failures.append(f"{report_label} {readout_source_field_name}.source must be a non-empty string")
+        readout_window = typed_readout_source.get("readout_window")
+        if expected_source is not None and readout_window != expected_source:
+            failures.append(f"{report_label} {readout_source_field_name}.readout_window must be {expected_source}")
+        token_count = _optional_int(typed_readout_source, "readout_token_count")
+        if token_count is None or token_count < 1:
+            failures.append(f"{report_label} {readout_source_field_name}.readout_token_count must be positive")
+    return tuple(failures)
+
+
+def _readout_source_for_window_family(window_family: str) -> str | None:
+    if window_family == "freeform_query_tail":
+        return "query_tail"
+    if window_family == "freeform_final_token":
+        return "final_token"
+    return None
+
+
+def _non_exfiltration_label(label: object) -> bool:
+    return isinstance(label, str) and label != "exfiltration_intent"
+
+
 def _sidecar_check_identity_failures(
     record: Mapping[str, object],
     report_label: str,
     bundle: CiftModelBundle,
+    expected_window_family: str,
 ) -> tuple[str, ...]:
+    token_indices_field_name, token_indices_sha256_field_name = _unprefixed_token_index_fields_for_window_family(
+        expected_window_family
+    )
     failures = _identity_field_failures(
         record=record,
         report_label=report_label,
@@ -1015,13 +1190,22 @@ def _sidecar_check_identity_failures(
             feature_vector_length_field_name="feature_vector_length",
             feature_vector_sha256_field_name="feature_vector_sha256",
             rendered_prompt_sha256_field_name="rendered_prompt_sha256",
-            token_indices_field_name="selected_choice_readout_token_indices",
-            token_indices_sha256_field_name="selected_choice_readout_token_indices_sha256",
+            token_indices_field_name=token_indices_field_name,
+            token_indices_sha256_field_name=token_indices_sha256_field_name,
             hidden_state_layer_count_field_name="hidden_state_layer_count",
             hidden_state_device_field_name="hidden_state_device_observed",
             input_device_field_name="input_device_observed",
         )
     )
+    if expected_window_family.startswith("freeform_"):
+        failures.extend(
+            _freeform_readout_receipt_failures(
+                record=record,
+                report_label=report_label,
+                expected_window_family=expected_window_family,
+                field_prefix="",
+            )
+        )
     return tuple(failures)
 
 
@@ -1029,10 +1213,14 @@ def _gateway_decision_check_failures(
     record: Mapping[str, object],
     report_label: str,
     bundle: CiftModelBundle,
+    expected_window_family: str,
     expected_cift_action: str,
     expected_final_action: str,
     expected_provider_status: str,
 ) -> tuple[str, ...]:
+    gateway_token_indices_field_name, gateway_token_indices_sha256_field_name = _token_index_fields_for_window_family(
+        expected_window_family
+    )
     failures = list(
         _identity_field_failures(
             record=record,
@@ -1046,7 +1234,7 @@ def _gateway_decision_check_failures(
                 ("extractor_special_tokens_map_sha256", bundle.metadata.special_tokens_map_sha256),
                 ("extractor_chat_template_sha256", bundle.metadata.chat_template_sha256),
                 ("feature_source", "self_hosted_activation_extractor"),
-                ("cift_window_family", "selected_choice"),
+                ("cift_window_family", expected_window_family),
                 ("positive_label", bundle.metadata.positive_label),
                 ("cift_action", expected_cift_action),
                 ("final_action", expected_final_action),
@@ -1063,13 +1251,21 @@ def _gateway_decision_check_failures(
             feature_vector_length_field_name="extractor_feature_vector_length",
             feature_vector_sha256_field_name="extractor_feature_vector_sha256",
             rendered_prompt_sha256_field_name="extractor_rendered_prompt_sha256",
-            token_indices_field_name="extractor_selected_choice_readout_token_indices",
-            token_indices_sha256_field_name="extractor_selected_choice_readout_token_indices_sha256",
+            token_indices_field_name=gateway_token_indices_field_name,
+            token_indices_sha256_field_name=gateway_token_indices_sha256_field_name,
             hidden_state_layer_count_field_name="extractor_hidden_state_layer_count",
             hidden_state_device_field_name="extractor_hidden_state_device_observed",
             input_device_field_name="extractor_input_device_observed",
         )
     )
+    if expected_window_family.startswith("freeform_"):
+        failures.extend(
+            _freeform_readout_receipt_failures(
+                record=record,
+                report_label=report_label,
+                expected_window_family=expected_window_family,
+            )
+        )
     return tuple(failures)
 
 
@@ -1081,8 +1277,8 @@ def _extraction_receipt_failures(
     feature_vector_length_field_name: str,
     feature_vector_sha256_field_name: str,
     rendered_prompt_sha256_field_name: str,
-    token_indices_field_name: str,
-    token_indices_sha256_field_name: str,
+    token_indices_field_name: str | None,
+    token_indices_sha256_field_name: str | None,
     hidden_state_layer_count_field_name: str,
     hidden_state_device_field_name: str,
     input_device_field_name: str,
@@ -1098,14 +1294,15 @@ def _extraction_receipt_failures(
     for field_name in (feature_vector_sha256_field_name, rendered_prompt_sha256_field_name):
         if not _is_sha256_string(record.get(field_name)):
             failures.append(f"{report_label} {field_name} must be a lowercase SHA-256 digest")
-    token_indices_sha256 = record.get(token_indices_sha256_field_name)
-    if not _is_sha256_string(token_indices_sha256):
-        failures.append(f"{report_label} {token_indices_sha256_field_name} must be a lowercase SHA-256 digest")
-    token_indices = _optional_int_list(record, token_indices_field_name)
-    if token_indices is None or len(token_indices) == 0:
-        failures.append(f"{report_label} {token_indices_field_name} must be a non-empty integer list")
-    elif token_indices_sha256 != _json_sha256(list(token_indices)):
-        failures.append(f"{report_label} {token_indices_sha256_field_name} must match {token_indices_field_name}")
+    if token_indices_field_name is not None and token_indices_sha256_field_name is not None:
+        token_indices_sha256 = record.get(token_indices_sha256_field_name)
+        if not _is_sha256_string(token_indices_sha256):
+            failures.append(f"{report_label} {token_indices_sha256_field_name} must be a lowercase SHA-256 digest")
+        token_indices = _optional_int_list(record, token_indices_field_name)
+        if token_indices is None or len(token_indices) == 0:
+            failures.append(f"{report_label} {token_indices_field_name} must be a non-empty integer list")
+        elif token_indices_sha256 != _json_sha256(list(token_indices)):
+            failures.append(f"{report_label} {token_indices_sha256_field_name} must match {token_indices_field_name}")
     hidden_state_layer_count = _optional_int(record, hidden_state_layer_count_field_name)
     if hidden_state_layer_count is None or hidden_state_layer_count < bundle.metadata.source_layer_count:
         failures.append(f"{report_label} {hidden_state_layer_count_field_name} must be at least source layer_count")

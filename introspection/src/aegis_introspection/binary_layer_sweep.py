@@ -4,6 +4,8 @@ import json
 from dataclasses import dataclass, replace
 from pathlib import Path
 
+import torch
+
 from aegis_introspection.artifacts import ActivationArtifact
 from aegis_introspection.binary_tasks import (
     BinaryFoldMetrics,
@@ -34,6 +36,12 @@ class BinaryLayerSweepFeatureReport:
 
 
 @dataclass(frozen=True)
+class BinaryLayerSweepInvalidFeatureReport:
+    feature_name: str
+    reason: str
+
+
+@dataclass(frozen=True)
 class BinaryLayerSweepReport:
     source_model_id: str
     source_revision: str
@@ -49,6 +57,8 @@ class BinaryLayerSweepReport:
     reference_feature_key: str
     best_feature_key: str
     feature_count: int
+    invalid_feature_count: int
+    invalid_features: tuple[BinaryLayerSweepInvalidFeatureReport, ...]
     features: tuple[BinaryLayerSweepFeatureReport, ...]
 
 
@@ -90,8 +100,22 @@ def evaluate_grouped_binary_layer_sweep(
     definition = _definition_by_name(task_name)
     dataset = build_binary_task_dataset(artifact, definition)
     raw_feature_reports = []
+    invalid_features: list[BinaryLayerSweepInvalidFeatureReport] = []
 
-    for feature_name in artifact["features"]:
+    for feature_name, feature_tensor in artifact["features"].items():
+        invalid_reason = _invalid_feature_reason(feature_tensor)
+        if invalid_reason is not None:
+            if feature_name == config.activation_feature_key:
+                raise BinaryTaskError(
+                    f"Reference activation feature '{config.activation_feature_key}' is invalid: {invalid_reason}"
+                )
+            invalid_features.append(
+                BinaryLayerSweepInvalidFeatureReport(
+                    feature_name=feature_name,
+                    reason=invalid_reason,
+                )
+            )
+            continue
         feature_config = replace(config, activation_feature_key=feature_name)
         raw_feature_reports.append(
             evaluate_grouped_activation_method(
@@ -100,6 +124,8 @@ def evaluate_grouped_binary_layer_sweep(
                 config=feature_config,
             )
         )
+    if len(raw_feature_reports) == 0:
+        raise BinaryTaskError("Layer sweep has no valid finite activation features.")
 
     sorted_method_reports = tuple(
         sorted(
@@ -132,8 +158,21 @@ def evaluate_grouped_binary_layer_sweep(
         reference_feature_key=config.activation_feature_key,
         best_feature_key=best_feature_key,
         feature_count=len(feature_reports),
+        invalid_feature_count=len(invalid_features),
+        invalid_features=tuple(invalid_features),
         features=feature_reports,
     )
+
+
+def _invalid_feature_reason(feature_tensor: torch.Tensor) -> str | None:
+    if feature_tensor.ndim != 2:
+        return f"expected 2D tensor, received shape {tuple(feature_tensor.shape)}"
+    finite_mask = torch.isfinite(feature_tensor.detach().cpu())
+    invalid_value_count = int((~finite_mask).sum().item())
+    if invalid_value_count == 0:
+        return None
+    invalid_row_count = int((~finite_mask).any(dim=1).sum().item())
+    return f"{invalid_value_count} non-finite values across {invalid_row_count} rows"
 
 
 def _fold_to_json(fold: BinaryFoldMetrics) -> dict[str, JsonValue]:
@@ -176,6 +215,14 @@ def binary_layer_sweep_report_to_json(report: BinaryLayerSweepReport) -> dict[st
         "reference_feature_key": report.reference_feature_key,
         "best_feature_key": report.best_feature_key,
         "feature_count": report.feature_count,
+        "invalid_feature_count": report.invalid_feature_count,
+        "invalid_features": [
+            {
+                "feature_name": feature.feature_name,
+                "reason": feature.reason,
+            }
+            for feature in report.invalid_features
+        ],
         "features": [_feature_to_json(feature) for feature in report.features],
     }
 
@@ -201,6 +248,7 @@ def render_binary_layer_sweep_markdown(report: BinaryLayerSweepReport) -> str:
         f"- Reference feature: `{report.reference_feature_key}`",
         f"- Best feature: `{report.best_feature_key}`",
         f"- Feature count: `{report.feature_count}`",
+        f"- Invalid feature count: `{report.invalid_feature_count}`",
         "",
         "## Feature Ranking",
         "",
@@ -230,6 +278,19 @@ def render_binary_layer_sweep_markdown(report: BinaryLayerSweepReport) -> str:
         for row in feature.confusion_matrix:
             lines.append(str(list(row)))
         lines.append("```")
+        lines.append("")
+
+    if len(report.invalid_features) > 0:
+        lines.extend(
+            [
+                "## Invalid Features",
+                "",
+                "| Feature | Reason |",
+                "|---|---|",
+            ]
+        )
+        for feature in report.invalid_features:
+            lines.append(f"| `{feature.feature_name}` | {feature.reason} |")
         lines.append("")
 
     return "\n".join(lines)

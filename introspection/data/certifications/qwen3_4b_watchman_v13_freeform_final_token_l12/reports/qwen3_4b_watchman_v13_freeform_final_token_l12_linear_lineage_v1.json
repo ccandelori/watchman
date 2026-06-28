@@ -1,0 +1,74 @@
+{
+  "artifacts": [
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/activations/qwen3_4b_watchman_v13_freeform_final_token_l12_windows_l12.pt",
+      "role": "artifact_1",
+      "sha256": "316e97995d495df91d8f066a6f2096f783bd29a0e089b1ac87a5d14d31670881"
+    }
+  ],
+  "candidate": {
+    "candidate_status": "runtime_candidate",
+    "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+    "feature_key": "final_token_layer_12",
+    "positive_label": "exfiltration_intent",
+    "source_artifact_path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/activations/qwen3_4b_watchman_v13_freeform_final_token_l12_windows_l12.pt",
+    "source_artifact_sha256": "316e97995d495df91d8f066a6f2096f783bd29a0e089b1ac87a5d14d31670881",
+    "source_hidden_size": 2560,
+    "source_layer_count": 36,
+    "source_model_id": "Qwen/Qwen3-4B",
+    "source_revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+    "source_selected_device": "mps",
+    "special_tokens_map_sha256": "edcb2fc2acbbe77f858a9c4fe51295ffdb84711efba5703ec5906b3d67282569",
+    "task_name": "non_exfiltration_vs_exfiltration",
+    "tokenizer_fingerprint_sha256": "41e00eccf531cffc2e562d38bdd879d41e5044ea279af5b73c6a32aabcc8fe04",
+    "training_dataset_id": "watchman-v13-freeform-qwen3-4b"
+  },
+  "created_at": "2026-06-27T00:00:00Z",
+  "model_bundle": {
+    "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/models/cift_qwen3_4b_watchman_v13_freeform_final_token_l12_linear_candidate_v1.pkl",
+    "role": "model_bundle",
+    "sha256": "d60815186405247ccaa5c71d1f8664f5a788e36572fb50a5453ab430944af679"
+  },
+  "report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_lineage_v1",
+  "reports": [
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_linear_vs_paper_mlp_v1.json",
+      "role": "report_1",
+      "sha256": "ec166279d2bf4e1ae8c344ed4630b2eb1530caebab3d1553f009f87d137b49f9"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_linear_calibration_v1.json",
+      "role": "report_2",
+      "sha256": "62ce6ac2e8f3a7b7c088edae870a6e4576f2ebcbe78043dce40d11f59cd891f8"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_linear_feature_ablation_v1.json",
+      "role": "report_3",
+      "sha256": "8c0976ac2c38ca341be034cdc28257afebe49d42d13d0fc58a6bec61887dee63"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_linear_counterfactual_patching_v1.json",
+      "role": "report_4",
+      "sha256": "e24edaf56cd34a20e49ae2ef0aa54c060744c39cbb92ca90363a28b307bf75f7"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_linear_runtime_prevention_v1.json",
+      "role": "report_5",
+      "sha256": "d5da2e3119bae18754b4e808c0bcfb1b07006ea1d359453f7236c40c21cd11cb"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_gateway_smoke_v1.json",
+      "role": "report_6",
+      "sha256": "81caed09369d8ec08770dfe7eeff55c25e91bb15a4b395a535179ce0655b99e6"
+    }
+  ],
+  "reproduction_commands": [
+    "uv run python introspection/scripts/certify_cift_local_model.py --certification-id qwen3_4b_watchman_v13_freeform_final_token_l12 --model-id Qwen/Qwen3-4B --device mps"
+  ],
+  "schema_version": "aegis_introspection.cift_lineage/v1",
+  "source_artifact": {
+    "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/activations/qwen3_4b_watchman_v13_freeform_final_token_l12_windows_l12.pt",
+    "role": "source_activation_artifact",
+    "sha256": "316e97995d495df91d8f066a6f2096f783bd29a0e089b1ac87a5d14d31670881"
+  }
+}

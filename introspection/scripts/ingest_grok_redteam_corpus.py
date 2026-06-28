@@ -4,6 +4,7 @@ import argparse
 import sys
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from typing import cast
 
 SCRIPT_PATH = Path(__file__).resolve()
 INTROSPECTION_ROOT = SCRIPT_PATH.parents[1]
@@ -17,6 +18,7 @@ for source_path in (INTROSPECTION_SRC_PATH, RUNTIME_SRC_PATH):
 from aegis_introspection.grok_redteam_corpus import (  # noqa: E402
     GrokRedteamCorpusConfig,
     GrokRedteamCorpusError,
+    GrokNormalizationMode,
     ingest_grok_redteam_corpus,
 )
 
@@ -44,6 +46,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--min-unique-message-ratio", required=True, type=float)
     parser.add_argument("--sealed-fraction", required=True, type=float)
     parser.add_argument("--require-family-label-crossing", action="store_true")
+    parser.add_argument(
+        "--normalization-mode",
+        required=False,
+        choices=("selected_choice_ledger", "freeform_runtime_v1"),
+        default="selected_choice_ledger",
+    )
     parser.add_argument("--allow-quarantine-output", action="store_true")
     parser.add_argument("--overwrite", action="store_true")
     return parser
@@ -73,6 +81,7 @@ def _parse_args(argv: Sequence[str]) -> GrokRedteamCorpusConfig:
         min_unique_message_ratio=float(namespace.min_unique_message_ratio),
         sealed_fraction=float(namespace.sealed_fraction),
         require_family_label_crossing=bool(namespace.require_family_label_crossing),
+        normalization_mode=cast(GrokNormalizationMode, str(namespace.normalization_mode)),
         allow_quarantine_output=bool(namespace.allow_quarantine_output),
         overwrite=bool(namespace.overwrite),
     )

@@ -1,0 +1,27 @@
+{
+  "chat_template_present": true,
+  "chat_template_sha256": "a55ee1b1660128b7098723e0abcd92caa0788061051c62d51cbe87d9cf1974d8",
+  "dtype_name": "device",
+  "failure_reason": null,
+  "hidden_size": 2560,
+  "hidden_state_capable": true,
+  "hidden_state_support": "configurable_output_hidden_states",
+  "layer_count": 36,
+  "model_id": "Qwen/Qwen3-4B",
+  "model_type": "qwen3",
+  "requested_device": "mps",
+  "resolved_revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+  "resolved_torch_dtype": "torch.float16",
+  "revision": "1cfa9a7208912126459214e8b04321603b3df60c",
+  "schema_version": "aegis_introspection.cift_model_metadata/v1",
+  "selected_device": "mps",
+  "selected_readout_candidates": [
+    "query_tail_window_layer_21",
+    "readout_window_layer_21"
+  ],
+  "special_tokens_map_sha256": "edcb2fc2acbbe77f858a9c4fe51295ffdb84711efba5703ec5906b3d67282569",
+  "support_state": "calibration-ready",
+  "tokenizer_class": "Qwen2Tokenizer",
+  "tokenizer_fingerprint_sha256": "41e00eccf531cffc2e562d38bdd879d41e5044ea279af5b73c6a32aabcc8fe04",
+  "tokenizer_vocab_size": 151643
+}

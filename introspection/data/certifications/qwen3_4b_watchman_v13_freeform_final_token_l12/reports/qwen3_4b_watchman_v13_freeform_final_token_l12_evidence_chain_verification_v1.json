@@ -1,0 +1,12 @@
+{
+  "detector_sha256": "2000490f129417a8d4c6f1156d804104915adbac24bef932c4634259c9d064f8",
+  "eligible": true,
+  "failed_requirements": [],
+  "gateway_smoke_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_gateway_smoke_v1",
+  "model_bundle_id": "cift_qwen3_4b_watchman_v13_freeform_final_token_l12_linear_v1",
+  "required_runtime_prevention_device": "mps",
+  "runtime_model_path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/models/cift_qwen3_4b_watchman_v13_freeform_final_token_l12_promoted_runtime_v1.json",
+  "schema_version": "aegis_introspection.cift_evidence_chain_verification/v1",
+  "source_model_id": "Qwen/Qwen3-4B",
+  "source_revision": "1cfa9a7208912126459214e8b04321603b3df60c"
+}

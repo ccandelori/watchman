@@ -34,11 +34,18 @@ from aegis.detectors.egress import ProviderEgressGuardDetector
 from aegis.detectors.nimbus import NimbusDetector, NimbusToolEgressDetector
 from aegis.policy.engine import SeverityPolicyEngine
 from aegis.proxy.cift_certification import (
+    CiftCertificationBinding,
     CiftCertificationBindingConfig,
     CiftCertificationBindingError,
     validate_cift_certification_binding,
 )
-from aegis.proxy.config import CiftCertificationMode, CiftProfile, ProxyCiftConfig, ProxyConfigError
+from aegis.proxy.config import (
+    CiftCertificationMode,
+    CiftProfile,
+    ProxyCiftConfig,
+    ProxyCiftRouteCertificationConfig,
+    ProxyConfigError,
+)
 
 
 @dataclass(frozen=True)
@@ -59,6 +66,25 @@ class ProxyCiftRuntimeBinding:
     feature_key: str
     feature_count: int
     selected_choice_readout_token_count: int
+    freeform_route: ProxyCiftRouteRuntimeBinding | None
+
+
+@dataclass(frozen=True)
+class ProxyCiftRouteRuntimeBinding:
+    certification_id: str | None
+    runtime_model_sha256: str
+    release_gate_report_sha256: str | None
+    model_bundle_id: str
+    source_model_id: str
+    source_revision: str
+    source_selected_device: str
+    source_hidden_size: int
+    source_layer_count: int
+    tokenizer_fingerprint_sha256: str
+    special_tokens_map_sha256: str
+    chat_template_sha256: str
+    feature_key: str
+    feature_count: int
 
 
 @dataclass(frozen=True)
@@ -79,14 +105,18 @@ class _CiftRuntimeBindingDetector:
         result = self.detector.evaluate(turn, model_response)
         if result.component != DetectorComponent.CIFT:
             return result
+        route_binding = _runtime_binding_for_detector_result(
+            runtime_binding=self.runtime_binding,
+            result=result,
+        )
         evidence = dict(result.evidence)
         evidence.update(
             {
                 "certification_mode": self.runtime_binding.certification_mode.value,
-                "certification_id": self.runtime_binding.certification_id,
-                "runtime_model_sha256": self.runtime_binding.runtime_model_sha256,
-                "release_gate_report_sha256": self.runtime_binding.release_gate_report_sha256,
-                "runtime_model_bundle_id": self.runtime_binding.model_bundle_id,
+                "certification_id": route_binding.certification_id,
+                "runtime_model_sha256": route_binding.runtime_model_sha256,
+                "release_gate_report_sha256": route_binding.release_gate_report_sha256,
+                "runtime_model_bundle_id": route_binding.model_bundle_id,
             }
         )
         return DetectorResult(
@@ -205,41 +235,56 @@ def _strict_self_hosted_window_selector_capability(
         raise ProxyConfigError("self_hosted_window_selector selected_choice_readout_token_count must be positive.")
     if config.extractor_id is None:
         raise ProxyConfigError("self_hosted_window_selector requires extractor_id.")
-    if config.fallback_model_path is not None:
+    if config.fallback_model_path is not None and config.freeform_certification is None:
         raise ProxyConfigError(
-            "strict self_hosted_window_selector does not support fallback_model_path; "
-            "strict selected-choice CIFT fails closed when selected-choice metadata is unavailable."
+            "strict self_hosted_window_selector requires freeform certification for fallback_model_path."
         )
+    if (
+        config.fallback_model_path is not None
+        and config.freeform_certification is not None
+        and config.fallback_model_path != config.freeform_certification.model_path
+    ):
+        raise ProxyConfigError("fallback_model_path must match freeform certification model_path.")
     try:
-        binding = validate_cift_certification_binding(
-            CiftCertificationBindingConfig(
-                runtime_model_path=config.selected_choice_model_path,
+        binding = _validate_cift_route_certification(
+            route_config=ProxyCiftRouteCertificationConfig(
+                model_path=config.selected_choice_model_path,
                 certification_manifest_path=config.certification_manifest_path,
                 certification_report_path=config.certification_report_path,
                 certification_artifact_root=config.certification_artifact_root,
+                certification_manifest_sha256=config.certification_manifest_sha256,
+                certification_report_sha256=config.certification_report_sha256,
                 release_gate_report_path=config.release_gate_report_path,
-                required_device=config.required_device,
-                expected_manifest_sha256=config.certification_manifest_sha256,
-                expected_report_sha256=config.certification_report_sha256,
-                expected_release_gate_report_sha256=config.release_gate_report_sha256,
-                expected_detector_name=config.detector_name,
-                expected_extractor_id=config.extractor_id,
-                expected_feature_source=config.feature_source,
-                expected_prompt_renderer=CIFT_PROMPT_RENDERER_TRACE_BRIDGE_V1,
-                expected_selected_choice_geometry=CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
-                expected_selected_choice_readout_token_count=config.selected_choice_readout_token_count,
-            )
+                release_gate_report_sha256=config.release_gate_report_sha256,
+            ),
+            config=config,
         )
         runtime_model = load_cift_runtime_model_with_sha256(
             path=config.selected_choice_model_path,
             expected_sha256=binding.runtime_sha256,
         )
+        if not _is_selected_choice_feature_key(runtime_model.feature_key):
+            raise ProxyConfigError("selected_choice_model_path must use a selected-choice CIFT feature key.")
+        freeform_binding = None
+        freeform_model = None
+        if config.freeform_certification is not None:
+            freeform_binding = _validate_cift_route_certification(
+                route_config=config.freeform_certification,
+                config=config,
+            )
+            freeform_model = load_cift_runtime_model_with_sha256(
+                path=config.freeform_certification.model_path,
+                expected_sha256=freeform_binding.runtime_sha256,
+            )
+            if _is_selected_choice_feature_key(freeform_model.feature_key):
+                raise ProxyConfigError("freeform_model_path must use a freeform CIFT feature key.")
         components = build_cift_window_selector_runtime_components(
             CiftRuntimeWindowSelectorConfig(
                 detector_name=config.detector_name,
                 selected_choice_model_path=config.selected_choice_model_path,
                 selected_choice_model_sha256=binding.runtime_sha256,
                 fallback_model_path=config.fallback_model_path,
+                fallback_model_sha256=None if freeform_binding is None else freeform_binding.runtime_sha256,
                 feature_extractor=extractor,
                 feature_source=config.feature_source,
                 activation_failure_action=Action.BLOCK,
@@ -254,6 +299,16 @@ def _strict_self_hosted_window_selector_capability(
         runtime_model_sha256=binding.runtime_sha256,
         release_gate_report_sha256=binding.release_gate_report_sha256,
         selected_choice_readout_token_count=config.selected_choice_readout_token_count,
+        freeform_route=(
+            None
+            if freeform_binding is None or freeform_model is None
+            else _route_runtime_binding(
+                certification_id=freeform_binding.certification_id,
+                runtime_model=freeform_model,
+                runtime_model_sha256=freeform_binding.runtime_sha256,
+                release_gate_report_sha256=freeform_binding.release_gate_report_sha256,
+            )
+        ),
     )
     return ProxyCiftCapability(
         capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
@@ -281,16 +336,28 @@ def _gateway_smoke_bootstrap_window_selector_capability(
         raise ProxyConfigError("self_hosted_window_selector selected_choice_readout_token_count must be positive.")
     try:
         runtime_model_sha256 = _sha256_file(config.selected_choice_model_path)
+        fallback_model_sha256 = None if config.fallback_model_path is None else _sha256_file(config.fallback_model_path)
         runtime_model = load_cift_runtime_model_with_sha256(
             path=config.selected_choice_model_path,
             expected_sha256=runtime_model_sha256,
         )
+        fallback_model = (
+            None
+            if config.fallback_model_path is None or fallback_model_sha256 is None
+            else load_cift_runtime_model_with_sha256(
+                path=config.fallback_model_path,
+                expected_sha256=fallback_model_sha256,
+            )
+        )
+        if fallback_model is not None and _is_selected_choice_feature_key(fallback_model.feature_key):
+            raise ProxyConfigError("gateway_smoke_bootstrap fallback_model_path must be a freeform route artifact.")
         components = build_cift_window_selector_gateway_smoke_bootstrap_components(
             config=CiftRuntimeWindowSelectorConfig(
                 detector_name=config.detector_name,
                 selected_choice_model_path=config.selected_choice_model_path,
                 selected_choice_model_sha256=runtime_model_sha256,
                 fallback_model_path=config.fallback_model_path,
+                fallback_model_sha256=fallback_model_sha256,
                 feature_extractor=extractor,
                 feature_source=config.feature_source,
                 activation_failure_action=Action.BLOCK,
@@ -306,6 +373,16 @@ def _gateway_smoke_bootstrap_window_selector_capability(
         runtime_model_sha256=runtime_model_sha256,
         release_gate_report_sha256=None,
         selected_choice_readout_token_count=config.selected_choice_readout_token_count,
+        freeform_route=(
+            None
+            if fallback_model is None or fallback_model_sha256 is None
+            else _route_runtime_binding(
+                certification_id=None,
+                runtime_model=fallback_model,
+                runtime_model_sha256=fallback_model_sha256,
+                release_gate_report_sha256=None,
+            )
+        ),
     )
     return ProxyCiftCapability(
         capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
@@ -319,16 +396,47 @@ def _gateway_smoke_bootstrap_window_selector_capability(
     )
 
 
-def _runtime_binding(
-    certification_mode: CiftCertificationMode,
+def _validate_cift_route_certification(
+    route_config: ProxyCiftRouteCertificationConfig,
+    config: ProxyCiftConfig,
+) -> CiftCertificationBinding:
+    if config.required_device is None:
+        raise ProxyConfigError("self_hosted_window_selector requires required_device.")
+    if config.selected_choice_readout_token_count is None:
+        raise ProxyConfigError("self_hosted_window_selector requires selected_choice_readout_token_count.")
+    if config.extractor_id is None:
+        raise ProxyConfigError("self_hosted_window_selector requires extractor_id.")
+    try:
+        return validate_cift_certification_binding(
+            CiftCertificationBindingConfig(
+                runtime_model_path=route_config.model_path,
+                certification_manifest_path=route_config.certification_manifest_path,
+                certification_report_path=route_config.certification_report_path,
+                certification_artifact_root=route_config.certification_artifact_root,
+                release_gate_report_path=route_config.release_gate_report_path,
+                required_device=config.required_device,
+                expected_manifest_sha256=route_config.certification_manifest_sha256,
+                expected_report_sha256=route_config.certification_report_sha256,
+                expected_release_gate_report_sha256=route_config.release_gate_report_sha256,
+                expected_detector_name=config.detector_name,
+                expected_extractor_id=config.extractor_id,
+                expected_feature_source=config.feature_source,
+                expected_prompt_renderer=CIFT_PROMPT_RENDERER_TRACE_BRIDGE_V1,
+                expected_selected_choice_geometry=CIFT_SELECTED_CHOICE_GEOMETRY_SEMANTIC_INDIRECTION_V1,
+                expected_selected_choice_readout_token_count=config.selected_choice_readout_token_count,
+            )
+        )
+    except CiftCertificationBindingError as exc:
+        raise ProxyConfigError(str(exc)) from exc
+
+
+def _route_runtime_binding(
     certification_id: str | None,
     runtime_model: CiftRuntimeModel,
     runtime_model_sha256: str,
     release_gate_report_sha256: str | None,
-    selected_choice_readout_token_count: int,
-) -> ProxyCiftRuntimeBinding:
-    return ProxyCiftRuntimeBinding(
-        certification_mode=certification_mode,
+) -> ProxyCiftRouteRuntimeBinding:
+    return ProxyCiftRouteRuntimeBinding(
         certification_id=certification_id,
         runtime_model_sha256=runtime_model_sha256,
         release_gate_report_sha256=release_gate_report_sha256,
@@ -343,8 +451,80 @@ def _runtime_binding(
         chat_template_sha256=runtime_model.chat_template_sha256,
         feature_key=runtime_model.feature_key,
         feature_count=runtime_model.feature_count,
-        selected_choice_readout_token_count=selected_choice_readout_token_count,
     )
+
+
+def _runtime_binding(
+    certification_mode: CiftCertificationMode,
+    certification_id: str | None,
+    runtime_model: CiftRuntimeModel,
+    runtime_model_sha256: str,
+    release_gate_report_sha256: str | None,
+    selected_choice_readout_token_count: int,
+    freeform_route: ProxyCiftRouteRuntimeBinding | None,
+) -> ProxyCiftRuntimeBinding:
+    selected_choice_route = _route_runtime_binding(
+        certification_id=certification_id,
+        runtime_model=runtime_model,
+        runtime_model_sha256=runtime_model_sha256,
+        release_gate_report_sha256=release_gate_report_sha256,
+    )
+    return ProxyCiftRuntimeBinding(
+        certification_mode=certification_mode,
+        certification_id=selected_choice_route.certification_id,
+        runtime_model_sha256=selected_choice_route.runtime_model_sha256,
+        release_gate_report_sha256=selected_choice_route.release_gate_report_sha256,
+        model_bundle_id=selected_choice_route.model_bundle_id,
+        source_model_id=selected_choice_route.source_model_id,
+        source_revision=selected_choice_route.source_revision,
+        source_selected_device=selected_choice_route.source_selected_device,
+        source_hidden_size=selected_choice_route.source_hidden_size,
+        source_layer_count=selected_choice_route.source_layer_count,
+        tokenizer_fingerprint_sha256=selected_choice_route.tokenizer_fingerprint_sha256,
+        special_tokens_map_sha256=selected_choice_route.special_tokens_map_sha256,
+        chat_template_sha256=selected_choice_route.chat_template_sha256,
+        feature_key=selected_choice_route.feature_key,
+        feature_count=selected_choice_route.feature_count,
+        selected_choice_readout_token_count=selected_choice_readout_token_count,
+        freeform_route=freeform_route,
+    )
+
+
+def _runtime_binding_for_detector_result(
+    runtime_binding: ProxyCiftRuntimeBinding,
+    result: DetectorResult,
+) -> ProxyCiftRouteRuntimeBinding:
+    window_family = result.evidence.get("cift_window_family")
+    if (
+        isinstance(window_family, str)
+        and window_family.startswith("freeform_")
+        and runtime_binding.freeform_route is not None
+    ):
+        return runtime_binding.freeform_route
+    return _selected_choice_route_from_runtime_binding(runtime_binding)
+
+
+def _selected_choice_route_from_runtime_binding(binding: ProxyCiftRuntimeBinding) -> ProxyCiftRouteRuntimeBinding:
+    return ProxyCiftRouteRuntimeBinding(
+        certification_id=binding.certification_id,
+        runtime_model_sha256=binding.runtime_model_sha256,
+        release_gate_report_sha256=binding.release_gate_report_sha256,
+        model_bundle_id=binding.model_bundle_id,
+        source_model_id=binding.source_model_id,
+        source_revision=binding.source_revision,
+        source_selected_device=binding.source_selected_device,
+        source_hidden_size=binding.source_hidden_size,
+        source_layer_count=binding.source_layer_count,
+        tokenizer_fingerprint_sha256=binding.tokenizer_fingerprint_sha256,
+        special_tokens_map_sha256=binding.special_tokens_map_sha256,
+        chat_template_sha256=binding.chat_template_sha256,
+        feature_key=binding.feature_key,
+        feature_count=binding.feature_count,
+    )
+
+
+def _is_selected_choice_feature_key(feature_key: str) -> bool:
+    return feature_key.startswith("selected_choice_window_")
 
 
 def _bind_cift_runtime_evidence(

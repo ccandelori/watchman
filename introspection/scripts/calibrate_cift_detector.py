@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import argparse
+import json
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Sequence
 
 SCRIPT_PATH = Path(__file__).resolve()
 INTROSPECTION_ROOT = SCRIPT_PATH.parents[1]
@@ -12,13 +13,13 @@ SRC_PATH = INTROSPECTION_ROOT / "src"
 if str(SRC_PATH) not in sys.path:
     sys.path.insert(0, str(SRC_PATH))
 
-from aegis_introspection.cift_calibration import (
+from aegis_introspection.cift_calibration import (  # noqa: E402
     CiftCalibrationConfig,
+    cift_calibration_report_to_json,
     collect_grouped_calibrated_cift_predictions,
-    write_cift_calibration_json,
     write_cift_calibration_markdown,
 )
-from aegis_introspection.sealed_holdout import (
+from aegis_introspection.sealed_holdout import (  # noqa: E402
     add_unseal_flag,
     assert_unsealed_paths,
     load_activation_artifact_with_unseal_policy,
@@ -30,6 +31,7 @@ class CalibrateCiftDetectorCliConfig:
     artifact_path: Path
     output_json_path: Path
     output_markdown_path: Path
+    report_id: str
     task_name: str
     positive_label: str
     activation_feature_key: str
@@ -70,6 +72,7 @@ def _build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument("--task", required=False, default="safe_secret_vs_exfiltration")
+    parser.add_argument("--report-id", required=False, default="dp_honey_lite_v3_selector_window_cift_calibration_v1")
     parser.add_argument("--positive-label", required=False, default="exfiltration_intent")
     parser.add_argument("--activation-feature", required=False, default="readout_window_layer_15")
     parser.add_argument("--folds", required=False, type=int, default=5)
@@ -88,6 +91,7 @@ def _parse_args(argv: Sequence[str]) -> CalibrateCiftDetectorCliConfig:
         artifact_path=Path(namespace.artifact),
         output_json_path=Path(namespace.output_json),
         output_markdown_path=Path(namespace.output_markdown),
+        report_id=str(namespace.report_id),
         task_name=str(namespace.task),
         positive_label=str(namespace.positive_label),
         activation_feature_key=str(namespace.activation_feature),
@@ -130,7 +134,11 @@ def run_calibration(config: CalibrateCiftDetectorCliConfig) -> None:
         artifact=artifact,
         config=_calibration_config(config),
     )
-    write_cift_calibration_json(config.output_json_path, report)
+    _write_identified_cift_calibration_json(
+        path=config.output_json_path,
+        report_id=config.report_id,
+        report_json=cift_calibration_report_to_json(report),
+    )
     write_cift_calibration_markdown(config.output_markdown_path, report)
     print(f"Wrote CIFT calibration JSON to {config.output_json_path}")
     print(f"Wrote CIFT calibration summary to {config.output_markdown_path}")
@@ -142,6 +150,16 @@ def run_calibration(config: CalibrateCiftDetectorCliConfig) -> None:
 
 def main(argv: Sequence[str]) -> None:
     run_calibration(_parse_args(argv))
+
+
+def _write_identified_cift_calibration_json(path: Path, report_id: str, report_json: dict[str, object]) -> None:
+    if report_id == "":
+        raise ValueError("report_id must not be empty.")
+    record = dict(report_json)
+    record["report_id"] = report_id
+    record["schema_version"] = "aegis_introspection.cift_calibration/v1"
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
 if __name__ == "__main__":

@@ -40,6 +40,10 @@ def create_http_app(proxy: MockProxyApp) -> FastAPI:
     def capabilities() -> JSONResponse:
         return _proxy_response(proxy, method="GET", path="/aegis/capabilities", body={})
 
+    @app.get("/v1/models")
+    def models() -> JSONResponse:
+        return _proxy_response(proxy, method="GET", path="/v1/models", body={})
+
     @app.post("/v1/chat/completions")
     async def chat_completions(request: Request) -> JSONResponse:
         body = await _request_json_object(request)

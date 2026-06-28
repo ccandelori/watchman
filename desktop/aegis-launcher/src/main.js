@@ -11,6 +11,10 @@ const {
   repoRootFromAppPath,
   saveRepoRootConfig,
 } = require("./backend-process");
+const {
+  isAllowedRendererDocumentUrl,
+  isRendererAssetUrl,
+} = require("./navigation");
 const { OllamaController } = require("./ollama-control");
 
 let mainWindow = null;
@@ -53,6 +57,10 @@ function createControllers(repoRoot) {
   });
 }
 
+function rendererFilePath(fileName) {
+  return path.join(__dirname, "../renderer", fileName);
+}
+
 async function createWindow() {
   configPath = desktopConfigPath();
   const repoRoot = resolveRepoRoot();
@@ -74,8 +82,10 @@ async function createWindow() {
     },
   });
 
+  installNavigationGuards(mainWindow);
+
   if (repoRoot === null) {
-    await mainWindow.loadFile(path.join(__dirname, "../renderer/backend-error.html"));
+    await mainWindow.loadFile(rendererFilePath("backend-error.html"));
     return;
   }
   createControllers(repoRoot);
@@ -88,10 +98,57 @@ async function loadLauncherWindow() {
   }
   try {
     await backend.start();
-    await mainWindow.loadFile(path.join(__dirname, "../renderer/index.html"));
+    await mainWindow.loadFile(rendererFilePath("index.html"));
   } catch (_error) {
-    await mainWindow.loadFile(path.join(__dirname, "../renderer/backend-error.html"));
+    await mainWindow.loadFile(rendererFilePath("backend-error.html"));
   }
+}
+
+async function recoverLauncherWindow() {
+  if (mainWindow === null) {
+    return;
+  }
+  if (backend === null) {
+    await mainWindow.loadFile(rendererFilePath("backend-error.html"));
+    return;
+  }
+  await loadLauncherWindow();
+}
+
+function recoverLauncherWindowFromNavigationError(source, rawUrl) {
+  recoverLauncherWindow().catch((error) => {
+    console.warn("Aegis launcher failed to recover from renderer navigation.", { source, rawUrl, error });
+  });
+}
+
+function installNavigationGuards(window) {
+  window.webContents.setWindowOpenHandler(({ url }) => {
+    shell.openExternal(url).catch((error) => {
+      console.warn("Aegis launcher failed to open external URL.", { url, error });
+    });
+    return { action: "deny" };
+  });
+
+  window.webContents.on("will-navigate", (event, rawUrl) => {
+    if (isAllowedRendererDocumentUrl(rawUrl)) {
+      return;
+    }
+    event.preventDefault();
+    if (isRendererAssetUrl(rawUrl)) {
+      recoverLauncherWindowFromNavigationError("will-navigate", rawUrl);
+      return;
+    }
+    shell.openExternal(rawUrl).catch((error) => {
+      console.warn("Aegis launcher failed to open top-level navigation externally.", { rawUrl, error });
+    });
+  });
+
+  window.webContents.on("did-finish-load", () => {
+    const rawUrl = window.webContents.getURL();
+    if (isRendererAssetUrl(rawUrl)) {
+      recoverLauncherWindowFromNavigationError("did-finish-load", rawUrl);
+    }
+  });
 }
 
 function installIpcHandlers() {
@@ -169,7 +226,13 @@ function installMenu() {
     {
       label: "View",
       submenu: [
-        { role: "reload" },
+        {
+          label: "Reload Launcher",
+          accelerator: "CommandOrControl+R",
+          click: async () => {
+            await recoverLauncherWindow();
+          },
+        },
         { role: "toggleDevTools" },
       ],
     },

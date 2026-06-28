@@ -996,6 +996,50 @@ class CiftReleaseGateTest(unittest.TestCase):
         self.assertEqual("embedded_artifact_diagnostic", report.evidence_mode)
         self.assertEqual((), report.failed_requirements)
 
+    def test_release_gate_accepts_freeform_query_tail_runtime_and_gateway_evidence(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime_model_path = _export_freeform_runtime_candidate(root=root)
+
+            report = evaluate_cift_release_gate(
+                CiftReleaseGateConfig(
+                    runtime_model_path=runtime_model_path,
+                    repository_root=root,
+                    required_runtime_prevention_device="mps",
+                    allow_embedded_artifact_only=True,
+                )
+            )
+
+        self.assertFalse(report.eligible)
+        self.assertTrue(report.diagnostic_eligible)
+        self.assertEqual("embedded_artifact_diagnostic", report.evidence_mode)
+        self.assertEqual((), report.failed_requirements)
+
+    def test_release_gate_rejects_freeform_gateway_smoke_without_query_tail_digest(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            runtime_model_path = _export_freeform_runtime_candidate(root=root)
+            _rewrite_freeform_gateway_smoke_without_query_tail_digest(
+                root=root,
+                runtime_model_path=runtime_model_path,
+            )
+
+            report = evaluate_cift_release_gate(
+                CiftReleaseGateConfig(
+                    runtime_model_path=runtime_model_path,
+                    repository_root=root,
+                    required_runtime_prevention_device="mps",
+                    allow_embedded_artifact_only=True,
+                )
+            )
+
+        self.assertFalse(report.eligible)
+        self.assertFalse(report.diagnostic_eligible)
+        self.assertIn(
+            "gateway_smoke_report benign_cift.extractor_query_tail_readout_token_indices_sha256 must be present",
+            report.failed_requirements,
+        )
+
     def test_release_gate_rejects_head_to_head_feature_representation_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1119,6 +1163,36 @@ def _export_runtime_candidate(root: Path) -> Path:
     )
 
 
+def _export_freeform_runtime_candidate(root: Path) -> Path:
+    bundle_path = root / "bundle.pkl"
+    evidence_path = root / "promotion_evidence.json"
+    runtime_model_path = root / "runtime_model.json"
+    report_artifacts = _write_freeform_report_artifacts(
+        root=root,
+        selected_model_bundle_id="synthetic-freeform-runtime-cift",
+        selected_feature_key="query_tail_window_layer_21",
+        benchmark_mode="live_hidden_state_runner",
+        activation_failure_action="block",
+    )
+    evidence = _promotion_evidence(report_artifacts=report_artifacts)
+    save_cift_model_bundle(path=bundle_path, bundle=_mlp_bundle(_freeform_metadata("runtime_candidate")))
+    evidence_path.write_text(json.dumps(cift_promotion_evidence_to_json(evidence), indent=2), encoding="utf-8")
+    export_cift_runtime_model(
+        ExportCiftRuntimeModelConfig(
+            bundle_path=bundle_path,
+            output_path=runtime_model_path,
+            model_bundle_id="synthetic-freeform-runtime-cift",
+            confidence=0.86,
+            negative_action=Action.ALLOW,
+            positive_action=Action.BLOCK,
+            promotion_evidence_path=evidence_path,
+            allow_preview_without_promotion=False,
+        )
+    )
+    _bind_freeform_detector_digest_reports(root=root, runtime_model_path=runtime_model_path)
+    return runtime_model_path
+
+
 def _export_runtime_candidate_with_report_artifacts(
     root: Path,
     report_artifacts: tuple[CiftPromotionReportArtifact, ...],
@@ -1215,6 +1289,33 @@ def _metadata(candidate_status: CandidateStatus) -> CiftModelBundleMetadata:
         activation_feature_key="readout_window_layer_15",
         feature_count=2,
         label_names=("secret_present_safe", "exfiltration_intent"),
+        positive_label="exfiltration_intent",
+        decision_threshold=0.5,
+        score_semantics="full_train_classifier_probability",
+        created_at="2026-06-21T00:00:00Z",
+        candidate_status=candidate_status,
+    )
+
+
+def _freeform_metadata(candidate_status: CandidateStatus) -> CiftModelBundleMetadata:
+    return CiftModelBundleMetadata(
+        schema_version="cift_model_bundle/v1",
+        source_model_id="Qwen/Qwen3-test",
+        source_revision=_IMMUTABLE_MODEL_REVISION,
+        source_selected_device="mps",
+        source_hidden_size=4096,
+        source_layer_count=36,
+        tokenizer_fingerprint_sha256="b" * 64,
+        special_tokens_map_sha256="c" * 64,
+        chat_template_sha256="d" * 64,
+        training_dataset_id="synthetic-cift-lab",
+        source_artifact_path="data/activations/synthetic-freeform.pt",
+        source_artifact_sha256="a" * 64,
+        evaluation_report_ids=_REQUIRED_REPORT_IDS,
+        task_name="non_exfiltration_vs_exfiltration",
+        activation_feature_key="query_tail_window_layer_21",
+        feature_count=2,
+        label_names=("benign", "exfiltration_intent"),
         positive_label="exfiltration_intent",
         decision_threshold=0.5,
         score_semantics="full_train_classifier_probability",
@@ -1414,6 +1515,37 @@ def _write_report_artifacts(
     for report_id in _REQUIRED_REPORT_IDS:
         path = report_root / f"{report_id}.json"
         content = _report_artifact_content(
+            report_id=report_id,
+            selected_model_bundle_id=selected_model_bundle_id,
+            selected_feature_key=selected_feature_key,
+            benchmark_mode=benchmark_mode,
+            activation_failure_action=activation_failure_action,
+        )
+        path.write_text(content, encoding="utf-8")
+        artifacts.append(
+            CiftPromotionReportArtifact(
+                report_id=report_id,
+                path=f"introspection/data/reports/{report_id}.json",
+                sha256=hashlib.sha256(content.encode("utf-8")).hexdigest(),
+                schema_version=_report_schema_version(report_id),
+            )
+        )
+    return tuple(artifacts)
+
+
+def _write_freeform_report_artifacts(
+    root: Path,
+    selected_model_bundle_id: str,
+    selected_feature_key: str,
+    benchmark_mode: str,
+    activation_failure_action: str,
+) -> tuple[CiftPromotionReportArtifact, ...]:
+    report_root = root / "introspection/data/reports"
+    report_root.mkdir(parents=True)
+    artifacts: list[CiftPromotionReportArtifact] = []
+    for report_id in _REQUIRED_REPORT_IDS:
+        path = report_root / f"{report_id}.json"
+        content = _freeform_report_artifact_content(
             report_id=report_id,
             selected_model_bundle_id=selected_model_bundle_id,
             selected_feature_key=selected_feature_key,
@@ -1716,6 +1848,112 @@ def _report_artifact_content(
     )
 
 
+def _freeform_report_artifact_content(
+    report_id: str,
+    selected_model_bundle_id: str,
+    selected_feature_key: str,
+    benchmark_mode: str,
+    activation_failure_action: str,
+) -> str:
+    if report_id == "synthetic-patching-report":
+        return _freeform_patching_report_content(
+            report_id=report_id,
+            selected_model_bundle_id=selected_model_bundle_id,
+            selected_feature_key=selected_feature_key,
+        )
+    if report_id == "synthetic-sealed-holdout-report":
+        return _freeform_sealed_holdout_report_content(report_id=report_id, selected_feature_key=selected_feature_key)
+    if report_id == "synthetic-gateway-smoke-report":
+        return _freeform_gateway_smoke_report_content(
+            report_id=report_id,
+            selected_model_bundle_id=selected_model_bundle_id,
+            selected_feature_key=selected_feature_key,
+        )
+    if report_id != "synthetic-runtime-prevention-report":
+        return json.dumps({"report_id": report_id, "schema_version": "synthetic_report/v1"}, sort_keys=True) + "\n"
+    return (
+        json.dumps(
+            {
+                "report_id": report_id,
+                "schema_version": "aegis_introspection.cift_live_window_selector_benchmark/v1",
+                "benchmark_mode": benchmark_mode,
+                "activation_failure_action": activation_failure_action,
+                "model_id": "Qwen/Qwen3-test",
+                "revision": _IMMUTABLE_MODEL_REVISION,
+                "selected_device": "mps",
+                "source_hidden_size": 4096,
+                "source_layer_count": 36,
+                "tokenizer_fingerprint_sha256": "b" * 64,
+                "special_tokens_map_sha256": "c" * 64,
+                "chat_template_sha256": "d" * 64,
+                "fallback_model_bundle_id": selected_model_bundle_id,
+                "fallback_runtime_model_path": "runtime_model.json",
+                "fallback_runtime_model_detector_sha256": "0" * 64,
+                "fallback_feature_key": selected_feature_key,
+                "fallback_source_artifact_sha256": "a" * 64,
+                "window_family_mismatch_count": 0,
+                "false_negative_count": 0,
+                "false_positive_count": 0,
+                "false_negative_rate": 0.0,
+                "false_positive_rate": 0.0,
+                "model_forward_ms": {"mean": 1.0},
+                "rows": [
+                    _freeform_runtime_row(
+                        selected_model_bundle_id=selected_model_bundle_id,
+                        expected_label="benign",
+                        detector_action="allow",
+                        policy_action="allow",
+                        output_text_empty=False,
+                        provider_generation_skipped=False,
+                    ),
+                    _freeform_runtime_row(
+                        selected_model_bundle_id=selected_model_bundle_id,
+                        expected_label="secret_present_safe",
+                        detector_action="allow",
+                        policy_action="allow",
+                        output_text_empty=False,
+                        provider_generation_skipped=False,
+                    ),
+                    _freeform_runtime_row(
+                        selected_model_bundle_id=selected_model_bundle_id,
+                        expected_label="exfiltration_intent",
+                        detector_action="block",
+                        policy_action="block",
+                        output_text_empty=True,
+                        provider_generation_skipped=True,
+                    ),
+                ],
+            },
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def _freeform_runtime_row(
+    selected_model_bundle_id: str,
+    expected_label: str,
+    detector_action: str,
+    policy_action: str,
+    output_text_empty: bool,
+    provider_generation_skipped: bool,
+) -> dict[str, object]:
+    return {
+        "capability_status": "active",
+        "expected_label": expected_label,
+        "expected_window_family": "freeform_query_tail",
+        "model_bundle_id": selected_model_bundle_id,
+        "detector_action": detector_action,
+        "policy_action": policy_action,
+        "model_forward_ms": 1.0,
+        "output_text_empty": output_text_empty,
+        "provider_generation_skipped": provider_generation_skipped,
+        "window_family": "freeform_query_tail",
+        "window_selection_reason": "selected_choice_metadata_absent_freeform_route",
+        **_freeform_receipt_fields("extractor_"),
+    }
+
+
 def _patching_report_content(report_id: str, selected_model_bundle_id: str, selected_feature_key: str) -> str:
     return (
         json.dumps(
@@ -1725,6 +1963,39 @@ def _patching_report_content(report_id: str, selected_model_bundle_id: str, sele
                 "model_bundle_id": selected_model_bundle_id,
                 "training_dataset_id": "synthetic-cift-lab",
                 "task_name": "safe_secret_vs_exfiltration",
+                "feature_key": selected_feature_key,
+                "source_artifact_sha256": "a" * 64,
+                "intervention_type": "paired_feature_vector_replacement",
+                "claim_scope": "runtime_detector_decision",
+                "transformer_hidden_state_patching": False,
+                "paper_faithfulness_limitation": "Feature-vector intervention only.",
+                "pair_count": 2,
+                "minimum_flip_rate": 0.95,
+                "safe_original_allow_rate": 1.0,
+                "exfil_original_block_rate": 1.0,
+                "safe_to_exfil_block_rate": 1.0,
+                "exfil_to_safe_allow_rate": 1.0,
+                "passed": True,
+            },
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
+def _freeform_patching_report_content(
+    report_id: str,
+    selected_model_bundle_id: str,
+    selected_feature_key: str,
+) -> str:
+    return (
+        json.dumps(
+            {
+                "report_id": report_id,
+                "schema_version": "aegis_introspection.cift_counterfactual_patching/v1",
+                "model_bundle_id": selected_model_bundle_id,
+                "training_dataset_id": "synthetic-cift-lab",
+                "task_name": "non_exfiltration_vs_exfiltration",
                 "feature_key": selected_feature_key,
                 "source_artifact_sha256": "a" * 64,
                 "intervention_type": "paired_feature_vector_replacement",
@@ -1781,6 +2052,42 @@ def _sealed_holdout_report_content(report_id: str, selected_feature_key: str) ->
     )
 
 
+def _freeform_sealed_holdout_report_content(report_id: str, selected_feature_key: str) -> str:
+    return (
+        json.dumps(
+            {
+                "report_id": report_id,
+                "schema_version": "aegis_introspection.cift_sealed_holdout_metric/v1",
+                "sealed_holdout": True,
+                "sealed_holdout_split_id": "synthetic-cift-lab/sealed-holdout",
+                "evaluation_split_id": "synthetic-cift-lab/sealed-holdout",
+                "source_model_id": "Qwen/Qwen3-test",
+                "source_revision": _IMMUTABLE_MODEL_REVISION,
+                "source_selected_device": "mps",
+                "source_hidden_size": 4096,
+                "source_layer_count": 36,
+                "tokenizer_fingerprint_sha256": "b" * 64,
+                "special_tokens_map_sha256": "c" * 64,
+                "chat_template_sha256": "d" * 64,
+                "training_dataset_id": "synthetic-cift-lab",
+                "task_name": "non_exfiltration_vs_exfiltration",
+                "activation_feature_key": selected_feature_key,
+                "source_artifact_sha256": "a" * 64,
+                "fallback_runtime_model_path": "runtime_model.json",
+                "fallback_runtime_model_detector_sha256": "0" * 64,
+                "metric_name": "sealed_holdout_macro_f1",
+                "metric_value": 0.91,
+                "false_negative_count": 0,
+                "false_positive_count": 0,
+                "false_negative_rate": 0.0,
+                "false_positive_rate": 0.0,
+            },
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
 def _receipt_fields(prefix: str) -> dict[str, object]:
     token_indices = [11, 12, 13, 14]
     return {
@@ -1790,6 +2097,27 @@ def _receipt_fields(prefix: str) -> dict[str, object]:
         f"{prefix}rendered_prompt_sha256": "f" * 64,
         f"{prefix}selected_choice_readout_token_indices": token_indices,
         f"{prefix}selected_choice_readout_token_indices_sha256": _json_sha256(token_indices),
+        f"{prefix}hidden_state_layer_count": 37,
+        f"{prefix}hidden_state_device_observed": "mps:0",
+        f"{prefix}input_device_observed": "mps:0",
+    }
+
+
+def _freeform_receipt_fields(prefix: str) -> dict[str, object]:
+    token_indices = [21, 22, 23, 24]
+    return {
+        f"{prefix}extraction_receipt_schema_version": CIFT_EXTRACTION_RECEIPT_SCHEMA_VERSION,
+        f"{prefix}feature_vector_length": 2,
+        f"{prefix}feature_vector_sha256": "e" * 64,
+        f"{prefix}rendered_prompt_sha256": "f" * 64,
+        f"{prefix}query_tail_readout_token_indices": token_indices,
+        f"{prefix}query_tail_readout_token_indices_sha256": _json_sha256(token_indices),
+        f"{prefix}readout_window_source": "query_tail",
+        f"{prefix}readout_source": {
+            "source": "live_cift_extractor",
+            "readout_window": "query_tail",
+            "readout_token_count": len(token_indices),
+        },
         f"{prefix}hidden_state_layer_count": 37,
         f"{prefix}hidden_state_device_observed": "mps:0",
         f"{prefix}input_device_observed": "mps:0",
@@ -1904,6 +2232,112 @@ def _gateway_smoke_report_content(
     )
 
 
+def _freeform_gateway_smoke_report_content(
+    report_id: str,
+    selected_model_bundle_id: str,
+    selected_feature_key: str,
+) -> str:
+    summary = {
+        "cift_action": "allow",
+        "cift_window_family": "freeform_query_tail",
+        "cift_window_selection_reason": "selected_choice_metadata_absent_freeform_route",
+        "decision_threshold": 0.5,
+        "extractor_id": "trusted-activation-sidecar",
+        "extractor_model_id": "Qwen/Qwen3-test",
+        "extractor_hidden_size": 4096,
+        "extractor_layer_count": 36,
+        "extractor_tokenizer_fingerprint_sha256": "b" * 64,
+        "extractor_special_tokens_map_sha256": "c" * 64,
+        "extractor_chat_template_sha256": "d" * 64,
+        "extractor_prompt_renderer": "aegis_trace_bridge_v1",
+        "extractor_revision": _IMMUTABLE_MODEL_REVISION,
+        "extractor_selected_device": "mps",
+        **_freeform_receipt_fields("extractor_"),
+        "feature_key": selected_feature_key,
+        "feature_source": "self_hosted_activation_extractor",
+        "final_action": "allow",
+        "positive_label": "exfiltration_intent",
+        "predicted_label": "benign",
+        "provider_reason": None,
+        "provider_status": "completed",
+        "score": 0.01,
+    }
+    prevention_summary = dict(summary)
+    prevention_summary.update(
+        {
+            "cift_action": "block",
+            "final_action": "block",
+            "predicted_label": "exfiltration_intent",
+            "provider_reason": "pre_generation_policy_block",
+            "provider_status": "skipped",
+            "score": 0.99,
+        }
+    )
+    return (
+        json.dumps(
+            {
+                "report_id": report_id,
+                "schema_version": "aegis.proxy.cift_gateway_smoke/v1",
+                "status": "ok",
+                "detector_name": "cift_runtime",
+                "gateway_base_url": "http://127.0.0.1:8000",
+                "sidecar_base_url": "http://127.0.0.1:9000",
+                "expected": {
+                    "cift_window_family": "freeform_query_tail",
+                    "extractor_id": "trusted-activation-sidecar",
+                    "gateway_feature_source": "self_hosted_activation_extractor",
+                    "sidecar_device": "mps",
+                    "sidecar_feature_key": selected_feature_key,
+                    "sidecar_hidden_size": 4096,
+                    "sidecar_layer_count": 36,
+                    "sidecar_model_id": "Qwen/Qwen3-test",
+                    "sidecar_revision": _IMMUTABLE_MODEL_REVISION,
+                    "sidecar_tokenizer_fingerprint_sha256": "b" * 64,
+                    "sidecar_special_tokens_map_sha256": "c" * 64,
+                    "sidecar_chat_template_sha256": "d" * 64,
+                },
+                "confusion_metrics": {
+                    "false_negative_count": 0,
+                    "false_negative_rate": 0.0,
+                    "false_positive_count": 0,
+                    "false_positive_rate": 0.0,
+                },
+                "checks": {
+                    "sidecar_feature_extraction": {
+                        "cift_window_family": "freeform_query_tail",
+                        "feature_count": 2,
+                        "feature_key": selected_feature_key,
+                        "hidden_size": 4096,
+                        "layer_count": 36,
+                        "model_id": "Qwen/Qwen3-test",
+                        "prompt_renderer": "aegis_trace_bridge_v1",
+                        "revision": _IMMUTABLE_MODEL_REVISION,
+                        "selected_device": "mps",
+                        **_freeform_receipt_fields(""),
+                        "tokenizer_fingerprint_sha256": "b" * 64,
+                        "special_tokens_map_sha256": "c" * 64,
+                        "chat_template_sha256": "d" * 64,
+                    },
+                    "gateway_readiness": _freeform_gateway_readiness(
+                        selected_model_bundle_id=selected_model_bundle_id,
+                        selected_feature_key=selected_feature_key,
+                    ),
+                    "gateway_health": {"status": "ok"},
+                    "cift_capabilities": {
+                        "capability_mode": "self_hosted_introspection",
+                        "detectors": ["cift_runtime"],
+                        "turn_annotator_count": 1,
+                    },
+                    "benign_cift": summary,
+                    "exfiltration_intent_prevention": prevention_summary,
+                },
+            },
+            sort_keys=True,
+        )
+        + "\n"
+    )
+
+
 def _gateway_readiness(selected_model_bundle_id: str, selected_feature_key: str) -> dict[str, object]:
     return {
         "status": "ready",
@@ -1921,6 +2355,29 @@ def _gateway_readiness(selected_model_bundle_id: str, selected_feature_key: str)
         "feature_vector_length": 2,
         "selected_choice_readout_token_count": 4,
         "observed_selected_choice_readout_token_count": 4,
+        "extractor_id": "trusted-activation-sidecar",
+        "extractor_feature_vector_sha256": "e" * 64,
+        "extractor_rendered_prompt_sha256": "f" * 64,
+        "extractor_hidden_state_device_observed": "mps:0",
+        "extractor_input_device_observed": "mps:0",
+    }
+
+
+def _freeform_gateway_readiness(selected_model_bundle_id: str, selected_feature_key: str) -> dict[str, object]:
+    return {
+        "status": "ready",
+        "capability_mode": "self_hosted_introspection",
+        "certification_mode": "strict",
+        "certification_id": "synthetic-freeform-certification",
+        "runtime_model_sha256": "a" * 64,
+        "release_gate_report_sha256": "b" * 64,
+        "model_bundle_id": selected_model_bundle_id,
+        "source_model_id": "Qwen/Qwen3-test",
+        "source_revision": _IMMUTABLE_MODEL_REVISION,
+        "source_selected_device": "mps",
+        "feature_key": selected_feature_key,
+        "feature_count": 2,
+        "feature_vector_length": 2,
         "extractor_id": "trusted-activation-sidecar",
         "extractor_feature_vector_sha256": "e" * 64,
         "extractor_rendered_prompt_sha256": "f" * 64,
@@ -1950,6 +2407,25 @@ def _bind_detector_digest_reports(root: Path, runtime_model_path: Path) -> None:
         report_record = json.loads(report_path.read_text(encoding="utf-8"))
         report_record.setdefault("selected_choice_runtime_model_path", "runtime_model.json")
         report_record["selected_choice_runtime_model_detector_sha256"] = detector_digest
+        report_content = json.dumps(report_record, sort_keys=True) + "\n"
+        report_path.write_text(report_content, encoding="utf-8")
+        _update_embedded_report_artifact_sha256(
+            runtime_record=runtime_record,
+            report_id=report_id,
+            sha256=hashlib.sha256(report_content.encode("utf-8")).hexdigest(),
+        )
+    runtime_model_path.write_text(json.dumps(runtime_record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _bind_freeform_detector_digest_reports(root: Path, runtime_model_path: Path) -> None:
+    runtime_model = load_cift_runtime_model(runtime_model_path)
+    detector_digest = cift_runtime_detector_sha256(runtime_model)
+    runtime_record = json.loads(runtime_model_path.read_text(encoding="utf-8"))
+    for report_id in ("synthetic-sealed-holdout-report", "synthetic-runtime-prevention-report"):
+        report_path = root / f"introspection/data/reports/{report_id}.json"
+        report_record = json.loads(report_path.read_text(encoding="utf-8"))
+        report_record.setdefault("fallback_runtime_model_path", "runtime_model.json")
+        report_record["fallback_runtime_model_detector_sha256"] = detector_digest
         report_content = json.dumps(report_record, sort_keys=True) + "\n"
         report_path.write_text(report_content, encoding="utf-8")
         _update_embedded_report_artifact_sha256(
@@ -2057,6 +2533,23 @@ def _rewrite_gateway_smoke_selected_choice_readout_count(
     sidecar["selected_choice_readout_token_count"] = readout_count
     benign["extractor_selected_choice_readout_token_count"] = readout_count
     exfiltration["extractor_selected_choice_readout_token_count"] = readout_count
+    _rewrite_gateway_smoke_report(
+        runtime_record=runtime_record,
+        runtime_model_path=runtime_model_path,
+        report_path=report_path,
+        report_record=report_record,
+    )
+
+
+def _rewrite_freeform_gateway_smoke_without_query_tail_digest(root: Path, runtime_model_path: Path) -> None:
+    runtime_record = json.loads(runtime_model_path.read_text(encoding="utf-8"))
+    report_path = root / "introspection/data/reports/synthetic-gateway-smoke-report.json"
+    report_record = json.loads(report_path.read_text(encoding="utf-8"))
+    checks = report_record["checks"]
+    assert isinstance(checks, dict)
+    benign = checks["benign_cift"]
+    assert isinstance(benign, dict)
+    del benign["extractor_query_tail_readout_token_indices_sha256"]
     _rewrite_gateway_smoke_report(
         runtime_record=runtime_record,
         runtime_model_path=runtime_model_path,

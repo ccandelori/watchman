@@ -76,6 +76,7 @@ class WatchmanSyntheticCorpusTest(unittest.TestCase):
                 min_unique_message_ratio=0.8,
                 sealed_fraction=0.5,
                 require_family_label_crossing=True,
+                normalization_mode="selected_choice_ledger",
                 allow_quarantine_output=False,
                 overwrite=False,
             )

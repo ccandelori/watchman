@@ -8,6 +8,7 @@ from pathlib import Path
 from aegis_introspection.cift_live_selector_benchmark import (
     CiftLiveWindowSelectorBenchmarkError,
     CiftLiveWindowSelectorBenchmarkRequestConfig,
+    _unique_feature_keys,
     run_cift_live_window_selector_benchmark_with_extractor,
 )
 
@@ -17,6 +18,19 @@ _IMMUTABLE_MODEL_REVISION = "0123456789abcdef0123456789abcdef01234567"
 
 
 class CiftLiveSelectorBenchmarkTest(unittest.TestCase):
+    def test_live_runner_feature_keys_are_deduplicated_without_reordering(self) -> None:
+        self.assertEqual(
+            ("final_token_layer_12", "selected_choice_window_layer_21"),
+            _unique_feature_keys(
+                (
+                    "final_token_layer_12",
+                    "final_token_layer_12",
+                    "selected_choice_window_layer_21",
+                    "final_token_layer_12",
+                )
+            ),
+        )
+
     def test_selector_benchmark_records_routes(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -49,8 +63,15 @@ class CiftLiveSelectorBenchmarkTest(unittest.TestCase):
                         _runtime_turn(
                             example_id="fallback-exfil-1",
                             turn_index=2,
-                            expected_window_family="selected_choice",
+                            expected_window_family="freeform_readout",
                             cift_metadata={"readout_token_indices": [1]},
+                        ),
+                        _runtime_turn(
+                            example_id="fallback-benign-1",
+                            turn_index=3,
+                            expected_window_family=None,
+                            cift_metadata={"readout_token_indices": [1]},
+                            label="benign",
                         ),
                     )
                 )
@@ -62,6 +83,7 @@ class CiftLiveSelectorBenchmarkTest(unittest.TestCase):
                     ("selected-exfil-1", "selected_choice_window_layer_01"): (2.0, 2.0),
                     ("selected-exfil-1", "readout_window_layer_01"): (2.0, 2.0),
                     ("fallback-exfil-1", "readout_window_layer_01"): (2.0, 2.0),
+                    ("fallback-benign-1", "readout_window_layer_01"): (2.0, 2.0),
                 }
             )
             config = CiftLiveWindowSelectorBenchmarkRequestConfig(
@@ -90,27 +112,29 @@ class CiftLiveSelectorBenchmarkTest(unittest.TestCase):
             decoded = json.loads(output_json_path.read_text(encoding="utf-8"))
             markdown = output_markdown_path.read_text(encoding="utf-8")
 
-        self.assertEqual(2, report.request_count)
+        self.assertEqual(3, report.request_count)
         self.assertEqual("synthetic-live-selector-report", report.report_id)
         self.assertEqual("external_feature_extractor", report.benchmark_mode)
-        self.assertEqual({"selected_choice": 2}, report.window_family_counts)
-        self.assertEqual({"selected_choice": 2}, report.expected_window_family_counts)
-        self.assertEqual({"exfiltration_intent": 2}, report.expected_label_counts)
-        self.assertEqual({"active": 1, "degraded": 1}, report.capability_status_counts)
+        self.assertEqual({"selected_choice": 1, "freeform_readout": 2}, report.window_family_counts)
+        self.assertEqual({"selected_choice": 1, "freeform_readout": 2}, report.expected_window_family_counts)
+        self.assertEqual({"exfiltration_intent": 2, "benign": 1}, report.expected_label_counts)
+        self.assertEqual({"active": 3}, report.capability_status_counts)
         self.assertEqual(0, report.window_family_mismatch_count)
         self.assertEqual(0, report.false_negative_count)
-        self.assertEqual(0, report.false_positive_count)
+        self.assertEqual(1, report.false_positive_count)
         self.assertEqual(0.0, report.false_negative_rate)
-        self.assertEqual(0.0, report.false_positive_rate)
+        self.assertEqual(1.0, report.false_positive_rate)
         self.assertEqual("exfiltration_intent", report.rows[0].expected_label)
         self.assertEqual("selected_choice", report.rows[0].expected_window_family)
         self.assertEqual("selected_choice", report.rows[0].window_family)
         self.assertEqual("active", report.rows[0].capability_status)
         self.assertTrue(report.rows[0].output_text_empty)
         self.assertTrue(report.rows[0].provider_generation_skipped)
-        self.assertEqual("selected_choice", report.rows[1].window_family)
-        self.assertEqual("selected_choice_metadata_absent", report.rows[1].window_selection_reason)
-        self.assertEqual("degraded", report.rows[1].capability_status)
+        self.assertEqual("freeform_readout", report.rows[1].window_family)
+        self.assertEqual("selected_choice_metadata_absent_freeform_route", report.rows[1].window_selection_reason)
+        self.assertEqual("active", report.rows[1].capability_status)
+        self.assertEqual("benign", report.rows[2].expected_label)
+        self.assertEqual("freeform_readout", report.rows[2].window_family)
         self.assertEqual("synthetic-live-selector-report", decoded["report_id"])
         self.assertEqual("aegis_introspection.cift_live_window_selector_benchmark/v1", decoded["schema_version"])
         self.assertEqual("external_feature_extractor", decoded["benchmark_mode"])
@@ -126,12 +150,12 @@ class CiftLiveSelectorBenchmarkTest(unittest.TestCase):
         self.assertEqual("fallback-model", decoded["fallback_model_bundle_id"])
         self.assertEqual("readout_window_layer_01", decoded["fallback_feature_key"])
         self.assertEqual("a" * 64, decoded["fallback_source_artifact_sha256"])
-        self.assertEqual({"active": 1, "degraded": 1}, decoded["capability_status_counts"])
+        self.assertEqual({"active": 3}, decoded["capability_status_counts"])
         self.assertEqual(0, decoded["false_negative_count"])
-        self.assertEqual(0, decoded["false_positive_count"])
+        self.assertEqual(1, decoded["false_positive_count"])
         self.assertEqual(0.0, decoded["false_negative_rate"])
-        self.assertEqual(0.0, decoded["false_positive_rate"])
-        self.assertEqual("degraded", decoded["rows"][1]["capability_status"])
+        self.assertEqual(1.0, decoded["false_positive_rate"])
+        self.assertEqual("active", decoded["rows"][1]["capability_status"])
         self.assertTrue(decoded["rows"][0]["output_text_empty"])
         self.assertTrue(decoded["rows"][0]["provider_generation_skipped"])
         self.assertEqual(0, decoded["window_family_mismatch_count"])
@@ -305,9 +329,17 @@ def _runtime_model_record(feature_key: str, model_bundle_id: str) -> dict[str, o
 def _runtime_turn(
     example_id: str,
     turn_index: int,
-    expected_window_family: str,
+    expected_window_family: str | None,
     cift_metadata: dict[str, object],
+    label: str = "exfiltration_intent",
 ) -> dict[str, object]:
+    eval_metadata = {
+        "label": label,
+        "family": "family-a",
+        "tags": ["test"],
+    }
+    if expected_window_family is not None:
+        eval_metadata["expected_cift_window_family"] = expected_window_family
     return {
         "trace_id": f"trace-{example_id}",
         "session_id": "session-runtime-test",
@@ -324,12 +356,7 @@ def _runtime_turn(
         "sensitive_spans": [],
         "metadata": {
             "example_id": example_id,
-            "eval": {
-                "expected_cift_window_family": expected_window_family,
-                "label": "exfiltration_intent",
-                "family": "family-a",
-                "tags": ["test"],
-            },
+            "eval": eval_metadata,
             "cift": cift_metadata,
         },
     }

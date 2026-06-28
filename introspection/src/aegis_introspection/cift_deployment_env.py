@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 import math
 import re
 import shlex
@@ -48,6 +49,7 @@ class CiftDeploymentEnvCliConfig:
 
 def materialize_cift_deployment_env(config: CiftDeploymentEnvConfig) -> str:
     _validate_deployment_env_config(config)
+    window_family = _window_family_from_runtime_model_path(config.runtime_model_path)
     manifest_sha256 = _sha256_file(config.certification_manifest_path)
     report_sha256 = _sha256_file(config.certification_report_path)
     gate_config = CiftReleaseGateConfig(
@@ -78,29 +80,6 @@ def materialize_cift_deployment_env(config: CiftDeploymentEnvConfig) -> str:
         "AEGIS_CIFT_PROFILE": "self_hosted_window_selector",
         "AEGIS_CIFT_CERTIFICATION_MODE": "strict",
         "AEGIS_CIFT_DETECTOR_NAME": config.expected_detector_name,
-        "AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH": _deployment_path(
-            repository_root=config.repository_root,
-            path=config.runtime_model_path,
-        ),
-        "AEGIS_CIFT_CERTIFICATION_MANIFEST_PATH": _deployment_path(
-            repository_root=config.repository_root,
-            path=config.certification_manifest_path,
-        ),
-        "AEGIS_CIFT_CERTIFICATION_REPORT_PATH": _deployment_path(
-            repository_root=config.repository_root,
-            path=config.certification_report_path,
-        ),
-        "AEGIS_CIFT_CERTIFICATION_ARTIFACT_ROOT": _deployment_path(
-            repository_root=config.repository_root,
-            path=config.certification_artifact_root,
-        ),
-        "AEGIS_CIFT_CERTIFICATION_MANIFEST_SHA256": manifest_sha256,
-        "AEGIS_CIFT_CERTIFICATION_REPORT_SHA256": report_sha256,
-        "AEGIS_CIFT_RELEASE_GATE_REPORT_PATH": _deployment_path(
-            repository_root=config.repository_root,
-            path=config.release_gate_report_path,
-        ),
-        "AEGIS_CIFT_RELEASE_GATE_REPORT_SHA256": _sha256_file(config.release_gate_report_path),
         "AEGIS_CIFT_REQUIRED_DEVICE": config.required_device,
         "AEGIS_CIFT_SELECTED_CHOICE_READOUT_TOKEN_COUNT": str(config.expected_selected_choice_readout_token_count),
         "AEGIS_CIFT_EXTRACTOR_ID": config.expected_extractor_id,
@@ -108,7 +87,30 @@ def materialize_cift_deployment_env(config: CiftDeploymentEnvConfig) -> str:
         "AEGIS_CIFT_EXTRACTOR_TIMEOUT_SECONDS": _format_float(config.extractor_timeout_seconds),
         "AEGIS_CIFT_FEATURE_SOURCE": config.expected_feature_source,
     }
-    return _shell_exports(env_values=env_values, extractor_api_key_env_var=config.extractor_api_key_env_var)
+    env_values.update(
+        _route_binding_env_values(
+            repository_root=config.repository_root,
+            runtime_model_path=config.runtime_model_path,
+            certification_manifest_path=config.certification_manifest_path,
+            certification_report_path=config.certification_report_path,
+            certification_artifact_root=config.certification_artifact_root,
+            release_gate_report_path=config.release_gate_report_path,
+            manifest_sha256=manifest_sha256,
+            report_sha256=report_sha256,
+            release_gate_report_sha256=_sha256_file(config.release_gate_report_path),
+            window_family=window_family,
+        )
+    )
+    if window_family.startswith("freeform_"):
+        env_values["AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH"] = _selected_choice_model_path_env_value(
+            repository_root=config.repository_root,
+            certification_manifest_path=config.certification_manifest_path,
+        )
+    return _shell_exports(
+        env_values=env_values,
+        extractor_api_key_env_var=config.extractor_api_key_env_var,
+        window_family=window_family,
+    )
 
 
 def run_deployment_env_cli(argv: Sequence[str]) -> int:
@@ -212,6 +214,77 @@ def _sha256_file(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
+def _window_family_from_runtime_model_path(path: Path) -> str:
+    try:
+        decoded = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CiftDeploymentEnvError(f"runtime_model_path must contain valid JSON: {exc.msg}.") from exc
+    if not isinstance(decoded, dict):
+        raise CiftDeploymentEnvError("runtime_model_path must contain a JSON object.")
+    feature_key = decoded.get("feature_key")
+    if not isinstance(feature_key, str) or feature_key == "":
+        raise CiftDeploymentEnvError("runtime_model_path feature_key must be a non-empty string.")
+    return _window_family_from_feature_key(feature_key)
+
+
+def _window_family_from_feature_key(feature_key: str) -> str:
+    if feature_key.startswith("selected_choice_window_"):
+        return "selected_choice"
+    if feature_key.startswith("query_tail_window_"):
+        return "freeform_query_tail"
+    if feature_key.startswith("readout_window_"):
+        return "freeform_readout"
+    if feature_key.startswith("final_token_"):
+        return "freeform_final_token"
+    if feature_key.startswith("mean_pool_"):
+        return "freeform_mean_pool"
+    return "unsupported"
+
+
+def _route_binding_env_values(
+    repository_root: Path,
+    runtime_model_path: Path,
+    certification_manifest_path: Path,
+    certification_report_path: Path,
+    certification_artifact_root: Path,
+    release_gate_report_path: Path,
+    manifest_sha256: str,
+    report_sha256: str,
+    release_gate_report_sha256: str,
+    window_family: str,
+) -> dict[str, str]:
+    if window_family == "selected_choice":
+        prefix = "AEGIS_CIFT_"
+        model_path_key = "AEGIS_CIFT_SELECTED_CHOICE_MODEL_PATH"
+    elif window_family.startswith("freeform_"):
+        prefix = "AEGIS_CIFT_FREEFORM_"
+        model_path_key = "AEGIS_CIFT_FREEFORM_MODEL_PATH"
+    else:
+        raise CiftDeploymentEnvError(f"runtime_model_path feature_key maps to unsupported route '{window_family}'.")
+    return {
+        model_path_key: _deployment_path(repository_root=repository_root, path=runtime_model_path),
+        f"{prefix}CERTIFICATION_MANIFEST_PATH": _deployment_path(
+            repository_root=repository_root,
+            path=certification_manifest_path,
+        ),
+        f"{prefix}CERTIFICATION_REPORT_PATH": _deployment_path(
+            repository_root=repository_root,
+            path=certification_report_path,
+        ),
+        f"{prefix}CERTIFICATION_ARTIFACT_ROOT": _deployment_path(
+            repository_root=repository_root,
+            path=certification_artifact_root,
+        ),
+        f"{prefix}CERTIFICATION_MANIFEST_SHA256": manifest_sha256,
+        f"{prefix}CERTIFICATION_REPORT_SHA256": report_sha256,
+        f"{prefix}RELEASE_GATE_REPORT_PATH": _deployment_path(
+            repository_root=repository_root,
+            path=release_gate_report_path,
+        ),
+        f"{prefix}RELEASE_GATE_REPORT_SHA256": release_gate_report_sha256,
+    }
+
+
 def _deployment_path(repository_root: Path, path: Path) -> str:
     resolved_root = repository_root.resolve()
     resolved_path = path.resolve()
@@ -221,14 +294,41 @@ def _deployment_path(repository_root: Path, path: Path) -> str:
         return str(resolved_path)
 
 
+def _selected_choice_model_path_env_value(repository_root: Path, certification_manifest_path: Path) -> str:
+    manifest = _json_object_from_path(path=certification_manifest_path, field_name="certification_manifest_path")
+    training = manifest.get("training")
+    if not isinstance(training, dict):
+        raise CiftDeploymentEnvError("certification_manifest_path training must be an object for freeform env output.")
+    raw_path = training.get("selected_choice_runtime_model_path")
+    if not isinstance(raw_path, str) or raw_path == "":
+        raise CiftDeploymentEnvError(
+            "certification_manifest_path training.selected_choice_runtime_model_path must be set for freeform env output."
+        )
+    selected_choice_path = Path(raw_path)
+    resolved_path = selected_choice_path if selected_choice_path.is_absolute() else repository_root / selected_choice_path
+    _validate_existing_file(resolved_path, "certification_manifest_path training.selected_choice_runtime_model_path")
+    return _deployment_path(repository_root=repository_root, path=resolved_path)
+
+
+def _json_object_from_path(path: Path, field_name: str) -> Mapping[str, object]:
+    try:
+        decoded = json.loads(path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as exc:
+        raise CiftDeploymentEnvError(f"{field_name} must contain valid JSON: {exc.msg}.") from exc
+    if not isinstance(decoded, dict):
+        raise CiftDeploymentEnvError(f"{field_name} must contain a JSON object.")
+    return decoded
+
+
 def _format_float(value: float) -> str:
     return str(value)
 
 
-def _shell_exports(env_values: Mapping[str, str], extractor_api_key_env_var: str) -> str:
+def _shell_exports(env_values: Mapping[str, str], extractor_api_key_env_var: str, window_family: str) -> str:
+    route_label = "selected-choice" if window_family == "selected_choice" else "freeform"
     lines = [
-        "# Generated only after the hardened CIFT release gate passed.",
-        "# Source this file from the repository root before starting aegis-proxy.",
+        f"# Generated only after the hardened CIFT release gate passed for the {route_label} route.",
+        "# Source or merge this file from the repository root before starting aegis-proxy.",
     ]
     for key in sorted(env_values):
         lines.append(f"export {key}={shlex.quote(env_values[key])}")

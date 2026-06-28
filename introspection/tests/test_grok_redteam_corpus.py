@@ -25,6 +25,7 @@ class GrokRedteamCorpusIngestionTest(unittest.TestCase):
                 expected_records_per_shard=12,
                 expected_label_count=4,
                 expected_family_record_count=6,
+                normalization_mode="selected_choice_ledger",
                 allow_quarantine_output=False,
             )
 
@@ -66,6 +67,7 @@ class GrokRedteamCorpusIngestionTest(unittest.TestCase):
                 expected_records_per_shard=6,
                 expected_label_count=2,
                 expected_family_record_count=2,
+                normalization_mode="selected_choice_ledger",
                 allow_quarantine_output=False,
             )
 
@@ -88,6 +90,7 @@ class GrokRedteamCorpusIngestionTest(unittest.TestCase):
                 expected_records_per_shard=6,
                 expected_label_count=2,
                 expected_family_record_count=2,
+                normalization_mode="selected_choice_ledger",
                 allow_quarantine_output=True,
             )
 
@@ -104,6 +107,47 @@ class GrokRedteamCorpusIngestionTest(unittest.TestCase):
         }
         self.assertIn("family_label_crossing", failed_gates)
 
+    def test_freeform_mode_preserves_agent_prompt_without_selected_choice_ledger(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_dir = root / "source"
+            records = _crossed_records()
+            _write_shard(source_dir=source_dir, shard_name="shard_001.jsonl", records=records)
+            config = _config(
+                root=root,
+                source_dir=source_dir,
+                expected_records_per_shard=12,
+                expected_label_count=4,
+                expected_family_record_count=6,
+                normalization_mode="freeform_runtime_v1",
+                allow_quarantine_output=False,
+            )
+
+            result = ingest_grok_redteam_corpus(config)
+            normalized_rows = _read_jsonl(config.normalized_output_path)
+
+        self.assertEqual("freeform_runtime_v1", result.manifest["normalization_mode"])
+        safe = next(row for row in normalized_rows if row["label"] == "secret_present_safe")
+        safe_turn = safe["normalized_turn"]
+        self.assertIsInstance(safe_turn, dict)
+        safe_messages = safe_turn["messages"]
+        self.assertIsInstance(safe_messages, list)
+        safe_user = next(message for message in safe_messages if isinstance(message, dict) and message["role"] == "user")
+        self.assertNotIn("Compare both neutral entries before applying the final code choice.", safe_user["content"])
+        safe_cift = safe_turn["metadata"]["cift"]
+        self.assertIsInstance(safe_cift, dict)
+        self.assertIsNone(safe_cift["selected_choice"])
+        self.assertEqual("query_tail", safe_cift["chosen_readout_window"])
+        self.assertEqual(["payload_secret", "query_tail"], safe_cift["readout_window_candidates"])
+
+        exfil = next(row for row in normalized_rows if row["label"] == "exfiltration_intent")
+        exfil_turn = exfil["normalized_turn"]
+        self.assertIsInstance(exfil_turn, dict)
+        exfil_cift = exfil_turn["metadata"]["cift"]
+        self.assertIsInstance(exfil_cift, dict)
+        self.assertIsNone(exfil_cift["selected_choice"])
+        self.assertEqual("payload_secret", exfil_cift["chosen_readout_window"])
+
 
 def _config(
     root: Path,
@@ -111,6 +155,7 @@ def _config(
     expected_records_per_shard: int,
     expected_label_count: int,
     expected_family_record_count: int,
+    normalization_mode: str,
     allow_quarantine_output: bool,
 ) -> GrokRedteamCorpusConfig:
     return GrokRedteamCorpusConfig(
@@ -137,6 +182,7 @@ def _config(
         min_unique_message_ratio=0.5,
         sealed_fraction=0.5,
         require_family_label_crossing=True,
+        normalization_mode=normalization_mode,
         allow_quarantine_output=allow_quarantine_output,
         overwrite=False,
     )

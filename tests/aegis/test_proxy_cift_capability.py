@@ -63,6 +63,7 @@ def test_proxy_reports_strict_cift_runtime_binding_in_capabilities() -> None:
                 feature_key="selected_choice_window_layer_21",
                 feature_count=1024,
                 selected_choice_readout_token_count=4,
+                freeform_route=None,
             ),
         ),
     )
@@ -189,6 +190,7 @@ def _mock_provider_config(model_provider: ModelProvider) -> ProxyProviderConfig:
         provider_target_url=None,
         model_provider=model_provider,
         mock_controls_enabled=True,
+        advertised_model_ids=("mock-model",),
     )
 
 

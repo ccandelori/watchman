@@ -21,6 +21,8 @@ from aegis_introspection.cift_promotion_evidence_materializer import (
     CiftPromotionEvidenceMaterializerConfig,
     CiftPromotionEvidenceMaterializerError,
     CiftPromotionReportSource,
+    _runtime_prevention_row_failures,
+    _validate_gateway_smoke_report,
     cift_promotion_materializer_config_from_workflow_manifest,
     materialize_cift_promotion_evidence,
 )
@@ -73,6 +75,96 @@ class CiftPromotionEvidenceMaterializerTest(unittest.TestCase):
         self.assertEqual("synthetic-sealed-holdout-report", config.metric_report_id)
         self.assertEqual("synthetic-linear-vs-mlp-report", config.head_to_head_report_id)
         self.assertEqual(0.93, evidence.metric_value)
+
+    def test_runtime_prevention_validator_accepts_freeform_query_tail_route(self) -> None:
+        bundle = _linear_bundle(
+            replace(
+                _metadata(_REPORT_IDS),
+                task_name="non_exfiltration_vs_exfiltration",
+                activation_feature_key="query_tail_window_layer_21",
+                label_names=("benign", "exfiltration_intent"),
+            )
+        )
+        rows = (
+            {
+                "capability_status": "active",
+                "expected_label": "benign",
+                "expected_window_family": "freeform_query_tail",
+                "window_family": "freeform_query_tail",
+                "window_selection_reason": "selected_choice_metadata_absent_freeform_route",
+                "detector_action": "allow",
+                "policy_action": "allow",
+                "output_text_empty": False,
+                "provider_generation_skipped": False,
+                **_freeform_query_tail_receipt_fields("extractor_"),
+            },
+            {
+                "capability_status": "active",
+                "expected_label": "secret_present_safe",
+                "expected_window_family": "freeform_query_tail",
+                "window_family": "freeform_query_tail",
+                "window_selection_reason": "selected_choice_metadata_absent_freeform_route",
+                "detector_action": "allow",
+                "policy_action": "allow",
+                "output_text_empty": False,
+                "provider_generation_skipped": False,
+                **_freeform_query_tail_receipt_fields("extractor_"),
+            },
+            {
+                "capability_status": "active",
+                "expected_label": "exfiltration_intent",
+                "expected_window_family": "freeform_query_tail",
+                "window_family": "freeform_query_tail",
+                "window_selection_reason": "selected_choice_metadata_absent_freeform_route",
+                "detector_action": "block",
+                "policy_action": "block",
+                "output_text_empty": True,
+                "provider_generation_skipped": True,
+                **_freeform_query_tail_receipt_fields("extractor_"),
+            },
+        )
+
+        self.assertEqual((), _runtime_prevention_row_failures(rows=rows, bundle=bundle))
+
+    def test_gateway_smoke_validator_accepts_freeform_query_tail_route(self) -> None:
+        bundle = _linear_bundle(
+            replace(
+                _metadata(_REPORT_IDS),
+                task_name="non_exfiltration_vs_exfiltration",
+                activation_feature_key="query_tail_window_layer_21",
+                label_names=("benign", "exfiltration_intent"),
+            )
+        )
+        report = _freeform_gateway_smoke_report()
+
+        _validate_gateway_smoke_report(
+            bundle=bundle,
+            records_by_report_id={"synthetic-freeform-gateway-smoke": report},
+            gateway_smoke_report_id="synthetic-freeform-gateway-smoke",
+        )
+
+    def test_gateway_smoke_validator_rejects_freeform_query_tail_without_digest(self) -> None:
+        bundle = _linear_bundle(
+            replace(
+                _metadata(_REPORT_IDS),
+                task_name="non_exfiltration_vs_exfiltration",
+                activation_feature_key="query_tail_window_layer_21",
+                label_names=("benign", "exfiltration_intent"),
+            )
+        )
+        report = _freeform_gateway_smoke_report()
+        checks = report["checks"]
+        assert isinstance(checks, dict)
+        benign = checks["benign_cift"]
+        assert isinstance(benign, dict)
+        benign.pop("extractor_query_tail_readout_token_indices_sha256")
+
+        with self.assertRaisesRegex(CiftPromotionEvidenceMaterializerError, "query_tail_readout_token_indices_sha256"):
+            _validate_gateway_smoke_report(
+                bundle=bundle,
+                records_by_report_id={"synthetic-freeform-gateway-smoke": report},
+                gateway_smoke_report_id="synthetic-freeform-gateway-smoke",
+            )
 
     def test_manifest_materializer_rejects_missing_required_promotion_role(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -680,6 +772,40 @@ class CiftPromotionEvidenceMaterializerTest(unittest.TestCase):
         self.assertEqual(0.9979166576243821, evidence.paper_method.paper_probe_metric_value)
         self.assertIn("live sealed", evidence.paper_method.paper_faithfulness_exception or "")
 
+    def test_materializer_accepts_live_sealed_readout_key_head_to_head(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            source_root = root / "source_reports"
+            source_root.mkdir()
+            bundle_path = root / "bundle.pkl"
+            report_output_dir = root / "introspection/data/reports/cift_promotion"
+            evidence_output_path = report_output_dir / "synthetic_promotion_evidence.json"
+            save_cift_model_bundle(path=bundle_path, bundle=_linear_bundle(_metadata(_REPORT_IDS)))
+            report_sources = _write_source_reports(source_root=source_root)
+            head_to_head_path = source_root / "head_to_head.json"
+            head_to_head_record = json.loads(_live_head_to_head_report_content())
+            head_to_head_record["feature_representation"] = "readout_window_layer_15"
+            head_to_head_path.write_text(json.dumps(head_to_head_record, sort_keys=True) + "\n", encoding="utf-8")
+            report_sources_by_id = {source.report_id: source for source in report_sources}
+            report_sources_by_id["synthetic-linear-vs-mlp-report"] = CiftPromotionReportSource(
+                report_id="synthetic-linear-vs-mlp-report",
+                schema_version="aegis_introspection.cift_live_probe_competition/v1",
+                source_path=head_to_head_path,
+            )
+
+            evidence = materialize_cift_promotion_evidence(
+                _config(
+                    root=root,
+                    bundle_path=bundle_path,
+                    report_output_dir=report_output_dir,
+                    evidence_output_path=evidence_output_path,
+                    report_sources=tuple(report_sources_by_id[report_id] for report_id in _REPORT_IDS),
+                )
+            )
+
+        self.assertEqual("raw_activation", evidence.paper_method.feature_representation)
+        self.assertIn("readout_window_layer_15", evidence.paper_method.paper_faithfulness_exception or "")
+
     def test_materializer_rejects_patching_report_without_bidirectional_flips(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -1019,6 +1145,95 @@ def _receipt_fields(prefix: str) -> dict[str, object]:
     }
 
 
+def _freeform_query_tail_receipt_fields(prefix: str) -> dict[str, object]:
+    token_indices = [11, 12, 13, 14]
+    return {
+        f"{prefix}extraction_receipt_schema_version": CIFT_EXTRACTION_RECEIPT_SCHEMA_VERSION,
+        f"{prefix}feature_vector_length": 2,
+        f"{prefix}feature_vector_sha256": "e" * 64,
+        f"{prefix}rendered_prompt_sha256": "f" * 64,
+        f"{prefix}query_tail_readout_token_indices": token_indices,
+        f"{prefix}query_tail_readout_token_indices_sha256": _json_sha256(token_indices),
+        f"{prefix}readout_window_source": "query_tail",
+        f"{prefix}readout_source": {
+            "source": "live_cift_extractor",
+            "readout_window": "query_tail",
+            "readout_token_count": len(token_indices),
+        },
+        f"{prefix}hidden_state_layer_count": 37,
+        f"{prefix}hidden_state_device_observed": "cpu",
+        f"{prefix}input_device_observed": "cpu",
+    }
+
+
+def _freeform_gateway_smoke_report() -> dict[str, object]:
+    return {
+        "report_id": "synthetic-freeform-gateway-smoke",
+        "schema_version": "aegis.proxy.cift_gateway_smoke/v1",
+        "status": "ok",
+        "detector_name": "cift_runtime",
+        "expected": {
+            "sidecar_model_id": "Qwen/Qwen3-test",
+            "sidecar_revision": "main",
+            "sidecar_device": "cpu",
+            "sidecar_feature_key": "query_tail_window_layer_21",
+            "sidecar_tokenizer_fingerprint_sha256": "b" * 64,
+            "sidecar_special_tokens_map_sha256": "c" * 64,
+            "sidecar_chat_template_sha256": "d" * 64,
+            "cift_window_family": "freeform_query_tail",
+        },
+        "checks": {
+            "sidecar_feature_extraction": {
+                "model_id": "Qwen/Qwen3-test",
+                "revision": "main",
+                "selected_device": "cpu",
+                "feature_key": "query_tail_window_layer_21",
+                "tokenizer_fingerprint_sha256": "b" * 64,
+                "special_tokens_map_sha256": "c" * 64,
+                "chat_template_sha256": "d" * 64,
+                "cift_window_family": "freeform_query_tail",
+                **_freeform_query_tail_receipt_fields(""),
+            },
+            "benign_cift": {
+                "extractor_model_id": "Qwen/Qwen3-test",
+                "extractor_revision": "main",
+                "extractor_selected_device": "cpu",
+                "feature_key": "query_tail_window_layer_21",
+                "extractor_tokenizer_fingerprint_sha256": "b" * 64,
+                "extractor_special_tokens_map_sha256": "c" * 64,
+                "extractor_chat_template_sha256": "d" * 64,
+                "feature_source": "self_hosted_activation_extractor",
+                "cift_window_family": "freeform_query_tail",
+                "positive_label": "exfiltration_intent",
+                "cift_action": "allow",
+                "final_action": "allow",
+                "provider_status": "completed",
+                **_freeform_query_tail_receipt_fields("extractor_"),
+            },
+            "exfiltration_intent_prevention": {
+                "extractor_model_id": "Qwen/Qwen3-test",
+                "extractor_revision": "main",
+                "extractor_selected_device": "cpu",
+                "feature_key": "query_tail_window_layer_21",
+                "extractor_tokenizer_fingerprint_sha256": "b" * 64,
+                "extractor_special_tokens_map_sha256": "c" * 64,
+                "extractor_chat_template_sha256": "d" * 64,
+                "feature_source": "self_hosted_activation_extractor",
+                "cift_window_family": "freeform_query_tail",
+                "positive_label": "exfiltration_intent",
+                "cift_action": "block",
+                "final_action": "block",
+                "provider_status": "skipped",
+                **_freeform_query_tail_receipt_fields("extractor_"),
+            },
+        },
+        "confusion_metrics": {
+            "false_negative_count": 0,
+            "false_positive_count": 0,
+        },
+    }
+
+
 def _source_report_content(report_id: str, schema_version: str) -> dict[str, object]:
     if report_id == "synthetic-calibration-report":
         return _workflow_calibration_report()
@@ -1030,8 +1245,15 @@ def _source_report_content(report_id: str, schema_version: str) -> dict[str, obj
         return {
             "report_id": report_id,
             "schema_version": schema_version,
+            "model_id": "Qwen/Qwen3-test",
             "revision": "main",
             "selected_device": "cpu",
+            "source_hidden_size": 4096,
+            "source_layer_count": 36,
+            "tokenizer_fingerprint_sha256": "b" * 64,
+            "special_tokens_map_sha256": "c" * 64,
+            "chat_template_sha256": "d" * 64,
+            "selected_choice_feature_key": "readout_window_layer_15",
             "benchmark_mode": "live_hidden_state_runner",
             "activation_failure_action": "block",
             "false_negative_count": 0,

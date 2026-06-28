@@ -1055,9 +1055,88 @@ class CiftCertificationWorkflowRunnerTest(unittest.TestCase):
         self.assertFalse(report.eligible)
         self.assertFalse(report.evidence_eligible)
         self.assertIn(
-            "runtime prevention rows must have selected-choice metadata proof",
+            "runtime prevention rows must have route-specific extraction metadata proof",
             report.artifacts[0].failed_requirements,
         )
+
+    def test_evidence_bound_accepts_freeform_final_token_runtime_route_proof(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            artifact_path = root / "evidence.json"
+            artifact_content = json.dumps(_freeform_final_token_runtime_report(), sort_keys=True) + "\n"
+            artifact_path.write_text(artifact_content, encoding="utf-8")
+            manifest_path = root / "workflow.json"
+            output_path = root / "run_report.json"
+            manifest = _artifact_manifest(
+                sha256=hashlib.sha256(artifact_content.encode("utf-8")).hexdigest(),
+                schema_version="aegis_introspection.cift_live_window_selector_benchmark/v1",
+                report_id="synthetic-final-token-runtime",
+                role="linear_live_runtime_prevention",
+            )
+            manifest["status"] = "evidence_bound"
+            training = manifest["training"]
+            assert isinstance(training, dict)
+            training["candidate_feature_key"] = "final_token_layer_12"
+            training["requested_device"] = "mps"
+            _write_json(manifest_path, manifest)
+
+            report = run_cift_certification_workflow(
+                CiftCertificationWorkflowRunnerConfig(
+                    repository_root=root,
+                    workflow_manifest_path=manifest_path,
+                    output_path=output_path,
+                    execute=False,
+                    allow_sealed_holdout_execution=False,
+                    overwrite_existing_outputs=False,
+                    template_values={},
+                    command_timeout_seconds=30.0,
+                )
+            )
+
+        self.assertTrue(report.evidence_eligible)
+        self.assertTrue(report.artifacts[0].eligible)
+        self.assertEqual((), report.artifacts[0].failed_requirements)
+
+    def test_evidence_bound_accepts_freeform_final_token_gateway_route_proof(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary_directory:
+            root = Path(temporary_directory)
+            artifact_path = root / "gateway-smoke.json"
+            artifact_content = json.dumps(_freeform_final_token_gateway_smoke_report(), sort_keys=True) + "\n"
+            artifact_path.write_text(artifact_content, encoding="utf-8")
+            manifest_path = root / "workflow.json"
+            output_path = root / "run_report.json"
+            manifest = _artifact_manifest(
+                sha256=hashlib.sha256(artifact_content.encode("utf-8")).hexdigest(),
+                schema_version="aegis.proxy.cift_gateway_smoke/v1",
+                report_id="synthetic-final-token-gateway-smoke",
+                role="linear_gateway_smoke",
+                path="gateway-smoke.json",
+            )
+            manifest["status"] = "evidence_bound"
+            manifest["model_identity"] = _model_identity_contract()
+            training = manifest["training"]
+            assert isinstance(training, dict)
+            training["candidate_feature_key"] = "final_token_layer_12"
+            training["requested_device"] = "mps"
+            training["selected_choice_readout_token_count"] = 4
+            _write_json(manifest_path, manifest)
+
+            report = run_cift_certification_workflow(
+                CiftCertificationWorkflowRunnerConfig(
+                    repository_root=root,
+                    workflow_manifest_path=manifest_path,
+                    output_path=output_path,
+                    execute=False,
+                    allow_sealed_holdout_execution=False,
+                    overwrite_existing_outputs=False,
+                    template_values={},
+                    command_timeout_seconds=30.0,
+                )
+            )
+
+        self.assertTrue(report.evidence_eligible)
+        self.assertTrue(report.artifacts[0].eligible)
+        self.assertEqual((), report.artifacts[0].failed_requirements)
 
     def test_evidence_bound_rejects_gateway_smoke_contract_mismatch(self) -> None:
         with tempfile.TemporaryDirectory() as temporary_directory:
@@ -1694,6 +1773,218 @@ def _gateway_smoke_decision(
         "predicted_label": predicted_label,
         "provider_reason": provider_reason,
         "provider_status": provider_status,
+    }
+
+
+def _model_identity_contract() -> dict[str, object]:
+    return {
+        "chat_template_sha256": "d" * 64,
+        "hidden_size": 2560,
+        "layer_count": 36,
+        "model_id": "Qwen/Qwen3-test",
+        "revision": _IMMUTABLE_MODEL_REVISION,
+        "special_tokens_map_sha256": "c" * 64,
+        "tokenizer_fingerprint_sha256": "b" * 64,
+    }
+
+
+def _freeform_final_token_runtime_report() -> dict[str, object]:
+    return {
+        "activation_failure_action": "block",
+        "benchmark_mode": "live_hidden_state_runner",
+        "false_negative_count": 0,
+        "false_negative_rate": 0.0,
+        "false_positive_count": 0,
+        "false_positive_rate": 0.0,
+        "report_id": "synthetic-final-token-runtime",
+        "revision": _IMMUTABLE_MODEL_REVISION,
+        "rows": [
+            _freeform_final_token_runtime_row(
+                expected_label="benign",
+                detector_action="allow",
+                policy_action="allow",
+                output_text_empty=False,
+                provider_generation_skipped=False,
+            ),
+            _freeform_final_token_runtime_row(
+                expected_label="secret_present_safe",
+                detector_action="allow",
+                policy_action="allow",
+                output_text_empty=False,
+                provider_generation_skipped=False,
+            ),
+            _freeform_final_token_runtime_row(
+                expected_label="exfiltration_intent",
+                detector_action="block",
+                policy_action="block",
+                output_text_empty=True,
+                provider_generation_skipped=True,
+            ),
+        ],
+        "schema_version": "aegis_introspection.cift_live_window_selector_benchmark/v1",
+        "selected_device": "mps",
+        "window_family_mismatch_count": 0,
+    }
+
+
+def _freeform_final_token_runtime_row(
+    expected_label: str,
+    detector_action: str,
+    policy_action: str,
+    output_text_empty: bool,
+    provider_generation_skipped: bool,
+) -> dict[str, object]:
+    return {
+        "capability_status": "active",
+        "detector_action": detector_action,
+        "expected_label": expected_label,
+        "expected_window_family": "freeform_final_token",
+        "model_forward_ms": 1.0,
+        "output_text_empty": output_text_empty,
+        "policy_action": policy_action,
+        "provider_generation_skipped": provider_generation_skipped,
+        "window_family": "freeform_final_token",
+        "window_selection_reason": "selected_choice_metadata_absent_freeform_route",
+        **_freeform_final_token_receipt_fields("extractor_"),
+    }
+
+
+def _freeform_final_token_gateway_smoke_report() -> dict[str, object]:
+    return {
+        "checks": {
+            "benign_cift": _freeform_final_token_gateway_decision(
+                final_action="allow",
+                predicted_label="secret_present_safe",
+                provider_reason=None,
+                provider_status="completed",
+            ),
+            "cift_capabilities": {
+                "capability_mode": "self_hosted_introspection",
+                "detectors": ["cift_runtime"],
+                "turn_annotator_count": 1,
+            },
+            "exfiltration_intent_prevention": _freeform_final_token_gateway_decision(
+                final_action="block",
+                predicted_label="exfiltration_intent",
+                provider_reason="pre_generation_policy_block",
+                provider_status="skipped",
+            ),
+            "gateway_readiness": {
+                "status": "ready",
+                "capability_mode": "self_hosted_introspection",
+                "certification_mode": "gateway_smoke_bootstrap",
+                "certification_id": None,
+                "runtime_model_sha256": "a" * 64,
+                "release_gate_report_sha256": None,
+                "model_bundle_id": "synthetic-runtime-cift",
+                "source_model_id": "Qwen/Qwen3-test",
+                "source_revision": _IMMUTABLE_MODEL_REVISION,
+                "source_selected_device": "mps",
+                "feature_key": "final_token_layer_12",
+                "feature_count": 2560,
+                "feature_vector_length": 2560,
+                "cift_window_family": "freeform_final_token",
+                "extractor_id": "trusted-activation-sidecar",
+                "extractor_feature_vector_sha256": "e" * 64,
+                "extractor_rendered_prompt_sha256": "f" * 64,
+                "extractor_hidden_state_device_observed": "mps:0",
+                "extractor_input_device_observed": "mps:0",
+            },
+            "sidecar_feature_extraction": {
+                "chat_template_sha256": "d" * 64,
+                "cift_window_family": "freeform_final_token",
+                "feature_count": 2560,
+                "feature_key": "final_token_layer_12",
+                "feature_vector_length": 2560,
+                "feature_vector_sha256": "e" * 64,
+                "hidden_size": 2560,
+                "hidden_state_device_observed": "mps:0",
+                "hidden_state_layer_count": 37,
+                "input_device_observed": "mps:0",
+                "layer_count": 36,
+                "model_id": "Qwen/Qwen3-test",
+                "prompt_renderer": "aegis.cift_prompt_renderer.trace_bridge/v1",
+                "revision": _IMMUTABLE_MODEL_REVISION,
+                "selected_device": "mps",
+                "special_tokens_map_sha256": "c" * 64,
+                "tokenizer_fingerprint_sha256": "b" * 64,
+                **_freeform_final_token_receipt_fields(""),
+            },
+        },
+        "confusion_metrics": {
+            "false_negative_count": 0,
+            "false_negative_rate": 0.0,
+            "false_positive_count": 0,
+            "false_positive_rate": 0.0,
+        },
+        "detector_name": "cift_runtime",
+        "expected": {
+            "cift_window_family": "freeform_final_token",
+            "extractor_id": "trusted-activation-sidecar",
+            "gateway_feature_source": "self_hosted_activation_extractor",
+            "selected_choice_readout_token_count": 4,
+            "sidecar_chat_template_sha256": "d" * 64,
+            "sidecar_device": "mps",
+            "sidecar_feature_key": "final_token_layer_12",
+            "sidecar_hidden_size": 2560,
+            "sidecar_layer_count": 36,
+            "sidecar_model_id": "Qwen/Qwen3-test",
+            "sidecar_revision": _IMMUTABLE_MODEL_REVISION,
+            "sidecar_special_tokens_map_sha256": "c" * 64,
+            "sidecar_tokenizer_fingerprint_sha256": "b" * 64,
+        },
+        "report_id": "synthetic-final-token-gateway-smoke",
+        "schema_version": "aegis.proxy.cift_gateway_smoke/v1",
+        "status": "ok",
+    }
+
+
+def _freeform_final_token_gateway_decision(
+    final_action: str,
+    predicted_label: str,
+    provider_reason: str | None,
+    provider_status: str,
+) -> dict[str, object]:
+    return {
+        "cift_action": final_action,
+        "cift_window_family": "freeform_final_token",
+        "cift_window_selection_reason": "selected_choice_metadata_absent_freeform_route",
+        "extractor_chat_template_sha256": "d" * 64,
+        "extractor_hidden_size": 2560,
+        "extractor_id": "trusted-activation-sidecar",
+        "extractor_layer_count": 36,
+        "extractor_model_id": "Qwen/Qwen3-test",
+        "extractor_revision": _IMMUTABLE_MODEL_REVISION,
+        "extractor_selected_device": "mps",
+        "extractor_special_tokens_map_sha256": "c" * 64,
+        "extractor_tokenizer_fingerprint_sha256": "b" * 64,
+        "feature_key": "final_token_layer_12",
+        "feature_source": "self_hosted_activation_extractor",
+        "final_action": final_action,
+        "predicted_label": predicted_label,
+        "provider_reason": provider_reason,
+        "provider_status": provider_status,
+        **_freeform_final_token_receipt_fields("extractor_"),
+    }
+
+
+def _freeform_final_token_receipt_fields(prefix: str) -> dict[str, object]:
+    return {
+        f"{prefix}extraction_receipt_schema_version": CIFT_EXTRACTION_RECEIPT_SCHEMA_VERSION,
+        f"{prefix}feature_vector_length": 2560,
+        f"{prefix}feature_vector_sha256": "e" * 64,
+        f"{prefix}hidden_state_device_observed": "mps:0",
+        f"{prefix}hidden_state_layer_count": 37,
+        f"{prefix}input_device_observed": "mps:0",
+        f"{prefix}readout_source": {
+            "readout_token_count": 1,
+            "readout_window": "final_token",
+            "source": "sidecar_freeform",
+        },
+        f"{prefix}readout_token_indices": [8],
+        f"{prefix}readout_token_indices_sha256": _json_sha256([8]),
+        f"{prefix}readout_window_source": "final_token",
+        f"{prefix}rendered_prompt_sha256": "f" * 64,
     }
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import unittest
 
 try:
@@ -76,16 +78,59 @@ class CiftLiveExtractorTest(unittest.TestCase):
             runner=runner,
             feature_key="query_tail_window_layer_01",
         )
-
-        vector = extractor.extract_feature_vector(
-            turn=_turn(
-                messages=(Message(role="user", content="rendered prompt"),),
-                metadata={"cift": {"query_tail_readout_token_indices": [0, 2]}},
-            ),
-            feature_key="query_tail_window_layer_01",
+        turn = _turn(
+            messages=(Message(role="user", content="rendered prompt"),),
+            metadata={
+                "cift": {
+                    "query_tail_readout_token_indices": [0, 2],
+                    "readout_token_indices": [0, 2],
+                }
+            },
         )
 
-        self.assertEqual((15.5, 25.0), vector)
+        extraction = extractor.extract_feature_extraction(turn=turn, feature_key="query_tail_window_layer_01")
+
+        self.assertEqual((15.5, 25.0), extraction.feature_vector)
+        self.assertEqual([0, 2], extraction.provenance["readout_token_indices"])
+        self.assertEqual(_json_sha256([0, 2]), extraction.provenance["readout_token_indices_sha256"])
+        self.assertEqual([0, 2], extraction.provenance["query_tail_readout_token_indices"])
+        self.assertEqual(_json_sha256([0, 2]), extraction.provenance["query_tail_readout_token_indices_sha256"])
+        self.assertEqual("query_tail", extraction.provenance["readout_window_source"])
+        self.assertEqual(
+            {"source": "live_cift_extractor", "readout_window": "query_tail", "readout_token_count": 2},
+            extraction.provenance["readout_source"],
+        )
+        self.assertEqual(("rendered prompt",), tuple(runner.prompts))
+
+    def test_live_extractor_stamps_final_token_readout_provenance(self) -> None:
+        runner = RecordingRunner(
+            forward_pass=_forward_pass(
+                prompt="rendered prompt",
+                hidden_states=(
+                    _hidden_state(((0.0, 0.0), (0.0, 0.0), (0.0, 0.0))),
+                    _hidden_state(((1.0, 10.0), (10.0, 20.0), (30.0, 40.0))),
+                ),
+            )
+        )
+        extractor = LiveCiftFeatureExtractor(
+            runner=runner,
+            feature_key="final_token_layer_01",
+        )
+        turn = _turn(
+            messages=(Message(role="user", content="rendered prompt"),),
+            metadata=_cift_metadata((0, 1)),
+        )
+
+        extraction = extractor.extract_feature_extraction(turn=turn, feature_key="final_token_layer_01")
+
+        self.assertEqual((30.0, 40.0), extraction.feature_vector)
+        self.assertEqual([2], extraction.provenance["readout_token_indices"])
+        self.assertEqual(_json_sha256([2]), extraction.provenance["readout_token_indices_sha256"])
+        self.assertEqual("final_token", extraction.provenance["readout_window_source"])
+        self.assertEqual(
+            {"source": "live_cift_extractor", "readout_window": "final_token", "readout_token_count": 1},
+            extraction.provenance["readout_source"],
+        )
         self.assertEqual(("rendered prompt",), tuple(runner.prompts))
 
     def test_live_extractor_rejects_multi_message_prompt_shape(self) -> None:
@@ -190,6 +235,11 @@ def _forward_pass(prompt: str, hidden_states: tuple[torch.Tensor, ...]) -> Hidde
 
 def _hidden_state(values: tuple[tuple[float, float], ...]) -> torch.Tensor:
     return torch.tensor((values,), dtype=torch.float32)
+
+
+def _json_sha256(value: object) -> str:
+    encoded = json.dumps(value, allow_nan=False, separators=(",", ":"), sort_keys=True).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
 
 
 if __name__ == "__main__":

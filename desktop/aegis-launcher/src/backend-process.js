@@ -11,6 +11,7 @@ const DEFAULT_PORT = 8790;
 const DEFAULT_STARTUP_TIMEOUT_MS = 45000;
 const DEFAULT_REQUEST_TIMEOUT_MS = 8000;
 const PROBE_PORT_COUNT = 20;
+const LAUNCHER_CAPABILITIES_SCHEMA_VERSION = "aegis.launcher_capabilities/v1";
 
 class BackendHttpError extends Error {
   constructor(message, statusCode, payload) {
@@ -219,6 +220,20 @@ async function probeLauncher(options) {
       return { status: "occupied" };
     }
     if (path.resolve(String(payload.repo_root || "")) !== path.resolve(options.repoRoot)) {
+      return { status: "occupied" };
+    }
+    const capabilities = await requestJson({
+      baseUrl: options.baseUrl,
+      method: "GET",
+      apiPath: "/api/launcher/capabilities",
+      body: null,
+      timeoutMs: 1000,
+    });
+    if (capabilities.schema_version !== LAUNCHER_CAPABILITIES_SCHEMA_VERSION) {
+      return { status: "occupied" };
+    }
+    const features = capabilities.features;
+    if (features === null || typeof features !== "object" || features.observability !== true) {
       return { status: "occupied" };
     }
     return { status: "launcher" };

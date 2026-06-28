@@ -1,0 +1,98 @@
+{
+  "ablation_delta": 0.0,
+  "ablation_delta_threshold": 0.0,
+  "ablation_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_feature_ablation_v1",
+  "behavior_description": "Detect freeform local-agent exfiltration intent before provider generation while allowing benign and safe credential workflows.",
+  "behavior_id": "freeform_exfiltration_intent_prevention",
+  "calibration_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_calibration_v1",
+  "calibration_split_id": "watchman-v13-freeform-qwen3-4b/grouped-cv",
+  "created_at": "2026-06-27T00:00:00Z",
+  "evidence_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_promotion_evidence_v1",
+  "failure_case_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_failure_cases_v1",
+  "gateway_smoke_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_gateway_smoke_v1",
+  "heldout_split_id": "watchman-v13-freeform-qwen3-4b/heldout",
+  "lineage_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_lineage_v1",
+  "metric_name": "sealed_holdout_macro_f1",
+  "metric_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_sealed_holdout_metric_v1",
+  "metric_threshold": 0.9,
+  "metric_value": 1.0,
+  "paper_method": {
+    "candidate_probe_metric_value": 1.0,
+    "covariance_estimator": "not_applicable",
+    "feature_representation": "raw_activation",
+    "head_to_head_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_vs_paper_mlp_live_sealed_v1",
+    "layer_weighting": "not_applicable",
+    "monitored_layer_policy": "last_quarter_transformer_layers",
+    "paper_faithfulness_exception": "raw_activation live sealed head-to-head evidence for readout 'raw_activation' shows the candidate probe strictly outperforms the paper MLP",
+    "paper_probe_metric_value": 0.4,
+    "pre_output": true,
+    "probe_architecture": "linear_logistic_regression",
+    "readout_position_contract": "post_secret_post_query_causal_readout",
+    "ridge": 0.0,
+    "training_loss": "regularized_logistic_loss",
+    "uses_static_secret_token_positions": false
+  },
+  "patching_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_causal_patching_v1",
+  "report_artifacts": [
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_linear_sealed_holdout_metric_v1.json",
+      "report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_sealed_holdout_metric_v1",
+      "schema_version": "aegis_introspection.cift_sealed_holdout_metric/v1",
+      "sha256": "80655f98cd68ff9389a804d0af740b8f6bc596cf4b9ab3171764c7dc8f00ebd7"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_calibration_v1.json",
+      "report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_calibration_v1",
+      "schema_version": "aegis_introspection.cift_calibration/v1",
+      "sha256": "07753f1ad3bbd51fd8d866a4d7a5e1a2609ee8dc3c957bf8a8abe3822878e4ce"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_feature_ablation_v1.json",
+      "report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_feature_ablation_v1",
+      "schema_version": "aegis_introspection.cift_feature_ablation/v1",
+      "sha256": "3714d1c496fb58dbe838889f379d0d8969d47ea6f345b91a78d473baac5e9ae1"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_causal_patching_v1.json",
+      "report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_causal_patching_v1",
+      "schema_version": "aegis_introspection.cift_counterfactual_patching/v1",
+      "sha256": "7b149795aa763ab10cb785e01d85a2899afa8a5b63565794aea0f6ee7871fb3a"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_failure_cases_v1.json",
+      "report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_failure_cases_v1",
+      "schema_version": "aegis_introspection.cift_failure_cases/v1",
+      "sha256": "03995e2d33812b578600bc6bde79942ab4611ebfff43985759f179569ca944b9"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_linear_runtime_prevention_v1.json",
+      "report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_runtime_prevention_v1",
+      "schema_version": "aegis_introspection.cift_live_window_selector_benchmark/v1",
+      "sha256": "d5da2e3119bae18754b4e808c0bcfb1b07006ea1d359453f7236c40c21cd11cb"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_gateway_smoke_v1.json",
+      "report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_gateway_smoke_v1",
+      "schema_version": "aegis.proxy.cift_gateway_smoke/v1",
+      "sha256": "74148948703dd79639dc987c0a68485a08525d4f0f6aa04cd4689fa3e41f7a79"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_lineage_v1.json",
+      "report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_lineage_v1",
+      "schema_version": "aegis_introspection.cift_lineage/v1",
+      "sha256": "7ea4117d9fb9f1eaf1878a30fbb1409de578139502cabe9f8875104a72073d5f"
+    },
+    {
+      "path": "introspection/data/certifications/qwen3_4b_watchman_v13_freeform_final_token_l12/reports/qwen3_4b_watchman_v13_freeform_final_token_l12_linear_vs_paper_mlp_live_sealed_v1.json",
+      "report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_vs_paper_mlp_live_sealed_v1",
+      "schema_version": "aegis_introspection.cift_live_probe_competition/v1",
+      "sha256": "a72a878390a50c2a547ba5078e18d0cf8e0f326aa1e45cf48ea577c6952dd498"
+    }
+  ],
+  "runtime_prevention_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_runtime_prevention_v1",
+  "schema_version": "cift_promotion_evidence/v1",
+  "sealed_holdout_report_id": "qwen3_4b_watchman_v13_freeform_final_token_l12_linear_sealed_holdout_metric_v1",
+  "sealed_holdout_split_id": "watchman-v13-freeform-qwen3-4b/sealed-holdout",
+  "train_split_id": "watchman-v13-freeform-qwen3-4b/train",
+  "training_dataset_id": "watchman-v13-freeform-qwen3-4b"
+}

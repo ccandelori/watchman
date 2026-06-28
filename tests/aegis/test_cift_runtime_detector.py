@@ -274,16 +274,20 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
         self.assertEqual("selected_choice_metadata_required_for_primary_cift", result.evidence["degradation_reason"])
         self.assertEqual("fallback-bundle", result.evidence["model_bundle_id"])
 
-    def test_fail_closed_window_selector_blocks_when_selected_choice_metadata_is_absent(self) -> None:
+    def test_fail_closed_window_selector_uses_freeform_model_when_selected_choice_metadata_is_absent(self) -> None:
         selected_model = _selector_model(
             feature_key="selected_choice_window_layer_15",
             model_bundle_id="selected-choice-bundle",
             logistic_coefficients=(-1.0, -1.0),
         )
-        fallback_model = _selector_model(
-            feature_key="readout_window_layer_15",
-            model_bundle_id="fallback-bundle",
-            logistic_coefficients=(-1.0, -1.0),
+        fallback_model = replace(
+            _selector_model(
+                feature_key="query_tail_window_layer_21",
+                model_bundle_id="freeform-bundle",
+                logistic_coefficients=(-1.0, -1.0),
+            ),
+            candidate_status="runtime_candidate",
+            positive_action=Action.BLOCK,
         )
         detector = CiftRuntimeWindowSelector(
             detector_name="cift_runtime",
@@ -298,7 +302,46 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
                     "readout_token_indices": [3, 4],
                     "feature_vectors": {
                         "selected_choice_window_layer_15": [0.0, 0.0],
-                        "readout_window_layer_15": [0.0, 0.0],
+                        "query_tail_window_layer_21": [2.0, 2.0],
+                    },
+                }
+            },
+        )
+
+        result = detector.evaluate(turn, None)
+
+        self.assertEqual(CapabilityStatus.ACTIVE, result.capability_status)
+        self.assertEqual(Action.ALLOW, result.recommended_action)
+        self.assertEqual(
+            "selected_choice_metadata_absent_freeform_route",
+            result.evidence["cift_window_selection_reason"],
+        )
+        self.assertEqual("freeform_query_tail", result.evidence["cift_window_family"])
+        self.assertEqual("certified_freeform", result.evidence["cift_window_coverage"])
+        self.assertEqual("freeform-bundle", result.evidence["model_bundle_id"])
+        self.assertEqual("freeform-bundle", result.evidence["freeform_model_bundle_id"])
+
+    def test_fail_closed_window_selector_blocks_when_selected_choice_metadata_is_absent_without_freeform_model(
+        self,
+    ) -> None:
+        selected_model = _selector_model(
+            feature_key="selected_choice_window_layer_15",
+            model_bundle_id="selected-choice-bundle",
+            logistic_coefficients=(-1.0, -1.0),
+        )
+        detector = CiftRuntimeWindowSelector(
+            detector_name="cift_runtime",
+            selected_choice_model=selected_model,
+            fallback_model=None,
+            activation_failure_action=Action.BLOCK,
+        )
+        turn = _turn(
+            capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+            metadata={
+                "cift": {
+                    "readout_token_indices": [3, 4],
+                    "feature_vectors": {
+                        "selected_choice_window_layer_15": [0.0, 0.0],
                     },
                 }
             },
@@ -638,6 +681,7 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
                     selected_choice_model_path=selected_model_path,
                     selected_choice_model_sha256=_sha256_file(selected_model_path),
                     fallback_model_path=fallback_model_path,
+                    fallback_model_sha256=_sha256_file(fallback_model_path),
                     feature_extractor=extractor,
                     feature_source="test_feature_map",
                     activation_failure_action=Action.BLOCK,
@@ -711,6 +755,7 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
                         selected_choice_model_path=selected_model_path,
                         selected_choice_model_sha256=_sha256_file(selected_model_path),
                         fallback_model_path=fallback_model_path,
+                        fallback_model_sha256=_sha256_file(fallback_model_path),
                         feature_extractor=extractor,
                         feature_source="test_feature_map",
                         activation_failure_action=Action.BLOCK,
@@ -748,6 +793,7 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
                     selected_choice_model_path=selected_model_path,
                     selected_choice_model_sha256=_sha256_file(selected_model_path),
                     fallback_model_path=fallback_model_path,
+                    fallback_model_sha256=_sha256_file(fallback_model_path),
                     feature_extractor=extractor,
                     feature_source="test_feature_map",
                     activation_failure_action=Action.BLOCK,
@@ -760,7 +806,7 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
                 session_detectors=(),
                 policy_engine=SeverityPolicyEngine(),
                 audit_sink=InMemoryAuditSink(),
-                model_provider=MockModelProvider(default_content="unsafe provider output"),
+                model_provider=MockModelProvider(default_content="ok"),
             )
 
             response = runtime.evaluate_turn(
@@ -779,11 +825,11 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
             response.detector_results[0].evidence["fail_closed_reason"],
         )
 
-    def test_window_selector_components_fail_closed_when_selected_choice_metadata_is_absent(self) -> None:
+    def test_window_selector_components_use_freeform_route_when_selected_choice_metadata_is_absent(self) -> None:
         extractor = FeatureMapExtractor(
             feature_vectors={
                 ("trace-cift-runtime", "selected_choice_window_layer_15"): (0.0, 0.0),
-                ("trace-cift-runtime", "readout_window_layer_15"): (0.0, 0.0),
+                ("trace-cift-runtime", "query_tail_window_layer_21"): (2.0, 2.0),
             }
         )
         selected_model = _selector_model(
@@ -792,8 +838,8 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
             logistic_coefficients=(-1.0, -1.0),
         )
         fallback_model = _selector_model(
-            feature_key="readout_window_layer_15",
-            model_bundle_id="fallback-bundle",
+            feature_key="query_tail_window_layer_21",
+            model_bundle_id="freeform-bundle",
             logistic_coefficients=(-1.0, -1.0),
         )
 
@@ -815,6 +861,73 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
                     selected_choice_model_path=selected_model_path,
                     selected_choice_model_sha256=_sha256_file(selected_model_path),
                     fallback_model_path=fallback_model_path,
+                    fallback_model_sha256=_sha256_file(fallback_model_path),
+                    feature_extractor=extractor,
+                    feature_source="test_feature_map",
+                    activation_failure_action=Action.BLOCK,
+                )
+            )
+            runtime = AegisRuntime(
+                turn_annotators=components.turn_annotators,
+                pre_generation_detectors=components.pre_generation_detectors,
+                post_generation_detectors=(),
+                session_detectors=(),
+                policy_engine=SeverityPolicyEngine(),
+                audit_sink=InMemoryAuditSink(),
+                model_provider=MockModelProvider(default_content="ok"),
+            )
+
+            response = runtime.evaluate_turn(
+                _request_with_metadata(
+                    capability_mode=CapabilityMode.SELF_HOSTED_INTROSPECTION,
+                    metadata={"cift": {"readout_token_indices": [3, 4]}},
+                )
+            )
+
+        self.assertEqual(Action.ALLOW, response.policy_decision.final_action)
+        self.assertEqual("ok", response.output_text)
+        self.assertEqual(
+            [
+                ("trace-cift-runtime", "selected_choice_window_layer_15"),
+                ("trace-cift-runtime", "query_tail_window_layer_21"),
+            ],
+            extractor.calls,
+        )
+        self.assertEqual(CapabilityStatus.ACTIVE, response.detector_results[0].capability_status)
+        self.assertEqual(Action.ALLOW, response.detector_results[0].recommended_action)
+        self.assertEqual("freeform_query_tail", response.detector_results[0].evidence["cift_window_family"])
+        self.assertEqual(
+            "selected_choice_metadata_absent_freeform_route",
+            response.detector_results[0].evidence["cift_window_selection_reason"],
+        )
+        self.assertEqual("certified_freeform", response.detector_results[0].evidence["cift_window_coverage"])
+
+    def test_window_selector_components_fail_closed_when_freeform_route_is_not_configured(self) -> None:
+        extractor = FeatureMapExtractor(
+            feature_vectors={
+                ("trace-cift-runtime", "selected_choice_window_layer_15"): (0.0, 0.0),
+            }
+        )
+        selected_model = _selector_model(
+            feature_key="selected_choice_window_layer_15",
+            model_bundle_id="selected-choice-bundle",
+            logistic_coefficients=(-1.0, -1.0),
+        )
+
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            selected_model_path = root / "selected.json"
+            selected_model_path.write_text(
+                json.dumps(_runtime_candidate_selector_record(selected_model)),
+                encoding="utf-8",
+            )
+            components = build_cift_window_selector_runtime_components(
+                CiftRuntimeWindowSelectorConfig(
+                    detector_name="cift_runtime",
+                    selected_choice_model_path=selected_model_path,
+                    selected_choice_model_sha256=_sha256_file(selected_model_path),
+                    fallback_model_path=None,
+                    fallback_model_sha256=None,
                     feature_extractor=extractor,
                     feature_source="test_feature_map",
                     activation_failure_action=Action.BLOCK,
@@ -839,23 +952,13 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
 
         self.assertEqual(Action.BLOCK, response.policy_decision.final_action)
         self.assertEqual("", response.output_text)
-        self.assertEqual(
-            [
-                ("trace-cift-runtime", "selected_choice_window_layer_15"),
-                ("trace-cift-runtime", "readout_window_layer_15"),
-            ],
-            extractor.calls,
-        )
+        self.assertEqual([("trace-cift-runtime", "selected_choice_window_layer_15")], extractor.calls)
         self.assertEqual(CapabilityStatus.DEGRADED, response.detector_results[0].capability_status)
         self.assertEqual(Action.BLOCK, response.detector_results[0].recommended_action)
         self.assertEqual("selected_choice_metadata_absent", response.detector_results[0].evidence["reason"])
         self.assertEqual(
             "runtime_candidate_missing_feature_fail_closed",
             response.detector_results[0].evidence["fail_closed_reason"],
-        )
-        self.assertEqual(
-            "selected_choice_metadata_absent",
-            response.detector_results[0].evidence["cift_window_selection_reason"],
         )
 
     def test_window_selector_component_builder_rejects_missing_artifact_path(self) -> None:
@@ -884,6 +987,7 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
                         selected_choice_model_path=selected_model_path,
                         selected_choice_model_sha256=_sha256_file(selected_model_path),
                         fallback_model_path=fallback_model_path,
+                        fallback_model_sha256=None,
                         feature_extractor=extractor,
                         feature_source="test_feature_map",
                         activation_failure_action=Action.BLOCK,
@@ -915,6 +1019,7 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
                         selected_choice_model_path=selected_model_path,
                         selected_choice_model_sha256="f" * 64,
                         fallback_model_path=None,
+                        fallback_model_sha256=None,
                         feature_extractor=extractor,
                         feature_source="test_feature_map",
                         activation_failure_action=Action.BLOCK,
@@ -1066,6 +1171,14 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
                 "feature_vector_length": 2,
                 "feature_vector_sha256": "e" * 64,
                 "rendered_prompt_sha256": "f" * 64,
+                "readout_token_indices": [4, 5, 6, 7],
+                "query_tail_readout_token_indices": [4, 5, 6, 7],
+                "readout_window_source": "query_tail",
+                "readout_source": {
+                    "source": "trusted-activation-sidecar",
+                    "readout_window": "query_tail",
+                    "token_count": 4,
+                },
                 "selected_choice_readout_token_indices": [7, 8, 9, 10],
                 "selected_choice_readout_token_indices_sha256": "a" * 64,
                 "hidden_state_layer_count": 37,
@@ -1119,6 +1232,13 @@ class CiftRuntimeDetectorTest(unittest.TestCase):
         self.assertEqual(2, result.evidence["extractor_feature_vector_length"])
         self.assertEqual("e" * 64, result.evidence["extractor_feature_vector_sha256"])
         self.assertEqual("f" * 64, result.evidence["extractor_rendered_prompt_sha256"])
+        self.assertEqual([4, 5, 6, 7], result.evidence["extractor_readout_token_indices"])
+        self.assertEqual([4, 5, 6, 7], result.evidence["extractor_query_tail_readout_token_indices"])
+        self.assertEqual("query_tail", result.evidence["extractor_readout_window_source"])
+        self.assertEqual(
+            {"source": "trusted-activation-sidecar", "readout_window": "query_tail", "token_count": 4},
+            result.evidence["extractor_readout_source"],
+        )
         self.assertEqual([7, 8, 9, 10], result.evidence["extractor_selected_choice_readout_token_indices"])
         self.assertEqual("a" * 64, result.evidence["extractor_selected_choice_readout_token_indices_sha256"])
         self.assertEqual(37, result.evidence["extractor_hidden_state_layer_count"])
